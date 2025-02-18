@@ -10,7 +10,6 @@ export const load: PageServerLoad = async (event) => {
 	}
 
     try {
-
         const userData = await userApi.getCurrentUser(event)
 		const timestamp = new Date().getTime()
 		const schedule = await userApi.getSchedule(event, Math.floor(timestamp / 1000))
