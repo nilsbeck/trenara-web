@@ -6,7 +6,7 @@ import { setSessionTokenCookie, TokenType } from '$lib/server/auth'
 
 export const load: PageServerLoad = async (event) => {
 	if (event.locals.user) {
-		return redirect(302, '/');
+		return redirect(302, '/main');
 	}
 	return;
 };
@@ -40,7 +40,7 @@ export const actions: Actions = {
 			if (apiError.status === 401) {
 			  console.error('Invalid credentials');
 			} else {
-			  console.error('Login failed:', apiError.message);
+			  console.error('Login failed:', apiError.status);
 			  // If there are field-specific errors, they'll be in apiError.errors
 			  if (apiError.errors) {
 				console.error('Validation errors:', apiError.errors);
@@ -48,7 +48,7 @@ export const actions: Actions = {
 			}
 		  }
 
-		return redirect(302, '/');
+		return redirect(302, '/main');
 	},
 };
 
