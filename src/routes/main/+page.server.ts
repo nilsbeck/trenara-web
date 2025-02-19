@@ -20,7 +20,6 @@ export const load: PageServerLoad = async (event) => {
 
 export const actions: Actions = {
 	logout: async (event) => {
-		console.log(event.locals.user);
 		if (!event.locals.user) {
 			return fail(401);
 		}
