@@ -9,8 +9,8 @@
 
 <div class="flex min-h-full flex-col justify-center px-6 py-12 lg:px-8">
 	<div class="sm:mx-auto sm:w-full sm:max-w-sm">
-		<img class="mx-auto h-10 w-auto" src="./src/assets/trenara-logo.png" alt="Trenara" style="width: 250px; height: 250px;">
-		<h2 class="mt-10 text-center text-2xl/9 font-bold tracking-tight text-gray-900">Sign in to your account</h2>
+		<img class="mx-auto h-10 w-auto" src="./src/assets/trenara-logo.png" alt="Trenara" style="width: 150px; height: 150px;">
+		<h2 class="mt-10 text-center text-2xl/9 font-bold tracking-tight">Sign in to your account</h2>
 	</div>
 	
 	<div class="mt-10 sm:mx-auto sm:w-full sm:max-w-sm">
@@ -22,7 +22,7 @@
 			};
 		}}>
 		<div>
-			<label for="username" class="block text-sm/6 font-medium text-gray-900">Username</label>
+			<label for="username" class="block text-sm/6 font-medium">Username</label>
 			<div class="mt-2">
 			<input type="email" name="username" id="username" autocomplete="username" required class="block w-full rounded-md bg-white px-3 py-1.5 text-base text-gray-900 outline-1 -outline-offset-1 outline-gray-300 placeholder:text-gray-400 focus:outline-2 focus:-outline-offset-2 focus:outline-indigo-600 sm:text-sm/6">
 			</div>
@@ -30,7 +30,7 @@
 	
 		<div>
 			<div class="flex items-center justify-between">
-			<label for="password" class="block text-sm/6 font-medium text-gray-900">Password</label>
+			<label for="password" class="block text-sm/6 font-medium">Password</label>
 			<!-- <div class="text-sm">
 				<a href="#" class="font-semibold text-indigo-600 hover:text-indigo-500">Forgot password?</a>
 			</div> -->

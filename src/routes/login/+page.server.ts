@@ -2,10 +2,10 @@ import { authApi } from '$lib/server/api';
 import type { AuthResponse, ApiError, LoginRequest } from '$lib/server/api/types';
 import { fail, redirect } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
-import { setSessionTokenCookie, TokenType } from '$lib/server/auth'
+import { getSessionTokenCookie, setSessionTokenCookie, TokenType } from '$lib/server/auth'
 
 export const load: PageServerLoad = async (event) => {
-	if (event.locals.user) {
+	if (getSessionTokenCookie(event.cookies, TokenType.AccessToken)) {
 		return redirect(302, '/main');
 	}
 	return;
@@ -13,8 +13,8 @@ export const load: PageServerLoad = async (event) => {
 
 
 export const actions: Actions = {
-	login: async (event) => {
-		const formData = await event.request.formData();
+	login: async ({ cookies, request }) => {
+		const formData = await request.formData();
 		const username = decodeURIComponent(formData.get('username')!.toString());
 		const password = decodeURIComponent(formData.get('password')!.toString());
 
@@ -32,8 +32,8 @@ export const actions: Actions = {
 
 			const currentDate = new Date();
 			const expirationDate = new Date(currentDate.getTime() + response.expires_in);
-			setSessionTokenCookie(event, response.access_token, TokenType.AccessToken, expirationDate)
-			setSessionTokenCookie(event, response.refresh_token, TokenType.RefreshToken, expirationDate)
+			setSessionTokenCookie(cookies, response.access_token, TokenType.AccessToken, expirationDate)
+			setSessionTokenCookie(cookies, response.refresh_token, TokenType.RefreshToken, expirationDate)
 		} catch (error) {
 			// Handle API errors
 			const apiError = error as ApiError;

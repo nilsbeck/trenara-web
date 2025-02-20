@@ -1,31 +1,40 @@
 import type { Device } from './types';
 import { apiClient } from './config';
-import { getSessionTokenCookie } from '../auth';
-import type { RequestEvent } from '@sveltejs/kit';
-import { TokenType } from '../auth';
+import type { Cookies } from '@sveltejs/kit';
+import { getSessionTokenCookie, TokenType } from '../auth';
 
 export const devicesApi = {
-async registerDevice(event: RequestEvent, type: 'ios' | 'android' | 'web', token: string): Promise<Device> {
+async registerDevice(cookies: Cookies, type: 'ios' | 'android' | 'web', token: string): Promise<Device> {
     const response = await apiClient.getAxios().post<Device>('/api/devices', { type, token });
     return response.data;
 },
 
-async getDevices(event: RequestEvent): Promise<Device[]> {
+async getDevices(cookies: Cookies): Promise<Device[]> {
     const response = await apiClient.getAxios().get<Device[]>('/api/devices', {
         headers: {
-            'Authorization': `Bearer ${getSessionTokenCookie(event, TokenType.AccessToken)}`,
+            'Authorization': `Bearer ${getSessionTokenCookie(cookies, TokenType.AccessToken)}`,
             'X-API-Version': '1'
         }
     });
     return response.data;
 },
 
-async removeDevice(event: RequestEvent, deviceId: number): Promise<void> {
-    await apiClient.getAxios().delete(`/api/devices/${deviceId}`);
+async removeDevice(cookies: Cookies, deviceId: number): Promise<void> {
+    await apiClient.getAxios().delete(`/api/devices/${deviceId}`, {
+        headers: {
+            'Authorization': `Bearer ${getSessionTokenCookie(cookies, TokenType.AccessToken)}`,
+            'X-API-Version': '1'
+        }
+    });
 },
 
-async updateDevice(event: RequestEvent, deviceId: number, data: Partial<Device>): Promise<Device> {
-    const response = await apiClient.getAxios().put<Device>(`/api/devices/${deviceId}`, data);
+async updateDevice(cookies: Cookies, deviceId: number, data: Partial<Device>): Promise<Device> {
+    const response = await apiClient.getAxios().put<Device>(`/api/devices/${deviceId}`, data, {
+        headers: {
+            'Authorization': `Bearer ${getSessionTokenCookie(cookies, TokenType.AccessToken)}`,
+            'X-API-Version': '1'
+        }
+    });
     return response.data;
 }
 };

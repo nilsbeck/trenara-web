@@ -1,12 +1,11 @@
-import type { RequestEvent } from '@sveltejs/kit';
-
+import type { Cookies } from '@sveltejs/kit';
 export enum TokenType {
 	AccessToken = "access-token", 
 	RefreshToken = "refresh-token"
 }
 
-export function setSessionTokenCookie(event: RequestEvent, token: string, tokenType: TokenType, expiresAt: Date) {
-	event.cookies.set(tokenType.toString(), token, {
+export function setSessionTokenCookie(cookies: Cookies, token: string, tokenType: TokenType, expiresAt: Date) {
+	cookies.set(tokenType.toString(), token, {
 		expires: expiresAt,
 		path: '/',
 		httpOnly: true,
@@ -15,12 +14,12 @@ export function setSessionTokenCookie(event: RequestEvent, token: string, tokenT
 	});
 }
 
-export function getSessionTokenCookie(event: RequestEvent, tokenType: TokenType) {
-	return event.cookies.get(tokenType.toString());
+export function getSessionTokenCookie(cookies: Cookies, tokenType: TokenType) {
+	return cookies.get(tokenType.toString());
 }
 
-export function deleteSessionTokenCookie(event: RequestEvent, tokenType: TokenType) {
-	event.cookies.delete(tokenType.toString(), {
+export function deleteSessionTokenCookie(cookies: Cookies, tokenType: TokenType) {
+	cookies.delete(tokenType.toString(), {
 		path: '/',
 		httpOnly: true,
 		secure: true,

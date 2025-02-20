@@ -1,31 +1,18 @@
-import * as auth from '$lib/server/auth';
 import { userApi } from '$lib/server/api';
-import { fail, redirect } from '@sveltejs/kit';
-import type { Actions, PageServerLoad } from './$types';
-
-const BASE_URL = 'https://backend-prod.trenara.com';
+import { redirect } from '@sveltejs/kit';
+import { getSessionTokenCookie, TokenType } from '$lib/server/auth';
+import type { PageServerLoad } from './$types';
 
 export const load: PageServerLoad = async (event) => {
-	if (!event.locals.user) {
+	if (!getSessionTokenCookie(event.cookies, TokenType.AccessToken)) {
 		return redirect(302, '/login');
 	}
 
 	const timestamp = new Date().getTime();
 	return {
-		user: event.locals.user,
-		userData: userApi.getCurrentUser(event),
-		schedule: userApi.getSchedule(event, Math.floor(timestamp / 1000))
+		user: event.cookies.get('user'),
+		// userData: userApi.getCurrentUser(event.cookies),
+		schedule: userApi.getSchedule(event.cookies, Math.floor(timestamp / 1000))
 	};
 };
 
-export const actions: Actions = {
-	logout: async (event) => {
-		if (!event.locals.user) {
-			return fail(401);
-		}
-		auth.deleteSessionTokenCookie(event, auth.TokenType.AccessToken);
-		auth.deleteSessionTokenCookie(event, auth.TokenType.RefreshToken);
-
-		return redirect(302, '/login');
-	}
-};

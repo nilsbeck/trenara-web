@@ -1,29 +1,47 @@
 import type { Entry } from './types';
 import { apiClient } from './config';
-import type { RequestEvent } from '@sveltejs/kit';
+import type { Cookies } from '@sveltejs/kit';
+import { getSessionTokenCookie, TokenType } from '../auth';
+
 export const entriesApi = {
-async getEntries(event: RequestEvent, params?: { page?: number; per_page?: number }): Promise<Entry[]> {
+async getEntries(cookies: Cookies, params?: { page?: number; per_page?: number }): Promise<Entry[]> {
     const response = await apiClient.getAxios().get<Entry[]>('/api/entries', { params });
     return response.data;
 },
 
-async getEntry(event: RequestEvent, id: number): Promise<Entry> {
-    const response = await apiClient.getAxios().get<Entry>(`/api/entries/${id}`);
+async getEntry(cookies: Cookies, id: number): Promise<Entry> {
+    const response = await apiClient.getAxios().get<Entry>(`/api/entries/${id}`, {
+        headers: {
+            'Authorization': `Bearer ${getSessionTokenCookie(cookies, TokenType.AccessToken)}`
+        }
+    });
     return response.data;
 },
 
-async createEntry(event: RequestEvent, data: Omit<Entry, 'id'>): Promise<Entry> {
-    const response = await apiClient.getAxios().post<Entry>('/api/entries', data);
+async createEntry(cookies: Cookies, data: Omit<Entry, 'id'>): Promise<Entry> {
+    const response = await apiClient.getAxios().post<Entry>('/api/entries', data, {
+        headers: {
+            'Authorization': `Bearer ${getSessionTokenCookie(cookies, TokenType.AccessToken)}`
+        }
+    });
     return response.data;
 },
 
-async updateEntry(event: RequestEvent, id: number, data: Partial<Entry>): Promise<Entry> {
-    const response = await apiClient.getAxios().put<Entry>(`/api/entries/${id}`, data);
+async updateEntry(cookies: Cookies, id: number, data: Partial<Entry>): Promise<Entry> {
+    const response = await apiClient.getAxios().put<Entry>(`/api/entries/${id}`, data, {
+        headers: {
+            'Authorization': `Bearer ${getSessionTokenCookie(cookies, TokenType.AccessToken)}`
+        }
+    });
     return response.data;
 },
 
-async deleteEntry(event: RequestEvent, id: number): Promise<void> {
-    await apiClient.getAxios().delete(`/api/entries/${id}`);
+async deleteEntry(cookies: Cookies, id: number): Promise<void> {
+    await apiClient.getAxios().delete(`/api/entries/${id}`, {
+        headers: {
+            'Authorization': `Bearer ${getSessionTokenCookie(cookies, TokenType.AccessToken)}`
+        }
+    });
 }
 };
 
