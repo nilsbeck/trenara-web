@@ -1,7 +1,7 @@
 <div class="flex items-center justify-center">
 	<svg
 		class="mr-3 -ml-1 size-5 animate-spin"
-		color="darkorchid"
+		color=var(--color-secondary)
 		xmlns="http://www.w3.org/2000/svg"
 		fill="none"
 		viewBox="0 0 24 24"

@@ -1,7 +1,9 @@
 <script lang="ts">
 	import type { Schedule, ScheduledTraining, StrengthTraining, Entry } from '$lib/server/api/types';
-
+	import Loading from './loading.svelte';
 	let { today, schedule }: { today: Date; schedule: Schedule } = $props();
+
+	let isLoading: boolean = $state(false); // Add loading state
 
 	// Initialize currentDate with today's date
 	let currentDate = $state(today || new Date()); // Use today if provided, otherwise use new Date()
@@ -44,6 +46,29 @@
 		})
 	);
 
+	async function getMonthSchedule(timestamp: Date) {
+		isLoading = true;
+		const response = await fetch('/user/month/?timestamp=' + timestamp.getTime(), {
+			method: 'GET',
+			headers: {
+				'content-type': 'application/json'
+			}
+		});
+
+		if (!response.ok) {
+			if (response.status === 401) {
+				window.location.href = '/login';
+			}
+			console.error('Failed to fetch month schedule: ', response.statusText);
+			isLoading = false;
+			return;
+		}
+
+		const data = await response.json();
+		schedule = data;
+		isLoading = false;
+	}
+
 	// Function to update the calendar view
 	function updateCalendar(onMount: boolean = false) {
 		const year = currentDate.getFullYear();
@@ -73,14 +98,20 @@
 	// Function to go to the previous month
 	function goToPreviousMonth() {
 		currentDate = new Date(currentDate.setMonth(currentDate.getMonth() - 1)); // Update currentDate
+		selectedMonth = currentDate.getMonth();
+		selectedYear = currentDate.getFullYear();
 		selectedDay = null;
+		getMonthSchedule(currentDate);
 		updateCalendar(); // Update the calendar view
 	}
 
 	// Function to go to the next month
 	function goToNextMonth() {
 		currentDate = new Date(currentDate.setMonth(currentDate.getMonth() + 1)); // Update currentDate
+		selectedMonth = currentDate.getMonth();
+		selectedYear = currentDate.getFullYear();
 		selectedDay = null;
+		getMonthSchedule(currentDate);
 		updateCalendar(); // Update the calendar view
 	}
 
@@ -112,10 +143,17 @@
 <div class="flex items-start justify-center flex-grow">
 	<div class="max-w-sm min-w-sm w-full shadow-lg mx-auto">
 		<div class="card rounded-t-xl rounded-b-none p-5 dark:bg-gray-800 bg-white">
+			{#if isLoading}
+				<div
+					class="loading-overlay absolute inset-0 flex items-center justify-center dark:bg-gray-700 bg-gray-50 rounded-xl"
+				>
+					<Loading />
+				</div>
+			{/if}
 			<div class="px-4 flex items-center justify-between">
-				<span class="focus:outline-none text-base font-bold dark:text-gray-100 text-gray-800">
+				<h2 class="card-title">
 					{currentDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
-				</span>
+				</h2>
 				<div class="flex items-center">
 					<button
 						aria-label="calendar backward"
@@ -218,17 +256,15 @@
 		</div>
 		{#each selectedTraining as training}
 			{#if training}
-				<div class="md:py-8 py-5 dark:bg-gray-700 bg-gray-50 rounded-b-xl w-full">
+				<div class="md:py-8 py-5 dark:bg-gray-700 bg-gray-50 rounded-b-xl w-full mb-4">
 					<div class="px-4">
 						<div class=" border-gray-400">
-							<p class="text-xl font-light leading-3 text-gray-500 dark:text-gray-300">
-								{training.title}
-							</p>
-							<p class="text-sm pt-2 mt-2 leading-4 text-gray-600 dark:text-gray-300">
+							<h2 class="card-title">{training.title}</h2>
+							<p class="text-sm pt-2 mt-2 leading-4">
 								{training.description}
 							</p>
 							{#if selectedRunTrainingEntry.length > 0}
-								<p class="text-sm pt-2 mt-2 leading-4 text-gray-600 dark:text-gray-300">
+								<p class="text-sm pt-2 mt-2 leading-4">
 									{selectedRunTrainingEntry[0].notification?.content}
 								</p>
 							{/if}
@@ -240,26 +276,26 @@
 										</li>
 									{:else if block.blocks && block.blocks.length > 1}
 										{#if block.repeat !== 1}
-										<li>
-											{@render listItem(`Repeat ${block.repeat}x`)}
-											<ul>
-												{#each block.blocks as innerBlock}
-													<li class="ml-6">
-														{@render listItem(innerBlock.text)}
-													</li>
-												{/each}
-											</ul>
-										</li>
+											<li>
+												{@render listItem(`Repeat ${block.repeat}x`)}
+												<ul>
+													{#each block.blocks as innerBlock}
+														<li class="ml-6">
+															{@render listItem(innerBlock.text)}
+														</li>
+													{/each}
+												</ul>
+											</li>
 										{:else}
-										<li>
-											<ul>
-												{#each block.blocks as innerBlock}
-													<li>
-														{@render listItem(innerBlock.text)}
-													</li>
-												{/each}
-											</ul>
-										</li>
+											<li>
+												<ul>
+													{#each block.blocks as innerBlock}
+														<li>
+															{@render listItem(innerBlock.text)}
+														</li>
+													{/each}
+												</ul>
+											</li>
 										{/if}
 									{:else if block.blocks && block.blocks.length === 1}
 										<li>
@@ -274,50 +310,46 @@
 										<tr>
 											<th class="text-left">Metric</th>
 											<th class="text-left">Plan</th>
-											<th class="text-left">Actual</th>
+											{#if selectedRunTrainingEntry.length > 0}
+												<th class="text-left">Actual</th>
+											{/if}
 										</tr>
 									</thead>
 									<tbody>
 										<tr>
 											<td class="text-left">Total Distance</td>
 											<td class="text-left">{training.training.total_distance}</td>
-											<td class="text-left"
-												>{selectedRunTrainingEntry.length > 0
-													? selectedRunTrainingEntry[0].distance
-													: '-'}</td
-											>
+											{#if selectedRunTrainingEntry.length > 0}
+												<td class="text-left">{selectedRunTrainingEntry[0].distance}</td>
+											{/if}
 										</tr>
 										<tr>
 											<td class="text-left">Core</td>
 											<td class="text-left">{training.training.core_distance}</td>
-											<td class="text-left">-</td>
+											{#if selectedRunTrainingEntry.length > 0}
+												<td class="text-left">-</td>
+											{/if}
 										</tr>
 										<tr>
 											<td class="text-left">Time</td>
 											<td class="text-left">{training.training.total_time}</td>
-											<td class="text-left"
-												>{selectedRunTrainingEntry.length > 0
-													? selectedRunTrainingEntry[0].time
-													: '-'}</td
-											>
+											{#if selectedRunTrainingEntry.length > 0}
+												<td class="text-left">{selectedRunTrainingEntry[0].time}</td>
+											{/if}
 										</tr>
 										<tr>
 											<td class="text-left">Heartrate</td>
 											<td class="text-left">-</td>
-											<td class="text-left"
-												>{selectedRunTrainingEntry.length > 0
-													? selectedRunTrainingEntry[0].avg_heartbeat
-													: '-'}</td
-											>
+											{#if selectedRunTrainingEntry.length > 0}
+												<td class="text-left">{selectedRunTrainingEntry[0].avg_heartbeat}</td>
+											{/if}
 										</tr>
 										<tr>
 											<td class="text-left">Elevation</td>
 											<td class="text-left">-</td>
-											<td class="text-left"
-												>{selectedRunTrainingEntry.length > 0
-													? selectedRunTrainingEntry[0].total_altitude
-													: '-'}</td
-											>
+											{#if selectedRunTrainingEntry.length > 0}
+												<td class="text-left">{selectedRunTrainingEntry[0].total_altitude}</td>
+											{/if}
 										</tr>
 									</tbody>
 								</table>
@@ -327,10 +359,10 @@
 				</div>
 			{/if}
 		{:else}
-			<div class="md:py-8 py-5 dark:bg-gray-700 bg-gray-50 rounded-b-xl w-full">
+			<div class="md:py-8 py-5 dark:bg-gray-700 bg-gray-50 rounded-b-xl w-full mb-4">
 				<div class="px-4">
 					<div class=" border-gray-400 flex">
-						<p class="text-m pt-2 mt-2 leading-4 text-gray-600 dark:text-gray-300">
+						<p class="text-m pt-2 mt-2 leading-4">
 							No training scheduled for this day. Time to rest! 😴​
 						</p>
 					</div>
@@ -346,5 +378,19 @@
 	}
 	.today {
 		background-color: rgba(211, 211, 211, 0.425); /* Change this to your desired color */
+	}
+
+	.loading-overlay {
+		position: absolute; /* Change to absolute */
+		top: 50%; /* Align to the top of the parent */
+		left: 50%; /* Align to the left of the parent */
+		transform: translate(-50%, -50%); /* Center the loading overlay */
+		width: 80%; /* Cover the full width of the parent */
+		height: 30%; /* Cover the full height of the parent */
+
+		display: flex;
+		justify-content: center;
+		align-items: center;
+		z-index: 1000; /* Ensure it is above other content */
 	}
 </style>

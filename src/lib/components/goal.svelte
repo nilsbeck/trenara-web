@@ -31,7 +31,7 @@
                 <tr>
                     <th></th>
                     <th>Goal</th>
-                    <th>Current Estimation</th>
+                    <th>Current Prediction</th>
                 </tr>
             </thead>
             <tbody>

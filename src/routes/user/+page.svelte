@@ -1,9 +1,32 @@
 <script lang="ts">
 	import type { PageServerData } from './$types';
+	import type { Schedule } from '$lib/server/api';
 	let { data }: { data: PageServerData } = $props();
 	import Loading from '$lib/components/loading.svelte';
 	import Calendar from '$lib/components/calendar.svelte';
 	import GoalCard from '$lib/components/goal.svelte';
+
+	// Function to merge schedules
+	function mergeSchedules(schedules: Schedule[]): Schedule {
+		const mergedSchedule: Schedule = {
+			id: 0,
+			start_day: 0,
+			start_day_long: '',
+			training_week: 0,
+			type: 'ultimate',
+			trainings: [],
+			strength_trainings: [],
+			entries: []
+		};
+
+		schedules.forEach(schedule => {
+			mergedSchedule.trainings = mergedSchedule.trainings.concat(schedule.trainings);
+			mergedSchedule.strength_trainings = mergedSchedule.strength_trainings.concat(schedule.strength_trainings);
+			mergedSchedule.entries = mergedSchedule.entries.concat(schedule.entries);
+		});
+
+		return mergedSchedule;
+	}
 </script>
 
 <div class="flex flex-col md:flex-row items-start justify-center space-x-6">
@@ -13,7 +36,7 @@
 		</div>
 	{:then schedule}
 		<div class="flex flex-col md:flex-row items-center">
-			<Calendar today={new Date()} {schedule} />
+			<Calendar today={new Date()} schedule={mergeSchedules(schedule)} />
 		</div>
 	{/await}
 	{#await Promise.all([data.goal, data.userStats])}
