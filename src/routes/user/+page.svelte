@@ -48,6 +48,11 @@
 			<GoalCard {goal} {userStats} />
 		</div>
 	{:catch error}
+		{#if error.status === 401}
+			<script>
+				window.location.href = '/login';
+			</script>
+		{/if}
 		<p>Error loading goal/stats</p>
 	{/await}
 </div>
