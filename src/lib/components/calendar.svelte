@@ -140,8 +140,8 @@
 	<span>{text}</span>
 {/snippet}
 
-<div class="flex items-start justify-center flex-grow">
-	<div class="max-w-sm min-w-sm w-full shadow-lg mx-auto">
+<div class="flex justify-center flex-grow">
+	<div class="max-w-sm min-w-sm w-full shadow-lg mx-auto items-center">
 		<div class="card rounded-t-xl rounded-b-none p-8 dark:bg-gray-800 bg-white">
 			{#if isLoading}
 				<div

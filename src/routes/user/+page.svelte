@@ -19,9 +19,11 @@
 			entries: []
 		};
 
-		schedules.forEach(schedule => {
+		schedules.forEach((schedule) => {
 			mergedSchedule.trainings = mergedSchedule.trainings.concat(schedule.trainings);
-			mergedSchedule.strength_trainings = mergedSchedule.strength_trainings.concat(schedule.strength_trainings);
+			mergedSchedule.strength_trainings = mergedSchedule.strength_trainings.concat(
+				schedule.strength_trainings
+			);
 			mergedSchedule.entries = mergedSchedule.entries.concat(schedule.entries);
 		});
 
@@ -29,30 +31,32 @@
 	}
 </script>
 
-<div class="flex flex-col md:flex-row items-start justify-center space-x-6">
-	{#await data.schedule}
-		<div class="flex flex-row items-center">
-			<Loading />
-		</div>
-	{:then schedule}
-		<div class="flex flex-col md:flex-row items-center">
-			<Calendar today={new Date()} schedule={mergeSchedules(schedule)} />
-		</div>
-	{/await}
-	{#await Promise.all([data.goal, data.userStats])}
-		<div class="flex flex-row items-center">
-			<Loading />
-		</div>
-	{:then [goal, userStats]}
-		<div class="hidden sm:block">
-			<GoalCard {goal} {userStats} />
-		</div>
-	{:catch error}
-		{#if error.status === 401}
-			<script>
-				window.location.href = '/login';
-			</script>
-		{/if}
-		<p>Error loading goal/stats</p>
-	{/await}
+<div class="flex flex-col md:flex-row items-center justify-center">
+	<div class="flex flex-col md:flex-row items-start justify-center space-x-6">
+		{#await data.schedule}
+			<div class="flex flex-row items-center">
+				<Loading />
+			</div>
+		{:then schedule}
+			<div class="flex flex-col md:flex-row items-center">
+				<Calendar today={new Date()} schedule={mergeSchedules(schedule)} />
+			</div>
+		{/await}
+		{#await Promise.all([data.goal, data.userStats])}
+			<div class="flex flex-row items-center">
+				<Loading />
+			</div>
+		{:then [goal, userStats]}
+			<div class="hidden sm:block">
+				<GoalCard {goal} {userStats} />
+			</div>
+		{:catch error}
+			{#if error.status === 401}
+				<script>
+					window.location.href = '/login';
+				</script>
+			{/if}
+			<p>Error loading goal/stats</p>
+		{/await}
+	</div>
 </div>
