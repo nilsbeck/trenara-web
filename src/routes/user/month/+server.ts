@@ -61,7 +61,5 @@ function mergeSchedules(schedules: Schedule[]): Schedule {
         mergedSchedule.entries = mergedSchedule.entries.concat(schedule.entries);
     });
 
-    console.log(mergedSchedule);
-
     return mergedSchedule;
 }
