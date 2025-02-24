@@ -1,6 +1,7 @@
 // src/lib/server/api/config.ts
 import { error as svelteError } from '@sveltejs/kit';
-import axios, { AxiosError, type AxiosInstance, type AxiosRequestConfig } from 'axios';
+import axios from 'axios';
+import type { AxiosError, AxiosInstance, AxiosRequestConfig } from 'axios';
 import type { ApiError } from './types';
 const BASE_URL = 'https://backend-prod.trenara.com';
 
