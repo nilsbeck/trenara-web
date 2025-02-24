@@ -142,7 +142,7 @@
 
 <div class="flex items-start justify-center flex-grow">
 	<div class="max-w-sm min-w-sm w-full shadow-lg mx-auto">
-		<div class="card rounded-t-xl rounded-b-none p-5 dark:bg-gray-800 bg-white">
+		<div class="card rounded-t-xl rounded-b-none p-8 dark:bg-gray-800 bg-white">
 			{#if isLoading}
 				<div
 					class="loading-overlay absolute inset-0 flex items-center justify-center dark:bg-gray-700 bg-gray-50 rounded-xl"
@@ -150,7 +150,7 @@
 					<Loading />
 				</div>
 			{/if}
-			<div class="px-4 flex items-center justify-between">
+			<div class="flex items-center justify-between">
 				<h2 class="card-title">
 					{currentDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
 				</h2>
