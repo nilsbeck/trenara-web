@@ -362,7 +362,7 @@
 			<div class="md:py-8 py-5 dark:bg-gray-700 bg-gray-50 rounded-b-xl w-full mb-4">
 				<div class="px-4">
 					<div class=" border-gray-400 flex">
-						<p class="text-m pt-2 mt-2 leading-4">
+						<p class="text-m pt-2 mt-2 leading-4 text-center">
 							No training scheduled for this day. Time to rest! 😴​
 						</p>
 					</div>
