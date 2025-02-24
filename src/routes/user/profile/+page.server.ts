@@ -5,12 +5,12 @@ import type { Actions, PageServerLoad } from './$types';
 import { getSessionTokenCookie, setSessionTokenCookie, TokenType } from '$lib/server/auth'
 
 export const load: PageServerLoad = async (event) => {
-	if (getSessionTokenCookie(event.cookies, TokenType.AccessToken)) {
-		return redirect(302, '/user');
+	if (!getSessionTokenCookie(event.cookies, TokenType.AccessToken)) {
+		return redirect(302, '/login');
 	}
-	return;
-};
 
+	return {};
+};
 
 export const actions: Actions = {
 	login: async ({ cookies, request }) => {

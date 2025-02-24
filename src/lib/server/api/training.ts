@@ -1,7 +1,7 @@
 import { TokenType } from '../auth';
 import { getSessionTokenCookie } from '../auth';
 import { apiClient } from './config';
-import type { TrainingPlan, TrainingSession } from './types';
+import type { TrainingPlan, TrainingSession, Goal } from './types';
 import type { Cookies } from '@sveltejs/kit';
 
 export const trainingApi = {
@@ -26,6 +26,15 @@ async getTrainingSessions(cookies: Cookies, planId: number): Promise<TrainingSes
         }
     });
     return response.data;
+},
+
+
+async getGoal(cookies: Cookies): Promise<Goal> {
+    const response = await apiClient.getAxios().get<Goal>(`/api/goal`, {
+        headers: {
+            'Authorization': `Bearer ${getSessionTokenCookie(cookies, TokenType.AccessToken)}`
+        }
+    });
+    return response.data;
 }
 };
-
