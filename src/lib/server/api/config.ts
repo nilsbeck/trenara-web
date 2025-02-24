@@ -2,8 +2,6 @@
 import { error as svelteError } from '@sveltejs/kit';
 import axios, { AxiosError, type AxiosInstance, type AxiosRequestConfig } from 'axios';
 import type { ApiError } from './types';
-import type { RequestEvent } from '@sveltejs/kit';
-import { getSessionTokenCookie, TokenType } from '$lib/server/auth';
 const BASE_URL = 'https://backend-prod.trenara.com';
 
 export class ApiClient {
