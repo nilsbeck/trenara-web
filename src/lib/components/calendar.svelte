@@ -124,20 +124,15 @@
 </script>
 
 {#snippet listItem(text: string)}
-	<svg
+	<!-- <svg
 		xmlns="http://www.w3.org/2000/svg"
-		class="size-4 me-2 inline-block text-success"
+		class="size-2 me-2 inline-block text-success"
 		fill="none"
 		viewBox="0 0 24 24"
-		stroke="currentColor"
-		><path
-			stroke-linecap="round"
-			stroke-linejoin="round"
-			stroke-width="2"
-			d="M5 13l4 4L19 7"
-		/></svg
-	>
-	<span>{text}</span>
+		stroke="var(--color-secondary)"
+		><circle cx="12" cy="12" r="5" stroke="var(--color-secondary)" stroke-width="2" fill="var(--color-secondary)" /></svg
+	> -->
+	<span>• {text}</span>
 {/snippet}
 
 <div class="flex justify-center flex-grow">
@@ -151,52 +146,54 @@
 				</div>
 			{/if}
 			<div class="flex items-center justify-between">
-				<h2 class="card-title">
-					{currentDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
-				</h2>
-				<div class="flex items-center">
-					<button
-						aria-label="calendar backward"
-						class="focus:text-gray-400 hover:text-gray-400 text-gray-800 dark:text-gray-100"
-						onclick={goToPreviousMonth}
-					>
-						<svg
-							xmlns="http://www.w3.org/2000/svg"
-							class="icon icon-tabler icon-tabler-chevron-left"
-							width="24"
-							height="24"
-							viewBox="0 0 24 24"
-							stroke-width="1.5"
-							stroke="currentColor"
-							fill="none"
-							stroke-linecap="round"
-							stroke-linejoin="round"
+				<div class="flex justify-between items-center">
+					<h2 class="card-title text-left">
+						{currentDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
+					</h2>
+					<div class="flex items-center">
+						<button
+							aria-label="calendar backward"
+							class="focus:text-gray-400 hover:text-gray-400 text-gray-800 dark:text-gray-100"
+							onclick={goToPreviousMonth}
 						>
-							<path stroke="none" d="M0 0h24v24H0z" fill="none" />
-							<polyline points="15 6 9 12 15 18" />
-						</svg>
-					</button>
-					<button
-						aria-label="calendar forward"
-						class="focus:text-gray-400 hover:text-gray-400 ml-3 text-gray-800 dark:text-gray-100"
-						onclick={goToNextMonth}
-					>
-						<svg
-							xmlns="http://www.w3.org/2000/svg"
-							class="icon icon-tabler icon-tabler-chevron-right"
-							width="24"
-							height="24"
-							viewBox="0 0 24 24"
-							stroke-width="1.5"
-							stroke="currentColor"
-							fill="none"
-							stroke-linecap="round"
-							stroke-linejoin="round"
+							<svg
+								xmlns="http://www.w3.org/2000/svg"
+								class="icon icon-tabler icon-tabler-chevron-left"
+								width="24"
+								height="24"
+								viewBox="0 0 24 24"
+								stroke-width="1.5"
+								stroke="currentColor"
+								fill="none"
+								stroke-linecap="round"
+								stroke-linejoin="round"
+							>
+								<path stroke="none" d="M0 0h24v24H0z" fill="none" />
+								<polyline points="15 6 9 12 15 18" />
+							</svg>
+						</button>
+						<button
+							aria-label="calendar forward"
+							class="focus:text-gray-400 hover:text-gray-400 ml-3 text-gray-800 dark:text-gray-100"
+							onclick={goToNextMonth}
 						>
-							<path stroke="none" d="M0 0h24v24H0z" fill="none" />
-							<polyline points="9 6 15 12 9 18" />
-						</svg>
-					</button>
+							<svg
+								xmlns="http://www.w3.org/2000/svg"
+								class="icon icon-tabler icon-tabler-chevron-right"
+								width="24"
+								height="24"
+								viewBox="0 0 24 24"
+								stroke-width="1.5"
+								stroke="currentColor"
+								fill="none"
+								stroke-linecap="round"
+								stroke-linejoin="round"
+							>
+								<path stroke="none" d="M0 0h24v24H0z" fill="none" />
+								<polyline points="9 6 15 12 9 18" />
+							</svg>
+						</button>
+					</div>
 				</div>
 			</div>
 			<div class="flex items-center justify-between pt-6 overflow-x-auto">
@@ -259,7 +256,39 @@
 				<div class="md:py-8 py-5 dark:bg-gray-700 bg-gray-50 rounded-b-xl w-full mb-4">
 					<div class="px-4">
 						<div class=" border-gray-400">
-							<h2 class="card-title">{training.title}</h2>
+							<div>
+								<div class="flex justify-between items-center">
+									<h2 class="card-title text-left">
+										{training.title}
+										{#if selectedRunTrainingEntry.length > 0}
+											<svg
+												xmlns="http://www.w3.org/2000/svg"
+												class="size-6 inline-block text-success"
+												fill="none"
+												viewBox="0 0 24 24"
+												stroke="currentColor"
+												><path
+													stroke-linecap="round"
+													stroke-linejoin="round"
+													stroke-width="4"
+													d="M5 13l4 4L19 7"
+												/></svg
+											>
+										{/if}
+									</h2>
+									<div class="flex items-center">
+										<button aria-label="Icon 1" class="icon-button" style="background: transparent;">
+											<img src="/src/assets/icon__surface--change.svg" alt="change date" />
+										</button>
+										<button aria-label="Icon 2" class="icon-button ml-2">
+											<img src="/src/assets/icon__change--date.svg" alt="change date" />
+										</button>
+										<button aria-label="Icon 2" class="icon-button ml-2">
+											<img src="/src/assets/icon__trash.svg" alt="change date" />
+										</button>
+									</div>
+								</div>
+							</div>
 							<p class="text-sm pt-2 mt-2 leading-4">
 								{training.description}
 							</p>
