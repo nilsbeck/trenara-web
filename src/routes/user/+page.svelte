@@ -21,7 +21,7 @@
 			<Loading />
 		</div>
 	{:then [goal, userStats]}
-		<div class="hidden md:block">
+		<div class="hidden sm:block">
 			<GoalCard {goal} {userStats} />
 		</div>
 	{:catch error}
