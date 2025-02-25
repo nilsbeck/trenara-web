@@ -278,13 +278,13 @@
 									</h2>
 									<div class="flex items-center">
 										<button aria-label="Icon 1" class="icon-button" style="background: transparent;">
-											<img src="/src/assets/icon__surface--change.svg" alt="change date" />
+											<img src="/src/assets/icon__surface--change.svg" alt="change surface" />
 										</button>
 										<button aria-label="Icon 2" class="icon-button ml-2">
 											<img src="/src/assets/icon__change--date.svg" alt="change date" />
 										</button>
 										<button aria-label="Icon 2" class="icon-button ml-2">
-											<img src="/src/assets/icon__trash.svg" alt="change date" />
+											<img src="/src/assets/icon__trash.svg" alt="delete training" />
 										</button>
 									</div>
 								</div>
