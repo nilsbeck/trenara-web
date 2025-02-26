@@ -1,5 +1,9 @@
 <script lang="ts">
 	import type { Schedule, ScheduledTraining, StrengthTraining, Entry } from '$lib/server/api/types';
+
+	import changeDateIcon from '/src/assets/change-date.svg';
+	import changeSurfaceIcon from '/src/assets/change-surface.svg';
+	import trashIcon from '/src/assets/trash.svg';
 	import Loading from './loading.svelte';
 	let { today, schedule }: { today: Date; schedule: Schedule } = $props();
 
@@ -367,7 +371,7 @@
 											onclick={() => changeSurface}
 										>
 											<img
-												src="/src/assets/change-surface.svg"
+												src={changeSurfaceIcon}
 												alt="change surface"
 												width="22"
 												height="22"
@@ -375,15 +379,15 @@
 										</button>
 										<button aria-label="Icon 2" class="icon-button">
 											<img
-												src="/src/assets/change-date.svg"
+												src={changeDateIcon}
 												alt="change date"
-												width="20"
-												height="20"
+												width="16"
+												height="16"
 											/>
 										</button>
 										<button aria-label="Icon 3" class="icon-button">
 											<img
-												src="/src/assets/trash.svg"
+												src={trashIcon}
 												alt="delete training"
 												width="16"
 												height="16"
