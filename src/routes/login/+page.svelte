@@ -1,6 +1,7 @@
 <script lang='ts'>
 	import { enhance } from '$app/forms';
 	import type { ActionData } from './$types';
+	import logo from '/src/assets/trenara-logo.png';
 
 	let formLoading = $state(false);
 
@@ -9,7 +10,7 @@
 
 <div class="flex min-h-full flex-col justify-center px-6 py-12 lg:px-8">
 	<div class="sm:mx-auto sm:w-full sm:max-w-sm">
-		<img class="mx-auto h-10 w-auto" src="./src/assets/trenara-logo.png" alt="Trenara" style="width: 150px; height: 150px;">
+		<img class="mx-auto h-10 w-auto" src={logo} alt="Trenara" style="width: 150px; height: 150px;">
 		<h2 class="mt-10 text-center text-2xl/9 font-bold tracking-tight">Sign in to your account</h2>
 	</div>
 	
