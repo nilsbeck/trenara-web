@@ -59,3 +59,6 @@
 <div class="content">
 	{@render children()}
 </div>
+
+<footer class="footer sm:footer-horizontal footer-center text-base-content p-4">
+</footer>

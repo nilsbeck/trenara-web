@@ -119,6 +119,75 @@
 		selectedDay = day;
 	}
 
+	function changeSurface() {
+		// TODO: needs new API call to get and populate the form fields
+		// https://backend-prod.trenara.com/api/schedule/trainings/91357904
+		//
+		// then POST to https://backend-prod.trenara.com/api/schedule/trainings/91357904/training_condition
+		//
+
+		// {
+		// 	"height_difference": "flat", // flat, light, strong, mountain
+		// 	"surface": "road", // road, dirt_road, single_track, track
+		// 	"height_value": 0,
+		// 	"height_unit": "m"
+		// }
+
+		// const dialog = document.getElementById('my_modal_1') as HTMLDialogElement;
+		// if (dialog) {
+		// 	const modalBox = dialog.querySelector('.modal-box');
+		// 	if (modalBox) {
+		// 		// Create a new form element
+		// 		const form = document.createElement('form');
+
+		// 		formFields.forEach(field => {
+		// 			let inputElement: HTMLInputElement | HTMLSelectElement | null = null;  // Initialize as null
+
+		// 			if (field.type === 'text' || field.type === 'number') {
+		// 				inputElement = document.createElement('input');
+		// 				inputElement.type = field.type;
+		// 				inputElement.name = field.name;
+		// 				inputElement.placeholder = field.name.charAt(0).toUpperCase() + field.name.slice(1);
+		// 				inputElement.value = field.value || '';
+		// 				inputElement.required = true;
+		// 				inputElement.className = 'input';
+		// 			} else if (field.type === 'select') {
+		// 				inputElement = document.createElement('select');
+		// 				inputElement.name = field.name;
+		// 				inputElement.className = 'input';
+		// 				// Add options dynamically if needed
+		// 				const options = field.value || [];
+		// 				options.forEach((option: { value: string; label: string }) => {
+		// 					const optionElement = document.createElement('option');
+		// 					optionElement.value = option.value;
+		// 					optionElement.textContent = option.label;
+		// 					if (inputElement) {  // Check if inputElement is defined
+		// 						inputElement.appendChild(optionElement);
+		// 					}
+		// 				});
+		// 			}
+
+		// 			if (inputElement) {  // Check if inputElement is defined
+		// 				form.appendChild(inputElement);
+		// 			}
+		// 		});
+
+		// 		const closeButton = document.createElement('button');
+		// 		closeButton.type = 'button';	
+		// 		closeButton.textContent = 'Close';
+		// 		closeButton.className = 'btn';
+		// 		closeButton.onclick = () => {
+		// 			dialog.close();
+		// 		};
+		// 		form.appendChild(closeButton);
+
+		// 		// Append the form to the modal box
+		// 		modalBox.appendChild(form);
+		// 		dialog.showModal();
+		// 	}
+		// }
+	}
+
 	// Initialize the calendar on component mount
 	updateCalendar(true);
 </script>
@@ -134,6 +203,20 @@
 	> -->
 	<span>• {text}</span>
 {/snippet}
+
+<dialog id="my_modal_1" class="modal">
+	<div class="modal-box">
+		<h3 class="text-lg font-bold">Hello!</h3>
+		<p class="py-4">Press ESC key or click the button below to close</p>
+		<!-- <div class="modal-action">
+		  <form method="dialog">
+			 if there is a button in form, it will close the modal 
+			<button class="btn">Close</button>
+		  </form>
+		</div> -->
+	  </div>
+  </dialog>
+
 
 <div class="flex justify-center flex-grow">
 	<div class="max-w-sm min-w-sm w-full shadow-lg mx-auto items-center">
@@ -253,7 +336,7 @@
 		</div>
 		{#each selectedTraining as training}
 			{#if training}
-				<div class="md:py-8 py-5 dark:bg-gray-700 bg-gray-50 rounded-b-xl w-full mb-4">
+				<div class="md:py-8 py-5 dark:bg-gray-700 bg-gray-50 rounded-b-xl w-full">
 					<div class="px-4">
 						<div class=" border-gray-400">
 							<div>
@@ -276,15 +359,35 @@
 											>
 										{/if}
 									</h2>
-									<div class="flex items-center">
-										<button aria-label="Icon 1" class="icon-button" style="background: transparent;">
-											<img src="/src/assets/icon__surface--change.svg" alt="change surface" width="22" height="22" />
+									<div class="flex items-center space-x-4">
+										<button
+											aria-label="Icon 1"
+											class="icon-button"
+											style="background: transparent;"
+											onclick={() => changeSurface}
+										>
+											<img
+												src="/src/assets/change-surface.svg"
+												alt="change surface"
+												width="22"
+												height="22"
+											/>
 										</button>
-										<button aria-label="Icon 2" class="icon-button ml-2">
-											<img src="/src/assets/icon__change--date.svg" alt="change date" width="16" height="16" />
+										<button aria-label="Icon 2" class="icon-button">
+											<img
+												src="/src/assets/change-date.svg"
+												alt="change date"
+												width="20"
+												height="20"
+											/>
 										</button>
-										<button aria-label="Icon 2" class="icon-button ml-2">
-											<img src="/src/assets/icon__trash.svg" alt="delete training" width="16" height="16" />
+										<button aria-label="Icon 3" class="icon-button">
+											<img
+												src="/src/assets/trash.svg"
+												alt="delete training"
+												width="16"
+												height="16"
+											/>
 										</button>
 									</div>
 								</div>
@@ -297,7 +400,7 @@
 									{selectedRunTrainingEntry[0].notification?.content}
 								</p>
 							{/if}
-							<ul class="mt-6 flex flex-col gap-2 text-xs">
+							<ul class="mt-6 flex flex-col gap-2 text-sm">
 								{#each training.training.blocks as block}
 									{#if block.text !== undefined}
 										<li>
@@ -334,7 +437,7 @@
 								{/each}
 							</ul>
 							<div class="mt-6">
-								<table class="w-full text-xs">
+								<table class="w-full text-sm">
 									<thead>
 										<tr>
 											<th class="text-left">Metric</th>

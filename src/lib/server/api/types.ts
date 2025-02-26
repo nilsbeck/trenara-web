@@ -390,6 +390,16 @@ export interface ScheduledTraining {
   last_garmin_sync: string;
   can_be_edited: boolean;
   team_data: any;
+  "training_condition": {
+    id: number;
+    height_difference: string;
+    surface: string;
+    updated_at: number;
+    height: number | null;
+    height_value: number | null;
+    height_unit: string | null;
+    height_unit_text: string | null;
+  }
 }
 
 export interface Schedule {

@@ -32,7 +32,7 @@
 </script>
 
 <div class="flex flex-col md:flex-row items-center justify-center">
-	<div class="flex flex-col md:flex-row items-start justify-center space-x-6">
+	<div class="flex flex-col md:flex-row items-start justify-center md:space-x-6">
 		{#await data.schedule}
 			<div class="flex flex-row items-center">
 				<Loading />
