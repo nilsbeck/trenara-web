@@ -554,3 +554,9 @@ export interface UserStats {
     };
   };
 }
+
+export enum Tab {
+  Training = 'training',
+  Nutrition = 'nutrition',
+  // Add more tabs as needed
+}

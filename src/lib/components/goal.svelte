@@ -24,8 +24,7 @@
 
 <div class="card dark:bg-gray-700 bg-gray-50 shadow-lg max-w-sm min-w-sm w-full">
     <div class="card-body">
-        <h2 class="card-title">Event: {goal.name}</h2>
-        <p>Distance: {goal.distance}</p>
+        <h2 class="card-title">Event: {goal.name} ({goal.distance})</h2>
         <table class="table w-full">
             <thead>
                 <tr>

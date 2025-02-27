@@ -3,10 +3,9 @@
 	import type { Schedule } from '$lib/server/api';
 	let { data }: { data: PageServerData } = $props();
 	import Loading from '$lib/components/loading.svelte';
-	import Calendar from '$lib/components/calendar.svelte';
 	import GoalCard from '$lib/components/goal.svelte';
 	import Predictions from '$lib/components/predictions.svelte';
-
+	import Calendar from '$lib/components/calendar/calendar.svelte';
 	// Function to merge schedules
 	function mergeSchedules(schedules: Schedule[]): Schedule {
 		const mergedSchedule: Schedule = {
