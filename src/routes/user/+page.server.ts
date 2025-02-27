@@ -1,5 +1,5 @@
 import { userApi, trainingApi, type Schedule } from '$lib/server/api';
-import { json, redirect, type RequestEvent, type RequestHandler } from '@sveltejs/kit';
+import { redirect, type RequestEvent, type RequestHandler } from '@sveltejs/kit';
 import { getSessionTokenCookie, TokenType } from '$lib/server/auth';
 import type { PageServerLoad } from './$types';
 

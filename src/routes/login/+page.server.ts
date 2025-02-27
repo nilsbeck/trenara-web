@@ -31,7 +31,7 @@ export const actions: Actions = {
 			const response: AuthResponse = await authApi.login(data);
 
 			const currentDate = new Date();
-			const expirationDate = new Date(currentDate.getTime() + response.expires_in);
+			const expirationDate = new Date(currentDate.getTime() + response.expires_in * 1000);
 			setSessionTokenCookie(cookies, response.access_token, TokenType.AccessToken, expirationDate)
 			setSessionTokenCookie(cookies, response.refresh_token, TokenType.RefreshToken, expirationDate)
 		} catch (error) {

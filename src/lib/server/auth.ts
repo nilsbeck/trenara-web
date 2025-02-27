@@ -5,6 +5,12 @@ export enum TokenType {
 }
 
 export function setSessionTokenCookie(cookies: Cookies, token: string, tokenType: TokenType, expiresAt: Date) {
+	cookies.set(tokenType+"_expiration", expiresAt.toISOString(), {
+		expires: expiresAt,
+		path: '/',
+		secure: true,
+		sameSite: 'strict'
+	})
 	cookies.set(tokenType.toString(), token, {
 		expires: expiresAt,
 		path: '/',
