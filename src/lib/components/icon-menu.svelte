@@ -24,7 +24,7 @@
       <li>Settings</li> -->
       <li><a href="/user">Dashboard</a></li>
       <li><a href="/user/profile">Profile</a></li>
-      <li class="block md:hidden"><a href="/user/goal">Goal</a></li>
+      <li class="block md:hidden"><a href="/user/goal">Goal/Predictions</a></li>
       <li><a href="/logout">Logout</a></li>
     </ul>
   </div>

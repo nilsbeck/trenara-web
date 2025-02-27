@@ -5,6 +5,7 @@
 	import Loading from '$lib/components/loading.svelte';
 	import Calendar from '$lib/components/calendar.svelte';
 	import GoalCard from '$lib/components/goal.svelte';
+	import Predictions from '$lib/components/predictions.svelte';
 
 	// Function to merge schedules
 	function mergeSchedules(schedules: Schedule[]): Schedule {
@@ -47,8 +48,9 @@
 				<Loading />
 			</div>
 		{:then [goal, userStats]}
-			<div class="hidden sm:block">
+			<div class="hidden sm:block md:space-y-6">
 				<GoalCard {goal} {userStats} />
+				<Predictions {userStats} />
 			</div>
 		{:catch error}
 			{#if error.status === 401}

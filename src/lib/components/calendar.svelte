@@ -6,9 +6,9 @@
 	import trashIcon from '/src/assets/trash.svg';
 	import Loading from './loading.svelte';
 	let { today, schedule }: { today: Date; schedule: Schedule } = $props();
+	let my_modal_1: HTMLDialogElement = $state() as HTMLDialogElement;
 
 	let isLoading: boolean = $state(false); // Add loading state
-
 	// Initialize currentDate with today's date
 	let currentDate = $state(today || new Date()); // Use today if provided, otherwise use new Date()
 	let daysInMonthWithOffset: number[] = $state([]);
@@ -129,24 +129,20 @@
 		//
 		// then POST to https://backend-prod.trenara.com/api/schedule/trainings/91357904/training_condition
 		//
-
 		// {
 		// 	"height_difference": "flat", // flat, light, strong, mountain
 		// 	"surface": "road", // road, dirt_road, single_track, track
 		// 	"height_value": 0,
 		// 	"height_unit": "m"
 		// }
-
 		// const dialog = document.getElementById('my_modal_1') as HTMLDialogElement;
 		// if (dialog) {
 		// 	const modalBox = dialog.querySelector('.modal-box');
 		// 	if (modalBox) {
 		// 		// Create a new form element
 		// 		const form = document.createElement('form');
-
 		// 		formFields.forEach(field => {
 		// 			let inputElement: HTMLInputElement | HTMLSelectElement | null = null;  // Initialize as null
-
 		// 			if (field.type === 'text' || field.type === 'number') {
 		// 				inputElement = document.createElement('input');
 		// 				inputElement.type = field.type;
@@ -170,21 +166,18 @@
 		// 					}
 		// 				});
 		// 			}
-
 		// 			if (inputElement) {  // Check if inputElement is defined
 		// 				form.appendChild(inputElement);
 		// 			}
 		// 		});
-
 		// 		const closeButton = document.createElement('button');
-		// 		closeButton.type = 'button';	
+		// 		closeButton.type = 'button';
 		// 		closeButton.textContent = 'Close';
 		// 		closeButton.className = 'btn';
 		// 		closeButton.onclick = () => {
 		// 			dialog.close();
 		// 		};
 		// 		form.appendChild(closeButton);
-
 		// 		// Append the form to the modal box
 		// 		modalBox.appendChild(form);
 		// 		dialog.showModal();
@@ -197,32 +190,10 @@
 </script>
 
 {#snippet listItem(text: string)}
-	<!-- <svg
-		xmlns="http://www.w3.org/2000/svg"
-		class="size-2 me-2 inline-block text-success"
-		fill="none"
-		viewBox="0 0 24 24"
-		stroke="var(--color-secondary)"
-		><circle cx="12" cy="12" r="5" stroke="var(--color-secondary)" stroke-width="2" fill="var(--color-secondary)" /></svg
-	> -->
 	<span>• {text}</span>
 {/snippet}
 
-<dialog id="my_modal_1" class="modal">
-	<div class="modal-box">
-		<h3 class="text-lg font-bold">Hello!</h3>
-		<p class="py-4">Press ESC key or click the button below to close</p>
-		<!-- <div class="modal-action">
-		  <form method="dialog">
-			 if there is a button in form, it will close the modal 
-			<button class="btn">Close</button>
-		  </form>
-		</div> -->
-	  </div>
-  </dialog>
-
-
-<div class="flex justify-center flex-grow">
+<div class="flex justify-center">
 	<div class="max-w-sm min-w-sm w-full shadow-lg mx-auto items-center">
 		<div class="card rounded-t-xl rounded-b-none p-8 dark:bg-gray-800 bg-white">
 			{#if isLoading}
@@ -370,28 +341,11 @@
 											style="background: transparent;"
 											onclick={() => changeSurface}
 										>
-											<img
-												src={changeSurfaceIcon}
-												alt="change surface"
-												width="22"
-												height="22"
-											/>
+											<img src={changeSurfaceIcon} alt="change surface" width="22" height="22" />
 										</button>
-										<button aria-label="Icon 2" class="icon-button">
-											<img
-												src={changeDateIcon}
-												alt="change date"
-												width="16"
-												height="16"
-											/>
-										</button>
+										{@render changeDateDialogSnippet()}
 										<button aria-label="Icon 3" class="icon-button">
-											<img
-												src={trashIcon}
-												alt="delete training"
-												width="16"
-												height="16"
-											/>
+											<img src={trashIcon} alt="delete training" width="16" height="16" />
 										</button>
 									</div>
 								</div>
@@ -441,7 +395,7 @@
 								{/each}
 							</ul>
 							<div class="mt-6">
-								<table class="w-full text-sm">
+								<table class="table w-full text-sm">
 									<thead>
 										<tr>
 											<th class="text-left">Metric</th>
@@ -507,6 +461,44 @@
 		{/each}
 	</div>
 </div>
+
+{#snippet changeDateDialogSnippet()}
+	{#if selectedDay && selectedMonth && selectedYear}
+		<button class="btn btn-ghost hover:bg-base-100" onclick={() => my_modal_1.showModal()}>
+			<img src={changeDateIcon} alt="change date" width="16" height="16" />
+		</button>
+		<dialog bind:this={my_modal_1} class="modal">
+			<div class="modal-box">
+				<h3 class="text-lg font-bold">Move your training</h3>
+				<p class="py-4">Select a date to which you want to move the training. If there is already a training planned for the new date the trainings will be swapped.</p>
+
+				<!-- Personal Data Form -->
+				<form>
+					<fieldset class="fieldset">
+						<legend class="fieldset-legend">Change dates:</legend>
+						<label class="input">
+							<span class="label">From:</span>
+						<input
+							type="date"
+							name="fromDate"
+							placeholder="From Date"
+							required
+							class="input"
+							value={selectedDate}
+						/>
+						</label>
+						<label class="input">
+							<span class="label">To:</span>
+						<input type="date" name="toDate" placeholder="To Date" required class="input" />
+						</label>
+						<button class="btn" type="button" onclick={() => my_modal_1.close()}>Close</button>
+						<button class="btn" type="submit">Change Date</button>
+					</fieldset>
+				</form>
+			</div>
+		</dialog>
+	{/if}
+{/snippet}
 
 <style>
 	.selected {
