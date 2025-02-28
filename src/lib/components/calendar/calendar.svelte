@@ -2,7 +2,6 @@
 	import type { Schedule, ScheduledTraining, StrengthTraining, Entry } from '$lib/server/api/types';
 	import Loading from '../loading.svelte';
 	import TrainingDetails from './trainingDetails.svelte';
-	import { Tab } from '$lib/server/api/types'; // Import the enum
 
 	let { today, schedule }: { today: Date; schedule: Schedule } = $props();
 
