@@ -1,7 +1,7 @@
 import { TokenType } from '../auth';
 import { getSessionTokenCookie } from '../auth';
 import { apiClient } from './config';
-import type { TrainingPlan, TrainingSession, Goal } from './types';
+import type { TrainingPlan, TrainingSession, Goal, NutritionAdvice } from './types';
 import type { Cookies } from '@sveltejs/kit';
 
 export const trainingApi = {
@@ -35,6 +35,16 @@ async getGoal(cookies: Cookies): Promise<Goal> {
             'Authorization': `Bearer ${getSessionTokenCookie(cookies, TokenType.AccessToken)}`
         }
     });
+    return response.data;
+},
+
+async getNutrition(cookies: Cookies, timestamp: string): Promise<NutritionAdvice> {
+    const response = await apiClient.getAxios().get<NutritionAdvice>(`api/nutritional/advice?date=${timestamp}`, {
+        headers: {
+            'Authorization': `Bearer ${getSessionTokenCookie(cookies, TokenType.AccessToken)}`
+        }
+    });
+
     return response.data;
 }
 };

@@ -1,11 +1,20 @@
 <script lang="ts">
-	import type { Schedule, ScheduledTraining, StrengthTraining, Entry } from '$lib/server/api/types';
+	import type {
+		Schedule,
+		ScheduledTraining,
+		StrengthTraining,
+		Entry,
+		NutritionAdvice
+	} from '$lib/server/api/types';
 	import Loading from '../loading.svelte';
+	import NutritionDetails from './nutritionDetails.svelte';
 	import TrainingDetails from './trainingDetails.svelte';
+	import { Tab } from './types';
 
+	let selectedTab: Tab = $state(Tab.Training); // Initialize with the default tab
 	let { today, schedule }: { today: Date; schedule: Schedule } = $props();
 
-	let isLoading: boolean = $state(false); // Add loading state
+	let isMonthDataLoading: boolean = $state(false); // Add loading state
 	// Initialize currentDate with today's date
 	let currentDate = $state(today || new Date()); // Use today if provided, otherwise use new Date()
 	let daysInMonthWithOffset: number[] = $state([]);
@@ -47,11 +56,9 @@
 		})
 	);
 
-	let selectedTab: Tab = $state(Tab.Training); // Initialize with the default tab
-
 	async function getMonthSchedule(timestamp: Date) {
-		isLoading = true;
-		const response = await fetch('/user/month/?timestamp=' + timestamp.getTime(), {
+		isMonthDataLoading = true;
+		const response = await fetch('/api/v0/monthSchedule/?timestamp=' + timestamp.getTime(), {
 			method: 'GET',
 			headers: {
 				'content-type': 'application/json'
@@ -63,14 +70,20 @@
 				window.location.href = '/login';
 			}
 			console.error('Failed to fetch month schedule: ', response.statusText);
-			isLoading = false;
+			isMonthDataLoading = false;
 			return;
 		}
 
 		const data = await response.json();
+
+		console.log(data);
 		schedule = data;
-		isLoading = false;
+		isMonthDataLoading = false;
 	}
+
+	let nutritionData: NutritionAdvice | null = $state(null);
+	let nutritionDate: string | null = $state(null);
+	let isNutritionLoading: boolean = $state(false);
 
 	// Function to update the calendar view
 	function updateCalendar(onMount: boolean = false) {
@@ -122,6 +135,45 @@
 		selectedDay = day;
 		selectedTab = Tab.Training;
 	}
+
+	async function fetchNutritionData(selectedDate: string | null) {
+		if (selectedDate == null || (nutritionDate == selectedDate && nutritionData != null)) {
+			return;
+		}
+		isNutritionLoading = true;
+		const response = await fetch('/api/v0/nutrition/?timestamp=' + selectedDate, {
+			method: 'GET',
+			headers: {
+				'content-type': 'application/json'
+			}
+		});
+
+		if (!response.ok) {
+			if (response.status === 401) {
+				window.location.href = '/login';
+			}
+			console.error('Failed to fetch month schedule: ', response.statusText);
+			isNutritionLoading = false;
+			return;
+		}
+
+		const data = await response.json();
+
+		console.log(data);
+
+		nutritionData = data as NutritionAdvice;
+		nutritionDate = selectedDate;
+		isNutritionLoading = false;
+	}
+
+	$effect(() => {
+		if (selectedDate != nutritionDate) {
+			fetchNutritionData(selectedDate);
+		}
+		if (selectedTraining.length == 0) {
+			selectedTab = Tab.Nutrition;
+		}
+	});
 
 	function changeSurface() {
 		// TODO: needs new API call to get and populate the form fields
@@ -191,7 +243,7 @@
 
 <div class="flex justify-center">
 	<div class="max-w-sm min-w-sm w-full shadow-lg mx-auto items-center">
-		{#if isLoading}
+		{#if isMonthDataLoading}
 			<div
 				class="loading-overlay absolute inset-0 flex items-center justify-center dark:bg-gray-700 bg-gray-50 rounded-xl"
 			>
@@ -306,7 +358,14 @@
 			</div>
 		</div>
 		<div class="tabs tabs-border dark:bg-gray-700 bg-gray-50 rounded-b-xl w-full">
-			<input type="radio" name="details-tab" class="tab" value="training" bind:group={selectedTab} aria-label="Training details" />
+			<input
+				type="radio"
+				name="details-tab"
+				class="tab"
+				value="training"
+				bind:group={selectedTab}
+				aria-label="Training details"
+			/>
 			<div class="tab-content px-6" class:active={selectedTab === Tab.Training}>
 				<TrainingDetails
 					{selectedTraining}
@@ -318,8 +377,17 @@
 				/>
 			</div>
 
-			<input type="radio" name="details-tab" class="tab" value="nutrition" bind:group={selectedTab} aria-label="Nutrition" />
-			<div class="tab-content px-6" class:active={selectedTab === Tab.Nutrition}>Tab content 2</div>
+			<input
+				type="radio"
+				name="details-tab"
+				class="tab"
+				value="nutrition"
+				bind:group={selectedTab}
+				aria-label="Nutrition"
+			/>
+			<div class="tab-content px-6" class:active={selectedTab === Tab.Nutrition}>
+				<NutritionDetails {selectedDate} {nutritionDate} {nutritionData} {isNutritionLoading} />
+			</div>
 		</div>
 	</div>
 </div>

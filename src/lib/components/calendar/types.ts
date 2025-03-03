@@ -1,4 +1,4 @@
-enum Tab {
+export enum Tab {
     Training = 'training',
     Nutrition = 'nutrition',
 }

@@ -129,28 +129,28 @@
 						<tr>
 							<td class="text-left">Core</td>
 							<td class="text-left">{selectedTraining[0].training.core_distance}</td>
-							{#if selectedRunTrainingEntry}
+							{#if selectedRunTrainingEntry.length > 0}
 								<td class="text-left">-</td>
 							{/if}
 						</tr>
 						<tr>
 							<td class="text-left">Time</td>
 							<td class="text-left">{selectedTraining[0].training.total_time}</td>
-							{#if selectedRunTrainingEntry}
+							{#if selectedRunTrainingEntry.length > 0}
 								<td class="text-left">{selectedRunTrainingEntry[0].time}</td>
 							{/if}
 						</tr>
 						<tr>
 							<td class="text-left">Heartrate</td>
 							<td class="text-left">-</td>
-							{#if selectedRunTrainingEntry}
+							{#if selectedRunTrainingEntry.length > 0}
 								<td class="text-left">{selectedRunTrainingEntry[0].avg_heartbeat}</td>
 							{/if}
 						</tr>
 						<tr>
 							<td class="text-left">Elevation</td>
 							<td class="text-left">-</td>
-							{#if selectedRunTrainingEntry}
+							{#if selectedRunTrainingEntry.length > 0}
 								<td class="text-left">{selectedRunTrainingEntry[0].total_altitude}</td>
 							{/if}
 						</tr>

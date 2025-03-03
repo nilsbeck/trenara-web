@@ -555,4 +555,24 @@ export interface UserStats {
   };
 }
 
-
+export interface NutritionAdvice {
+  id: number;
+  date: string;
+  advice: string;
+  title: string;
+  description: string;
+  plan: Array<{
+    type: string;
+    order: number;
+    icon: string;
+    icon_background_color: string;
+    title: string;
+    percentage: number;
+    values: {
+      name: string;
+      value: number;
+      order: number;
+      value_unit: string;
+    }[];
+  }>;
+}
