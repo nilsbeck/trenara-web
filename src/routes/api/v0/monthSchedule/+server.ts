@@ -1,6 +1,6 @@
 import type { Schedule } from '$lib/server/api/types';
 import type { RequestEvent } from '@sveltejs/kit';
-import { userApi } from '$lib/server/api/user';
+import { trainingApi } from '$lib/server/api';
 import { json } from '@sveltejs/kit';
 function daysInMonth(year: number, month: number): number {
 	return new Date(year, month + 1, 0).getDate();
@@ -34,7 +34,7 @@ export const GET = async (event: RequestEvent) => {
     }
 
     for (let i = 0; i < timestamps.length; i++) {
-        const schedule = userApi.getSchedule(event.cookies, Math.floor(timestamps[i].getTime() / 1000));
+        const schedule = trainingApi.getSchedule(event.cookies, Math.floor(timestamps[i].getTime() / 1000));
         schedules.push(schedule);
     }
 

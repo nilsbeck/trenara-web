@@ -9,6 +9,7 @@
 	import Loading from '../loading.svelte';
 	import NutritionDetails from './nutritionDetails.svelte';
 	import TrainingDetails from './trainingDetails.svelte';
+	import StrengthDetails from './strengthDetails.svelte';
 	import { Tab } from './types';
 
 	let selectedTab: Tab = $state(Tab.Training); // Initialize with the default tab
@@ -76,7 +77,6 @@
 
 		const data = await response.json();
 
-		console.log(data);
 		schedule = data;
 		isMonthDataLoading = false;
 	}
@@ -159,8 +159,6 @@
 
 		const data = await response.json();
 
-		console.log(data);
-
 		nutritionData = data as NutritionAdvice;
 		nutritionDate = selectedDate;
 		isNutritionLoading = false;
@@ -235,6 +233,28 @@
 		// 		dialog.showModal();
 		// 	}
 		// }
+	}
+
+	// Function to check if there are any run or strength training entries for the month
+	function hasTrainingEntriesForDate(type: 'run' | 'strength', day: number): boolean {
+		if (type === 'strength') {
+			const entries = schedule.strength_trainings;
+			return entries.some((entry: StrengthTraining) => {
+				const entryDate = new Date(entry.day).toISOString().split('T')[0]; // Extract date part
+				const calendarDate = new Date(currentDate.getFullYear(), currentDate.getMonth(), day)
+					.toISOString()
+					.split('T')[0]; // Compare with currentDate using day
+				return entryDate === calendarDate;
+			});
+		}
+		const entries = schedule.trainings;
+		return entries.some((entry: ScheduledTraining) => {
+			const entryDate = new Date(entry.day_long).toISOString().split('T')[0]; // Extract date part
+			const calendarDate = new Date(currentDate.getFullYear(), currentDate.getMonth(), day)
+				.toISOString()
+				.split('T')[0]; // Compare with currentDate using day
+			return entryDate === calendarDate;
+		});
 	}
 
 	// Initialize the calendar on component mount
@@ -344,9 +364,22 @@
 													}
 												}}
 											>
-												<p class="text-base text-gray-500 dark:text-gray-100">
-													{day - offsetAtStart}
-												</p>
+												<div class="flex flex-col items-center">
+													<p class="text-base text-gray-500 dark:text-gray-100">
+														{day - offsetAtStart}
+													</p>
+													<div class="flex flex-row items-center">
+														{#if hasTrainingEntriesForDate('run', day - offsetAtStart + 1)}
+															<span class="dot run-dot"></span>
+														{/if}
+														{#if hasTrainingEntriesForDate('strength', day - offsetAtStart + 1)}
+															<span class="dot strength-dot"></span>
+														{/if}
+														{#if !hasTrainingEntriesForDate('run', day - offsetAtStart + 1) && !hasTrainingEntriesForDate('strength', day - offsetAtStart + 1)}
+															<span class="dot"></span>
+														{/if}
+													</div>
+												</div>
 											</div>
 										{/if}
 									</td>
@@ -364,7 +397,7 @@
 				class="tab"
 				value="training"
 				bind:group={selectedTab}
-				aria-label="Training details"
+				aria-label="🏃🏻‍♂️‍➡️ Training"
 			/>
 			<div class="tab-content px-6" class:active={selectedTab === Tab.Training}>
 				<TrainingDetails
@@ -376,17 +409,27 @@
 					{selectedDate}
 				/>
 			</div>
-
 			<input
 				type="radio"
 				name="details-tab"
 				class="tab"
 				value="nutrition"
 				bind:group={selectedTab}
-				aria-label="Nutrition"
+				aria-label="🥪 Nutrition"
 			/>
 			<div class="tab-content px-6" class:active={selectedTab === Tab.Nutrition}>
 				<NutritionDetails {selectedDate} {nutritionDate} {nutritionData} {isNutritionLoading} />
+			</div>
+			<input
+				type="radio"
+				name="details-tab"
+				class="tab"
+				value="strength"
+				bind:group={selectedTab}
+				aria-label="💪 Strength"
+			/>
+			<div class="tab-content px-6" class:active={selectedTab === Tab.Strength}>
+				<StrengthDetails {selectedTrainingStrength} />
 			</div>
 		</div>
 	</div>
@@ -412,5 +455,21 @@
 		justify-content: center;
 		align-items: center;
 		z-index: 1000; /* Ensure it is above other content */
+	}
+
+	.dot {
+		display: inline-block;
+		width: 8px; /* Adjust size as needed */
+		height: 8px; /* Adjust size as needed */
+		border-radius: 50%; /* Make it circular */
+		margin-top: 4px; /* Space between the text and the dot */
+	}
+
+	.run-dot {
+		background-color: white; /* Color for run training */
+	}
+
+	.strength-dot {
+		background-color: blue; /* Color for strength training */
 	}
 </style>

@@ -44,7 +44,7 @@ const getMonthlySchedule = async (event: RequestEvent) => {
     }
 
     for (let i = 0; i < timestamps.length; i++) {
-        const schedule = userApi.getSchedule(event.cookies, Math.floor(timestamps[i].getTime() / 1000));
+        const schedule = trainingApi.getSchedule(event.cookies, Math.floor(timestamps[i].getTime() / 1000));
         schedules.push(schedule);
     }
 
