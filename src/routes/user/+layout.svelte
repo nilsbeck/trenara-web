@@ -18,7 +18,7 @@
 	</div>
 	<div class="flex-none">
 	  <div class="dropdown dropdown-end">
-		<div tabindex="0" role="button" class="btn btn-ghost btn-circle">
+		<!-- <div tabindex="0" role="button" class="btn btn-ghost btn-circle">
 		  <div class="indicator">
 			<svg
 			  xmlns="http://www.w3.org/2000/svg"
@@ -34,7 +34,7 @@
 			</svg>
 			<span class="badge badge-sm indicator-item">8</span>
 		  </div>
-		</div>
+		</div> -->
 		<!-- <div
 		  class="card card-compact dropdown-content bg-base-100 z-[1] mt-3 w-52 shadow">
 		  <div class="card-body">
