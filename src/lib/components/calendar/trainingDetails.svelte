@@ -25,7 +25,7 @@
 		selectedDate: string | null;
 	} = $props();
 
-	let feedbackValue: number = $state(selectedRunTrainingEntry[0].rpe ?? 1);
+	let feedbackValue: number = $state(selectedRunTrainingEntry.length > 0 ? selectedRunTrainingEntry[0].rpe ?? 1 : 1);
 </script>
 
 {#if selectedTraining[0]}
