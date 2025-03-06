@@ -1,10 +1,13 @@
 <script lang="ts">
 	import type { ScheduledTraining, Entry } from '$lib/server/api/types';
+	import { postFeedback as putFeedback } from '$lib/components/calendar/utils';
 	import changeDateIcon from '/src/assets/change-date.svg';
 	import changeSurfaceIcon from '/src/assets/change-surface.svg';
 	import trashIcon from '/src/assets/trash.svg';
+	import starIcon from '/src/assets/star.svg';
 
 	let changeDateModal: HTMLDialogElement = $state() as HTMLDialogElement;
+	let giveFeedbackModal: HTMLDialogElement = $state() as HTMLDialogElement;
 
 	let {
 		selectedTraining,
@@ -21,6 +24,8 @@
 		selectedYear: number | null;
 		selectedDate: string | null;
 	} = $props();
+
+	let feedbackValue: number = $state(selectedRunTrainingEntry[0].rpe ?? 1);
 </script>
 
 {#if selectedTraining[0]}
@@ -59,6 +64,7 @@
 							<button aria-label="Delete training" class="icon-button">
 								<img src={trashIcon} alt="delete training" width="16" height="16" />
 							</button>
+							{@render giveFeedbackDialogSnippet()}
 						</div>
 					{/if}
 				</div>
@@ -217,6 +223,64 @@
 						</label>
 						<button class="btn" type="button" onclick={() => changeDateModal.close()}>Close</button>
 						<button class="btn" type="submit">Change Date</button>
+					</fieldset>
+				</form>
+			</div>
+		</dialog>
+	{/if}
+{/snippet}
+
+{#snippet giveFeedbackDialogSnippet()}
+	{#if selectedRunTrainingEntry.length > 0}
+		<button
+			class="btn btn-ghost hover:bg-base-100"
+			aria-label="Give feedback"
+			onclick={() => giveFeedbackModal.showModal()}
+		>
+			<img src={starIcon} alt="give feedback" width="16" height="16" />
+		</button>
+		<dialog bind:this={giveFeedbackModal} class="modal">
+			<div class="modal-box">
+				<h3 class="text-lg font-bold">Give feedback</h3>
+				<p class="py-4">
+					Use the slider to give feedback about the training.
+				</p>
+
+				<!-- Personal Data Form -->
+				<form class="flex justify-center w-full">
+					<fieldset class="fieldset w-full">
+						<legend class="fieldset-legend">Give feedback:</legend>
+						<div class="w-full">
+							<input type="range" min="1" max="10" bind:value={feedbackValue} class="range w-full" step="1" />
+							<div class="flex justify-between px-2.5 mt-2 text-xs">
+								<span>|</span>
+								<span>|</span>
+								<span>|</span>
+								<span>|</span>
+								<span>|</span>
+								<span>|</span>
+								<span>|</span>
+								<span>|</span>
+								<span>|</span>
+								<span>|</span>
+							</div>
+							<div class="flex justify-between px-2.5 mt-2 text-xs">
+								<span>1</span>
+								<span>2</span>
+								<span>3</span>
+								<span>4</span>
+								<span>5</span>
+								<span>6</span>
+								<span>7</span>
+								<span>8</span>
+								<span>9</span>
+								<span>10</span>
+							</div>
+						</div>
+						<button class="btn" type="button" onclick={() => giveFeedbackModal.close()}>
+							Close
+						</button>
+						<button class="btn" type="submit" onclick={() => putFeedback(selectedRunTrainingEntry[0].id, feedbackValue)}>Save</button>
 					</fieldset>
 				</form>
 			</div>

@@ -2,6 +2,7 @@ import type { Schedule } from '$lib/server/api/types';
 import type { RequestEvent } from '@sveltejs/kit';
 import { trainingApi } from '$lib/server/api';
 import { json } from '@sveltejs/kit';
+
 function daysInMonth(year: number, month: number): number {
 	return new Date(year, month + 1, 0).getDate();
 }

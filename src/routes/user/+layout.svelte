@@ -35,7 +35,7 @@
 			<span class="badge badge-sm indicator-item">8</span>
 		  </div>
 		</div>
-		<div
+		<!-- <div
 		  class="card card-compact dropdown-content bg-base-100 z-[1] mt-3 w-52 shadow">
 		  <div class="card-body">
 			<span class="text-lg font-bold">8 Items</span>
@@ -44,7 +44,7 @@
 			  <button class="btn btn-primary btn-block">View cart</button>
 			</div>
 		  </div>
-		</div>
+		</div> -->
 	  </div>
 	  {#await data.userData}
 		<Loading />

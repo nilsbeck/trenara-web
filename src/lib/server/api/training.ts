@@ -58,5 +58,15 @@ export const trainingApi = {
 				}
 			});
 		return response.data;
+	},
+
+	async putFeedback(cookies: Cookies, entryId: number, feedback: number) {
+		const response = await apiClient.getAxios().put(`/api/entries/${entryId}/rpe`, { rpe: feedback }, {
+			headers: {
+				Authorization: `Bearer ${getSessionTokenCookie(cookies, TokenType.AccessToken)}`
+			}
+		});
+
+		return response.data;
 	}
 };
