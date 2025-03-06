@@ -6,9 +6,17 @@ import type {
 	User
 } from './types';
 import { apiClient } from './config';
+import dotenv from 'dotenv';
+dotenv.config();
+
+if (!process.env.BASIC_BEARER_TOKEN) {
+	console.error('BASIC_BEARER_TOKEN is not set');
+}
 
 export const authApi = {
 	async login(data: LoginRequest): Promise<AuthResponse> {
+
+		console.log(process.env.BASIC_BEARER_TOKEN);
 		const response = await apiClient.getAxios().post<AuthResponse>(
 			'/oauth/token',
 			{
@@ -19,7 +27,7 @@ export const authApi = {
 			{
 				headers: {
 					'Content-Type': 'application/json',
-					Authorization: process.env.BASIC_BEARER_TOKEN
+					'Authorization': `Basic ` + process.env.BASIC_BEARER_TOKEN
 				}
 			}
 		);
