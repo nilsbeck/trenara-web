@@ -16,15 +16,15 @@ Currently, trenara is a mobile app for iOS and Android written in Flutter.
 It has some drawbacks, that this web app aims to improve and mitigate.
 
 - It is a mobile app only, so it's not accessible from everywhere
-+ It is a web app with a responsive design to work on any screensize
+  - It is a web app with a responsive design to work on any screensize
 - It's loading times are too long. It takes approx. 4-6s to load the main screen and every other screen as well
-+ Make the app blazing fast, by running API calls in parallel and caching data. It is surely about 60% faster than the original app.
+  - Make the app blazing fast, by running API calls in parallel and caching data. It is surely about 60% faster than the original app.
 - It does not give me the information I need at a glance since the dashboard is not informative
-+ Make the (monthly!) calendar the center of the app, add goal and prediction data at the same time (on large screens, otherwise accessible via menu)
+  - Make the (monthly!) calendar the center of the app, add goal and prediction data at the same time (on large screens, otherwise accessible via menu)
 - Join data that belongs together (training, strength and nutrition details) but is currently split into multiple screens, each needing loading times.
-+ Declutter the calendar data, by adding keeping things close but separated by context (using tabs, etc.)
+  - Declutter the calendar data, by adding keeping things close but separated by context (using tabs, etc.)
 - Remove/hide data that is distracting and not useful for me (graphs that are not useful, etc.)
-+ I never needed a map view, or all the other data that trenara shows because I have it in Garmin Connect already. Especially the graph with the paces etc. is unintuitive (at best) to read.
+  - I never needed a map view, or all the other data that trenara shows because I have it in Garmin Connect already. Especially the graph with the paces etc. is unintuitive (at best) to read.
 
 ## What is the status?
 
@@ -34,8 +34,8 @@ It shows the data for training, strength and nutrition. You can add RPE feedback
 ## What is the future?
 
 - Imprement API calls to
-+ move a training to a different date
-+ set training circumstances
+  - move a training to a different date
+  - set training circumstances
 - Refactoring
 - Improve dialog usages to change data
 - Remove axios usage in favor of sveltes native fetch API
