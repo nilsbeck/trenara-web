@@ -33,7 +33,7 @@ It shows the data for training, strength and nutrition. You can add RPE feedback
 
 ## What is the future?
 
-- Imprement API calls to
+- Implement API calls to
   - move a training to a different date
   - set training circumstances
 - Refactoring
