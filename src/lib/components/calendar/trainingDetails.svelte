@@ -5,6 +5,7 @@
 	import changeSurfaceIcon from '/src/assets/change-surface.svg';
 	import trashIcon from '/src/assets/trash.svg';
 	import starIcon from '/src/assets/star.svg';
+	import coachIcon from '/src/assets/img__coach.jpeg'
 
 	let changeDateModal: HTMLDialogElement = $state() as HTMLDialogElement;
 	let giveFeedbackModal: HTMLDialogElement = $state() as HTMLDialogElement;
@@ -74,7 +75,7 @@
 			<div class="chat chat-start">
 				<div class="chat-image avatar">
 					<div class="w-10 rounded-full">
-						<img alt="Our coach" src="/src/assets/img__coach.jpeg" />
+						<img alt="Our coach" src={coachIcon} />
 					</div>
 				</div>
 				<div class="chat-start py-2">
