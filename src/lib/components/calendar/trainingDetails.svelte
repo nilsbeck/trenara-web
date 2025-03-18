@@ -25,7 +25,9 @@
 		selectedDate: string | null;
 	} = $props();
 
-	let feedbackValue: number = $state(selectedRunTrainingEntry.length > 0 ? selectedRunTrainingEntry[0].rpe ?? 1 : 1);
+	let feedbackValue: number = $state(
+		selectedRunTrainingEntry.length > 0 ? (selectedRunTrainingEntry[0].rpe ?? 1) : 1
+	);
 </script>
 
 {#if selectedTraining[0]}
@@ -34,7 +36,6 @@
 			<div>
 				<div class="flex justify-between items-center">
 					<h2 class="card-title text-left">
-						{selectedTraining[0].title}
 						{#if selectedRunTrainingEntry.length > 0}
 							<svg
 								xmlns="http://www.w3.org/2000/svg"
@@ -50,9 +51,10 @@
 								/></svg
 							>
 						{/if}
+						{selectedTraining[0].title}
 					</h2>
 					{#if selectedTraining[0].can_be_edited}
-						<div class="flex items-center space-x-4">
+						<div class="flex items-right space-x-4">
 							<button
 								aria-label="Change surface"
 								class="icon-button"
@@ -69,99 +71,114 @@
 					{/if}
 				</div>
 			</div>
-			<p class="text-sm pt-2 mt-2 leading-4">
-				{selectedTraining[0].description}
-			</p>
-			{#if selectedRunTrainingEntry.length > 0}
-				<p class="text-sm pt-2 mt-2 leading-4">
-					{selectedRunTrainingEntry[0].notification?.content}
-				</p>
-			{/if}
-			<ul class="mt-6 flex flex-col gap-2 text-sm">
-				{#each selectedTraining[0].training.blocks as block}
-					{#if block.text !== undefined}
-						<li>
-							{@render listItem(block.text)}
-						</li>
-					{:else if block.blocks && block.blocks.length > 1}
-						{#if block.repeat !== 1}
+			<div class="chat chat-start">
+				<div class="chat-image avatar">
+					<div class="w-10 rounded-full">
+						<img alt="Our coach" src="/src/assets/img__coach.jpeg" />
+					</div>
+				</div>
+				<div class="chat-start py-2">
+					<div class="chat-bubble dark:bg-gray-800 bg-white">
+						<p class="text-sm">{selectedTraining[0].description}</p>
+					</div>
+				</div>
+				{#if selectedRunTrainingEntry.length > 0}
+					<div class="chat-bubble dark:bg-gray-800 bg-white">
+						<p class="text-sm">
+							{selectedRunTrainingEntry[0].notification?.content}
+						</p>
+					</div>
+				{/if}
+			</div>
+			<div class="card mt-4 dark:bg-gray-800 bg-white">
+				<ul class="m-4 flex flex-col gap-2 text-sm">
+					{#each selectedTraining[0].training.blocks as block}
+						{#if block.text !== undefined}
 							<li>
-								{@render listItem(`Repeat ${block.repeat}x`)}
-								<ul>
-									{#each block.blocks as innerBlock}
-										<li class="ml-6">
-											{@render listItem(innerBlock.text)}
-										</li>
-									{/each}
-								</ul>
+								{@render listItem(block.text)}
 							</li>
-						{:else}
+						{:else if block.blocks && block.blocks.length > 1}
+							{#if block.repeat !== 1}
+								<li>
+									{@render listItem(`Repeat ${block.repeat}x`)}
+									<ul>
+										{#each block.blocks as innerBlock}
+											<li class="ml-6">
+												{@render listItem(innerBlock.text)}
+											</li>
+										{/each}
+									</ul>
+								</li>
+							{:else}
+								<li>
+									<ul>
+										{#each block.blocks as innerBlock}
+											<li>
+												{@render listItem(innerBlock.text)}
+											</li>
+										{/each}
+									</ul>
+								</li>
+							{/if}
+						{:else if block.blocks && block.blocks.length === 1}
 							<li>
-								<ul>
-									{#each block.blocks as innerBlock}
-										<li>
-											{@render listItem(innerBlock.text)}
-										</li>
-									{/each}
-								</ul>
+								{@render listItem(block.blocks[0].text)}
 							</li>
 						{/if}
-					{:else if block.blocks && block.blocks.length === 1}
-						<li>
-							{@render listItem(block.blocks[0].text)}
-						</li>
-					{/if}
-				{/each}
-			</ul>
-			<div class="mt-6">
-				<table class="table w-full text-sm">
-					<thead>
-						<tr>
-							<th class="text-left">Metric</th>
-							<th class="text-left">Plan</th>
-							{#if selectedRunTrainingEntry.length > 0}
-								<th class="text-left">Actual</th>
-							{/if}
-						</tr>
-					</thead>
-					<tbody>
-						<tr>
-							<td class="text-left">Total Distance</td>
-							<td class="text-left">{selectedTraining[0].training.total_distance}</td>
-							{#if selectedRunTrainingEntry.length > 0}
-								<td class="text-left">{selectedRunTrainingEntry[0].distance}</td>
-							{/if}
-						</tr>
-						<tr>
-							<td class="text-left">Core</td>
-							<td class="text-left">{selectedTraining[0].training.core_distance}</td>
-							{#if selectedRunTrainingEntry.length > 0}
+					{/each}
+				</ul>
+			</div>
+			<div class="card mt-4 dark:bg-gray-800 bg-white">
+				<div class="mt-6">
+					<table class="table w-full text-sm">
+						<thead>
+							<tr>
+								<th class="text-left">Metric</th>
+								<th class="text-left">Plan</th>
+								{#if selectedRunTrainingEntry.length > 0}
+									<th class="text-left">Actual</th>
+								{/if}
+							</tr>
+						</thead>
+						<tbody>
+							<tr>
+								<td class="text-left">Total Distance</td>
+								<td class="text-left">{selectedTraining[0].training.total_distance}</td>
+								{#if selectedRunTrainingEntry.length > 0}
+									<td class="text-left">{selectedRunTrainingEntry[0].distance}</td>
+								{/if}
+							</tr>
+							<tr>
+								<td class="text-left">Core</td>
+								<td class="text-left">{selectedTraining[0].training.core_distance}</td>
+								{#if selectedRunTrainingEntry.length > 0}
+									<td class="text-left">-</td>
+								{/if}
+							</tr>
+							<tr>
+								<td class="text-left">Time</td>
+								<td class="text-left">{selectedTraining[0].training.total_time}</td>
+								{#if selectedRunTrainingEntry.length > 0}
+									<td class="text-left">{selectedRunTrainingEntry[0].time}</td>
+								{/if}
+							</tr>
+							<tr>
+								<td class="text-left">Heartrate</td>
 								<td class="text-left">-</td>
-							{/if}
-						</tr>
-						<tr>
-							<td class="text-left">Time</td>
-							<td class="text-left">{selectedTraining[0].training.total_time}</td>
-							{#if selectedRunTrainingEntry.length > 0}
-								<td class="text-left">{selectedRunTrainingEntry[0].time}</td>
-							{/if}
-						</tr>
-						<tr>
-							<td class="text-left">Heartrate</td>
-							<td class="text-left">-</td>
-							{#if selectedRunTrainingEntry.length > 0}
-								<td class="text-left">{selectedRunTrainingEntry[0].avg_heartbeat}</td>
-							{/if}
-						</tr>
-						<tr>
-							<td class="text-left">Elevation</td>
-							<td class="text-left">-</td>
-							{#if selectedRunTrainingEntry.length > 0}
-								<td class="text-left">{selectedRunTrainingEntry[0].total_altitude}</td>
-							{/if}
-						</tr>
-					</tbody>
-				</table>
+								{#if selectedRunTrainingEntry.length > 0}
+									<td class="text-left">{selectedRunTrainingEntry[0].avg_heartbeat}</td>
+								{/if}
+							</tr>
+							<tr>
+								<td class="text-left">Elevation</td>
+								<td class="text-left">-</td>
+								{#if selectedRunTrainingEntry.length > 0}
+									<td class="text-left">{selectedRunTrainingEntry[0].total_altitude}</td>
+								{/if}
+							</tr>
+						</tbody>
+					</table>
+				</div>
 			</div>
 		</div>
 	</div>
@@ -213,13 +230,12 @@
 								name="fromDate"
 								placeholder="From Date"
 								required
-								class="input"
 								value={selectedDate}
 							/>
 						</label>
 						<label class="input">
 							<span class="label">To:</span>
-							<input type="date" name="toDate" placeholder="To Date" required class="input" />
+							<input type="date" name="toDate" placeholder="To Date" required />
 						</label>
 						<button class="btn" type="button" onclick={() => changeDateModal.close()}>Close</button>
 						<button class="btn" type="submit">Change Date</button>
@@ -242,16 +258,21 @@
 		<dialog bind:this={giveFeedbackModal} class="modal">
 			<div class="modal-box">
 				<h3 class="text-lg font-bold">Give feedback</h3>
-				<p class="py-4">
-					Use the slider to give feedback about the training.
-				</p>
+				<p class="py-4">Use the slider to give feedback about the training.</p>
 
 				<!-- Personal Data Form -->
 				<form class="flex justify-center w-full">
 					<fieldset class="fieldset w-full">
 						<legend class="fieldset-legend">Give feedback:</legend>
 						<div class="w-full">
-							<input type="range" min="1" max="10" bind:value={feedbackValue} class="range w-full" step="1" />
+							<input
+								type="range"
+								min="1"
+								max="10"
+								bind:value={feedbackValue}
+								class="range w-full"
+								step="1"
+							/>
 							<div class="flex justify-between px-2.5 mt-2 text-xs">
 								<span>|</span>
 								<span>|</span>
@@ -280,7 +301,17 @@
 						<button class="btn" type="button" onclick={() => giveFeedbackModal.close()}>
 							Close
 						</button>
-						<button class="btn" type="submit" onclick={() => putFeedback(selectedRunTrainingEntry[0].id, feedbackValue)}>Save</button>
+						<button
+							class="btn"
+							type="submit"
+							onclick={async () => {
+								await putFeedback(selectedRunTrainingEntry[0].id, feedbackValue)
+									.then(() => {
+										giveFeedbackModal.close();
+									})
+									.catch((error) => alert(`Failed to save feedback: ${error.error}`));
+							}}>Save</button
+						>
 					</fieldset>
 				</form>
 			</div>

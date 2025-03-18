@@ -210,54 +210,52 @@
 		{/if}
 		<div class="card rounded-t-xl rounded-b-none p-8 dark:bg-gray-800 bg-white">
 			<div class="flex items-center justify-between">
-				<div class="flex justify-between items-center">
-					<h2 class="card-title text-left">
-						{currentDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
-					</h2>
-					<div class="flex items-center">
-						<button
-							aria-label="calendar backward"
-							class="focus:text-gray-400 hover:text-gray-400 text-gray-800 dark:text-gray-100"
-							onclick={goToPreviousMonth}
+				<h2 class="card-title text-left">
+					{currentDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
+				</h2>
+				<div class="flex items-center">
+					<button
+						aria-label="calendar backward"
+						class="focus:text-gray-400 hover:text-gray-400 text-gray-800 dark:text-gray-100"
+						onclick={goToPreviousMonth}
+					>
+						<svg
+							xmlns="http://www.w3.org/2000/svg"
+							class="icon icon-tabler icon-tabler-chevron-left"
+							width="24"
+							height="24"
+							viewBox="0 0 24 24"
+							stroke-width="1.5"
+							stroke="currentColor"
+							fill="none"
+							stroke-linecap="round"
+							stroke-linejoin="round"
 						>
-							<svg
-								xmlns="http://www.w3.org/2000/svg"
-								class="icon icon-tabler icon-tabler-chevron-left"
-								width="24"
-								height="24"
-								viewBox="0 0 24 24"
-								stroke-width="1.5"
-								stroke="currentColor"
-								fill="none"
-								stroke-linecap="round"
-								stroke-linejoin="round"
-							>
-								<path stroke="none" d="M0 0h24v24H0z" fill="none" />
-								<polyline points="15 6 9 12 15 18" />
-							</svg>
-						</button>
-						<button
-							aria-label="calendar forward"
-							class="focus:text-gray-400 hover:text-gray-400 ml-3 text-gray-800 dark:text-gray-100"
-							onclick={goToNextMonth}
+							<path stroke="none" d="M0 0h24v24H0z" fill="none" />
+							<polyline points="15 6 9 12 15 18" />
+						</svg>
+					</button>
+					<button
+						aria-label="calendar forward"
+						class="focus:text-gray-400 hover:text-gray-400 ml-3 text-gray-800 dark:text-gray-100"
+						onclick={goToNextMonth}
+					>
+						<svg
+							xmlns="http://www.w3.org/2000/svg"
+							class="icon icon-tabler icon-tabler-chevron-right"
+							width="24"
+							height="24"
+							viewBox="0 0 24 24"
+							stroke-width="1.5"
+							stroke="currentColor"
+							fill="none"
+							stroke-linecap="round"
+							stroke-linejoin="round"
 						>
-							<svg
-								xmlns="http://www.w3.org/2000/svg"
-								class="icon icon-tabler icon-tabler-chevron-right"
-								width="24"
-								height="24"
-								viewBox="0 0 24 24"
-								stroke-width="1.5"
-								stroke="currentColor"
-								fill="none"
-								stroke-linecap="round"
-								stroke-linejoin="round"
-							>
-								<path stroke="none" d="M0 0h24v24H0z" fill="none" />
-								<polyline points="9 6 15 12 9 18" />
-							</svg>
-						</button>
-					</div>
+							<path stroke="none" d="M0 0h24v24H0z" fill="none" />
+							<polyline points="9 6 15 12 9 18" />
+						</svg>
+					</button>
 				</div>
 			</div>
 			<div class="flex items-center justify-between pt-6 overflow-x-auto">

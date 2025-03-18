@@ -10,9 +10,8 @@ export async function postFeedback(entryId: number, feedback: number) {
     });
 
     if (response.ok) {
-        return { success: true };
+        return { success: true, error: null };
     }
-
     return error(response.status, response.statusText); 
 }
 
