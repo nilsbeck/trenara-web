@@ -32,7 +32,7 @@
 </script>
 
 {#if selectedTraining[0]}
-	<div class="md:py-4 dark:bg-gray-700 bg-gray-50 rounded-b-xl w-full">
+	<div class="py-4 dark:bg-gray-700 bg-gray-50 rounded-b-xl w-full">
 		<div class=" border-gray-400">
 			<div>
 				<div class="flex justify-between items-center">
@@ -72,19 +72,19 @@
 					{/if}
 				</div>
 			</div>
-			<div class="chat chat-start">
+			<div class="chat chat-start w-full">
 				<div class="chat-image avatar">
 					<div class="w-10 rounded-full">
 						<img alt="Our coach" src={coachIcon} />
 					</div>
 				</div>
-				<div class="chat-start py-2">
-					<div class="chat-bubble dark:bg-gray-800 bg-white">
+				<div class="chat-start py-2 w-full">
+					<div class="chat-bubble dark:bg-gray-800 bg-white w-full">
 						<p class="text-sm">{selectedTraining[0].description}</p>
 					</div>
 				</div>
 				{#if selectedRunTrainingEntry.length > 0}
-					<div class="chat-bubble dark:bg-gray-800 bg-white">
+					<div class="chat-bubble dark:bg-gray-800 bg-white w-full">
 						<p class="text-sm">
 							{selectedRunTrainingEntry[0].notification?.content}
 						</p>
@@ -130,7 +130,7 @@
 				</ul>
 			</div>
 			<div class="card mt-4 dark:bg-gray-800 bg-white">
-				<div class="mt-6">
+				<div class="m-2">
 					<table class="table w-full text-sm">
 						<thead>
 							<tr>

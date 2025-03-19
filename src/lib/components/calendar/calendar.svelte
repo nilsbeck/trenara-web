@@ -200,7 +200,7 @@
 </script>
 
 <div class="flex justify-center">
-	<div class="max-w-sm min-w-sm w-full shadow-lg mx-auto items-center">
+	<div class="max-w-md w-full shadow-lg mx-auto items-center px-4">
 		{#if isMonthDataLoading}
 			<div
 				class="loading-overlay absolute inset-0 flex items-center justify-center dark:bg-gray-700 bg-gray-50 rounded-xl"
