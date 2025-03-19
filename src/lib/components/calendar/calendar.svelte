@@ -376,7 +376,7 @@
 		background-color: var(--color-secondary);
 	}
 	.today {
-		background-color: rgba(211, 211, 211, 0.425); /* Change this to your desired color */
+		background-color: rgba(234, 234, 234, 0.72); /* Change this to your desired color */
 	}
 
 	.loading-overlay {
@@ -402,10 +402,10 @@
 	}
 
 	.run-dot {
-		background-color: white; /* Color for run training */
+		background-color: rgb(56, 76, 255); /* Color for run training */
 	}
 
 	.strength-dot {
-		background-color: blue; /* Color for strength training */
+		background-color: rgb(111, 111, 255); /* Color for strength training */
 	}
 </style>
