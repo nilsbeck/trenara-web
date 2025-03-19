@@ -56,6 +56,7 @@
 					</h2>
 					{#if selectedTraining[0].can_be_edited}
 						<div class="flex items-right space-x-4">
+							{@render giveFeedbackDialogSnippet()}
 							<button
 								aria-label="Change surface"
 								class="icon-button"
@@ -67,7 +68,7 @@
 							<button aria-label="Delete training" class="icon-button">
 								<img src={trashIcon} alt="delete training" width="16" height="16" />
 							</button>
-							{@render giveFeedbackDialogSnippet()}
+							
 						</div>
 					{/if}
 				</div>
@@ -249,6 +250,7 @@
 
 {#snippet giveFeedbackDialogSnippet()}
 	{#if selectedRunTrainingEntry.length > 0}
+	<div>
 		<button
 			class="btn btn-ghost hover:bg-base-100"
 			aria-label="Give feedback"
@@ -317,5 +319,6 @@
 				</form>
 			</div>
 		</dialog>
+	</div>
 	{/if}
 {/snippet}
