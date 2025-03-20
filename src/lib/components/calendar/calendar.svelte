@@ -347,7 +347,7 @@
 				/>
 			</div>
 			{/if}
-			{#if selectedStrengthTrainingEntry.length > 0}
+			{#if selectedTrainingStrength.length > 0}
 			<input
 				type="radio"
 				name="details-tab"
