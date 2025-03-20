@@ -199,8 +199,8 @@
 	updateCalendar(true);
 </script>
 
-<div class="flex justify-center">
-	<div class="max-w-md w-full shadow-lg mx-auto items-center px-4">
+<div class="flex justify-center px-4">
+	<div class="max-w-md w-full shadow-lg mx-auto items-center">
 		{#if isMonthDataLoading}
 			<div
 				class="loading-overlay absolute inset-0 flex items-center justify-center dark:bg-gray-700 bg-gray-50 rounded-xl"
@@ -327,6 +327,7 @@
 			</div>
 		</div>
 		<div class="tabs tabs-border dark:bg-gray-700 bg-gray-50 rounded-b-xl w-full">
+			{#if selectedTraining.length > 0}
 			<input
 				type="radio"
 				name="details-tab"
@@ -345,17 +346,8 @@
 					{selectedDate}
 				/>
 			</div>
-			<input
-				type="radio"
-				name="details-tab"
-				class="tab"
-				value="nutrition"
-				bind:group={selectedTab}
-				aria-label="🥪 Nutrition"
-			/>
-			<div class="tab-content px-6" class:active={selectedTab === Tab.Nutrition}>
-				<NutritionDetails {selectedDate} {nutritionDate} {nutritionData} {isNutritionLoading} />
-			</div>
+			{/if}
+			{#if selectedStrengthTrainingEntry.length > 0}
 			<input
 				type="radio"
 				name="details-tab"
@@ -367,6 +359,19 @@
 			<div class="tab-content px-6" class:active={selectedTab === Tab.Strength}>
 				<StrengthDetails {selectedTrainingStrength} />
 			</div>
+			{/if}
+			<input
+				type="radio"
+				name="details-tab"
+				class="tab"
+				value="nutrition"
+				bind:group={selectedTab}
+				aria-label="🥪 Nutrition"
+			/>
+			<div class="tab-content px-6" class:active={selectedTab === Tab.Nutrition}>
+				<NutritionDetails {selectedDate} {nutritionDate} {nutritionData} {isNutritionLoading} />
+			</div>
+			
 		</div>
 	</div>
 </div>
