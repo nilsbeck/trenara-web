@@ -19,5 +19,7 @@
     "display": "standalone",
     "dir": "auto",
     "lang": "en-US",
-    "name": "Trenara-web"
+    "start_url": "/",
+    "name": "Trenara-web",
+    "short_name": "Trenara-web"
 }
