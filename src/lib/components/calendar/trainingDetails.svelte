@@ -5,7 +5,7 @@
 	import changeSurfaceIcon from '/src/assets/change-surface.svg';
 	import trashIcon from '/src/assets/trash.svg';
 	import starIcon from '/src/assets/star.svg';
-	import coachIcon from '/src/assets/img__coach.jpeg'
+	import coachIcon from '/src/assets/img__coach.jpeg';
 
 	let changeDateModal: HTMLDialogElement = $state() as HTMLDialogElement;
 	let giveFeedbackModal: HTMLDialogElement = $state() as HTMLDialogElement;
@@ -26,8 +26,14 @@
 		selectedDate: string | null;
 	} = $props();
 
-	let feedbackValue: number = $state(
-		selectedRunTrainingEntry.length > 0 ? (selectedRunTrainingEntry[0].rpe ?? 1) : 1
+	// let rpe: string = $state(selectedRunTrainingEntry.length > 0
+    //     ? (selectedRunTrainingEntry[0].rpe !== null && selectedRunTrainingEntry[0].rpe !== undefined
+    //         ? String(selectedRunTrainingEntry[0].rpe)
+    //         : '-')
+    //     : '-'
+	// );
+	let feedbackInitValue: number = $state(
+		selectedRunTrainingEntry.length > 0 ? (selectedRunTrainingEntry[0].rpe ?? selectedRunTrainingEntry[0].rpe!) : 1
 	);
 </script>
 
@@ -68,7 +74,6 @@
 							<button aria-label="Delete training" class="icon-button">
 								<img src={trashIcon} alt="delete training" width="16" height="16" />
 							</button>
-							
 						</div>
 					{/if}
 				</div>
@@ -250,75 +255,81 @@
 
 {#snippet giveFeedbackDialogSnippet()}
 	{#if selectedRunTrainingEntry.length > 0}
-	<div>
-		<button
-			class="btn btn-ghost hover:bg-base-100"
-			aria-label="Give feedback"
-			onclick={() => giveFeedbackModal.showModal()}
-		>
-			<img src={starIcon} alt="give feedback" width="16" height="16" />
-		</button>
-		<dialog bind:this={giveFeedbackModal} class="modal">
-			<div class="modal-box">
-				<h3 class="text-lg font-bold">Give feedback</h3>
-				<p class="py-4">Use the slider to give feedback about the training.</p>
-
-				<!-- Personal Data Form -->
-				<form class="flex justify-center w-full">
-					<fieldset class="fieldset w-full">
-						<legend class="fieldset-legend">Give feedback:</legend>
-						<div class="w-full">
-							<input
-								type="range"
-								min="1"
-								max="10"
-								bind:value={feedbackValue}
-								class="range w-full"
-								step="1"
-							/>
-							<div class="flex justify-between px-2.5 mt-2 text-xs">
-								<span>|</span>
-								<span>|</span>
-								<span>|</span>
-								<span>|</span>
-								<span>|</span>
-								<span>|</span>
-								<span>|</span>
-								<span>|</span>
-								<span>|</span>
-								<span>|</span>
-							</div>
-							<div class="flex justify-between px-2.5 mt-2 text-xs">
-								<span>1</span>
-								<span>2</span>
-								<span>3</span>
-								<span>4</span>
-								<span>5</span>
-								<span>6</span>
-								<span>7</span>
-								<span>8</span>
-								<span>9</span>
-								<span>10</span>
-							</div>
-						</div>
-						<button class="btn" type="button" onclick={() => giveFeedbackModal.close()}>
-							Close
-						</button>
-						<button
-							class="btn"
-							type="submit"
-							onclick={async () => {
-								await putFeedback(selectedRunTrainingEntry[0].id, feedbackValue)
-									.then(() => {
-										giveFeedbackModal.close();
-									})
-									.catch((error) => alert(`Failed to save feedback: ${error.error}`));
-							}}>Save</button
-						>
-					</fieldset>
-				</form>
+		<div>
+			<div class="indicator">
+				<span class="indicator-item  badge badge-secondary">{selectedRunTrainingEntry[0].rpe}</span>
+				<button
+					class="btn btn-ghost hover:bg-base-100"
+					aria-label="Give feedback"
+					onclick={() => giveFeedbackModal.showModal()}
+				>
+					<img src={starIcon} alt="give feedback" width="16" height="16" />
+				</button>
 			</div>
-		</dialog>
-	</div>
+			<dialog bind:this={giveFeedbackModal} class="modal">
+				<div class="modal-box">
+					<h3 class="text-lg font-bold">Give feedback</h3>
+					<p class="py-4">Use the slider to give feedback about the training.</p>
+
+					<!-- Personal Data Form -->
+					<form class="flex justify-center w-full">
+						<fieldset class="fieldset w-full">
+							<legend class="fieldset-legend">Give feedback:</legend>
+							<div class="w-full">
+								<input
+									type="range"
+									min="1"
+									max="10"
+									bind:value={feedbackInitValue}
+									class="range w-full"
+									step="1"
+								/>
+								<div class="flex justify-between px-2.5 mt-2 text-xs">
+									<span>|</span>
+									<span>|</span>
+									<span>|</span>
+									<span>|</span>
+									<span>|</span>
+									<span>|</span>
+									<span>|</span>
+									<span>|</span>
+									<span>|</span>
+									<span>|</span>
+								</div>
+								<div class="flex justify-between px-2.5 mt-2 text-xs">
+									<span>1</span>
+									<span>2</span>
+									<span>3</span>
+									<span>4</span>
+									<span>5</span>
+									<span>6</span>
+									<span>7</span>
+									<span>8</span>
+									<span>9</span>
+									<span>10</span>
+								</div>
+							</div>
+							<div class="flex justify-end">
+								<button class="btn" type="button" onclick={() => giveFeedbackModal.close()}>
+									Close
+								</button>
+								<button
+									class="btn"
+									type="submit"
+									onclick={async () => {
+										await putFeedback(selectedRunTrainingEntry[0].id, feedbackInitValue)
+											.then(() => {
+												selectedRunTrainingEntry[0].rpe = feedbackInitValue
+												giveFeedbackModal.close();
+											})
+											.catch((error) => alert(`Failed to save feedback: ${error.error}`));
+									}}>Save</button
+								>
+							</div>
+						</fieldset>
+					</form>
+				</div>
+			</dialog>
+		</div>
 	{/if}
 {/snippet}
