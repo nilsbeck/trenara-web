@@ -1,6 +1,11 @@
 <script lang="ts">
-	import type { ScheduledTraining, Entry } from '$lib/server/api/types';
-	import { postFeedback as putFeedback } from '$lib/components/calendar/utils';
+	import type { ScheduledTraining, Entry, Schedule } from '$lib/server/api/types';
+	import {
+		getMonthScheduleData,
+		changeDateSave,
+		changeDateTest,
+		postFeedback as putFeedback
+	} from '$lib/components/calendar/utils';
 	import changeDateIcon from '/src/assets/change-date.svg';
 	import changeSurfaceIcon from '/src/assets/change-surface.svg';
 	import trashIcon from '/src/assets/trash.svg';
@@ -10,7 +15,10 @@
 	let changeDateModal: HTMLDialogElement = $state() as HTMLDialogElement;
 	let giveFeedbackModal: HTMLDialogElement = $state() as HTMLDialogElement;
 
+	let saveDateLoading: boolean = $state(false);
+
 	let {
+		schedule = $bindable(),
 		selectedTraining,
 		selectedRunTrainingEntry,
 		selectedDay,
@@ -18,6 +26,7 @@
 		selectedYear,
 		selectedDate
 	}: {
+		schedule: Schedule;
 		selectedTraining: ScheduledTraining[];
 		selectedRunTrainingEntry: Entry[];
 		selectedDay: number | null;
@@ -27,14 +36,17 @@
 	} = $props();
 
 	// let rpe: string = $state(selectedRunTrainingEntry.length > 0
-    //     ? (selectedRunTrainingEntry[0].rpe !== null && selectedRunTrainingEntry[0].rpe !== undefined
-    //         ? String(selectedRunTrainingEntry[0].rpe)
-    //         : '-')
-    //     : '-'
+	//     ? (selectedRunTrainingEntry[0].rpe !== null && selectedRunTrainingEntry[0].rpe !== undefined
+	//         ? String(selectedRunTrainingEntry[0].rpe)
+	//         : '-')
+	//     : '-'
 	// );
 	let feedbackInitValue: number = $state(
-		selectedRunTrainingEntry.length > 0 ? (selectedRunTrainingEntry[0].rpe ?? selectedRunTrainingEntry[0].rpe!) : 1
+		selectedRunTrainingEntry.length > 0
+			? (selectedRunTrainingEntry[0].rpe ?? selectedRunTrainingEntry[0].rpe!)
+			: 1
 	);
+	let changeToDate: Date | null = $state(null);
 </script>
 
 {#if selectedTraining[0]}
@@ -60,9 +72,9 @@
 						{/if}
 						{selectedTraining[0].title}
 					</h2>
-					{#if selectedTraining[0].can_be_edited}
-						<div class="flex items-right space-x-4">
-							{@render giveFeedbackDialogSnippet()}
+					<div class="flex items-right space-x-4">
+						{@render giveFeedbackDialogSnippet()}
+						{#if selectedTraining[0].can_be_edited}
 							<button
 								aria-label="Change surface"
 								class="icon-button"
@@ -74,8 +86,8 @@
 							<button aria-label="Delete training" class="icon-button">
 								<img src={trashIcon} alt="delete training" width="16" height="16" />
 							</button>
-						</div>
-					{/if}
+						{/if}
+					</div>
 				</div>
 			</div>
 			<div class="chat chat-start w-full">
@@ -231,21 +243,78 @@
 					<fieldset class="fieldset">
 						<legend class="fieldset-legend">Change dates:</legend>
 						<label class="input">
-							<span class="label">From:</span>
+							<span class="label">To:</span>
 							<input
 								type="date"
-								name="fromDate"
-								placeholder="From Date"
+								name="toDate"
+								placeholder="To Date"
+								bind:value={changeToDate}
 								required
-								value={selectedDate}
 							/>
 						</label>
-						<label class="input">
-							<span class="label">To:</span>
-							<input type="date" name="toDate" placeholder="To Date" required />
-						</label>
-						<button class="btn" type="button" onclick={() => changeDateModal.close()}>Close</button>
-						<button class="btn" type="submit">Change Date</button>
+						<button
+							class="btn btn-primary"
+							type="button"
+							onclick={async () => {
+								if (changeToDate) {
+									saveDateLoading = true;
+									await changeDateTest(
+										selectedTraining[0].id,
+										changeToDate!,
+										false
+									)
+									.then(async response => {
+										// Test was successfull, so we can save it
+										if (response.success) {
+											console.log(selectedTraining[0].id, changeToDate)
+											return await changeDateSave(
+												selectedTraining[0].id,
+												changeToDate!,
+												false
+											)
+										}
+										// TODO: Ask user if he wants to adapt his goal time
+										throw new Error("You cannot reach your goal with this change. I need to implement overriding this.");
+									})
+									.then(async () => {
+										const date = new Date(selectedYear, selectedMonth, selectedDay, 0, 0, 0, 0)
+										const scheduleResponse = await getMonthScheduleData(date) as Schedule
+										schedule = scheduleResponse;
+
+										changeDateModal.close();
+										saveDateLoading = false;
+									})
+									.catch(error => {
+										console.log(error)
+										saveDateLoading = false;
+										alert(`Failed to change dates: ${error.error}`);
+									});
+								}
+							}}
+						>
+							{#if saveDateLoading}
+								<svg
+									class="mr-3 -ml-1 size-5 animate-spin text-white"
+									xmlns="http://www.w3.org/2000/svg"
+									fill="none"
+									viewBox="0 0 24 24"
+									><circle
+										class="opacity-25"
+										cx="12"
+										cy="12"
+										r="10"
+										stroke="currentColor"
+										stroke-width="4"
+									></circle><path
+										class="opacity-75"
+										fill="currentColor"
+										d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+									></path></svg
+								>
+							{:else}
+								Change Date
+							{/if}
+						</button>
 					</fieldset>
 				</form>
 			</div>
@@ -257,14 +326,19 @@
 	{#if selectedRunTrainingEntry.length > 0}
 		<div>
 			<div class="indicator">
-				<span class="indicator-item  badge badge-secondary">{selectedRunTrainingEntry[0].rpe}</span>
-				<button
-					class="btn btn-ghost hover:bg-base-100"
-					aria-label="Give feedback"
-					onclick={() => giveFeedbackModal.showModal()}
-				>
-					<img src={starIcon} alt="give feedback" width="16" height="16" />
-				</button>
+				{#if selectedRunTrainingEntry[0].rpe != null}
+					<span class="indicator-item badge badge-secondary">{selectedRunTrainingEntry[0].rpe}</span
+					>
+				{/if}
+				{#if selectedTraining[0].can_be_edited}
+					<button
+						class="btn btn-ghost hover:bg-base-100"
+						aria-label="Give feedback"
+						onclick={() => giveFeedbackModal.showModal()}
+					>
+						<img src={starIcon} alt="give feedback" width="16" height="16" />
+					</button>
+				{/if}
 			</div>
 			<dialog bind:this={giveFeedbackModal} class="modal">
 				<div class="modal-box">
@@ -309,17 +383,21 @@
 									<span>10</span>
 								</div>
 							</div>
-							<div class="flex justify-end">
-								<button class="btn" type="button" onclick={() => giveFeedbackModal.close()}>
+							<div class="flex justify-end space-x-2">
+								<button
+									class="btn btn-neutral"
+									type="button"
+									onclick={() => giveFeedbackModal.close()}
+								>
 									Close
 								</button>
 								<button
-									class="btn"
+									class="btn btn-primary"
 									type="submit"
 									onclick={async () => {
 										await putFeedback(selectedRunTrainingEntry[0].id, feedbackInitValue)
 											.then(() => {
-												selectedRunTrainingEntry[0].rpe = feedbackInitValue
+												selectedRunTrainingEntry[0].rpe = feedbackInitValue;
 												giveFeedbackModal.close();
 											})
 											.catch((error) => alert(`Failed to save feedback: ${error.error}`));

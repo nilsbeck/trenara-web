@@ -16,7 +16,6 @@ if (!process.env.BASIC_BEARER_TOKEN) {
 export const authApi = {
 	async login(data: LoginRequest): Promise<AuthResponse> {
 
-		console.log(process.env.BASIC_BEARER_TOKEN);
 		const response = await apiClient.getAxios().post<AuthResponse>(
 			'/oauth/token',
 			{

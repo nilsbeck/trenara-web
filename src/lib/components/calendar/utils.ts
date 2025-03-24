@@ -1,3 +1,4 @@
+import type { ChangedDateResonse, SaveScheduleResponse, Schedule } from "$lib/server/api";
 import { error } from "@sveltejs/kit";
 
 export async function postFeedback(entryId: number, feedback: number) {
@@ -13,6 +14,49 @@ export async function postFeedback(entryId: number, feedback: number) {
         return { success: true, error: null };
     }
     return error(response.status, response.statusText); 
+}
+
+export async function changeDateTest(entryId: number, newDate: Date, includeFuture: boolean) {
+    const response = await fetch('/api/v0/changeDateTest', {
+        method: 'PUT',
+        body: JSON.stringify({ entryId, newDate, includeFuture }),
+        headers: {
+            'Content-Type': 'application/json'
+        }
+    });
+
+    if (response.ok) {
+        const data = await response.json();
+        return { success: true, body: data};
+    }
+    return error(response.status, response.statusText); 
+}
+
+export async function changeDateSave(entryId: number, newDate: Date, includeFuture: boolean): Promise<SaveScheduleResponse> {
+    const response = await fetch('/api/v0/changeDateSave', {
+        method: 'PUT',
+        body: JSON.stringify({ entryId, newDate, includeFuture }),
+        headers: {
+            'Content-Type': 'application/json'
+        }
+    });
+
+    if (response.ok) {
+        const data = await response.json();
+        return data
+    }
+    return error(response.status, response.statusText); 
+}
+
+export async function getMonthScheduleData(timestamp: Date) {
+    const response = await fetch('/api/v0/monthSchedule/?timestamp=' + timestamp.getTime(), {
+        method: 'GET',
+        headers: {
+            'content-type': 'application/json'
+        }
+    });
+
+    return await response.json()
 }
 
 function changeSurface() {

@@ -576,3 +576,23 @@ export interface NutritionAdvice {
     }[];
   }>;
 }
+
+export type TestScheduleResponse = {
+    goal: Goal;
+    goal_possible: boolean;
+    new_goal_time: number;
+}
+
+export type SaveScheduleResponse = {
+    id: number;
+    start_day: number;
+    start_day_long: string;
+    training_week: number;
+    type: string;
+    trainings: ScheduledTraining[];
+}
+
+export type ChangedDateResonse = {
+  schedule: Schedule,
+  success: boolean
+}

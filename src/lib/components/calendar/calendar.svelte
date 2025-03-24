@@ -11,6 +11,7 @@
 	import TrainingDetails from './trainingDetails.svelte';
 	import StrengthDetails from './strengthDetails.svelte';
 	import { Tab } from './types';
+	import { getMonthScheduleData } from './utils';
 
 	let selectedTab: Tab = $state(Tab.Training); // Initialize with the default tab
 	let { today, schedule }: { today: Date; schedule: Schedule } = $props();
@@ -59,12 +60,7 @@
 
 	async function getMonthSchedule(timestamp: Date) {
 		isMonthDataLoading = true;
-		const response = await fetch('/api/v0/monthSchedule/?timestamp=' + timestamp.getTime(), {
-			method: 'GET',
-			headers: {
-				'content-type': 'application/json'
-			}
-		});
+		const response = await getMonthScheduleData(timestamp)
 
 		if (!response.ok) {
 			if (response.status === 401) {
@@ -338,6 +334,7 @@
 			/>
 			<div class="tab-content px-6" class:active={selectedTab === Tab.Training}>
 				<TrainingDetails
+					bind:schedule={schedule}
 					{selectedTraining}
 					{selectedRunTrainingEntry}
 					{selectedDay}

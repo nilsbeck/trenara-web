@@ -1,7 +1,7 @@
 import { TokenType } from '../auth';
 import { getSessionTokenCookie } from '../auth';
 import { apiClient } from './config';
-import type { TrainingPlan, TrainingSession, Goal, NutritionAdvice, Schedule } from './types';
+import type { TrainingPlan, TrainingSession, Goal, NutritionAdvice, Schedule, TestScheduleResponse, SaveScheduleResponse } from './types';
 import type { Cookies } from '@sveltejs/kit';
 
 export const trainingApi = {
@@ -60,8 +60,40 @@ export const trainingApi = {
 		return response.data;
 	},
 
-	async putFeedback(cookies: Cookies, entryId: number, feedback: number) {
+	async putFeedback(cookies: Cookies, entryId: number, feedback: number){
 		const response = await apiClient.getAxios().put(`/api/entries/${entryId}/rpe`, { rpe: feedback }, {
+			headers: {
+				Authorization: `Bearer ${getSessionTokenCookie(cookies, TokenType.AccessToken)}`
+			}
+		});
+
+		return response.data;
+	},
+
+	async testChangeDate(cookies: Cookies, entryId: number, date: Date, includeFuture: boolean): Promise<TestScheduleResponse>  {
+		const response = await apiClient.getAxios().put(`/api/schedule/trainings/${entryId}/change_test`, 
+			{ 
+				action: "move",
+				include_future: includeFuture,
+				target_date: date
+			},
+			{
+			headers: {
+				Authorization: `Bearer ${getSessionTokenCookie(cookies, TokenType.AccessToken)}`
+			}
+		});
+
+		return response.data;
+	},
+
+	async saveChangeDate(cookies: Cookies, entryId: number, date: Date, includeFuture: boolean): Promise<SaveScheduleResponse>  {
+		const response = await apiClient.getAxios().put(`/api/schedule/trainings/${entryId}/change_save`, 
+			{ 
+				action: "move",
+				include_future: includeFuture,
+				target_date: date
+			},
+			{
 			headers: {
 				Authorization: `Bearer ${getSessionTokenCookie(cookies, TokenType.AccessToken)}`
 			}

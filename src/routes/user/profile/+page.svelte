@@ -7,7 +7,7 @@
 {#await data.userData}
 	<Loading />
 {:then user}
-	<div class="flex flex-col md:flex-row items-start justify-center space-x-6">
+	<div class="flex flex-col md:flex-row items-center justify-center px-4">
 		<div class="card dark:bg-gray-700 bg-gray-50 shadow-lg max-w-sm w-full flex-grow">
 			<div class="card-body">
 				<h1 class="text-2xl font-bold">Profile</h1>
@@ -108,7 +108,7 @@
 					</fieldset>
 				</form>
 				<!-- End of Calculation Parameters -->
-				<button type="submit" class="btn btn-primary mt-4">Save</button>
+				<button type="submit" class="btn btn-primary">Save</button>
 			</div>
 		</div>
 	</div>
