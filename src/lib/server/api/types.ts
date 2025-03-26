@@ -596,3 +596,58 @@ export type ChangedDateResonse = {
   schedule: Schedule,
   success: boolean
 }
+
+interface NotificationMetadata {
+    name: string;
+    goal: string;
+    type: string;
+}
+
+interface EntryNotification {
+    id: number;
+    title: string;
+    content: string;
+    notification_type: string;
+    metadata: NotificationMetadata;
+    training_id: number | null;
+    entry_id: number;
+    medal_id: number | null;
+    created_at: string;
+    actions: string[];
+}
+
+interface GpsMedia {
+    // Add properties if needed
+}
+
+export interface AddEntryResponse {
+    id: number;
+    name: string;
+    start_time: string;
+    type: string;
+    icon: string;
+    total_altitude: number | null;
+    avg_heartbeat: number | null;
+    rpe: number | null;
+    comment: string | null;
+    strava: boolean;
+    strava_url: string | null;
+    garmin: boolean;
+    polar: boolean;
+    trenara: boolean;
+    distance: string;
+    distance_value: number;
+    distance_unit: string;
+    distance_unit_text: string;
+    time: string;
+    time_in_sec: number;
+    time_value: number;
+    time_unit: string;
+    pace: string;
+    pace_value: number;
+    pace_unit: string;
+    gps_media: GpsMedia[];
+    notification: EntryNotification;
+    laps: any[]; // Define specific type if needed
+    splits: any[]; // Define specific type if needed
+}
