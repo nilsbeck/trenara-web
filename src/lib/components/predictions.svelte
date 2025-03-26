@@ -1,7 +1,6 @@
 <script lang="ts">
 	import type { UserStats } from '$lib/server/api/types';
     let { userStats }: { userStats: UserStats } = $props();
-    let timeProgressValue = $state(0);
 </script>
 
 <div class="card dark:bg-gray-700 bg-gray-50 shadow-lg max-w-sm min-w-sm w-full">
