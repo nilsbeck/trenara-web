@@ -34,8 +34,10 @@ It shows the data for training, strength and nutrition. You can add RPE feedback
 ## What is the future?
 
 - Implement API calls to
-  - move a training to a different date
+  - ✅ move a training to a different date
   - set training circumstances
+  - ✅ delete a training
+  - ✅ add manual training
 - Refactoring
 - Improve dialog usages to change data
 - Remove axios usage in favor of sveltes native fetch API
