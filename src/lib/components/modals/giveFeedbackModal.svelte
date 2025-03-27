@@ -36,7 +36,7 @@
 </script>
 
 <div>
-	{#if selectedRunTrainingEntry.length > 0}
+	{#if selectedRunTrainingEntry.length > 0 && selectedTraining.length > 0}
 		<div>
 			<div class="indicator">
 				{#if selectedRunTrainingEntry[0].rpe != null}
@@ -106,7 +106,7 @@
 								</button>
 								<button
 									class="btn btn-primary"
-									type="submit"
+									type="button"
 									onclick={async () => {
 										await postFeedback(selectedRunTrainingEntry[0].id, feedbackInitValue)
 											.then(() => {

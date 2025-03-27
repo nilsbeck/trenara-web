@@ -44,16 +44,24 @@
 		)
 	);
 
+	function getDateFromOffset(isoString: string) {
+		const date = new Date(isoString);
+		const year = date.getFullYear();
+		const month = String(date.getMonth() + 1).padStart(2, '0'); // Months are 0-indexed
+		const day = String(date.getDate()).padStart(2, '0');
+		return `${year}-${month}-${day}`;
+		}
+
 	let selectedRunTrainingEntry: Entry[] = $derived(
-		schedule.entries.filter((entry: Entry) => {
-			const entryDate = new Date(entry.start_time).toISOString().split('T')[0]; // Extract date part
-			return entryDate === selectedDate && entry.type === 'run'; // Compare with selectedDate and filter by type
-		})
+		schedule?.entries?.filter((entry: Entry) => {
+			const entryDate = getDateFromOffset(new Date(entry.start_time).toISOString());
+			return entryDate === selectedDate && entry.type === 'run';
+		}) ?? []
 	);
 
 	let selectedStrengthTrainingEntry: Entry[] = $derived(
 		schedule.entries.filter((entry: Entry) => {
-			const entryDate = new Date(entry.start_time).toISOString().split('T')[0]; // Extract date part
+			const entryDate = getDateFromOffset(new Date(entry.start_time).toISOString()); // Extract date part
 			return entryDate === selectedDate && entry.type === 'strength'; // Compare with selectedDate and filter by type
 		})
 	);
@@ -62,18 +70,18 @@
 		isMonthDataLoading = true;
 		const response = await getMonthScheduleData(timestamp)
 
-		if (!response.ok) {
-			if (response.status === 401) {
-				window.location.href = '/login';
-			}
-			console.error('Failed to fetch month schedule: ', response.statusText);
-			isMonthDataLoading = false;
-			return;
-		}
+		// if (!response.ok) {
+		// 	if (response.status === 401) {
+		// 		window.location.href = '/login';
+		// 	}
+		// 	console.error('Failed to fetch month schedule: ', response.status, response.statusText);
+		// 	isMonthDataLoading = false;
+		// 	return;
+		// }
 
-		const data = await response.json();
+		//const data = await response.json();
 
-		schedule = data;
+		schedule = response;
 		isMonthDataLoading = false;
 	}
 
@@ -144,18 +152,18 @@
 			}
 		});
 
-		if (!response.ok) {
-			if (response.status === 401) {
-				window.location.href = '/login';
-			}
-			console.error('Failed to fetch month schedule: ', response.statusText);
-			isNutritionLoading = false;
-			return;
-		}
+		// if (!response.ok) {
+		// 	if (response.status === 401) {
+		// 		window.location.href = '/login';
+		// 	}
+		// 	console.error('Failed to fetch nutrition data: ', response.statusText);
+		// 	isNutritionLoading = false;
+		// 	return;
+		// }
 
-		const data = await response.json();
+		// const data = await response.json();
 
-		nutritionData = data as NutritionAdvice;
+		nutritionData = await response.json();
 		nutritionDate = selectedDate;
 		isNutritionLoading = false;
 	}
@@ -164,7 +172,7 @@
 		if (selectedDate != nutritionDate) {
 			fetchNutritionData(selectedDate);
 		}
-		if (selectedTraining.length == 0) {
+		if (selectedTraining.length == 0 && selectedRunTrainingEntry.length == 0) {
 			selectedTab = Tab.Nutrition;
 		}
 	});
@@ -182,13 +190,28 @@
 			});
 		}
 		const entries = schedule.trainings;
-		return entries.some((entry: ScheduledTraining) => {
+		const hasEntries = entries.some((entry: ScheduledTraining) => {
 			const entryDate = new Date(entry.day_long).toISOString().split('T')[0]; // Extract date part
 			const calendarDate = new Date(currentDate.getFullYear(), currentDate.getMonth(), day)
 				.toISOString()
 				.split('T')[0]; // Compare with currentDate using day
 			return entryDate === calendarDate;
 		});
+
+		if (hasEntries) {
+			return true
+		}
+
+		const trainingEntry = schedule.entries.some((entry: Entry) => {
+			const entryDate = new Date(entry.start_time).toISOString().split('T')[0];
+			const calendarDate = new Date(currentDate.getFullYear(), currentDate.getMonth(), day)
+				.toISOString()
+				.split('T')[0]; // Compare with currentDate using day
+
+			return entryDate === calendarDate;
+		});
+		
+		return trainingEntry;
 	}
 
 	// Initialize the calendar on component mount
@@ -201,7 +224,7 @@
 			<div
 				class="loading-overlay absolute inset-0 flex items-center justify-center dark:bg-gray-700 bg-gray-50 rounded-xl"
 			>
-				<Loading />
+				<Loading/>
 			</div>
 		{/if}
 		<div class="card rounded-t-xl rounded-b-none p-8 dark:bg-gray-800 bg-white">
@@ -323,7 +346,7 @@
 			</div>
 		</div>
 		<div class="tabs tabs-border dark:bg-gray-700 bg-gray-50 rounded-b-xl w-full">
-			{#if selectedTraining.length > 0}
+			{#if selectedTraining.length > 0 || selectedRunTrainingEntry.length > 0}
 			<input
 				type="radio"
 				name="details-tab"

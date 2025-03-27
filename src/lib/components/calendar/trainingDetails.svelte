@@ -1,12 +1,15 @@
 <script lang="ts">
-	import { error } from "@sveltejs/kit";
 	import type { ScheduledTraining, Entry, Schedule } from '$lib/server/api/types';
-	
+	import { getMonthScheduleData } from './utils';
+
 	import changeSurfaceIcon from '/src/assets/change-surface.svg';
 	import trashIcon from '/src/assets/trash.svg';
 	import coachIcon from '/src/assets/img__coach.jpeg';
 	import ChangeDate from '../modals/changeDateModal.svelte';
 	import GiveFeedbackModal from '../modals/giveFeedbackModal.svelte';
+	import Loading from '../loading.svelte';
+
+	let isDeleting = $state(false);
 
 	let {
 		schedule = $bindable(),
@@ -24,16 +27,16 @@
 		selectedMonth: number | null;
 		selectedYear: number | null;
 		selectedDate: string | null;
-	} = $props();	
+	} = $props();
 </script>
 
-{#if selectedTraining[0]}
+{#if selectedTraining.length > 0 || (selectedRunTrainingEntry && selectedRunTrainingEntry[0])}
 	<div class="py-4 dark:bg-gray-700 bg-gray-50 rounded-b-xl w-full">
 		<div class=" border-gray-400">
 			<div>
 				<div class="flex justify-between items-center">
 					<h2 class="card-title text-left">
-						{#if selectedRunTrainingEntry.length > 0}
+						{#if selectedRunTrainingEntry && selectedRunTrainingEntry.length > 0}
 							<svg
 								xmlns="http://www.w3.org/2000/svg"
 								class="size-6 inline-block text-success"
@@ -48,11 +51,17 @@
 								/></svg
 							>
 						{/if}
-						{selectedTraining[0].title}
+						{#if selectedRunTrainingEntry.length > 0}
+							{selectedRunTrainingEntry[0].name}
+						{:else if selectedTraining.length > 0}
+							{selectedTraining[0].title}
+						{/if}
 					</h2>
 					<div class="flex items-right space-x-4">
-						<GiveFeedbackModal {selectedTraining} {selectedRunTrainingEntry} />
-						{#if selectedTraining[0].can_be_edited}
+						{#if selectedRunTrainingEntry.length > 0 && selectedTraining.length > 0}
+							<GiveFeedbackModal {selectedTraining} {selectedRunTrainingEntry} />
+						{/if}
+						{#if selectedTraining.length > 0 && selectedTraining[0].can_be_edited}
 							<button
 								aria-label="Change surface"
 								class="icon-button"
@@ -60,92 +69,116 @@
 							>
 								<img src={changeSurfaceIcon} alt="change surface" width="22" height="22" />
 							</button>
-							<ChangeDate {schedule} {selectedDay} {selectedMonth} {selectedYear} {selectedTraining}/>
-							<button aria-label="Delete training" class="icon-button" onclick={
-								async () => {
+							<ChangeDate
+								{schedule}
+								{selectedDay}
+								{selectedMonth}
+								{selectedYear}
+								{selectedTraining}
+							/>
+						{/if}
+						{#if selectedYear != null && selectedMonth != null && selectedDay != null && selectedRunTrainingEntry}
+							<button
+								aria-label="Delete training"
+								class="icon-button"
+								onclick={async () => {
+									isDeleting = true;
 									const response = await fetch('/api/v0/deleteTraining', {
 										method: 'DELETE',
-										body: JSON.stringify(selectedRunTrainingEntry[0].id),
+										body: JSON.stringify({trainingId: selectedRunTrainingEntry[0].id}),
 										headers: {
 											'Content-Type': 'application/json'
 										}
 									});
 
 									if (response.ok) {
-										return { success: true, error: null };
+										const date = new Date(selectedYear, selectedMonth, selectedDay, 0, 0, 0, 0);
+										const scheduleResponse = (await getMonthScheduleData(date)) as Schedule;
+										schedule = scheduleResponse;
+									} else {
+										alert(response.statusText);
 									}
-									return error(response.status, response.statusText);
-								}}>
-								<img src={trashIcon} alt="delete training" width="16" height="16" />
+									isDeleting = false;
+								}}
+							>
+								{#if isDeleting}
+									<Loading text="" />
+								{:else}
+									<img src={trashIcon} alt="delete training" width="16" height="16" />
+								{/if}
 							</button>
 						{/if}
 					</div>
 				</div>
 			</div>
-			<div class="chat chat-start w-full">
-				<div class="chat-image avatar">
-					<div class="w-10 rounded-full">
-						<img alt="Our coach" src={coachIcon} />
+			{#if selectedTraining.length > 0}
+				<div class="chat chat-start w-full">
+					<div class="chat-image avatar">
+						<div class="w-10 rounded-full">
+							<img alt="Our coach" src={coachIcon} />
+						</div>
 					</div>
+					<div class="chat-start py-2 w-full">
+						<div class="chat-bubble dark:bg-gray-800 bg-white w-full">
+							<p class="text-sm">{selectedTraining[0].description}</p>
+						</div>
+					</div>
+					{#if selectedRunTrainingEntry && selectedRunTrainingEntry.length > 0}
+						<div class="chat-bubble dark:bg-gray-800 bg-white w-full">
+							<p class="text-sm">
+								{selectedRunTrainingEntry[0].notification?.content}
+							</p>
+						</div>
+					{/if}
 				</div>
-				<div class="chat-start py-2 w-full">
-					<div class="chat-bubble dark:bg-gray-800 bg-white w-full">
-						<p class="text-sm">{selectedTraining[0].description}</p>
-					</div>
-				</div>
-				{#if selectedRunTrainingEntry.length > 0}
-					<div class="chat-bubble dark:bg-gray-800 bg-white w-full">
-						<p class="text-sm">
-							{selectedRunTrainingEntry[0].notification?.content}
-						</p>
-					</div>
-				{/if}
-			</div>
-			<div class="card mt-4 dark:bg-gray-800 bg-white">
-				<ul class="m-4 flex flex-col gap-2 text-sm">
-					{#each selectedTraining[0].training.blocks as block}
-						{#if block.text !== undefined}
-							<li>
-								{@render listItem(block.text)}
-							</li>
-						{:else if block.blocks && block.blocks.length > 1}
-							{#if block.repeat !== 1}
+				<div class="card mt-4 dark:bg-gray-800 bg-white">
+					<ul class="m-4 flex flex-col gap-2 text-sm">
+						{#each selectedTraining[0].training.blocks as block}
+							{#if block.text !== undefined}
 								<li>
-									{@render listItem(`Repeat ${block.repeat}x`)}
-									<ul>
-										{#each block.blocks as innerBlock}
-											<li class="ml-6">
-												{@render listItem(innerBlock.text)}
-											</li>
-										{/each}
-									</ul>
+									{@render listItem(block.text)}
 								</li>
-							{:else}
+							{:else if block.blocks && block.blocks.length > 1}
+								{#if block.repeat !== 1}
+									<li>
+										{@render listItem(`Repeat ${block.repeat}x`)}
+										<ul>
+											{#each block.blocks as innerBlock}
+												<li class="ml-6">
+													{@render listItem(innerBlock.text)}
+												</li>
+											{/each}
+										</ul>
+									</li>
+								{:else}
+									<li>
+										<ul>
+											{#each block.blocks as innerBlock}
+												<li>
+													{@render listItem(innerBlock.text)}
+												</li>
+											{/each}
+										</ul>
+									</li>
+								{/if}
+							{:else if block.blocks && block.blocks.length === 1}
 								<li>
-									<ul>
-										{#each block.blocks as innerBlock}
-											<li>
-												{@render listItem(innerBlock.text)}
-											</li>
-										{/each}
-									</ul>
+									{@render listItem(block.blocks[0].text)}
 								</li>
 							{/if}
-						{:else if block.blocks && block.blocks.length === 1}
-							<li>
-								{@render listItem(block.blocks[0].text)}
-							</li>
-						{/if}
-					{/each}
-				</ul>
-			</div>
+						{/each}
+					</ul>
+				</div>
+			{/if}
 			<div class="card mt-4 dark:bg-gray-800 bg-white">
 				<div class="m-2">
 					<table class="table w-full text-sm">
 						<thead>
 							<tr>
 								<th class="text-left">Metric</th>
-								<th class="text-left">Plan</th>
+								{#if selectedTraining.length > 0}
+									<th class="text-left">Plan</th>
+								{/if}
 								{#if selectedRunTrainingEntry.length > 0}
 									<th class="text-left">Actual</th>
 								{/if}
@@ -154,35 +187,45 @@
 						<tbody>
 							<tr>
 								<td class="text-left">Total Distance</td>
-								<td class="text-left">{selectedTraining[0].training.total_distance}</td>
+								{#if selectedTraining.length > 0}
+									<td class="text-left">{selectedTraining[0].training.total_distance}</td>
+								{/if}
 								{#if selectedRunTrainingEntry.length > 0}
 									<td class="text-left">{selectedRunTrainingEntry[0].distance}</td>
 								{/if}
 							</tr>
 							<tr>
 								<td class="text-left">Core</td>
-								<td class="text-left">{selectedTraining[0].training.core_distance}</td>
+								{#if selectedTraining.length > 0}
+									<td class="text-left">{selectedTraining[0].training.core_distance}</td>
+								{/if}
 								{#if selectedRunTrainingEntry.length > 0}
 									<td class="text-left">-</td>
 								{/if}
 							</tr>
 							<tr>
 								<td class="text-left">Time</td>
-								<td class="text-left">{selectedTraining[0].training.total_time}</td>
+								{#if selectedTraining.length > 0}
+									<td class="text-left">{selectedTraining[0].training.total_time}</td>
+								{/if}
 								{#if selectedRunTrainingEntry.length > 0}
 									<td class="text-left">{selectedRunTrainingEntry[0].time}</td>
 								{/if}
 							</tr>
 							<tr>
 								<td class="text-left">Heartrate</td>
-								<td class="text-left">-</td>
+								{#if selectedTraining.length > 0}
+									<td class="text-left">-</td>
+								{/if}
 								{#if selectedRunTrainingEntry.length > 0}
 									<td class="text-left">{selectedRunTrainingEntry[0].avg_heartbeat}</td>
 								{/if}
 							</tr>
 							<tr>
 								<td class="text-left">Elevation</td>
-								<td class="text-left">-</td>
+								{#if selectedTraining.length > 0}
+									<td class="text-left">-</td>
+								{/if}
 								{#if selectedRunTrainingEntry.length > 0}
 									<td class="text-left">{selectedRunTrainingEntry[0].total_altitude}</td>
 								{/if}

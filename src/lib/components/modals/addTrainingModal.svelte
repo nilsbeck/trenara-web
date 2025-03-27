@@ -1,9 +1,9 @@
 <script lang="ts">
-	import { error } from "@sveltejs/kit";
+	import { error } from '@sveltejs/kit';
 	let addTrainingModal: HTMLDialogElement = $state() as HTMLDialogElement;
 	let distanceInKm: number = $state(1);
 	let trainingName: string = $state('');
-	let trainingDate: Date = $state(new Date(Date.now()));
+	let trainingDate: Date = $state(new Date(new Date().setHours(0, 0, 0, 0)));
 
 	let hours: number = $state(0);
 	let minutes: number = $state(0);
@@ -13,22 +13,23 @@
 	async function addTraining(
 		name: string,
 		timeInSeconds: number,
-		distanceInKm: number,
-		date: Date
+		date: Date,
+		distanceInKm: number
 	) {
+		const utcDate: string = new Date(date).toISOString();
 		const response = await fetch('/api/v0/addTraining', {
-        method: 'PUT',
-        body: JSON.stringify({ name, timeInSeconds, date, distanceInKm }),
-        headers: {
-            'Content-Type': 'application/json'
-        }
-    });
+			method: 'POST',
+			body: JSON.stringify({ name, timeInSeconds, date: utcDate, distanceInKm }),
+			headers: {
+				'Content-Type': 'application/json'
+			}
+		});
 
-    if (response.ok) {
-        const data = await response.json();
-        return { success: true, body: data};
-    }
-    return error(response.status, response.statusText); 
+		if (response.ok) {
+			const data = await response.json();
+			return { success: true, body: data };
+		}
+		return error(response.status, response.statusText);
 	}
 </script>
 
@@ -54,7 +55,7 @@
 					</label>
 					<label class="input">
 						<span class="label">Date:</span>
-						<input type="date" min="1" required bind:value={trainingDate} step="1" />
+						<input type="date"required bind:value={trainingDate}  />
 					</label>
 					<div class="flex flex-row">
 						<label class="input">
@@ -81,13 +82,13 @@
 						</button>
 						<button
 							class="btn btn-primary"
-							type="submit"
+							type="button"
 							onclick={async () => {
-								await addTraining(trainingName, timeInSeconds, distanceInKm, trainingDate)
+								await addTraining(trainingName, timeInSeconds, trainingDate, distanceInKm)
 									.then(() => {
 										addTrainingModal.close();
 									})
-									.catch((error) => alert(`Failed to save feedback: ${error.error}`));
+									.catch((error) => alert(`Failed to add training: ${error.error}`));
 							}}>Save</button
 						>
 					</div>
