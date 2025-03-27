@@ -3,7 +3,7 @@ import { json, type RequestEvent } from '@sveltejs/kit';
 
 export const POST = async (event: RequestEvent) => {
 	const { name, timeInSeconds, date, distanceInKm } = await event.request.json();
-	const testResponse = await trainingApi.addTraining(
+	const resp = await trainingApi.addTraining(
 		event.cookies,
 		name,
 		timeInSeconds,
@@ -11,5 +11,5 @@ export const POST = async (event: RequestEvent) => {
         distanceInKm
 	);
 
-	return json(testResponse)
+	return json(resp)
 };

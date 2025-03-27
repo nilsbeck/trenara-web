@@ -133,7 +133,7 @@ export const trainingApi = {
 		cookies: Cookies,
 		name: string,
 		timeInSeconds: number,
-		date: Date,
+		date: string,
 		distanceInKm: number
 	): Promise<AddEntryResponse> {
 		const response = await apiClient.getAxios().post(
@@ -141,7 +141,7 @@ export const trainingApi = {
 			{
 				name: name,
 				time_in_sec: timeInSeconds,
-				start_time: date.toISOString(),
+				start_time: date,
 				distance_value: distanceInKm,
 				distance_unit: 'km'
 			},
@@ -168,6 +168,7 @@ export const trainingApi = {
 			}
 		);
 
+		console.log(response.status);
 		return response.data;
 	}
 };
