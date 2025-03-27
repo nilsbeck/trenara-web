@@ -17,9 +17,9 @@ export interface User {
   can_create_team: boolean;
   can_join_team: boolean;
   can_set_goal: boolean;
-  captains_team: any;
+  // captains_team: any;
   country: string | null;
-  coupled_trainees: any;
+  // coupled_trainees: any;
   date_of_birth: string;
   email: string;
   first_name: string;
@@ -39,7 +39,7 @@ export interface User {
   is_trainer: boolean;
   last_name: string;
   location: string | null;
-  max_trainees: any;
+  // max_trainees: any;
   nationality: {
     id: number;
     name: string;
@@ -65,10 +65,10 @@ export interface User {
     id: number;
     path: string;
     original_path: string;
-    meta: any;
+    // meta: any;
     size_in_kb: number;
     created_at: number;
-    custom_properties: any[];
+    // custom_properties: any[];
   };
   qr_code_url: string | null;
   strength_calibration_notification_at: number | null;
@@ -81,9 +81,9 @@ export interface User {
   heartbeat_prior: boolean;
   is_paused: boolean;
   trainer_picture_url: string;
-  teams: any[];
-  teams_awaiting_approval: any[];
-  trainer: any;
+  // teams: any[];
+  // teams_awaiting_approval: any[];
+  // trainer: any;
 }
 
 export interface UserPreferences {
@@ -236,7 +236,7 @@ export interface Notification {
   notification_type: string;
   read: boolean;
   created_at: string;
-  metadata?: Record<string, any>;
+  // metadata?: Record<string, any>;
   training_id?: number | null;
   entry_id?: number | null;
   medal_id?: number | null;
@@ -255,7 +255,7 @@ export interface Integration {
   provider: "strava" | "garmin" | "polar";
   status: "connected" | "disconnected";
   last_sync_at?: string;
-  metadata?: Record<string, any>;
+  // metadata?: Record<string, any>;
 }
 
 export interface Exercise {
@@ -269,19 +269,19 @@ export interface Exercise {
     id: number;
     path: string;
     original_path: string;
-    meta: any;
+    // meta: any;
     size_in_kb: number;
     created_at: number;
-    custom_properties: any[];
+    // custom_properties: any[];
   };
   thumbnail: {
     id: number;
     path: string;
     original_path: string;
-    meta: any;
+    // meta: any;
     size_in_kb: number;
     created_at: number;
-    custom_properties: any[];
+    // custom_properties: any[];
   };
 }
 
@@ -389,7 +389,7 @@ export interface ScheduledTraining {
   };
   last_garmin_sync: string;
   can_be_edited: boolean;
-  team_data: any;
+  // team_data: any;
   "training_condition": {
     id: number;
     height_difference: string;
@@ -643,6 +643,6 @@ export interface AddEntryResponse {
     pace_value: number;
     pace_unit: string;
     notification: EntryNotification;
-    laps: any[]; // Define specific type if needed
-    splits: any[]; // Define specific type if needed
+    // laps: any[]; // Define specific type if needed
+    // splits: any[]; // Define specific type if needed
 }
