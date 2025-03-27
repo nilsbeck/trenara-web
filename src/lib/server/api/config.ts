@@ -49,7 +49,7 @@ export class ApiClient {
                     } catch (refreshError) {
                         // In server context, throw a properly formatted error
                         throw svelteError(401, {
-                            message: 'Unauthorized - Token refresh failed'
+                            message: 'Unauthorized - Token refresh failed: ' + refreshError
                         });
                     }
                 }

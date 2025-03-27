@@ -1,9 +1,7 @@
 import type {
 	AuthResponse,
 	LoginRequest,
-	RegisterRequest,
-	RefreshTokenRequest,
-	User
+	RefreshTokenRequest
 } from './types';
 import { apiClient } from './config';
 import dotenv from 'dotenv';

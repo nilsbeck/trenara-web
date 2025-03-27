@@ -1,4 +1,4 @@
-import type { User, Schedule, Subscription, UserPreferences, UserStats } from './types';
+import type { User, UserPreferences, UserStats } from './types';
 import { apiClient } from './config';
 import { getSessionTokenCookie, TokenType } from '../auth';
 import type { Cookies } from '@sveltejs/kit';

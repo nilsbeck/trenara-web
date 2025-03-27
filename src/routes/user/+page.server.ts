@@ -1,5 +1,5 @@
 import { userApi, trainingApi, type Schedule } from '$lib/server/api';
-import { redirect, type RequestEvent, type RequestHandler } from '@sveltejs/kit';
+import { redirect, type RequestEvent } from '@sveltejs/kit';
 import { getSessionTokenCookie, TokenType } from '$lib/server/auth';
 import type { PageServerLoad } from './$types';
 
@@ -28,7 +28,7 @@ const getMonthlySchedule = async (event: RequestEvent) => {
 	const month = new Date(timestamp).getMonth();
     const firstDayOfMonthDate = new Date(new Date().getFullYear(), month, 1);
 	const firstDayOfMonth = firstDayOfMonthDate.getDay();
-    let nextMonday = new Date(firstDayOfMonthDate);
+    const nextMonday = new Date(firstDayOfMonthDate);
     nextMonday.setDate(nextMonday.getDate() + ((1 + 7 - firstDayOfMonthDate.getDay()) % 7 || 7));
 	const offsetAtStart = firstDayOfMonth == 0 ? firstDayOfMonth + 6 : firstDayOfMonth - 1;
 

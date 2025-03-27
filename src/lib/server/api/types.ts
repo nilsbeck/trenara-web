@@ -616,10 +616,6 @@ interface EntryNotification {
     actions: string[];
 }
 
-interface GpsMedia {
-    // Add properties if needed
-}
-
 export interface AddEntryResponse {
     id: number;
     name: string;
@@ -646,7 +642,6 @@ export interface AddEntryResponse {
     pace: string;
     pace_value: number;
     pace_unit: string;
-    gps_media: GpsMedia[];
     notification: EntryNotification;
     laps: any[]; // Define specific type if needed
     splits: any[]; // Define specific type if needed

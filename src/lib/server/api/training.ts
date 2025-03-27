@@ -2,8 +2,6 @@ import { TokenType } from '../auth';
 import { getSessionTokenCookie } from '../auth';
 import { apiClient } from './config';
 import type {
-	TrainingPlan,
-	TrainingSession,
 	Goal,
 	NutritionAdvice,
 	Schedule,

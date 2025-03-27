@@ -1,4 +1,4 @@
-import { trainingApi, type ChangedDateResonse } from '$lib/server/api';
+import { trainingApi } from '$lib/server/api';
 import { json, type RequestEvent } from '@sveltejs/kit';
 
 export const PUT = async (event: RequestEvent) => {

@@ -9,7 +9,7 @@ export async function getMonthScheduleData(timestamp: Date) {
     return await response.json()
 }
 
-function changeSurface() {
+// function changeSurface() {
     // TODO: needs new API call to get and populate the form fields
     // https://backend-prod.trenara.com/api/schedule/trainings/91357904
     //
@@ -69,4 +69,4 @@ function changeSurface() {
     // 		dialog.showModal();
     // 	}
     // }
-}
+// }
