@@ -1,14 +1,25 @@
 <script lang="ts">
 	import { error } from '@sveltejs/kit';
 	let addTrainingModal: HTMLDialogElement = $state() as HTMLDialogElement;
-	let distanceInKm: number = $state(1);
+	let inputDistanceInKm: number = $state(1);
 	let trainingName: string = $state('');
 	let trainingDate: Date = $state(new Date(new Date().setHours(0, 0, 0, 0)));
 
 	let hours: number = $state(0);
 	let minutes: number = $state(0);
 	let seconds: number = $state(0);
-	let timeInSeconds: number = $derived(hours * 60 * 60 + minutes * 60 + seconds);
+	let selectedActivity: 'run' | 'bike' = $state('run');
+	let timeInSeconds: number = $derived(
+		selectedActivity === 'run'
+			? hours * 60 * 60 + minutes * 60 + seconds
+			: (hours * 60 * 60 + minutes * 60 + seconds) / 2.5
+	);
+
+	let distanceInKm: number = $derived(
+		selectedActivity === 'run' 
+			? inputDistanceInKm 
+			: (timeInSeconds / 3600) * 20 // Convert seconds to hours and multiply by 20km/h
+	);
 
 	async function addTraining(
 		name: string,
@@ -49,13 +60,43 @@
 			<!-- Personal Data Form -->
 			<form>
 				<fieldset class="fieldset">
+					<div class="flex flex-row">
+						<label class="input">
+							<input
+								type="radio"
+								id="run"
+								name="radio-1"
+								class="radio"
+								checked={selectedActivity === 'run'}
+								onchange={() => (selectedActivity = 'run')}
+							/>
+							Running
+						</label>
+						<label class="input">
+							<input
+								type="radio"
+								id="bike"
+								name="radio-1"
+								class="radio"
+								checked={selectedActivity === 'bike'}
+								onchange={() => (selectedActivity = 'bike')}
+							/>
+							Bike
+						</label>
+					</div>
+					{#if selectedActivity == 'bike'}
+						<p>This will adapt the bike time by factor 2.5 and distance recalculate distance with an average speed of 20km/h to convert it to a run activity. See this
+						<a
+							href="https://www.trenara.com/blog/alternative-training-for-runners-practical-guide"
+							class="link link-primary" target="_blank">link</a> for more details.</p>
+					{/if}
 					<label class="input">
 						<span class="label">Name:</span>
 						<input type="text" min="1" required bind:value={trainingName} step="1" />
 					</label>
 					<label class="input">
 						<span class="label">Date:</span>
-						<input type="date"required bind:value={trainingDate}  />
+						<input type="date" required bind:value={trainingDate} />
 					</label>
 					<div class="flex flex-row">
 						<label class="input">
@@ -73,7 +114,7 @@
 					</div>
 					<label class="input">
 						<span class="label">Distance [km]:</span>
-						<input type="distance" min="1" required bind:value={distanceInKm} step="1" />
+						<input type="number" min="1" required bind:value={inputDistanceInKm} step="1" />
 					</label>
 
 					<div class="flex justify-end space-x-2">
