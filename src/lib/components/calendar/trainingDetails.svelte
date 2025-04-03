@@ -57,7 +57,7 @@
 							{selectedTraining[0].title} {@render timeDistance(selectedTraining)}
 						{/if}
 					</h2>
-					<div class="flex items-right space-x-4">
+					<div class="flex items-right space-x-1">
 						{#if selectedRunTrainingEntry.length > 0 && selectedTraining.length > 0}
 							<GiveFeedbackModal {selectedTraining} {selectedRunTrainingEntry} />
 						{/if}

@@ -376,7 +376,7 @@
 					bind:group={selectedTab}
 					aria-label="🏃🏻‍♂️‍➡️ Training"
 				/>
-				<div class="tab-content px-6" class:active={selectedTab === Tab.Training}>
+				<div class="tab-content px-4" class:active={selectedTab === Tab.Training}>
 					<TrainingDetails
 						bind:schedule
 						{selectedTraining}
