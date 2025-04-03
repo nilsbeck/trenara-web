@@ -50,7 +50,7 @@
 		const month = String(date.getMonth() + 1).padStart(2, '0'); // Months are 0-indexed
 		const day = String(date.getDate()).padStart(2, '0');
 		return `${year}-${month}-${day}`;
-		}
+	}
 
 	let selectedRunTrainingEntry: Entry[] = $derived(
 		schedule?.entries?.filter((entry: Entry) => {
@@ -68,7 +68,7 @@
 
 	async function getMonthSchedule(timestamp: Date) {
 		isMonthDataLoading = true;
-		const response = await getMonthScheduleData(timestamp)
+		const response = await getMonthScheduleData(timestamp);
 
 		// if (!response.ok) {
 		// 	if (response.status === 401) {
@@ -199,7 +199,7 @@
 		});
 
 		if (hasEntries) {
-			return true
+			return true;
 		}
 
 		const trainingEntry = schedule.entries.some((entry: Entry) => {
@@ -210,7 +210,7 @@
 
 			return entryDate === calendarDate;
 		});
-		
+
 		return trainingEntry;
 	}
 
@@ -224,7 +224,7 @@
 			<div
 				class="loading-overlay absolute inset-0 flex items-center justify-center dark:bg-gray-700 bg-gray-50 rounded-xl"
 			>
-				<Loading/>
+				<Loading />
 			</div>
 		{/if}
 		<div class="card rounded-t-xl rounded-b-none p-8 dark:bg-gray-800 bg-white">
@@ -233,6 +233,27 @@
 					{currentDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
 				</h2>
 				<div class="flex items-center">
+					<button
+						aria-label="calendar backward"
+						class="focus:text-gray-400 hover:text-gray-400 text-gray-800 dark:text-gray-100"
+						onclick={() => location.reload()}
+					>
+						<svg
+							width="20"
+							viewBox="0 0 24 24"
+							xmlns="http://www.w3.org/2000/svg"
+							xmlns:xlink="http://www.w3.org/1999/xlink"
+							class="icon-tabler"
+							fill="none"
+							stroke="currentColor"
+							stroke-width="1.5"
+							stroke-linecap="round"
+							stroke-linejoin="round"
+							><path d="M20 11A8.1 8.1 0 0 0 4.5 9M4 5v4h4" /><path
+								d="M4 13a8.1 8.1 0 0 0 15.5 2m.5 4v-4h-4"
+							/></svg
+						>
+					</button>
 					<button
 						aria-label="calendar backward"
 						class="focus:text-gray-400 hover:text-gray-400 text-gray-800 dark:text-gray-100"
@@ -347,38 +368,38 @@
 		</div>
 		<div class="tabs tabs-border dark:bg-gray-700 bg-gray-50 rounded-b-xl w-full">
 			{#if selectedTraining.length > 0 || selectedRunTrainingEntry.length > 0}
-			<input
-				type="radio"
-				name="details-tab"
-				class="tab"
-				value="training"
-				bind:group={selectedTab}
-				aria-label="🏃🏻‍♂️‍➡️ Training"
-			/>
-			<div class="tab-content px-6" class:active={selectedTab === Tab.Training}>
-				<TrainingDetails
-					bind:schedule={schedule}
-					{selectedTraining}
-					{selectedRunTrainingEntry}
-					{selectedDay}
-					{selectedMonth}
-					{selectedYear}
-					{selectedDate}
+				<input
+					type="radio"
+					name="details-tab"
+					class="tab"
+					value="training"
+					bind:group={selectedTab}
+					aria-label="🏃🏻‍♂️‍➡️ Training"
 				/>
-			</div>
+				<div class="tab-content px-6" class:active={selectedTab === Tab.Training}>
+					<TrainingDetails
+						bind:schedule
+						{selectedTraining}
+						{selectedRunTrainingEntry}
+						{selectedDay}
+						{selectedMonth}
+						{selectedYear}
+						{selectedDate}
+					/>
+				</div>
 			{/if}
 			{#if selectedTrainingStrength.length > 0}
-			<input
-				type="radio"
-				name="details-tab"
-				class="tab"
-				value="strength"
-				bind:group={selectedTab}
-				aria-label="💪 Strength"
-			/>
-			<div class="tab-content px-6" class:active={selectedTab === Tab.Strength}>
-				<StrengthDetails {selectedTrainingStrength} />
-			</div>
+				<input
+					type="radio"
+					name="details-tab"
+					class="tab"
+					value="strength"
+					bind:group={selectedTab}
+					aria-label="💪 Strength"
+				/>
+				<div class="tab-content px-6" class:active={selectedTab === Tab.Strength}>
+					<StrengthDetails {selectedTrainingStrength} />
+				</div>
 			{/if}
 			<input
 				type="radio"
@@ -391,7 +412,6 @@
 			<div class="tab-content px-6" class:active={selectedTab === Tab.Nutrition}>
 				<NutritionDetails {selectedDate} {nutritionDate} {nutritionData} {isNutritionLoading} />
 			</div>
-			
 		</div>
 	</div>
 </div>
