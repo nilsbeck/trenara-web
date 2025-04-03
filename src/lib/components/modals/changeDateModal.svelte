@@ -104,7 +104,6 @@
 											.then(async (response) => {
 												// Test was successfull, so we can save it
 												if (response.success) {
-													console.log(selectedTraining[0].id, changeToDate);
 													return await changeDateSave(selectedTraining[0].id, changeToDate!, false);
 												}
 												// TODO: Ask user if he wants to adapt his goal time
@@ -119,6 +118,7 @@
 
 												changeDateModal.close();
 												saveDateLoading = false;
+												location.reload();
 											})
 											.catch((error) => {
 												console.log(error);
