@@ -2,7 +2,7 @@
 	let { text = "Loading..." }: { text?: string } = $props();
 </script>
 
-<div class="flex items-center justify-center">
+<div class="flex items-center justify-center w-full min-w-full flex-grow">
 	<svg
 		class="mr-3 -ml-1 size-5 animate-spin"
 		color=var(--color-secondary)
