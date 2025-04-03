@@ -64,7 +64,7 @@
 						{#if selectedTraining.length > 0 && selectedTraining[0].can_be_edited}
 							<button
 								aria-label="Change surface"
-								class="icon-button"
+								class="icon-button btn btn-ghost hover:bg-base-100"
 								style="background: transparent;"
 							>
 								<img src={changeSurfaceIcon} alt="change surface" width="22" height="22" />
@@ -80,9 +80,13 @@
 						{#if selectedYear != null && selectedMonth != null && selectedDay != null && selectedRunTrainingEntry}
 							<button
 								aria-label="Delete training"
-								class="icon-button"
+								class="icon-button btn btn-ghost hover:bg-base-100"
 								onclick={async () => {
+									if (!confirm('Are you sure you want to delete this training?')) {
+										return;
+									}
 									isDeleting = true;
+									
 									const response = await fetch('/api/v0/deleteTraining', {
 										method: 'DELETE',
 										body: JSON.stringify({trainingId: selectedRunTrainingEntry[0].id}),
