@@ -59,7 +59,7 @@
 	}
 </script>
 
-<div>
+
 	{#if selectedDay && selectedMonth && selectedYear}
 		<button
 			class="btn btn-ghost hover:bg-base-100 p-2"
@@ -157,4 +157,4 @@
 			</div>
 		</dialog>
 	{/if}
-</div>
+
