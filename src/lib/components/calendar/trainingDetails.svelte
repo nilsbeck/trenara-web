@@ -52,9 +52,9 @@
 							>
 						{/if}
 						{#if selectedRunTrainingEntry.length > 0}
-							{selectedRunTrainingEntry[0].name}
+							{selectedRunTrainingEntry[0].name} {#if selectedTraining.length > 0}{@render timeDistance(selectedTraining)}{/if}
 						{:else if selectedTraining.length > 0}
-							{selectedTraining[0].title}
+							{selectedTraining[0].title} {@render timeDistance(selectedTraining)}
 						{/if}
 					</h2>
 					<div class="flex items-right space-x-4">
@@ -254,4 +254,8 @@
 
 {#snippet listItem(text: string)}
 	<span>• {text}</span>
+{/snippet}
+
+{#snippet timeDistance(selectedTraining: ScheduledTraining[])}
+<span class="text-[10px]">[{selectedTraining[0].training.total_distance}, {selectedTraining[0].training.total_time}{selectedTraining[0].training.total_time.split(':').length == 2 ? 'min' : 'h'}]</span>
 {/snippet}
