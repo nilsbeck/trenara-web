@@ -40,16 +40,15 @@
 		<div>
 			<div class="indicator">
 				{#if selectedRunTrainingEntry[0].rpe != null}
-					<span class="indicator-item badge badge-secondary">{selectedRunTrainingEntry[0].rpe}</span
-					>
+					<span class="indicator-item badge badge-secondary text-xs p-1">{selectedRunTrainingEntry[0].rpe}</span>
 				{/if}
 				{#if selectedTraining[0].can_be_edited}
 					<button
-						class="btn btn-ghost hover:bg-base-100"
+						class="btn btn-ghost hover:bg-base-100 p-2"
 						aria-label="Give feedback"
 						onclick={() => giveFeedbackModal.showModal()}
 					>
-						<img src={starIcon} alt="give feedback" width="16" height="16" />
+						<img src={starIcon} alt="give feedback" width="12" height="12" />
 					</button>
 				{/if}
 			</div>

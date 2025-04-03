@@ -64,10 +64,9 @@
 						{#if selectedTraining.length > 0 && selectedTraining[0].can_be_edited}
 							<button
 								aria-label="Change surface"
-								class="icon-button btn btn-ghost hover:bg-base-100"
-								style="background: transparent;"
+								class="icon-button btn btn-ghost hover:bg-base-100 p-2"
 							>
-								<img src={changeSurfaceIcon} alt="change surface" width="22" height="22" />
+								<img src={changeSurfaceIcon} alt="change surface" width="16" height="16" />
 							</button>
 							<ChangeDate
 								{schedule}
@@ -80,7 +79,7 @@
 						{#if selectedYear != null && selectedMonth != null && selectedDay != null && selectedRunTrainingEntry}
 							<button
 								aria-label="Delete training"
-								class="icon-button btn btn-ghost hover:bg-base-100"
+								class="icon-button btn btn-ghost hover:bg-base-100 p-2"
 								onclick={async () => {
 									if (!confirm('Are you sure you want to delete this training?')) {
 										return;
@@ -108,7 +107,7 @@
 								{#if isDeleting}
 									<Loading text="" />
 								{:else}
-									<img src={trashIcon} alt="delete training" width="16" height="16" />
+									<img src={trashIcon} alt="delete training" width="12" height="12" />
 								{/if}
 							</button>
 						{/if}

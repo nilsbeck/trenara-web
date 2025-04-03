@@ -62,7 +62,7 @@
 <div>
 	{#if selectedDay && selectedMonth && selectedYear}
 		<button
-			class="btn btn-ghost hover:bg-base-100"
+			class="btn btn-ghost hover:bg-base-100 p-2"
 			aria-label="Change date"
 			onclick={() => changeDateModal.showModal()}
 		>
