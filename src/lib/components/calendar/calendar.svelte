@@ -98,7 +98,7 @@
 	}
 
 	$effect(() => {
-		if (selectedTab === Tab.Nutrition && selectedDate) {
+		if (selectedTab === Tab.Nutrition && selectedDate != nutritionDate) {
 			loadNutritionData();
 		}
 	});
