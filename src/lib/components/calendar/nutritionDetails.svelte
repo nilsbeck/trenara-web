@@ -20,13 +20,13 @@
 	<Loading />
 {:else if nutritionData && nutritionDate == selectedDate}
 	<div class="md:py-4 dark:bg-gray-700 bg-gray-50 rounded-b-xl w-full">
-		<div class=" border-gray-400">
+		<div class="border-gray-400">
 			<div class="flex justify-between items-center">
-				<h2 class="card-title text-left">
+				<h2 class="card-title text-left text-gray-800 dark:text-gray-100">
 					{nutritionData.title}
 				</h2>
 			</div>
-			<table class="table w-full text-sm">
+			<table class="table w-full text-sm text-gray-800 dark:text-gray-100">
 				<thead>
 					<tr>
 						<th>Time of day</th>
@@ -54,5 +54,5 @@
 		</div>
 	</div>
 {:else}
-	<p>No nutrition data found.</p>
+	<p class="text-gray-800 dark:text-gray-100">No nutrition data found.</p>
 {/if}

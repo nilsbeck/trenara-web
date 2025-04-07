@@ -1,11 +1,11 @@
 <script lang="ts">
-	import type { CalendarProps, TrainingDetailsProps, StrengthDetailsProps, NutritionDetailsProps } from './types';
-	import type { CalendarDate, CalendarState, TrainingFilter, CalendarEvent } from './types';
-	import type { Schedule, ScheduledTraining, StrengthTraining, Entry, NutritionAdvice } from '$lib/server/api/types';
+	import type { CalendarProps, CalendarState, TrainingFilter } from './types';
+	import type { ScheduledTraining, StrengthTraining, Entry, NutritionAdvice } from '$lib/server/api/types';
 	import Loading from '../loading.svelte';
 	import NutritionDetails from './nutritionDetails.svelte';
 	import TrainingDetails from './trainingDetails.svelte';
 	import StrengthDetails from './strengthDetails.svelte';
+	import CalendarGrid from './CalendarGrid.svelte';
 	import { Tab } from './types';
 	import { getMonthScheduleData } from './utils';
 
@@ -268,73 +268,12 @@
 					</button>
 				</div>
 			</div>
-			<div class="flex items-center justify-between pt-6 overflow-x-auto">
-				<table class="w-full">
-					<thead>
-						<tr>
-							<th>Mo</th>
-							<th>Tu</th>
-							<th>We</th>
-							<th>Th</th>
-							<th>Fr</th>
-							<th>Sa</th>
-							<th>Su</th>
-						</tr>
-					</thead>
-					<tbody>
-						{#each Array(Math.ceil((calendarState.daysInMonthWithOffset.length + calendarState.offsetAtStart + calendarState.offsetAtEnd) / 7)) as _, rowIndex}
-							<tr>
-								{#each calendarState.daysInMonthWithOffset.slice(rowIndex * 7, (rowIndex + 1) * 7) as day}
-									<td>
-										{#if day - calendarState.offsetAtStart < 1}
-											<div class="px-2 py-2 cursor-pointer flex w-full justify-center">
-												<p class="text-base text-gray-300"></p>
-											</div>
-										{:else}
-											<div
-												class="px-2 py-2 cursor-pointer flex w-full justify-center"
-												class:selected={calendarState.selectedDate?.day === day &&
-													calendarState.selectedDate?.month === currentDate.getMonth() &&
-													calendarState.selectedDate?.year === currentDate.getFullYear()}
-												class:today={currentDate.getDate() === day - calendarState.offsetAtStart &&
-													currentDate.getMonth() === new Date().getMonth() &&
-													currentDate.getFullYear() === new Date().getFullYear() &&
-													calendarState.selectedDate?.day !== day}
-												onclick={() => handleDayClick(day)}
-												aria-label={`Select day ${day - calendarState.offsetAtStart}`}
-												role="button"
-												tabindex="0"
-												onkeydown={(e) => {
-													if (e.key === 'Enter' || e.key === ' ') {
-														handleDayClick(day);
-													}
-												}}
-											>
-												<div class="flex flex-col items-center">
-													<p class="text-base text-gray-500 dark:text-gray-100">
-														{day - calendarState.offsetAtStart}
-													</p>
-													<div class="flex flex-row items-center">
-														{#if hasTrainingEntriesForDate({ type: 'run', day: day - calendarState.offsetAtStart })}
-															<span class="dot run-dot"></span>
-														{/if}
-														{#if hasTrainingEntriesForDate({ type: 'strength', day: day - calendarState.offsetAtStart })}
-															<span class="dot strength-dot"></span>
-														{/if}
-														{#if !hasTrainingEntriesForDate({ type: 'run', day: day - calendarState.offsetAtStart }) && !hasTrainingEntriesForDate({ type: 'strength', day: day - calendarState.offsetAtStart })}
-															<span class="dot"></span>
-														{/if}
-													</div>
-												</div>
-											</div>
-										{/if}
-									</td>
-								{/each}
-							</tr>
-						{/each}
-					</tbody>
-				</table>
-			</div>
+			<CalendarGrid
+				{calendarState}
+				{currentDate}
+				onDayClick={handleDayClick}
+				{hasTrainingEntriesForDate}
+			/>
 		</div>
 		<div class="tabs tabs-border dark:bg-gray-700 bg-gray-50 rounded-b-xl w-full">
 			{#if selectedTraining.length > 0 || selectedRunTrainingEntry.length > 0}
@@ -368,7 +307,7 @@
 					aria-label="💪 Strength"
 				/>
 				<div class="tab-content px-6" class:active={selectedTab === Tab.Strength}>
-					<StrengthDetails {selectedTrainingStrength} />
+					<StrengthDetails selectedDate={selectedDate} strengthData={selectedTrainingStrength[0]} isStrengthLoading={isMonthDataLoading} />
 				</div>
 			{/if}
 			<input
@@ -387,13 +326,6 @@
 </div>
 
 <style>
-	.selected {
-		background-color: var(--color-secondary);
-	}
-	.today {
-		background-color: rgba(234, 234, 234, 0.72); /* Change this to your desired color */
-	}
-
 	.loading-overlay {
 		position: absolute; /* Change to absolute */
 		top: 50%; /* Align to the top of the parent */
@@ -406,21 +338,5 @@
 		justify-content: center;
 		align-items: center;
 		z-index: 1000; /* Ensure it is above other content */
-	}
-
-	.dot {
-		display: inline-block;
-		width: 8px; /* Adjust size as needed */
-		height: 8px; /* Adjust size as needed */
-		border-radius: 50%; /* Make it circular */
-		margin-top: 4px; /* Space between the text and the dot */
-	}
-
-	.run-dot {
-		background-color: rgb(56, 76, 255); /* Color for run training */
-	}
-
-	.strength-dot {
-		background-color: rgb(111, 111, 255); /* Color for strength training */
 	}
 </style>

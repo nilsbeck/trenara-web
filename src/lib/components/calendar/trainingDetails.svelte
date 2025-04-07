@@ -35,7 +35,7 @@
 		<div class=" border-gray-400">
 			<div>
 				<div class="flex justify-between items-center">
-					<h2 class="card-title text-left">
+					<h2 class="card-title text-left text-gray-800 dark:text-gray-100">
 						{#if selectedRunTrainingEntry && selectedRunTrainingEntry.length > 0}
 							<svg
 								xmlns="http://www.w3.org/2000/svg"
@@ -134,7 +134,7 @@
 						</div>
 					{/if}
 				</div>
-				<div class="card mt-4 dark:bg-gray-800 bg-white">
+				<div class="card mt-4 dark:bg-gray-800 bg-white text-gray-800 dark:text-gray-100">
 					<ul class="m-4 flex flex-col gap-2 text-sm">
 						{#each selectedTraining[0].training.blocks as block}
 							{#if block.text !== undefined}
@@ -175,7 +175,7 @@
 			{/if}
 			<div class="card mt-4 dark:bg-gray-800 bg-white">
 				<div class="m-2">
-					<table class="table w-full text-sm">
+					<table class="table w-full text-sm text-gray-800 dark:text-gray-100">
 						<thead>
 							<tr>
 								<th class="text-left">Metric</th>
@@ -243,11 +243,11 @@
 	<div class="md:py-8 py-5 dark:bg-gray-700 bg-gray-50 rounded-b-xl w-full">
 		<div class=" border-gray-400 flex">
 			{#if selectedDate}
-				<p class="text-m pt-2 mt-2 leading-4 text-center">
+				<p class="text-m pt-2 mt-2 leading-4 text-center text-gray-800 dark:text-gray-100">
 					No training scheduled for this day. Time to rest! 😴​
 				</p>
 			{:else}
-				<p class="text-m pt-2 mt-2 leading-4 text-center">
+				<p class="text-m pt-2 mt-2 leading-4 text-center text-gray-800 dark:text-gray-100">
 					Please select a date to see the training details.​
 				</p>
 			{/if}
