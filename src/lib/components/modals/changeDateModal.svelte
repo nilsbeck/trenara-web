@@ -66,7 +66,7 @@
 			aria-label="Change date"
 			onclick={() => changeDateModal.showModal()}
 		>
-			<img src={changeDateIcon} alt="change date" width="16" height="16" />
+			<img src={changeDateIcon} alt="change date" width="15" height="15" />
 		</button>
 		<dialog bind:this={changeDateModal} class="modal">
 			<div class="modal-box">

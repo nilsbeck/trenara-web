@@ -66,7 +66,7 @@
 								aria-label="Change surface"
 								class="icon-button btn btn-ghost hover:bg-base-100 p-2"
 							>
-								<img src={changeSurfaceIcon} alt="change surface" width="16" height="16" />
+								<img src={changeSurfaceIcon} alt="change surface" width="18" height="18" />
 							</button>
 							<ChangeDate
 								{schedule}
@@ -107,7 +107,7 @@
 								{#if isDeleting}
 									<Loading text="" />
 								{:else}
-									<img src={trashIcon} alt="delete training" width="12" height="12" />
+									<img src={trashIcon} alt="delete training" width="15" height="15" />
 								{/if}
 							</button>
 						{/if}
