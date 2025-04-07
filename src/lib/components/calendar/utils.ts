@@ -9,6 +9,24 @@ export async function getMonthScheduleData(timestamp: Date) {
     return await response.json()
 }
 
+async function loadNutritionData(): Promise<void> {
+    if (!selectedDate) return;
+    
+    isNutritionLoading = true;
+    try {
+        const response = await fetch(`/api/v0/nutrition?timestamp=${selectedDate}`);
+        if (response.ok) {
+            const data = await response.json();
+            nutritionData = data;
+            nutritionDate = selectedDate;
+        }
+    } catch (error) {
+        console.error('Failed to fetch nutrition data:', error);
+    } finally {
+        isNutritionLoading = false;
+    }
+}
+
 // function changeSurface() {
     // TODO: needs new API call to get and populate the form fields
     // https://backend-prod.trenara.com/api/schedule/trainings/91357904
