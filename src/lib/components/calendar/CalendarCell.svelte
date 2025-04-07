@@ -75,10 +75,4 @@
   .today {
     background-color: rgba(234, 234, 234, 0.72);
   }
-  .dark .selected {
-    background-color: rgb(31 41 55);
-  }
-  .dark .today {
-    background-color: rgb(31 41 55);
-  }
 </style> 
