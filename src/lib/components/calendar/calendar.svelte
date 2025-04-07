@@ -1,11 +1,7 @@
 <script lang="ts">
-	import type {
-		Schedule,
-		ScheduledTraining,
-		StrengthTraining,
-		Entry,
-		NutritionAdvice
-	} from '$lib/server/api/types';
+	import type { CalendarProps, TrainingDetailsProps, StrengthDetailsProps, NutritionDetailsProps } from './types';
+	import type { CalendarDate, CalendarState, TrainingFilter, CalendarEvent } from './types';
+	import type { Schedule, ScheduledTraining, StrengthTraining, Entry, NutritionAdvice } from '$lib/server/api/types';
 	import Loading from '../loading.svelte';
 	import NutritionDetails from './nutritionDetails.svelte';
 	import TrainingDetails from './trainingDetails.svelte';
@@ -13,24 +9,25 @@
 	import { Tab } from './types';
 	import { getMonthScheduleData } from './utils';
 
-	let selectedTab: Tab = $state(Tab.Training); // Initialize with the default tab
-	let { today, schedule }: { today: Date; schedule: Schedule } = $props();
+	let selectedTab: Tab = $state(Tab.Training);
+	let { today, schedule }: CalendarProps = $props();
+	const initialDate = today || new Date();
+	let currentDate = $state(initialDate);
 
-	let isMonthDataLoading: boolean = $state(false); // Add loading state
-	// Initialize currentDate with today's date
-	let currentDate = $state(today || new Date()); // Use today if provided, otherwise use new Date()
-	let daysInMonthWithOffset: number[] = $state([]);
-	let firstDayOfMonth: number = $state(0);
-	let offsetAtEnd: number = $state(0);
-	let offsetAtStart: number = $state(0);
-
-	let selectedDay: number | null = $state(today?.getDate() || new Date().getDate());
-	let selectedMonth: number | null = $state(today?.getMonth() || new Date().getMonth());
-	let selectedYear: number | null = $state(today?.getFullYear() || new Date().getFullYear());
+	let isMonthDataLoading: boolean = $state(false);
+	
+	let calendarState: CalendarState = $state({
+		selectedDate: null,
+		currentDate: new Date(initialDate),
+		daysInMonthWithOffset: [],
+		firstDayOfMonth: 0,
+		offsetAtEnd: 0,
+		offsetAtStart: 0
+	});
 
 	let selectedDate = $derived(
-		selectedDay && selectedMonth && selectedYear
-			? `${selectedYear}-${(selectedMonth + 1).toString().padStart(2, '0')}-${(selectedDay - offsetAtStart).toString().padStart(2, '0')}`
+		calendarState.selectedDate
+			? `${calendarState.selectedDate.year}-${(calendarState.selectedDate.month + 1).toString().padStart(2, '0')}-${calendarState.selectedDate.day.toString().padStart(2, '0')}`
 			: null
 	);
 
@@ -44,10 +41,10 @@
 		)
 	);
 
-	function getDateFromOffset(isoString: string) {
+	function getDateFromOffset(isoString: string): string {
 		const date = new Date(isoString);
 		const year = date.getFullYear();
-		const month = String(date.getMonth() + 1).padStart(2, '0'); // Months are 0-indexed
+		const month = String(date.getMonth() + 1).padStart(2, '0');
 		const day = String(date.getDate()).padStart(2, '0');
 		return `${year}-${month}-${day}`;
 	}
@@ -61,157 +58,130 @@
 
 	let selectedStrengthTrainingEntry: Entry[] = $derived(
 		schedule.entries.filter((entry: Entry) => {
-			const entryDate = getDateFromOffset(new Date(entry.start_time).toISOString()); // Extract date part
-			return entryDate === selectedDate && entry.type === 'strength'; // Compare with selectedDate and filter by type
+			const entryDate = getDateFromOffset(new Date(entry.start_time).toISOString());
+			return entryDate === selectedDate && entry.type === 'strength';
 		})
 	);
 
-	async function getMonthSchedule(timestamp: Date) {
+	async function getMonthSchedule(timestamp: Date): Promise<void> {
 		isMonthDataLoading = true;
-		const response = await getMonthScheduleData(timestamp);
-
-		// if (!response.ok) {
-		// 	if (response.status === 401) {
-		// 		window.location.href = '/login';
-		// 	}
-		// 	console.error('Failed to fetch month schedule: ', response.status, response.statusText);
-		// 	isMonthDataLoading = false;
-		// 	return;
-		// }
-
-		//const data = await response.json();
-
-		schedule = response;
-		isMonthDataLoading = false;
+		try {
+			const response = await getMonthScheduleData(timestamp);
+			schedule = response;
+		} catch (error) {
+			console.error('Failed to fetch month schedule:', error);
+		} finally {
+			isMonthDataLoading = false;
+		}
 	}
 
 	let nutritionData: NutritionAdvice | null = $state(null);
 	let nutritionDate: string | null = $state(null);
 	let isNutritionLoading: boolean = $state(false);
 
-	// Function to update the calendar view
-	function updateCalendar(onMount: boolean = false) {
-		const year = currentDate.getFullYear();
-		const month = currentDate.getMonth();
-
-		// Get the starting day of the month (0 = Sunday, 6 = Saturday)
-		firstDayOfMonth = new Date(year, month, 1).getDay();
-		const isSunday = firstDayOfMonth == 0;
-		offsetAtStart = firstDayOfMonth == 0 ? firstDayOfMonth + 6 : firstDayOfMonth - 1;
-
-		selectedMonth = month;
-		selectedYear = year;
-		if (onMount) {
-			selectedDay = currentDate.getDate() + offsetAtStart;
-		}
-
-		// Get the number of days in the month
-		let daysInCurrentMonthWithOffset = new Date(year, month + 1, 0).getDate() + firstDayOfMonth - 1;
-		if (isSunday) {
-			daysInCurrentMonthWithOffset = daysInCurrentMonthWithOffset + 7;
-		}
-		offsetAtEnd = daysInCurrentMonthWithOffset % 7;
-
-		daysInMonthWithOffset = Array.from({ length: daysInCurrentMonthWithOffset }, (_, i) => i + 1);
-	}
-
-	// Function to go to the previous month
-	function goToPreviousMonth() {
-		currentDate = new Date(currentDate.setMonth(currentDate.getMonth() - 1)); // Update currentDate
-		selectedMonth = currentDate.getMonth();
-		selectedYear = currentDate.getFullYear();
-		selectedDay = null;
-		getMonthSchedule(currentDate);
-		updateCalendar(); // Update the calendar view
-	}
-
-	// Function to go to the next month
-	function goToNextMonth() {
-		currentDate = new Date(currentDate.setMonth(currentDate.getMonth() + 1)); // Update currentDate
-		selectedMonth = currentDate.getMonth();
-		selectedYear = currentDate.getFullYear();
-		selectedDay = null;
-		getMonthSchedule(currentDate);
-		updateCalendar(); // Update the calendar view
-	}
-
-	function handleDayClick(day: number) {
-		selectedDay = day;
-		selectedTab = Tab.Training;
-	}
-
-	async function fetchNutritionData(selectedDate: string | null) {
-		if (selectedDate == null || (nutritionDate == selectedDate && nutritionData != null)) {
-			return;
-		}
+	async function loadNutritionData(): Promise<void> {
+		if (!selectedDate) return;
+		
 		isNutritionLoading = true;
-		const response = await fetch('/api/v0/nutrition/?timestamp=' + selectedDate, {
-			method: 'GET',
-			headers: {
-				'content-type': 'application/json'
+		try {
+			const response = await fetch(`/api/v0/nutrition?timestamp=${selectedDate}`);
+			if (response.ok) {
+				const data = await response.json();
+				nutritionData = data;
+				nutritionDate = selectedDate;
 			}
-		});
-
-		// if (!response.ok) {
-		// 	if (response.status === 401) {
-		// 		window.location.href = '/login';
-		// 	}
-		// 	console.error('Failed to fetch nutrition data: ', response.statusText);
-		// 	isNutritionLoading = false;
-		// 	return;
-		// }
-
-		// const data = await response.json();
-
-		nutritionData = await response.json();
-		nutritionDate = selectedDate;
-		isNutritionLoading = false;
+		} catch (error) {
+			console.error('Failed to fetch nutrition data:', error);
+		} finally {
+			isNutritionLoading = false;
+		}
 	}
 
 	$effect(() => {
-		if (selectedDate != nutritionDate) {
-			fetchNutritionData(selectedDate);
-		}
-		if (selectedTraining.length == 0 && selectedRunTrainingEntry.length == 0) {
-			selectedTab = Tab.Nutrition;
+		if (selectedTab === Tab.Nutrition && selectedDate) {
+			loadNutritionData();
 		}
 	});
 
-	// Function to check if there are any run or strength training entries for the month
-	function hasTrainingEntriesForDate(type: 'run' | 'strength', day: number): boolean {
-		if (type === 'strength') {
-			const entries = schedule.strength_trainings;
-			return entries.some((entry: StrengthTraining) => {
-				const entryDate = new Date(entry.day).toISOString().split('T')[0]; // Extract date part
-				const calendarDate = new Date(currentDate.getFullYear(), currentDate.getMonth(), day)
-					.toISOString()
-					.split('T')[0]; // Compare with currentDate using day
+	function updateCalendar(onMount: boolean = false): void {
+		const year = currentDate.getFullYear();
+		const month = currentDate.getMonth();
+
+		calendarState.firstDayOfMonth = new Date(year, month, 1).getDay();
+		const isSunday = calendarState.firstDayOfMonth === 0;
+		calendarState.offsetAtStart = isSunday ? calendarState.firstDayOfMonth + 6 : calendarState.firstDayOfMonth - 1;
+
+		if (onMount) {
+			calendarState.selectedDate = {
+				year,
+				month,
+				day: currentDate.getDate() + calendarState.offsetAtStart
+			};
+		}
+
+		let daysInCurrentMonthWithOffset = new Date(year, month + 1, 0).getDate() + calendarState.firstDayOfMonth - 1;
+		if (isSunday) {
+			daysInCurrentMonthWithOffset += 7;
+		}
+		calendarState.offsetAtEnd = daysInCurrentMonthWithOffset % 7;
+
+		calendarState.daysInMonthWithOffset = Array.from(
+			{ length: daysInCurrentMonthWithOffset },
+			(_, i) => i + 1
+		);
+	}
+
+	function goToPreviousMonth(): void {
+		currentDate = new Date(currentDate.setMonth(currentDate.getMonth() - 1));
+		calendarState.selectedDate = null;
+		getMonthSchedule(currentDate);
+		updateCalendar();
+	}
+
+	function goToNextMonth(): void {
+		currentDate = new Date(currentDate.setMonth(currentDate.getMonth() + 1));
+		calendarState.selectedDate = null;
+		getMonthSchedule(currentDate);
+		updateCalendar();
+	}
+
+	function handleDayClick(day: number): void {
+		calendarState.selectedDate = {
+			year: currentDate.getFullYear(),
+			month: currentDate.getMonth(),
+			day
+		};
+		selectedTab = selectedTraining.length > 0 || selectedRunTrainingEntry.length > 0 ? Tab.Training : Tab.Nutrition;
+	}
+
+	function hasTrainingEntriesForDate(filter: TrainingFilter): boolean {
+		const year = currentDate.getFullYear();
+		const month = currentDate.getMonth();
+		const date = new Date(year, month, filter.day);
+
+		if (filter.type === 'strength') {
+			return schedule.strength_trainings.some((entry: StrengthTraining) => {
+				const entryDate = new Date(entry.day).toISOString().split('T')[0];
+				const calendarDate = date.toISOString().split('T')[0];
 				return entryDate === calendarDate;
 			});
 		}
-		const entries = schedule.trainings;
-		const hasEntries = entries.some((entry: ScheduledTraining) => {
-			const entryDate = new Date(entry.day_long).toISOString().split('T')[0]; // Extract date part
-			const calendarDate = new Date(currentDate.getFullYear(), currentDate.getMonth(), day)
-				.toISOString()
-				.split('T')[0]; // Compare with currentDate using day
+
+		const hasTrainingEntries = schedule.trainings.some((entry: ScheduledTraining) => {
+			const entryDate = new Date(entry.day_long).toISOString().split('T')[0];
+			const calendarDate = date.toISOString().split('T')[0];
 			return entryDate === calendarDate;
 		});
 
-		if (hasEntries) {
+		if (hasTrainingEntries) {
 			return true;
 		}
 
-		const trainingEntry = schedule.entries.some((entry: Entry) => {
+		return schedule.entries.some((entry: Entry) => {
 			const entryDate = new Date(entry.start_time).toISOString().split('T')[0];
-			const calendarDate = new Date(currentDate.getFullYear(), currentDate.getMonth(), day)
-				.toISOString()
-				.split('T')[0]; // Compare with currentDate using day
-
+			const calendarDate = date.toISOString().split('T')[0];
 			return entryDate === calendarDate;
 		});
-
-		return trainingEntry;
 	}
 
 	// Initialize the calendar on component mount
@@ -312,26 +282,26 @@
 						</tr>
 					</thead>
 					<tbody>
-						{#each Array(Math.ceil((daysInMonthWithOffset.length + offsetAtStart + offsetAtEnd) / 7)) as _, rowIndex}
+						{#each Array(Math.ceil((calendarState.daysInMonthWithOffset.length + calendarState.offsetAtStart + calendarState.offsetAtEnd) / 7)) as _, rowIndex}
 							<tr>
-								{#each daysInMonthWithOffset.slice(rowIndex * 7, (rowIndex + 1) * 7) as day}
+								{#each calendarState.daysInMonthWithOffset.slice(rowIndex * 7, (rowIndex + 1) * 7) as day}
 									<td>
-										{#if day - offsetAtStart < 1}
+										{#if day - calendarState.offsetAtStart < 1}
 											<div class="px-2 py-2 cursor-pointer flex w-full justify-center">
 												<p class="text-base text-gray-300"></p>
 											</div>
 										{:else}
 											<div
 												class="px-2 py-2 cursor-pointer flex w-full justify-center"
-												class:selected={selectedDay === day &&
-													selectedMonth === currentDate.getMonth() &&
-													selectedYear === currentDate.getFullYear()}
-												class:today={currentDate.getDate() === day - offsetAtStart &&
+												class:selected={calendarState.selectedDate?.day === day &&
+													calendarState.selectedDate?.month === currentDate.getMonth() &&
+													calendarState.selectedDate?.year === currentDate.getFullYear()}
+												class:today={currentDate.getDate() === day - calendarState.offsetAtStart &&
 													currentDate.getMonth() === new Date().getMonth() &&
 													currentDate.getFullYear() === new Date().getFullYear() &&
-													selectedDay !== day}
+													calendarState.selectedDate?.day !== day}
 												onclick={() => handleDayClick(day)}
-												aria-label={`Select day ${day - offsetAtStart}`}
+												aria-label={`Select day ${day - calendarState.offsetAtStart}`}
 												role="button"
 												tabindex="0"
 												onkeydown={(e) => {
@@ -342,16 +312,16 @@
 											>
 												<div class="flex flex-col items-center">
 													<p class="text-base text-gray-500 dark:text-gray-100">
-														{day - offsetAtStart}
+														{day - calendarState.offsetAtStart}
 													</p>
 													<div class="flex flex-row items-center">
-														{#if hasTrainingEntriesForDate('run', day - offsetAtStart + 1)}
+														{#if hasTrainingEntriesForDate({ type: 'run', day: day - calendarState.offsetAtStart })}
 															<span class="dot run-dot"></span>
 														{/if}
-														{#if hasTrainingEntriesForDate('strength', day - offsetAtStart + 1)}
+														{#if hasTrainingEntriesForDate({ type: 'strength', day: day - calendarState.offsetAtStart })}
 															<span class="dot strength-dot"></span>
 														{/if}
-														{#if !hasTrainingEntriesForDate('run', day - offsetAtStart + 1) && !hasTrainingEntriesForDate('strength', day - offsetAtStart + 1)}
+														{#if !hasTrainingEntriesForDate({ type: 'run', day: day - calendarState.offsetAtStart }) && !hasTrainingEntriesForDate({ type: 'strength', day: day - calendarState.offsetAtStart })}
 															<span class="dot"></span>
 														{/if}
 													</div>
@@ -381,9 +351,9 @@
 						bind:schedule
 						{selectedTraining}
 						{selectedRunTrainingEntry}
-						{selectedDay}
-						{selectedMonth}
-						{selectedYear}
+						selectedDay={calendarState.selectedDate?.day ?? null}
+						selectedMonth={calendarState.selectedDate?.month ?? null}
+						selectedYear={calendarState.selectedDate?.year ?? null}
 						{selectedDate}
 					/>
 				</div>
