@@ -32,6 +32,15 @@ const handleAuth: Handle = async ({ event, resolve }) => {
 		// No valid session, check if we have a valid token
 		const isValidSession = await tokenManager.validateAndRefreshToken(event.cookies);
 
+		// Debug logging for production
+		if (process.env.NODE_ENV === 'production') {
+			console.log('Token validation in production:', {
+				isValidSession,
+				hasAccessToken: !!event.cookies.get('access-token'),
+				hasRefreshToken: !!event.cookies.get('refresh-token')
+			});
+		}
+
 		if (!isValidSession) {
 			event.locals.user = null;
 			return resolve(event);
@@ -40,6 +49,16 @@ const handleAuth: Handle = async ({ event, resolve }) => {
 		// Get user data from cookies
 		const userId = event.cookies.get('user_id');
 		const userEmail = event.cookies.get('user_email');
+
+		// Debug logging for production
+		if (process.env.NODE_ENV === 'production') {
+			console.log('User data from cookies:', {
+				hasUserId: !!userId,
+				hasUserEmail: !!userEmail,
+				userId: userId ? userId.substring(0, 8) + '...' : null,
+				userEmail: userEmail ? userEmail.substring(0, 5) + '...' : null
+			});
+		}
 
 		if (userId && userEmail) {
 			// Create a new session
@@ -69,6 +88,9 @@ const handleAuth: Handle = async ({ event, resolve }) => {
 				email: userEmail
 			};
 		} else {
+			if (process.env.NODE_ENV === 'production') {
+				console.log('No user data found, setting user to null');
+			}
 			event.locals.user = null;
 		}
 	}
