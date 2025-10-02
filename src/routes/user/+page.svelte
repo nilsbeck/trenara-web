@@ -48,8 +48,12 @@
 			</div>
 		{:then [goal, userStats]}
 			<div class="hidden sm:block md:space-y-6">
-				<GoalCard {goal} {userStats} />
-				<Predictions {userStats} />
+				{#if goal && userStats}
+					<GoalCard {goal} {userStats} />
+					<Predictions {userStats} />
+				{:else}
+					<p>Some data could not be loaded</p>
+				{/if}
 			</div>
 		{:catch error}
 			{#if error.status === 401}

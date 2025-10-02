@@ -3,12 +3,12 @@ import { json } from "@sveltejs/kit";
 import type { RequestEvent } from "@sveltejs/kit";
 
 export const PUT = async (event: RequestEvent) => {
-    const { entryId, feedback } = await event.request.json();
-    const response = await trainingApi.putFeedback(event.cookies, entryId, feedback);
-
-    if (response.status === 200) {
+    try {
+        const { entryId, feedback } = await event.request.json();
+        await trainingApi.putFeedback(event.cookies, entryId, feedback);
         return json({ success: true });
+    } catch (error) {
+        console.error('Feedback API error:', error);
+        return json({ success: false }, { status: 500 });
     }
-
-    return json({ success: false });
 }

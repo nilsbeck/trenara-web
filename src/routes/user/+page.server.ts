@@ -12,12 +12,23 @@ export const load: PageServerLoad = async (event) => {
 		return redirect(302, '/login');
 	}
 
-	return {
-		user: event.cookies.get('user'),
-		goal: trainingApi.getGoal(event.cookies),
-		userStats: userApi.getUserStats(event.cookies),
-		schedule: getMonthlySchedule(event)
-	};
+	try {
+		return {
+			user: event.cookies.get('user'),
+			goal: trainingApi.getGoal(event.cookies),
+			userStats: userApi.getUserStats(event.cookies),
+			schedule: getMonthlySchedule(event)
+		};
+	} catch (error) {
+		console.error('Dashboard load error:', error);
+		// Return partial data if some API calls fail
+		return {
+			user: event.cookies.get('user'),
+			goal: null,
+			userStats: null,
+			schedule: []
+		};
+	}
 };
 
 const getMonthlySchedule = async (event: RequestEvent) => {

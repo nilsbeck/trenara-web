@@ -1,5 +1,5 @@
 export * from './types';
-export { apiClient } from './config';
+export { fetchClient } from './fetchClient';
 export { authApi } from './auth';
 export { userApi } from './user';
 export { trainingApi } from './training';
