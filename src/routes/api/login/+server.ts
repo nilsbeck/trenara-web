@@ -7,6 +7,14 @@ import type { RequestHandler } from '@sveltejs/kit';
 export const POST: RequestHandler = async ({ request, cookies }) => {
 	const { email, password } = await request.json();
 
+	// Debug logging for production
+	if (process.env.NODE_ENV === 'production') {
+		console.log('Login attempt in production:', {
+			email: email ? email.substring(0, 5) + '...' : null,
+			hasPassword: !!password
+		});
+	}
+
 	// Get instances of our managers
 	const tokenManager = TokenManager.getInstance();
 	const sessionManager = SessionManager.getInstance();
@@ -15,7 +23,23 @@ export const POST: RequestHandler = async ({ request, cookies }) => {
 		// First, authenticate with the original API using TokenManager
 		const authResult = await tokenManager.authenticate(email, password);
 
+		// Debug logging for production
+		if (process.env.NODE_ENV === 'production') {
+			console.log('Authentication result in production:', {
+				success: authResult.success,
+				hasUser: !!authResult.user,
+				hasCookies: !!authResult.cookies
+			});
+		}
+
 		if (!authResult.success || !authResult.user || !authResult.cookies) {
+			if (process.env.NODE_ENV === 'production') {
+				console.log('Login failed in production:', {
+					success: authResult.success,
+					hasUser: !!authResult.user,
+					hasCookies: !!authResult.cookies
+				});
+			}
 			return json({ error: 'Invalid credentials' }, { status: 401 });
 		}
 
@@ -69,7 +93,8 @@ export const POST: RequestHandler = async ({ request, cookies }) => {
 				email: sessionData.email,
 				expiresAt: new Date(sessionData.expiresAt).toISOString(),
 				tokensSet: true,
-				sessionSet: true
+				sessionSet: true,
+				cookiesAfterSet: cookies.getAll().map((c) => ({ name: c.name, hasValue: !!c.value }))
 			});
 		}
 
