@@ -5,7 +5,6 @@ import { predictionHistoryDAO, ValidationError, type CreatePredictionHistoryData
 import { QueryError, ConnectionError } from '$lib/server/database/connection';
 import { ApiResponseError, handleError, logError } from '$lib/utils/error-handling';
 import { dev } from '$app/environment';
-import { dev } from '$app/environment';
 
 /**
  * GET /api/v0/prediction-history
