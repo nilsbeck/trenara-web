@@ -1,4 +1,5 @@
 import type { Cookies } from '@sveltejs/kit';
+import { dev } from '$app/environment';
 import { TokenType } from '$lib/server/auth/types';
 import { authApi } from '../api';
 import type { AuthResponse, ApiError } from '../api/types';
@@ -100,16 +101,16 @@ export class TokenManager {
         cookies.set(`${tokenType}_expiration`, expiresAt.toISOString(), {
             expires: expiresAt,
             path: '/',
-            secure: true,
-            sameSite: 'strict'
+            secure: !dev,
+            sameSite: 'lax'
         });
 
         cookies.set(tokenType.toString(), token, {
             expires: expiresAt,
             path: '/',
             httpOnly: true,
-            secure: true,
-            sameSite: 'strict'
+            secure: !dev,
+            sameSite: 'lax'
         });
     }
 
@@ -117,8 +118,8 @@ export class TokenManager {
         cookies.delete(tokenType.toString(), {
             path: '/',
             httpOnly: true,
-            secure: true,
-            sameSite: 'strict'
+            secure: !dev,
+            sameSite: 'lax'
         });
     }
 

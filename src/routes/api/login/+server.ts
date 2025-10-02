@@ -33,32 +33,32 @@ export const POST: RequestHandler = async ({ request, cookies }) => {
 			authResult.cookies.expiration
 		);
 
-		// Set user data cookies for session creation (matching token cookie settings)
+		// Set user data cookies for session creation (using lax for better compatibility)
 		cookies.set('user_id', authResult.user.id, {
 			path: '/',
 			httpOnly: true,
-			secure: true,
-			sameSite: 'strict',
+			secure: process.env.NODE_ENV === 'production',
+			sameSite: 'lax',
 			expires: authResult.cookies.expiration
 		});
 
 		cookies.set('user_email', authResult.user.email, {
 			path: '/',
 			httpOnly: true,
-			secure: true,
-			sameSite: 'strict',
+			secure: process.env.NODE_ENV === 'production',
+			sameSite: 'lax',
 			expires: authResult.cookies.expiration
 		});
 
 		// Create a local session
 		const sessionData = sessionManager.createSession(authResult.user.id, authResult.user.email);
 
-		// Set the session cookie using SvelteKit's cookies API (matching token cookie settings)
+		// Set the session cookie using SvelteKit's cookies API (using lax for better compatibility)
 		cookies.set('trenara_session', JSON.stringify(sessionData), {
 			path: '/',
 			httpOnly: true,
-			secure: true,
-			sameSite: 'strict',
+			secure: process.env.NODE_ENV === 'production',
+			sameSite: 'lax',
 			expires: authResult.cookies.expiration
 		});
 
