@@ -439,14 +439,16 @@ export class FetchClient {
      */
     private async refreshToken(): Promise<boolean> {
         try {
+            // OAuth token endpoint expects form data
+            const formData = new URLSearchParams();
+            formData.append('grant_type', 'refresh_token');
+
             const response = await fetch(`${this.baseURL}/oauth/token`, {
                 method: 'POST',
                 headers: {
-                    'Content-Type': 'application/json'
+                    'Content-Type': 'application/x-www-form-urlencoded'
                 },
-                body: JSON.stringify({
-                    grant_type: 'refresh_token'
-                }),
+                body: formData.toString(),
                 credentials: 'include' // Include cookies for refresh token
             });
 

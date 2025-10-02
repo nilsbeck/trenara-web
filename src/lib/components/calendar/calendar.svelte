@@ -79,16 +79,17 @@
 	let nutritionDate: string | null = $state(null);
 	let isNutritionLoading: boolean = $state(false);
 
-	async function loadNutritionData(): Promise<void> {
-		if (!selectedDate) return;
+	async function loadNutritionData(dateString?: string): Promise<void> {
+		const targetDate = dateString || selectedDate;
+		if (!targetDate) return;
 		
 		isNutritionLoading = true;
 		try {
-			const response = await fetch(`/api/v0/nutrition?timestamp=${selectedDate}`);
+			const response = await fetch(`/api/v0/nutrition?timestamp=${targetDate}`);
 			if (response.ok) {
 				const data = await response.json();
 				nutritionData = data;
-				nutritionDate = selectedDate;
+				nutritionDate = targetDate;
 			}
 		} catch (error) {
 			console.error('Failed to fetch nutrition data:', error);
@@ -102,6 +103,20 @@
 			loadNutritionData();
 		}
 	});
+
+	// Preload nutrition data when a date is selected and nutrition tab will be the default
+	$effect(() => {
+		if (selectedDate && 
+			selectedTraining.length === 0 && 
+			selectedRunTrainingEntry.length === 0 && 
+			selectedTrainingStrength.length === 0 &&
+			nutritionDate !== selectedDate) {
+			// This will be the nutrition tab by default, so preload the data
+			loadNutritionData();
+		}
+	});
+
+
 
 	function updateCalendar(onMount: boolean = false): void {
 		const year = currentDate.getFullYear();
@@ -156,7 +171,15 @@
 			month: currentDate.getMonth(),
 			day: actualDay
 		};
-		selectedTab = selectedTraining.length > 0 || selectedRunTrainingEntry.length > 0 ? Tab.Training : Tab.Nutrition;
+		
+		// Determine which tab will be selected
+		const willSelectNutritionTab = selectedTraining.length === 0 && selectedRunTrainingEntry.length === 0;
+		selectedTab = willSelectNutritionTab ? Tab.Nutrition : Tab.Training;
+		
+		// Preload nutrition data if nutrition tab will be selected
+		if (willSelectNutritionTab && nutritionDate !== selectedDate) {
+			loadNutritionData();
+		}
 	}
 
 	function hasTrainingEntriesForDate(filter: TrainingFilter): boolean {
@@ -207,6 +230,18 @@
 
 	// Initialize the calendar on component mount
 	updateCalendar(true);
+
+	// Preload nutrition data after calendar initialization if nutrition will be the default tab
+	$effect(() => {
+		if (calendarState.selectedDate && selectedDate && 
+			selectedTraining.length === 0 && 
+			selectedRunTrainingEntry.length === 0 && 
+			selectedTrainingStrength.length === 0 &&
+			nutritionDate !== selectedDate) {
+			// Nutrition will be the default tab, preload immediately to prevent width resize
+			loadNutritionData();
+		}
+	});
 </script>
 
 <div class="flex justify-center px-4">
@@ -359,5 +394,15 @@
 		justify-content: center;
 		align-items: center;
 		z-index: 1000; /* Ensure it is above other content */
+	}
+
+	/* Prevent width changes during tab transitions */
+	.tabs {
+		width: 100%; /* Force consistent width */
+		max-width: 28rem; /* Match max-w-md from parent */
+	}
+	
+	.tab-content {
+		width: 100%; /* Ensure content doesn't affect container width */
 	}
 </style>
