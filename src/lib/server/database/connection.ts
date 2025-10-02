@@ -38,11 +38,25 @@ if (dev && process.env.POSTGRES_URL && !process.env.POSTGRES_URL.includes('supab
     // Supabase requires SSL and specific configuration
     const connectionString = process.env.POSTGRES_URL || process.env.SUPABASE_URL;
     
+    // Parse connection string to check if SSL is required
+    const isSupabaseUrl = connectionString?.includes('supabase') || connectionString?.includes('pooler');
+    
+    console.log('Database connection setup:', {
+        isSupabaseUrl,
+        hasConnectionString: !!connectionString,
+        connectionStringPrefix: connectionString?.substring(0, 20) + '...'
+    });
+    
+    const sslConfig = isSupabaseUrl ? {
+        rejectUnauthorized: false, // Accept self-signed certificates
+        require: true // Force SSL connection
+    } : false;
+    
+    console.log('SSL configuration:', sslConfig);
+    
     pool = new Pool({
         connectionString,
-        ssl: {
-            rejectUnauthorized: false // Required for Supabase
-        },
+        ssl: sslConfig,
         max: 10, // Higher limit for production
         idleTimeoutMillis: 30000,
         connectionTimeoutMillis: 10000,
