@@ -3,7 +3,7 @@ import { TokenManager } from '$lib/server/auth/token-manager';
 import { SessionManager } from '$lib/server/auth/session-manager';
 import type { RequestHandler } from '@sveltejs/kit';
 
-export const POST: RequestHandler = async ({ request }) => {
+export const POST: RequestHandler = async ({ request, cookies }) => {
     const { email, password } = await request.json();
     
     // Get instances of our managers
@@ -19,20 +19,32 @@ export const POST: RequestHandler = async ({ request }) => {
         }
         
         // Create a local session
-        const sessionCookie = sessionManager.createSession(
+        const sessionData = sessionManager.createSession(
             authResult.user.id,
             authResult.user.email
         );
         
-        // Return response with session cookie
-        return json(
-            { message: 'Login successful' },
-            {
-                headers: {
-                    'Set-Cookie': sessionCookie
-                }
-            }
-        );
+        // Set the session cookie using SvelteKit's cookies API
+        cookies.set('trenara_session', JSON.stringify(sessionData), {
+            path: '/',
+            httpOnly: true,
+            secure: process.env.NODE_ENV === 'production',
+            sameSite: 'lax',
+            maxAge: 60 * 60 * 24 * 7 // 7 days
+        });
+
+        // Debug logging for production
+        if (process.env.NODE_ENV === 'production') {
+            console.log('Login session created in production:', {
+                userId: sessionData.userId,
+                email: sessionData.email,
+                expiresAt: new Date(sessionData.expiresAt).toISOString(),
+                cookieSet: true
+            });
+        }
+        
+        // Return response
+        return json({ message: 'Login successful' });
     } catch (error) {
         console.error('Login error:', error);
         return json({ error: 'Login failed' }, { status: 500 });
