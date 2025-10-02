@@ -1,18 +1,58 @@
 import type { Handle } from '@sveltejs/kit';
 import { TokenManager } from '$lib/server/auth/token-manager';
+import { SessionManager } from '$lib/server/auth/session-manager';
 
 const handleAuth: Handle = async ({ event, resolve }) => {
 	const tokenManager = TokenManager.getInstance();
-	
-	// Check if we have a valid session token
-	const isValidSession = await tokenManager.validateAndRefreshToken(event.cookies);
-	
-	if (!isValidSession) {
-		event.locals.user = null;
-		return resolve(event);
+	const sessionManager = SessionManager.getInstance();
+
+	// Check if we have a valid session
+	const sessionData = sessionManager.getSessionData(
+		event.request.headers.get('cookie'),
+		event.cookies
+	);
+
+	if (sessionData) {
+		// We have a valid session, set user data
+		event.locals.user = {
+			id: sessionData.userId,
+			email: sessionData.email
+		};
+	} else {
+		// No valid session, check if we have a valid token
+		const isValidSession = await tokenManager.validateAndRefreshToken(event.cookies);
+
+		if (!isValidSession) {
+			event.locals.user = null;
+			return resolve(event);
+		}
+
+		// Get user data from cookies
+		const userId = event.cookies.get('user_id');
+		const userEmail = event.cookies.get('user_email');
+
+		if (userId && userEmail) {
+			// Create a new session
+			const sessionCookie = sessionManager.createSession(userId, userEmail);
+
+			// Set the session cookie
+			event.cookies.set('trenara_session', sessionCookie, {
+				path: '/',
+				httpOnly: true,
+				secure: process.env.NODE_ENV === 'production',
+				sameSite: 'strict',
+				maxAge: 60 * 60 * 24 * 7 // 7 days
+			});
+
+			event.locals.user = {
+				id: userId,
+				email: userEmail
+			};
+		} else {
+			event.locals.user = null;
+		}
 	}
 
-	event.locals.user = 'user';
 	return resolve(event);
 };
 

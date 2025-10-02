@@ -121,4 +121,37 @@ export class TokenManager {
             sameSite: 'strict'
         });
     }
+
+    async authenticate(email: string, password: string) {
+        try {
+            const response: AuthResponse = await authApi.login({
+                username: email,
+                password: password
+            });
+
+            const currentDate = new Date();
+            const expirationDate = new Date(currentDate.getTime() + response.expires_in * 1000);
+
+            return {
+                success: true,
+                user: {
+                    id: email, // Using email as ID since we don't have user ID
+                    email: email
+                },
+                cookies: {
+                    access_token: response.access_token,
+                    refresh_token: response.refresh_token,
+                    expiration: expirationDate
+                }
+            };
+        } catch (error) {
+            console.error('Authentication failed:', error);
+            return { success: false };
+        }
+    }
+
+    async logout(cookies: Cookies) {
+        this.deleteToken(cookies, TokenType.AccessToken);
+        this.deleteToken(cookies, TokenType.RefreshToken);
+    }
 } 

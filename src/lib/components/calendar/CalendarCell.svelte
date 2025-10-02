@@ -10,7 +10,11 @@
   }>();
 
   let actualDay = $derived(day - calendarState.offsetAtStart);
-  let isSelected = $derived(calendarState.selectedDate?.day === day &&
+  
+
+  
+
+  let isSelected = $derived(calendarState.selectedDate?.day === actualDay &&
     calendarState.selectedDate?.month === currentDate.getMonth() &&
     calendarState.selectedDate?.year === currentDate.getFullYear());
   let isToday = $derived(currentDate.getDate() === actualDay &&
@@ -25,9 +29,9 @@
   class="px-2 py-2 cursor-pointer flex w-full justify-center text-gray-800 dark:text-gray-100"
   class:selected={isSelected}
   class:today={isToday}
-  onclick={() => onDayClick(day)}
+  onclick={() => actualDay > 0 && onDayClick(day)}
   onkeydown={(e) => {
-    if (e.key === 'Enter' || e.key === ' ') {
+    if ((e.key === 'Enter' || e.key === ' ') && actualDay > 0) {
       onDayClick(day);
     }
   }}
@@ -43,9 +47,6 @@
         {/if}
         {#if hasTrainingEntriesForDate({ type: 'strength', day: actualDay })}
           <span class="dot strength-dot"></span>
-        {/if}
-        {#if !hasTrainingEntriesForDate({ type: 'run', day: actualDay }) && !hasTrainingEntriesForDate({ type: 'strength', day: actualDay })}
-          <span class="dot"></span>
         {/if}
       </div>
     </div>

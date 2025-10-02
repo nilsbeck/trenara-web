@@ -110,6 +110,8 @@
 		calendarState.firstDayOfMonth = new Date(year, month, 1).getDay();
 		const isSunday = calendarState.firstDayOfMonth === 0;
 		calendarState.offsetAtStart = isSunday ? calendarState.firstDayOfMonth + 6 : calendarState.firstDayOfMonth - 1;
+		
+
 
 		if (onMount) {
 			calendarState.selectedDate = {
@@ -146,10 +148,13 @@
 	}
 
 	function handleDayClick(day: number): void {
+		// Convert grid position to actual day of month
+		const actualDay = day - calendarState.offsetAtStart;
+		
 		calendarState.selectedDate = {
 			year: currentDate.getFullYear(),
 			month: currentDate.getMonth(),
-			day
+			day: actualDay
 		};
 		selectedTab = selectedTraining.length > 0 || selectedRunTrainingEntry.length > 0 ? Tab.Training : Tab.Nutrition;
 	}
@@ -158,18 +163,34 @@
 		const year = currentDate.getFullYear();
 		const month = currentDate.getMonth();
 		const date = new Date(year, month, filter.day);
+		// Use timezone-safe date formatting instead of toISOString()
+		const calendarDate = `${year}-${String(month + 1).padStart(2, '0')}-${String(filter.day).padStart(2, '0')}`;
+		
+
+
+
 
 		if (filter.type === 'strength') {
-			return schedule.strength_trainings.some((entry: StrengthTraining) => {
+			// Check for strength trainings
+			const hasStrengthTrainings = schedule.strength_trainings.some((entry: StrengthTraining) => {
 				const entryDate = new Date(entry.day).toISOString().split('T')[0];
-				const calendarDate = date.toISOString().split('T')[0];
 				return entryDate === calendarDate;
+			});
+
+			if (hasStrengthTrainings) {
+				return true;
+			}
+
+			// Check for strength entries
+			return schedule.entries.some((entry: Entry) => {
+				const entryDate = new Date(entry.start_time).toISOString().split('T')[0];
+				return entryDate === calendarDate && entry.type === 'strength';
 			});
 		}
 
+		// For 'run' type, check scheduled trainings
 		const hasTrainingEntries = schedule.trainings.some((entry: ScheduledTraining) => {
 			const entryDate = new Date(entry.day_long).toISOString().split('T')[0];
-			const calendarDate = date.toISOString().split('T')[0];
 			return entryDate === calendarDate;
 		});
 
@@ -177,10 +198,10 @@
 			return true;
 		}
 
+		// Check for run entries
 		return schedule.entries.some((entry: Entry) => {
 			const entryDate = new Date(entry.start_time).toISOString().split('T')[0];
-			const calendarDate = date.toISOString().split('T')[0];
-			return entryDate === calendarDate;
+			return entryDate === calendarDate && entry.type === 'run';
 		});
 	}
 

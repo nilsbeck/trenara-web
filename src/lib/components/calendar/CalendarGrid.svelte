@@ -9,7 +9,7 @@
 </script>
 
 <div class="grid grid-cols-7 gap-4 mt-4">
-  {#each ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'] as day}
+  {#each ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'] as day}
     <div class="text-center text-sm font-medium text-gray-800 dark:text-gray-100">
       {day}
     </div>
