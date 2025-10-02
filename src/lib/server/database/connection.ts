@@ -20,7 +20,7 @@ let sql: any;
 let pool: any;
 let useNativePg = false;
 
-if (dev && process.env.POSTGRES_URL && !process.env.POSTGRES_URL.includes('vercel')) {
+if (dev && process.env.POSTGRES_URL && !process.env.POSTGRES_URL.includes('supabase')) {
     // Use native pg with connection pool for local development
     useNativePg = true;
     const { Pool } = await import('pg');
@@ -31,9 +31,15 @@ if (dev && process.env.POSTGRES_URL && !process.env.POSTGRES_URL.includes('verce
         connectionTimeoutMillis: 5000,
     });
 } else {
-    // Use Vercel Postgres for production
-    const vercelPg = await import('@vercel/postgres');
-    sql = vercelPg.sql;
+    // Use native pg for production with Supabase
+    useNativePg = true;
+    const { Pool } = await import('pg');
+    pool = new Pool({
+        connectionString: process.env.POSTGRES_URL,
+        max: 10, // Higher limit for production
+        idleTimeoutMillis: 30000,
+        connectionTimeoutMillis: 10000,
+    });
 }
 
 export class DatabaseError extends Error {
