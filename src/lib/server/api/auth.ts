@@ -5,10 +5,9 @@
 
 import type { AuthResponse, LoginRequest, RefreshTokenRequest } from './types';
 import { fetchClient } from './fetchClient';
-import dotenv from 'dotenv';
-dotenv.config();
+import { BASIC_BEARER_TOKEN } from '$env/static/private';
 
-if (!process.env.BASIC_BEARER_TOKEN) {
+if (!BASIC_BEARER_TOKEN) {
 	console.error('BASIC_BEARER_TOKEN is not set');
 }
 
@@ -26,7 +25,7 @@ export const authApi = {
 				method: 'POST',
 				headers: {
 					'Content-Type': 'application/x-www-form-urlencoded',
-					Authorization: `Basic ` + process.env.BASIC_BEARER_TOKEN
+					Authorization: `Basic ` + BASIC_BEARER_TOKEN
 				},
 				body: formData.toString()
 			}
