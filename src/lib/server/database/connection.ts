@@ -31,36 +31,12 @@ if (dev && process.env.POSTGRES_URL && !process.env.POSTGRES_URL.includes('supab
         connectionTimeoutMillis: 5000,
     });
 } else {
-    // Use native pg for production with Supabase
-    useNativePg = true;
-    const { Pool } = await import('pg');
+    // Use Vercel Postgres for production - it handles SSL automatically
+    useNativePg = false;
+    const vercelPg = await import('@vercel/postgres');
+    sql = vercelPg.sql;
     
-    // Supabase requires SSL and specific configuration
-    const connectionString = process.env.POSTGRES_URL || process.env.SUPABASE_URL;
-    
-    // Parse connection string to check if SSL is required
-    const isSupabaseUrl = connectionString?.includes('supabase') || connectionString?.includes('pooler');
-    
-    console.log('Database connection setup:', {
-        isSupabaseUrl,
-        hasConnectionString: !!connectionString,
-        connectionStringPrefix: connectionString?.substring(0, 20) + '...'
-    });
-    
-    const sslConfig = isSupabaseUrl ? {
-        rejectUnauthorized: false, // Accept self-signed certificates
-        require: true // Force SSL connection
-    } : false;
-    
-    console.log('SSL configuration:', sslConfig);
-    
-    pool = new Pool({
-        connectionString,
-        ssl: sslConfig,
-        max: 10, // Higher limit for production
-        idleTimeoutMillis: 30000,
-        connectionTimeoutMillis: 10000,
-    });
+    console.log('Using Vercel Postgres client for production');
 }
 
 export class DatabaseError extends Error {
@@ -111,7 +87,7 @@ export class DatabaseConnection {
             let result;
             
             if (useNativePg) {
-                // Use native pg pool
+                // Use native pg pool for local development
                 try {
                     const pgResult = await pool.query(queryText, params);
                     result = { rows: pgResult.rows };
@@ -126,7 +102,7 @@ export class DatabaseConnection {
                     );
                 }
             } else {
-                // Use Vercel Postgres for production
+                // Use Vercel Postgres for production - handles SSL automatically
                 result = await sql.query(queryText, params);
             }
             
