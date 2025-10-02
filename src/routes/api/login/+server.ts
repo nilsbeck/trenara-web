@@ -33,33 +33,33 @@ export const POST: RequestHandler = async ({ request, cookies }) => {
 			authResult.cookies.expiration
 		);
 
-		// Set user data cookies for session creation
+		// Set user data cookies for session creation (matching token cookie settings)
 		cookies.set('user_id', authResult.user.id, {
 			path: '/',
 			httpOnly: true,
-			secure: process.env.NODE_ENV === 'production',
-			sameSite: 'lax',
-			maxAge: 60 * 60 * 24 * 7 // 7 days
+			secure: true,
+			sameSite: 'strict',
+			expires: authResult.cookies.expiration
 		});
 
 		cookies.set('user_email', authResult.user.email, {
 			path: '/',
 			httpOnly: true,
-			secure: process.env.NODE_ENV === 'production',
-			sameSite: 'lax',
-			maxAge: 60 * 60 * 24 * 7 // 7 days
+			secure: true,
+			sameSite: 'strict',
+			expires: authResult.cookies.expiration
 		});
 
 		// Create a local session
 		const sessionData = sessionManager.createSession(authResult.user.id, authResult.user.email);
 
-		// Set the session cookie using SvelteKit's cookies API
+		// Set the session cookie using SvelteKit's cookies API (matching token cookie settings)
 		cookies.set('trenara_session', JSON.stringify(sessionData), {
 			path: '/',
 			httpOnly: true,
-			secure: process.env.NODE_ENV === 'production',
-			sameSite: 'lax',
-			maxAge: 60 * 60 * 24 * 7 // 7 days
+			secure: true,
+			sameSite: 'strict',
+			expires: authResult.cookies.expiration
 		});
 
 		// Debug logging for production
