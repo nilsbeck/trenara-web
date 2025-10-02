@@ -34,8 +34,15 @@ if (dev && process.env.POSTGRES_URL && !process.env.POSTGRES_URL.includes('supab
     // Use native pg for production with Supabase
     useNativePg = true;
     const { Pool } = await import('pg');
+    
+    // Supabase requires SSL and specific configuration
+    const connectionString = process.env.POSTGRES_URL || process.env.SUPABASE_URL;
+    
     pool = new Pool({
-        connectionString: process.env.POSTGRES_URL,
+        connectionString,
+        ssl: {
+            rejectUnauthorized: false // Required for Supabase
+        },
         max: 10, // Higher limit for production
         idleTimeoutMillis: 30000,
         connectionTimeoutMillis: 10000,
@@ -90,9 +97,20 @@ export class DatabaseConnection {
             let result;
             
             if (useNativePg) {
-                // Use native pg pool for local development
-                const pgResult = await pool.query(queryText, params);
-                result = { rows: pgResult.rows };
+                // Use native pg pool
+                try {
+                    const pgResult = await pool.query(queryText, params);
+                    result = { rows: pgResult.rows };
+                } catch (pgError) {
+                    if (dev) {
+                        console.error('PostgreSQL query failed:', pgError);
+                        console.error('Connection string exists:', !!process.env.POSTGRES_URL);
+                    }
+                    throw new ConnectionError(
+                        `PostgreSQL query failed: ${pgError instanceof Error ? pgError.message : 'Unknown error'}`,
+                        pgError instanceof Error ? pgError : undefined
+                    );
+                }
             } else {
                 // Use Vercel Postgres for production
                 result = await sql.query(queryText, params);
@@ -137,26 +155,28 @@ export class DatabaseConnection {
      */
     public async testConnection(): Promise<boolean> {
         try {
-            if (dev) {
-                console.log('Debug - Environment check:');
-                console.log('POSTGRES_URL exists:', !!process.env.POSTGRES_URL);
-                console.log('POSTGRES_URL value:', process.env.POSTGRES_URL ? 'Set (hidden)' : 'Not set');
-            }
+            console.log('Testing database connection...');
+            console.log('Environment variables check:');
+            console.log('- POSTGRES_URL exists:', !!process.env.POSTGRES_URL);
+            console.log('- SUPABASE_URL exists:', !!process.env.SUPABASE_URL);
+            console.log('- Using native PG:', useNativePg);
             
-            // Check if we have a connection string in development
-            if (dev && !process.env.POSTGRES_URL) {
-                console.warn('No POSTGRES_URL found in environment variables');
+            if (!process.env.POSTGRES_URL && !process.env.SUPABASE_URL) {
+                console.error('No database connection string found');
                 return false;
             }
             
             await this.query('SELECT 1 as test');
+            console.log('✅ Database connection successful');
             return true;
         } catch (error) {
-            if (dev) {
-                console.error('Database connection test failed:', error);
-                if (error instanceof Error && error.message.includes('missing_connection_string')) {
-                    console.error('Please set POSTGRES_URL in your .env file');
-                }
+            console.error('❌ Database connection test failed:', error);
+            if (error instanceof Error) {
+                console.error('Error details:', {
+                    message: error.message,
+                    name: error.name,
+                    stack: error.stack?.split('\n').slice(0, 3).join('\n')
+                });
             }
             return false;
         }
