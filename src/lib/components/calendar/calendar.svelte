@@ -1,6 +1,11 @@
 <script lang="ts">
 	import type { CalendarProps, CalendarState, TrainingFilter } from './types';
-	import type { ScheduledTraining, StrengthTraining, Entry, NutritionAdvice } from '$lib/server/api/types';
+	import type {
+		ScheduledTraining,
+		StrengthTraining,
+		Entry,
+		NutritionAdvice
+	} from '$lib/server/api/types';
 	import Loading from '../loading.svelte';
 	import NutritionDetails from './nutritionDetails.svelte';
 	import TrainingDetails from './trainingDetails.svelte';
@@ -15,7 +20,7 @@
 	let currentDate = $state(initialDate);
 
 	let isMonthDataLoading: boolean = $state(false);
-	
+
 	let calendarState: CalendarState = $state({
 		selectedDate: null,
 		currentDate: new Date(initialDate),
@@ -82,7 +87,7 @@
 	async function loadNutritionData(dateString?: string): Promise<void> {
 		const targetDate = dateString || selectedDate;
 		if (!targetDate) return;
-		
+
 		isNutritionLoading = true;
 		try {
 			const response = await fetch(`/api/v0/nutrition?timestamp=${targetDate}`);
@@ -106,17 +111,17 @@
 
 	// Preload nutrition data when a date is selected and nutrition tab will be the default
 	$effect(() => {
-		if (selectedDate && 
-			selectedTraining.length === 0 && 
-			selectedRunTrainingEntry.length === 0 && 
+		if (
+			selectedDate &&
+			selectedTraining.length === 0 &&
+			selectedRunTrainingEntry.length === 0 &&
 			selectedTrainingStrength.length === 0 &&
-			nutritionDate !== selectedDate) {
+			nutritionDate !== selectedDate
+		) {
 			// This will be the nutrition tab by default, so preload the data
 			loadNutritionData();
 		}
 	});
-
-
 
 	function updateCalendar(onMount: boolean = false): void {
 		const year = currentDate.getFullYear();
@@ -124,9 +129,9 @@
 
 		calendarState.firstDayOfMonth = new Date(year, month, 1).getDay();
 		const isSunday = calendarState.firstDayOfMonth === 0;
-		calendarState.offsetAtStart = isSunday ? calendarState.firstDayOfMonth + 6 : calendarState.firstDayOfMonth - 1;
-		
-
+		calendarState.offsetAtStart = isSunday
+			? calendarState.firstDayOfMonth + 6
+			: calendarState.firstDayOfMonth - 1;
 
 		if (onMount) {
 			calendarState.selectedDate = {
@@ -136,7 +141,8 @@
 			};
 		}
 
-		let daysInCurrentMonthWithOffset = new Date(year, month + 1, 0).getDate() + calendarState.firstDayOfMonth - 1;
+		let daysInCurrentMonthWithOffset =
+			new Date(year, month + 1, 0).getDate() + calendarState.firstDayOfMonth - 1;
 		if (isSunday) {
 			daysInCurrentMonthWithOffset += 7;
 		}
@@ -165,17 +171,18 @@
 	function handleDayClick(day: number): void {
 		// Convert grid position to actual day of month
 		const actualDay = day - calendarState.offsetAtStart;
-		
+
 		calendarState.selectedDate = {
 			year: currentDate.getFullYear(),
 			month: currentDate.getMonth(),
 			day: actualDay
 		};
-		
+
 		// Determine which tab will be selected
-		const willSelectNutritionTab = selectedTraining.length === 0 && selectedRunTrainingEntry.length === 0;
+		const willSelectNutritionTab =
+			selectedTraining.length === 0 && selectedRunTrainingEntry.length === 0;
 		selectedTab = willSelectNutritionTab ? Tab.Nutrition : Tab.Training;
-		
+
 		// Preload nutrition data if nutrition tab will be selected
 		if (willSelectNutritionTab && nutritionDate !== selectedDate) {
 			loadNutritionData();
@@ -188,10 +195,6 @@
 		const date = new Date(year, month, filter.day);
 		// Use timezone-safe date formatting instead of toISOString()
 		const calendarDate = `${year}-${String(month + 1).padStart(2, '0')}-${String(filter.day).padStart(2, '0')}`;
-		
-
-
-
 
 		if (filter.type === 'strength') {
 			// Check for strength trainings
@@ -233,11 +236,14 @@
 
 	// Preload nutrition data after calendar initialization if nutrition will be the default tab
 	$effect(() => {
-		if (calendarState.selectedDate && selectedDate && 
-			selectedTraining.length === 0 && 
-			selectedRunTrainingEntry.length === 0 && 
+		if (
+			calendarState.selectedDate &&
+			selectedDate &&
+			selectedTraining.length === 0 &&
+			selectedRunTrainingEntry.length === 0 &&
 			selectedTrainingStrength.length === 0 &&
-			nutritionDate !== selectedDate) {
+			nutritionDate !== selectedDate
+		) {
 			// Nutrition will be the default tab, preload immediately to prevent width resize
 			loadNutritionData();
 		}
@@ -363,7 +369,11 @@
 					aria-label="💪 Strength"
 				/>
 				<div class="tab-content px-6" class:active={selectedTab === Tab.Strength}>
-					<StrengthDetails selectedDate={selectedDate} strengthData={selectedTrainingStrength[0]} isStrengthLoading={isMonthDataLoading} />
+					<StrengthDetails
+						{selectedDate}
+						strengthData={selectedTrainingStrength[0]}
+						isStrengthLoading={isMonthDataLoading}
+					/>
 				</div>
 			{/if}
 			<input
@@ -401,7 +411,7 @@
 		width: 100%; /* Force consistent width */
 		max-width: 28rem; /* Match max-w-md from parent */
 	}
-	
+
 	.tab-content {
 		width: 100%; /* Ensure content doesn't affect container width */
 	}

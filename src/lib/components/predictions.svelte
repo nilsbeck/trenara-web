@@ -3,7 +3,7 @@
     let { userStats }: { userStats: UserStats } = $props();
 </script>
 
-<div class="card dark:bg-gray-700 bg-gray-50 shadow-lg max-w-sm min-w-sm w-full">
+<div class="card dark:bg-gray-700 bg-gray-50 shadow-lg max-w-4xl w-full">
     <div class="card-body">
         <h2 class="card-title">Race predictions</h2>
         <table class="table w-full">

@@ -1,10 +1,14 @@
 import type { Handle } from '@sveltejs/kit';
 import { TokenManager } from '$lib/server/auth/token-manager';
 import { SessionManager } from '$lib/server/auth/session-manager';
+import { ensureDatabaseInitialized } from '$lib/server/database/init.js';
 
 const handleAuth: Handle = async ({ event, resolve }) => {
 	const tokenManager = TokenManager.getInstance();
 	const sessionManager = SessionManager.getInstance();
+
+	// Initialize database on first request (safe to call multiple times)
+	await ensureDatabaseInitialized();
 
 	// Check if we have a valid session
 	const sessionData = sessionManager.getSessionData(
