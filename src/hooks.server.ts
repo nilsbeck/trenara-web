@@ -13,6 +13,15 @@ const handleAuth: Handle = async ({ event, resolve }) => {
 	// Check if we have a valid session
 	const sessionData = sessionManager.getSessionData(event.cookies);
 
+	// Debug logging for production
+	if (process.env.NODE_ENV === 'production') {
+		console.log('Session check in production:', {
+			hasSessionData: !!sessionData,
+			url: event.url.pathname,
+			cookies: event.cookies.getAll().map((c) => ({ name: c.name, hasValue: !!c.value }))
+		});
+	}
+
 	if (sessionData) {
 		// We have a valid session, set user data
 		event.locals.user = {
@@ -41,9 +50,19 @@ const handleAuth: Handle = async ({ event, resolve }) => {
 				path: '/',
 				httpOnly: true,
 				secure: process.env.NODE_ENV === 'production',
-				sameSite: 'lax', // Changed from 'strict' to 'lax' for better compatibility
+				sameSite: 'lax',
 				maxAge: 60 * 60 * 24 * 7 // 7 days
 			});
+
+			// Debug logging for production
+			if (process.env.NODE_ENV === 'production') {
+				console.log('Session created in production:', {
+					userId: sessionData.userId,
+					email: sessionData.email,
+					expiresAt: new Date(sessionData.expiresAt).toISOString(),
+					cookieSet: true
+				});
+			}
 
 			event.locals.user = {
 				id: userId,

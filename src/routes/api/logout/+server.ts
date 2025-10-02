@@ -10,20 +10,13 @@ export const POST: RequestHandler = async ({ request, cookies }) => {
     
     try {
         // Destroy local session
-        const sessionCookie = sessionManager.destroySession();
+        sessionManager.destroySession(cookies);
         
         // Logout from original API if needed
         await tokenManager.logout(cookies);
         
-        // Return response clearing all cookies
-        return json(
-            { message: 'Logout successful' },
-            {
-                headers: {
-                    'Set-Cookie': sessionCookie
-                }
-            }
-        );
+        // Return response
+        return json({ message: 'Logout successful' });
     } catch (error) {
         console.error('Logout error:', error);
         return json({ error: 'Logout failed' }, { status: 500 });
