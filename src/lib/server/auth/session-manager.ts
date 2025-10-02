@@ -26,7 +26,7 @@ export class SessionManager {
         return SessionManager.instance;
     }
 
-    createSession(userId: string, email: string): string {
+    createSession(userId: string, email: string): SessionData {
         const expiresAt = Date.now() + SESSION_MAX_AGE * 1000;
         const sessionData = {
             userId,
@@ -34,20 +34,11 @@ export class SessionManager {
             expiresAt
         };
         
-        return serialize(SESSION_COOKIE_NAME, JSON.stringify(sessionData), {
-            httpOnly: true,
-            secure: process.env.NODE_ENV === 'production',
-            sameSite: 'lax',
-            path: '/',
-            maxAge: SESSION_MAX_AGE
-        });
+        return sessionData;
     }
 
-    getSessionData(cookieHeader: string | null, cookies: Cookies): SessionData | null {
-        if (!cookieHeader) return null;
-        
-        const parsedCookies = parse(cookieHeader);
-        const sessionCookie = parsedCookies[SESSION_COOKIE_NAME];
+    getSessionData(cookies: Cookies): SessionData | null {
+        const sessionCookie = cookies.get(SESSION_COOKIE_NAME);
         
         if (!sessionCookie) return null;
         
@@ -55,22 +46,20 @@ export class SessionManager {
             const sessionData = JSON.parse(sessionCookie) as SessionData;
             
             if (sessionData.expiresAt < Date.now()) {
+                // Session expired, clean it up
+                cookies.delete(SESSION_COOKIE_NAME, { path: '/' });
                 return null;
             }
 
             return sessionData;
         } catch {
+            // Invalid session data, clean it up
+            cookies.delete(SESSION_COOKIE_NAME, { path: '/' });
             return null;
         }
     }
 
-    destroySession() {
-        return serialize(SESSION_COOKIE_NAME, 'deleted', {
-            httpOnly: true,
-            secure: process.env.NODE_ENV === 'production',
-            sameSite: 'lax',
-            path: '/',
-            maxAge: 0
-        });
+    destroySession(cookies: Cookies) {
+        cookies.delete(SESSION_COOKIE_NAME, { path: '/' });
     }
 } 

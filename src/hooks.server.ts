@@ -11,10 +11,7 @@ const handleAuth: Handle = async ({ event, resolve }) => {
 	await ensureDatabaseInitialized();
 
 	// Check if we have a valid session
-	const sessionData = sessionManager.getSessionData(
-		event.request.headers.get('cookie'),
-		event.cookies
-	);
+	const sessionData = sessionManager.getSessionData(event.cookies);
 
 	if (sessionData) {
 		// We have a valid session, set user data
@@ -37,14 +34,14 @@ const handleAuth: Handle = async ({ event, resolve }) => {
 
 		if (userId && userEmail) {
 			// Create a new session
-			const sessionCookie = sessionManager.createSession(userId, userEmail);
+			const sessionData = sessionManager.createSession(userId, userEmail);
 
 			// Set the session cookie
-			event.cookies.set('trenara_session', sessionCookie, {
+			event.cookies.set('trenara_session', JSON.stringify(sessionData), {
 				path: '/',
 				httpOnly: true,
 				secure: process.env.NODE_ENV === 'production',
-				sameSite: 'strict',
+				sameSite: 'lax', // Changed from 'strict' to 'lax' for better compatibility
 				maxAge: 60 * 60 * 24 * 7 // 7 days
 			});
 
