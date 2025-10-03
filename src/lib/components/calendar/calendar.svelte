@@ -137,7 +137,7 @@
 			calendarState.selectedDate = {
 				year,
 				month,
-				day: currentDate.getDate() + calendarState.offsetAtStart
+				day: currentDate.getDate()
 			};
 		}
 
