@@ -9,14 +9,14 @@ export function setSessionTokenCookie(cookies: Cookies, token: string, tokenType
 		expires: expiresAt,
 		path: '/',
 		secure: true,
-		sameSite: 'strict'
+		sameSite: 'lax'
 	})
 	cookies.set(tokenType.toString(), token, {
 		expires: expiresAt,
 		path: '/',
 		httpOnly: true,
 		secure: true,
-		sameSite: 'strict'
+		sameSite: 'lax'
 	});
 }
 
@@ -29,6 +29,6 @@ export function deleteSessionTokenCookie(cookies: Cookies, tokenType: TokenType)
 		path: '/',
 		httpOnly: true,
 		secure: true,
-		sameSite: 'strict'
+		sameSite: 'lax'
 	});
 }

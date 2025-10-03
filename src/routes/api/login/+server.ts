@@ -43,6 +43,11 @@ export const POST: RequestHandler = async ({ request, cookies }) => {
 			return json({ error: 'Invalid credentials' }, { status: 401 });
 		}
 
+		// Debug logging for production
+		if (process.env.NODE_ENV === 'production') {
+			console.log('About to set tokens with TokenManager.setToken');
+		}
+
 		// Set the authentication tokens in cookies
 		tokenManager.setToken(
 			cookies,

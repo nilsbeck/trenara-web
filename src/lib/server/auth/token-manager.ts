@@ -98,20 +98,33 @@ export class TokenManager {
     }
 
     public setToken(cookies: Cookies, token: string, tokenType: TokenType, expiresAt: Date) {
-        cookies.set(`${tokenType}_expiration`, expiresAt.toISOString(), {
+        const cookieOptions = {
             expires: expiresAt,
             path: '/',
             secure: !dev,
-            sameSite: 'lax'
-        });
+            sameSite: 'lax' as const
+        };
 
-        cookies.set(tokenType.toString(), token, {
+        const tokenCookieOptions = {
             expires: expiresAt,
             path: '/',
             httpOnly: true,
             secure: !dev,
-            sameSite: 'lax'
-        });
+            sameSite: 'lax' as const
+        };
+
+        // Debug logging for production
+        if (!dev) {
+            console.log('Setting token cookies with options:', {
+                tokenType: tokenType.toString(),
+                secure: !dev,
+                sameSite: 'lax',
+                dev: dev
+            });
+        }
+
+        cookies.set(`${tokenType}_expiration`, expiresAt.toISOString(), cookieOptions);
+        cookies.set(tokenType.toString(), token, tokenCookieOptions);
     }
 
     public deleteToken(cookies: Cookies, tokenType: TokenType) {
