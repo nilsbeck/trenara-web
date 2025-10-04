@@ -48,7 +48,7 @@ export function paceStringToSeconds(paceStr: string): number {
 export function secondsToTimeString(totalSeconds: number): string {
   const hours = Math.floor(totalSeconds / 3600);
   const minutes = Math.floor((totalSeconds % 3600) / 60);
-  const seconds = totalSeconds % 60;
+  const seconds = Math.floor(totalSeconds % 60); // Trim decimal values to show only full seconds
   
   return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
 }
@@ -58,7 +58,7 @@ export function secondsToTimeString(totalSeconds: number): string {
  */
 export function secondsToPaceString(totalSeconds: number): string {
   const minutes = Math.floor(totalSeconds / 60);
-  const seconds = totalSeconds % 60;
+  const seconds = Math.floor(totalSeconds % 60); // Trim decimal values to show only full seconds
   
   return `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')} min/km`;
 }

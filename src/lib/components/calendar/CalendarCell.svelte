@@ -1,12 +1,13 @@
 <script lang="ts">
   import type { CalendarState, TrainingFilter } from './types';
   
-  let { calendarState, currentDate, day, onDayClick, hasTrainingEntriesForDate } = $props<{
+  let { calendarState, currentDate, day, onDayClick, hasTrainingEntriesForDate, getTrainingStatusForDate } = $props<{
     calendarState: CalendarState;
     currentDate: Date;
     day: number;
     onDayClick: (day: number) => void;
     hasTrainingEntriesForDate: (filter: TrainingFilter) => boolean;
+    getTrainingStatusForDate: (filter: TrainingFilter) => 'none' | 'scheduled' | 'completed' | 'missed';
   }>();
 
   let actualDay = $derived(day - calendarState.offsetAtStart);
@@ -43,10 +44,12 @@
       </p>
       <div class="flex flex-row items-center">
         {#if hasTrainingEntriesForDate({ type: 'run', day: actualDay })}
-          <span class="dot run-dot"></span>
+          {@const runStatus = getTrainingStatusForDate({ type: 'run', day: actualDay })}
+          <span class="dot run-dot" class:completed={runStatus === 'completed'} class:missed={runStatus === 'missed'}></span>
         {/if}
         {#if hasTrainingEntriesForDate({ type: 'strength', day: actualDay })}
-          <span class="dot strength-dot"></span>
+          {@const strengthStatus = getTrainingStatusForDate({ type: 'strength', day: actualDay })}
+          <span class="dot strength-dot" class:completed={strengthStatus === 'completed'} class:missed={strengthStatus === 'missed'}></span>
         {/if}
       </div>
     </div>
@@ -62,12 +65,23 @@
     background-color: rgb(156 163 175);
   }
   
+  /* Default colors for scheduled/future trainings (blue) */
   .run-dot {
-    background-color: rgb(59 130 246);
+    background-color: rgb(59 130 246); /* Blue for scheduled/future runs */
   }
   
   .strength-dot {
-    background-color: rgb(239 68 68);
+    background-color: rgb(59 130 246); /* Blue for scheduled/future strength */
+  }
+  
+  /* Green for completed trainings */
+  .dot.completed {
+    background-color: rgb(34 197 94); /* Green for completed */
+  }
+  
+  /* Red for missed trainings */
+  .dot.missed {
+    background-color: rgb(239 68 68); /* Red for missed */
   }
 
   .selected {

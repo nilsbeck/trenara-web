@@ -189,46 +189,63 @@
 		}
 	}
 
-	function hasTrainingEntriesForDate(filter: TrainingFilter): boolean {
+	function getTrainingStatusForDate(
+		filter: TrainingFilter
+	): 'none' | 'scheduled' | 'completed' | 'missed' {
 		const year = currentDate.getFullYear();
 		const month = currentDate.getMonth();
-		const date = new Date(year, month, filter.day);
-		// Use timezone-safe date formatting instead of toISOString()
 		const calendarDate = `${year}-${String(month + 1).padStart(2, '0')}-${String(filter.day).padStart(2, '0')}`;
 
+		// Check if this date is in the past, today, or future
+		const today = new Date();
+		const targetDate = new Date(year, month, filter.day);
+		const isToday = targetDate.toDateString() === today.toDateString();
+		const isPast = targetDate < today && !isToday;
+
 		if (filter.type === 'strength') {
-			// Check for strength trainings
-			const hasStrengthTrainings = schedule.strength_trainings.some((entry: StrengthTraining) => {
+			// Check for scheduled strength trainings
+			const hasScheduledStrength = schedule.strength_trainings.some((entry: StrengthTraining) => {
 				const entryDate = new Date(entry.day).toISOString().split('T')[0];
 				return entryDate === calendarDate;
 			});
 
-			if (hasStrengthTrainings) {
-				return true;
-			}
-
-			// Check for strength entries
-			return schedule.entries.some((entry: Entry) => {
+			// Check for completed strength entries
+			const hasCompletedStrength = schedule.entries.some((entry: Entry) => {
 				const entryDate = new Date(entry.start_time).toISOString().split('T')[0];
 				return entryDate === calendarDate && entry.type === 'strength';
 			});
+
+			if (hasCompletedStrength) {
+				return 'completed';
+			} else if (hasScheduledStrength) {
+				return isPast ? 'missed' : 'scheduled';
+			}
+			return 'none';
 		}
 
 		// For 'run' type, check scheduled trainings
-		const hasTrainingEntries = schedule.trainings.some((entry: ScheduledTraining) => {
+		const hasScheduledRun = schedule.trainings.some((entry: ScheduledTraining) => {
 			const entryDate = new Date(entry.day_long).toISOString().split('T')[0];
 			return entryDate === calendarDate;
 		});
 
-		if (hasTrainingEntries) {
-			return true;
-		}
-
-		// Check for run entries
-		return schedule.entries.some((entry: Entry) => {
+		// Check for completed run entries
+		const hasCompletedRun = schedule.entries.some((entry: Entry) => {
 			const entryDate = new Date(entry.start_time).toISOString().split('T')[0];
 			return entryDate === calendarDate && entry.type === 'run';
 		});
+
+		if (hasCompletedRun) {
+			return 'completed';
+		} else if (hasScheduledRun) {
+			return isPast ? 'missed' : 'scheduled';
+		}
+		return 'none';
+	}
+
+	function hasTrainingEntriesForDate(filter: TrainingFilter): boolean {
+		const status = getTrainingStatusForDate(filter);
+		return status !== 'none';
 	}
 
 	// Initialize the calendar on component mount
@@ -335,6 +352,7 @@
 				{currentDate}
 				onDayClick={handleDayClick}
 				{hasTrainingEntriesForDate}
+				{getTrainingStatusForDate}
 			/>
 		</div>
 		<div class="tabs tabs-border dark:bg-gray-700 bg-gray-50 rounded-b-xl w-full">

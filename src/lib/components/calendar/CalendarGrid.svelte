@@ -6,6 +6,7 @@
   export let currentDate: Date;
   export let onDayClick: (day: number) => void;
   export let hasTrainingEntriesForDate: (filter: TrainingFilter) => boolean;
+  export let getTrainingStatusForDate: (filter: TrainingFilter) => 'none' | 'scheduled' | 'completed' | 'missed';
 </script>
 
 <div class="grid grid-cols-7 gap-4 mt-4">
@@ -24,6 +25,7 @@
       {day}
       {onDayClick}
       {hasTrainingEntriesForDate}
+      {getTrainingStatusForDate}
     />
   {/each}
 </div> 
