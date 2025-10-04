@@ -348,7 +348,9 @@
                 size: 11,
                 weight: '600'
               },
-              maxTicksLimit: 6
+              maxTicksLimit: 6,
+              stepSize: 1, // Ensure 1 second intervals
+              precision: 0 // No decimal places
             },
             grid: {
               drawOnChartArea: false,
@@ -381,7 +383,9 @@
                 size: 11,
                 weight: '600'
               },
-              maxTicksLimit: 6
+              maxTicksLimit: 6,
+              stepSize: 1, // Ensure 1 second intervals
+              precision: 0 // No decimal places
             },
             grid: {
               drawOnChartArea: true,
