@@ -144,7 +144,11 @@ function setCachedResponse<T>(key: string, data: T): void {
 export const api = {
   // Schedule operations
   async getMonthSchedule(date: Date) {
-    const cacheKey = `monthSchedule-${date.toISOString()}`;
+    // Use year-month for cache key to avoid time-based cache misses
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const cacheKey = `monthSchedule-${year}-${month}`;
+    
     const cached = getCachedResponse(cacheKey);
     if (cached) {
       return { success: true, data: cached };
