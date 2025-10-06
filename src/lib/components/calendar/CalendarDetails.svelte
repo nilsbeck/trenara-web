@@ -143,13 +143,14 @@
 />
 
 <style>
-  /* Prevent width changes during tab transitions */
   .tabs {
-    width: 100%; /* Force consistent width */
-    max-width: 28rem; /* Match max-w-md from parent */
+    width: 100%;
+    box-sizing: border-box;
   }
 
   .tab-content {
-    width: 100%; /* Ensure content doesn't affect container width */
+    width: 100%;
+    box-sizing: border-box;
+    overflow: hidden; /* Prevent content overflow from affecting width */
   }
 </style>

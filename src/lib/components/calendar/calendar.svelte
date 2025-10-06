@@ -84,7 +84,7 @@
 
 <CalendarProvider store={calendarStore}>
 	<div class="flex justify-center px-4">
-		<div class="max-w-md w-full shadow-lg mx-auto items-center">
+		<div class="calendar-container shadow-lg mx-auto items-center">
 			{#if storeState?.isLoading}
 				<div
 					class="loading-overlay absolute inset-0 flex items-center justify-center dark:bg-gray-700 bg-gray-50 rounded-xl"
@@ -108,6 +108,12 @@
 </CalendarProvider>
 
 <style>
+	.calendar-container {
+		width: 28rem; /* Fixed width equivalent to max-w-md (448px) */
+		min-width: 28rem; /* Prevent shrinking */
+		max-width: 28rem; /* Prevent growing */
+	}
+
 	.loading-overlay {
 		position: absolute;
 		top: 50%;
