@@ -86,5 +86,5 @@ export interface NutritionDetailsProps {
 
 export interface CalendarProps {
     today: Date;
-    schedule: Schedule;
+    schedule?: Schedule;
 }

@@ -1,6 +1,6 @@
 <script lang="ts">
 	import type { ScheduledTraining, Entry, Schedule } from '$lib/server/api/types';
-	import { getMonthScheduleData } from './utils';
+	import { api } from '$lib/utils/api-client.js';
 
 	import changeSurfaceIcon from '/src/assets/change-surface.svg';
 	import trashIcon from '/src/assets/trash.svg';
@@ -96,7 +96,8 @@
 
 									if (response.ok) {
 										const date = new Date(selectedYear, selectedMonth, selectedDay, 0, 0, 0, 0);
-										const scheduleResponse = (await getMonthScheduleData(date)) as Schedule;
+										const apiResponse = await api.getMonthSchedule(date);
+										const scheduleResponse = apiResponse.success ? apiResponse.data as Schedule : null;
 										schedule = scheduleResponse;
 									} else {
 										alert(response.statusText);

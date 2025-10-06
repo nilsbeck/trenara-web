@@ -3,34 +3,24 @@
 	import PredictionChart from './charts/PredictionChart.svelte';
 	import type { ChartDataPoint } from './charts/types.js';
 	import { transformPredictionDataCached, sampleDataPoints } from './charts/utils.js';
-	import { timeAsync } from '$lib/utils/performance.js';
+	import { usePredictionHistoryData, usePredictionTracking } from '$lib/utils/data-fetching.js';
 	
 	let { goal, userStats }: { goal: Goal; userStats: UserStats } = $props();
-	let timeProgressValue = $state(0);
-	let trackingError = $state<string | null>(null);
-	let isTracking = $state(false);
-	let trackingRetryCount = $state(0);
-	let maxRetries = 3;
-	
-	// Chart-related state
-	let chartData = $state<ChartDataPoint[]>([]);
-	let chartLoading = $state(false);
-	let chartError = $state<string | null>(null);
-	let chartRetryCount = $state(0);
-	let databaseUnavailable = $state(false);
-	
-	// Client-side caching
-	let chartDataCache = $state<{
-		data: ChartDataPoint[];
-		timestamp: number;
-		userId: number | null;
-	} | null>(null);
-	let cacheExpiryMs = 5 * 60 * 1000; // 5 minutes cache
 	
 	// Component state
-	let componentError = $state<string | null>(null);
+	let timeProgressValue = $state(0);
 	let isInitialized = $state(false);
+	let componentError = $state<string | null>(null);
 	
+	// Chart data state
+	let chartData = $state<ChartDataPoint[]>([]);
+	
+	// Store previous prediction values for change detection
+	let previousPredictions = $state<{
+		time: string | null;
+		pace: string | null;
+	}>({ time: null, pace: null });
+
 	const today = new Date();
 	const endDate = new Date(goal.end_date);
 
@@ -38,192 +28,61 @@
 	const msPerWeek = 7 * 24 * 60 * 60 * 1000;
 	const weeksRemaining = Math.floor((endDate.getTime() - today.getTime()) / msPerWeek);
 
-	// Store previous prediction values for change detection
-	let previousPredictions = $state<{
-		time: string | null;
-		pace: string | null;
-	}>({ time: null, pace: null });
+	// Use standardized data fetching for prediction history
+	const predictionHistory = usePredictionHistoryData(goal?.start_date, 100);
+	
+	// Use standardized prediction tracking
+	const predictionTracking = usePredictionTracking();
+	
+	// Subscribe to store states
+	let predictionHistoryState = $state<any>();
+	let predictionTrackingState = $state<any>();
+	
+	$effect(() => {
+		const unsubscribe1 = predictionHistory.subscribe((state) => {
+			predictionHistoryState = state;
+		});
+		
+		const unsubscribe2 = predictionTracking.subscribe((state) => {
+			predictionTrackingState = state;
+		});
+		
+		return () => {
+			unsubscribe1();
+			unsubscribe2();
+		};
+	});
 
 	// Function to calculate progress
 	function calculateProgress() {
 		if (goal && goal.start_date && goal.end_date) {
 			const startDate = new Date(goal.start_date);
-
 			const totalDays = (endDate.getTime() - startDate.getTime()) / (1000 * 3600 * 24);
 			const daysPassed = (today.getTime() - startDate.getTime()) / (1000 * 3600 * 24);
 			timeProgressValue = Math.min(Math.max((daysPassed / totalDays) * 100, 0), 100);
 		}
 	}
 
-	// Function to check if cached data is still valid
-	function isCacheValid(userId: number): boolean {
-		if (!chartDataCache) return false;
-		if (chartDataCache.userId !== userId) return false;
+	// Function to process chart data from prediction history
+	function processChartData(historyData: any) {
+		if (!historyData?.records || !Array.isArray(historyData.records)) {
+			return [];
+		}
+
+		let transformedData = transformPredictionDataCached(historyData.records);
 		
-		const now = Date.now();
-		const cacheAge = now - chartDataCache.timestamp;
-		return cacheAge < cacheExpiryMs;
-	}
-
-	// Function to load prediction history for chart
-	async function loadPredictionHistory(forceRefresh = false) {
-		// Only load if we have a valid goal
-		if (!goal) {
-			if (!isInitialized) {
-				chartError = 'No active goal found';
-				chartData = [];
-			}
-			return;
+		// Sample data for better performance with large datasets
+		if (transformedData.length > 100) {
+			transformedData = sampleDataPoints(transformedData, 100);
 		}
-
-		// Check cache first (unless force refresh)
-		if (!forceRefresh && chartDataCache && isCacheValid(chartDataCache.userId || 0)) {
-			chartData = chartDataCache.data;
-			chartError = null;
-			chartLoading = false;
-			return;
-		}
-
-		try {
-			chartLoading = true;
-			chartError = null;
-			databaseUnavailable = false;
-
-			// Add query parameters for optimized data loading
-			const params = new URLSearchParams();
-			if (goal.start_date) {
-				params.append('start_date', goal.start_date);
-			}
-			// Limit to recent data for better performance
-			params.append('limit', '100');
-
-			const response = await timeAsync('api-request', async () => {
-				return fetch(`/api/v0/prediction-history?${params}`, {
-					method: 'GET',
-					headers: {
-						'Content-Type': 'application/json'
-					}
-				});
-			}, { operation: 'load-prediction-history', forceRefresh });
-
-			if (!response.ok) {
-				const errorData = await response.json();
-				
-				// Handle specific error cases
-				if (response.status === 503 && errorData.code === 'DATABASE_UNAVAILABLE') {
-					databaseUnavailable = true;
-					chartError = 'Prediction tracking is temporarily unavailable';
-					// Use fallback data if provided
-					if (errorData.fallback && errorData.records) {
-						chartData = transformPredictionDataCached(errorData.records);
-					} else {
-						chartData = [];
-					}
-					return;
-				}
-				
-				if (response.status === 401) {
-					chartError = 'Authentication required to load prediction history';
-					chartData = [];
-					return;
-				}
-				
-				throw new Error(errorData.error || `Server error: ${response.status}`);
-			}
-
-			const result = await response.json();
-			
-			// Reset retry count on successful load
-			chartRetryCount = 0;
-			
-			// Transform the data for chart display
-			if (result.records && Array.isArray(result.records)) {
-				const startTime = performance.now();
-				let transformedData = transformPredictionDataCached(result.records);
-				const duration = performance.now() - startTime;
-				
-				// Log performance in development
-				if (import.meta.env.DEV && duration > 50) {
-					console.warn(`Data transformation took ${duration.toFixed(2)}ms`, { 
-						recordCount: result.records.length 
-					});
-				}
-				
-				// Sample data for better performance with large datasets
-				if (transformedData.length > 100) {
-					transformedData = sampleDataPoints(transformedData, 100);
-				}
-				
-				chartData = transformedData;
-				
-				// Update cache with fresh data
-				chartDataCache = {
-					data: chartData,
-					timestamp: Date.now(),
-					userId: result.user_id || 0 // Assume API returns user_id
-				};
-				
-				// Show helpful message if no data exists yet
-				if (result.records.length === 0) {
-					chartError = null; // Clear any previous errors
-				}
-			} else {
-				chartData = [];
-			}
-
-		} catch (error) {
-			console.error('Failed to load prediction history:', error);
-			
-			// Implement retry logic for network errors
-			if (chartRetryCount < maxRetries && 
-				(error instanceof TypeError || // Network error
-				 (error instanceof Error && error.message.includes('fetch')))) {
-				
-				chartRetryCount++;
-				console.log(`Retrying chart data load (attempt ${chartRetryCount}/${maxRetries})`);
-				
-				// Retry after a delay
-				setTimeout(() => {
-					loadPredictionHistory();
-				}, 1000 * chartRetryCount); // Exponential backoff
-				
-				chartError = `Loading prediction history... (attempt ${chartRetryCount}/${maxRetries})`;
-				return;
-			}
-			
-			// Set user-friendly error message
-			if (error instanceof Error) {
-				if (error.message.includes('fetch')) {
-					chartError = 'Unable to connect to server. Please check your internet connection.';
-				} else if (error.message.includes('Authentication')) {
-					chartError = 'Please log in to view prediction history';
-				} else {
-					chartError = 'Unable to load prediction history';
-				}
-			} else {
-				chartError = 'Unable to load prediction history';
-			}
-			
-			chartData = [];
-		} finally {
-			chartLoading = false;
-		}
+		
+		return transformedData;
 	}
 
 	// Function to track prediction changes
 	async function trackPredictionChanges() {
 		// Only track if we have valid goal and user stats
-		if (!goal) {
-			if (!isInitialized) {
-				trackingError = 'No active goal to track predictions for';
-			}
-			return;
-		}
-
-		if (!userStats?.best_times?.time_for_goal || !userStats?.best_times?.pace_for_goal) {
-			if (!isInitialized) {
-				trackingError = 'No prediction data available to track';
-			}
+		if (!goal || !userStats?.best_times?.time_for_goal || !userStats?.best_times?.pace_for_goal) {
 			return;
 		}
 
@@ -235,149 +94,32 @@
 			return; // No changes detected
 		}
 
-		// Handle first load - we need to check if there's existing data first
-		const isFirstLoad = previousPredictions.time === null && previousPredictions.pace === null;
-		
-		if (isFirstLoad) {
-			console.log('First load - checking for existing data and storing initial prediction:', { currentTime, currentPace });
-			// We'll store this prediction and let the API handle deduplication
-		}
-
 		try {
-			isTracking = true;
-			trackingError = null;
-
-			console.log('Tracking prediction changes:', {
-				currentTime,
-				currentPace,
-				previousTime: previousPredictions.time,
-				previousPace: previousPredictions.pace,
-				isFirstLoad
-			});
-
-			const response = await fetch('/api/v0/prediction-history', {
-				method: 'POST',
-				headers: {
-					'Content-Type': 'application/json'
-				},
-				body: JSON.stringify({
-					predicted_time: currentTime,
-					predicted_pace: currentPace
-				})
-			});
-
-			if (!response.ok) {
-				let errorData;
-				try {
-					errorData = await response.json();
-				} catch (parseError) {
-					console.error('Failed to parse error response:', parseError);
-					throw new Error(`Server error: ${response.status} ${response.statusText}`);
-				}
-				
-				console.error('API error response:', {
-					status: response.status,
-					statusText: response.statusText,
-					errorData
-				});
-				
-				// Handle specific error cases
-				if (response.status === 503 && errorData.code === 'DATABASE_UNAVAILABLE') {
-					trackingError = 'Prediction tracking is temporarily unavailable';
-					// Don't update previous values so we can retry later
-					return;
-				}
-				
-				if (response.status === 401) {
-					// Don't show error for authentication issues - this is expected for logged-out users
-					console.log('User not authenticated for prediction tracking');
-					trackingError = null; // Clear any previous errors
-					return;
-				}
-				
-				throw new Error(errorData.error || `Server error: ${response.status} - ${errorData.code || 'Unknown'}`);
-			}
-
-			const result = await response.json();
-			
-			console.log('Prediction tracking response:', {
-				status: response.status,
-				result,
-				stored: result.stored
-			});
-			
-			// Reset retry count on successful tracking
-			trackingRetryCount = 0;
+			const result = await predictionTracking.trackPrediction(currentTime, currentPace);
 			
 			// Update previous values only after successful tracking
 			previousPredictions.time = currentTime;
 			previousPredictions.pace = currentPace;
 
 			// Reload chart data if new data was stored
-			if (result.stored) {
+			if (result?.stored) {
 				console.log('Prediction changes tracked successfully - reloading chart data');
-				// Force refresh to get the latest data and update cache
-				await loadPredictionHistory(true);
-			} else {
-				console.log('No new data stored (values unchanged or first load)');
+				await predictionHistory.reload();
 			}
-
 		} catch (error) {
 			console.error('Failed to track prediction changes:', error);
-			console.error('Error type:', typeof error);
-			console.error('Error constructor:', error?.constructor?.name);
-			
-			// Implement retry logic for network errors
-			if (trackingRetryCount < maxRetries && 
-				(error instanceof TypeError || // Network error
-				 (error instanceof Error && error.message.includes('fetch')))) {
-				
-				trackingRetryCount++;
-				console.log(`Retrying prediction tracking (attempt ${trackingRetryCount}/${maxRetries})`);
-				
-				// Retry after a delay
-				setTimeout(() => {
-					trackPredictionChanges();
-				}, 2000 * trackingRetryCount); // Exponential backoff
-				
-				trackingError = `Retrying prediction tracking... (attempt ${trackingRetryCount}/${maxRetries})`;
-				return;
-			}
-			
-			// Set user-friendly error message
-			if (error instanceof Error) {
-				console.error('Prediction tracking error details:', {
-					message: error.message,
-					stack: error.stack,
-					name: error.name
-				});
-				
-				if (error.message.includes('fetch')) {
-					trackingError = 'Unable to connect to server for prediction tracking';
-				} else if (error.message.includes('Authentication') || error.message.includes('401')) {
-					// Don't show error for authentication issues
-					console.log('Authentication required for prediction tracking');
-					trackingError = null;
-				} else if (error.message.includes('Server error: 401')) {
-					// Handle 401 errors gracefully
-					console.log('User not authenticated for prediction tracking');
-					trackingError = null;
-				} else {
-					// Only show error if it's not authentication-related
-					if (!error.message.includes('401') && !error.message.toLowerCase().includes('auth')) {
-						trackingError = `Unable to track prediction changes: ${error.message}`;
-					} else {
-						console.log('Suppressing authentication-related error:', error.message);
-						trackingError = null;
-					}
-				}
-			} else {
-				console.error('Non-Error object thrown:', error);
-				trackingError = 'Unable to track prediction changes';
-			}
-		} finally {
-			isTracking = false;
+			// Error is handled by the tracking hook
 		}
+	}
+
+	// Function to retry failed operations
+	function retryOperations() {
+		predictionTracking.clearError();
+		componentError = null;
+		
+		// Retry loading data
+		predictionHistory.reload();
+		trackPredictionChanges();
 	}
 
 	// Initialize component and handle errors
@@ -401,7 +143,7 @@
 			// Initialize the component
 			calculateProgress();
 			trackPredictionChanges();
-			loadPredictionHistory();
+			predictionHistory.load();
 			
 			isInitialized = true;
 		} catch (error) {
@@ -411,19 +153,47 @@
 		}
 	});
 
-	// Function to retry failed operations
-	function retryOperations() {
-		chartRetryCount = 0;
-		trackingRetryCount = 0;
-		chartError = null;
-		trackingError = null;
-		componentError = null;
-		databaseUnavailable = false;
+	// Update chart data when prediction history changes
+	$effect(() => {
+		if (predictionHistoryState?.data) {
+			chartData = processChartData(predictionHistoryState.data);
+		} else if (predictionHistoryState?.error?.code === 'DATABASE_UNAVAILABLE' && predictionHistoryState.error.records) {
+			// Use fallback data if available
+			chartData = processChartData({ records: predictionHistoryState.error.records });
+		} else {
+			chartData = [];
+		}
+	});
+
+	// Derived states for better readability
+	let isDatabaseUnavailable = $derived(
+		predictionHistoryState?.error?.code === 'DATABASE_UNAVAILABLE' || 
+		predictionTrackingState?.error?.code === 'DATABASE_UNAVAILABLE'
+	);
+	
+	let chartError = $derived.by(() => {
+		if (!predictionHistoryState?.error) return null;
 		
-		// Retry loading data
-		loadPredictionHistory();
-		trackPredictionChanges();
-	}
+		if (predictionHistoryState.error.code === 'DATABASE_UNAVAILABLE') {
+			return 'Prediction tracking is temporarily unavailable';
+		}
+		
+		if (predictionHistoryState.error.code === 'AUTHENTICATION_REQUIRED') {
+			return null; // Don't show auth errors to user
+		}
+		
+		return 'Unable to load prediction history';
+	});
+	
+	let trackingError = $derived.by(() => {
+		if (!predictionTrackingState?.error) return null;
+		
+		if (predictionTrackingState.error.code === 'DATABASE_UNAVAILABLE') {
+			return 'Prediction tracking is temporarily unavailable';
+		}
+		
+		return 'Unable to track prediction changes';
+	});
 </script>
 
 {#if componentError}
@@ -493,7 +263,7 @@
 			></progress>
 			
 			<!-- Status and error display -->
-			{#if databaseUnavailable}
+			{#if isDatabaseUnavailable}
 				<div class="alert alert-warning mt-2">
 					<div>
 						<span class="text-sm">⚠️ Prediction tracking is temporarily unavailable. Your progress will be tracked once the service is restored.</span>
@@ -502,7 +272,7 @@
 						</button>
 					</div>
 				</div>
-			{:else if isTracking}
+			{:else if predictionTrackingState?.isTracking}
 				<div class="text-sm text-blue-500 mt-2 flex items-center">
 					<span class="loading loading-spinner loading-xs mr-2"></span>
 					Tracking prediction changes...
@@ -511,11 +281,9 @@
 				<div class="alert alert-error mt-2">
 					<div class="flex justify-between items-center">
 						<span class="text-sm">⚠️ {trackingError}</span>
-						{#if trackingRetryCount < maxRetries}
-							<button class="btn btn-sm btn-outline" onclick={retryOperations}>
-								Retry
-							</button>
-						{/if}
+						<button class="btn btn-sm btn-outline" onclick={retryOperations}>
+							Retry
+						</button>
 					</div>
 				</div>
 			{/if}
@@ -532,13 +300,13 @@
 			
 			<PredictionChart 
 				data={chartData} 
-				loading={chartLoading} 
+				loading={predictionHistoryState?.loading || false} 
 				error={chartError}
 				goalStartDate={goal.start_date}
 				goalEndDate={goal.end_date}
 			/>
 			
-			{#if chartError && !chartLoading}
+			{#if chartError && !predictionHistoryState?.loading}
 				<div class="mt-2 text-center">
 					<button class="btn btn-sm btn-outline" onclick={retryOperations}>
 						Retry Loading Chart
@@ -568,13 +336,13 @@
 			
 			<PredictionChart 
 				data={chartData} 
-				loading={chartLoading} 
+				loading={predictionHistoryState?.loading || false} 
 				error={chartError}
 				goalStartDate={goal.start_date}
 				goalEndDate={goal.end_date}
 			/>
 			
-			{#if chartError && !chartLoading}
+			{#if chartError && !predictionHistoryState?.loading}
 				<div class="mt-2 text-center">
 					<button class="btn btn-sm btn-outline" onclick={retryOperations}>
 						Retry Loading Chart

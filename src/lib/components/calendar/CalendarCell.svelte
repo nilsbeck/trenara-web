@@ -1,5 +1,7 @@
 <script lang="ts">
   import type { CalendarState, TrainingFilter } from './types';
+  import { getContext } from 'svelte';
+  import type { CalendarStore } from '$lib/types/index.js';
   
   let { calendarState, currentDate, day, onDayClick, hasTrainingEntriesForDate, getTrainingStatusForDate } = $props<{
     calendarState: CalendarState;
@@ -10,10 +12,10 @@
     getTrainingStatusForDate: (filter: TrainingFilter) => 'none' | 'scheduled' | 'completed' | 'missed';
   }>();
 
-  let actualDay = $derived(day - calendarState.offsetAtStart);
-  
+  // Try to get store from context for enhanced functionality
+  const store = getContext<CalendarStore>('calendar');
 
-  
+  let actualDay = $derived(day - calendarState.offsetAtStart);
 
   let isSelected = $derived(calendarState.selectedDate?.day === actualDay &&
     calendarState.selectedDate?.month === currentDate.getMonth() &&

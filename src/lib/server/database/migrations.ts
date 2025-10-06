@@ -174,19 +174,17 @@ export const addOptimizedIndexes: Migration = {
         `;
         await db.query(createLatestIndexQuery);
 
-        // Partial index for recent data (last 6 months) for faster queries
+        // Optimized index for recent data (without date filter to avoid immutability issues)
         const createRecentIndexQuery = `
             CREATE INDEX IF NOT EXISTS idx_prediction_history_recent 
-            ON prediction_history(user_id, recorded_at) 
-            WHERE recorded_at >= CURRENT_DATE - INTERVAL '6 months'
+            ON prediction_history(user_id, recorded_at DESC)
         `;
         await db.query(createRecentIndexQuery);
 
-        // Composite index for date range queries
+        // Composite index for date range queries (without date filter)
         const createDateRangeIndexQuery = `
             CREATE INDEX IF NOT EXISTS idx_prediction_history_date_range 
-            ON prediction_history(recorded_at, user_id) 
-            WHERE recorded_at >= CURRENT_DATE - INTERVAL '1 year'
+            ON prediction_history(recorded_at DESC, user_id)
         `;
         await db.query(createDateRangeIndexQuery);
     },

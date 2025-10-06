@@ -37,9 +37,9 @@
 			<div class="flex flex-row items-center">
 				<Loading />
 			</div>
-		{:then schedule}
+		{:then schedules}
 			<div class="flex flex-col md:flex-row items-center">
-				<Calendar today={new Date()} schedule={mergeSchedules(schedule)} />
+				<Calendar today={new Date()} schedule={mergeSchedules(schedules)} />
 			</div>
 		{/await}
 		{#await Promise.all([data.goal, data.userStats])}

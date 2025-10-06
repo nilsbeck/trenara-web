@@ -2,7 +2,7 @@
 	import { error } from '@sveltejs/kit';
 	import changeDateIcon from '/src/assets/change-date.svg';
 	import type { Schedule, ScheduledTraining, SaveScheduleResponse } from '$lib/server/api';
-	import { getMonthScheduleData } from '$lib/components/calendar/utils';
+	import { api } from '$lib/utils/api-client.js';
 
 	let changeDateModal: HTMLDialogElement = $state() as HTMLDialogElement;
 	let saveDateLoading: boolean = $state(false);
@@ -113,7 +113,8 @@
 											})
 											.then(async () => {
 												const date = new Date(selectedYear, selectedMonth, selectedDay, 0, 0, 0, 0);
-												const scheduleResponse = (await getMonthScheduleData(date)) as Schedule;
+												const apiResponse = await api.getMonthSchedule(date);
+												const scheduleResponse = apiResponse.success ? apiResponse.data as Schedule : null;
 												schedule = scheduleResponse;
 
 												changeDateModal.close();
