@@ -10,6 +10,7 @@
 	import Loading from '../loading.svelte';
 
 	let isDeleting = $state(false);
+	let changeSurfaceModal: HTMLDialogElement;
 
 	let {
 		schedule = $bindable(),
@@ -52,7 +53,8 @@
 							>
 						{/if}
 						{#if selectedRunTrainingEntry.length > 0}
-							{selectedRunTrainingEntry[0].name} {#if selectedTraining.length > 0}{@render timeDistance(selectedTraining)}{/if}
+							{selectedRunTrainingEntry[0].name}
+							{#if selectedTraining.length > 0}{@render timeDistance(selectedTraining)}{/if}
 						{:else if selectedTraining.length > 0}
 							{selectedTraining[0].title} {@render timeDistance(selectedTraining)}
 						{/if}
@@ -65,6 +67,7 @@
 							<button
 								aria-label="Change surface"
 								class="icon-button btn btn-ghost hover:bg-base-100 p-2"
+								onclick={() => changeSurfaceModal?.showModal()}
 							>
 								<img src={changeSurfaceIcon} alt="change surface" width="18" height="18" />
 							</button>
@@ -85,10 +88,10 @@
 										return;
 									}
 									isDeleting = true;
-									
+
 									const response = await fetch('/api/v0/deleteTraining', {
 										method: 'DELETE',
-										body: JSON.stringify({trainingId: selectedRunTrainingEntry[0].id}),
+										body: JSON.stringify({ trainingId: selectedRunTrainingEntry[0].id }),
 										headers: {
 											'Content-Type': 'application/json'
 										}
@@ -97,7 +100,9 @@
 									if (response.ok) {
 										const date = new Date(selectedYear, selectedMonth, selectedDay, 0, 0, 0, 0);
 										const apiResponse = await api.getMonthSchedule(date);
-										const scheduleResponse = apiResponse.success ? apiResponse.data as Schedule : null;
+										const scheduleResponse = apiResponse.success
+											? (apiResponse.data as Schedule)
+											: null;
 										schedule = scheduleResponse;
 									} else {
 										alert(response.statusText);
@@ -261,5 +266,26 @@
 {/snippet}
 
 {#snippet timeDistance(selectedTraining: ScheduledTraining[])}
-<span class="text-[10px]">[{selectedTraining[0].training.total_distance}, {selectedTraining[0].training.total_time}{selectedTraining[0].training.total_time.split(':').length == 2 ? 'min' : 'h'}]</span>
+	<span class="text-[10px]"
+		>[{selectedTraining[0].training.total_distance}, {selectedTraining[0].training
+			.total_time}{selectedTraining[0].training.total_time.split(':').length == 2
+			? 'min'
+			: 'h'}]</span
+	>
 {/snippet}
+
+<!-- Change Surface Modal -->
+<dialog bind:this={changeSurfaceModal} class="modal">
+	<div class="modal-box">
+		<h3 class="font-bold text-lg">Change Training Surface</h3>
+		<p class="py-4">
+			This feature is coming soon! You'll be able to change the training surface (road, trail,
+			track, etc.) here.
+		</p>
+		<div class="modal-action">
+			<form method="dialog">
+				<button class="btn">Close</button>
+			</form>
+		</div>
+	</div>
+</dialog>

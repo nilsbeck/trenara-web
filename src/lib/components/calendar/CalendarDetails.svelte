@@ -45,17 +45,23 @@
     isNutritionLoading = loading;
   }
 
-  // Auto-select appropriate tab based on available data
+  // Auto-select appropriate tab when date changes or data becomes available
+  let lastSelectedDate = $state<string | null>(null);
   $effect(() => {
+    const currentSelectedDate = store.selectedDateString;
     const hasTraining = selectedTraining.length > 0 || selectedRunTrainingEntry.length > 0;
     const hasStrength = selectedTrainingStrength.length > 0;
     
-    // If no training data, default to nutrition
-    if (!hasTraining && !hasStrength) {
-      selectedTab = Tab.Nutrition;
-    } else if (hasTraining && selectedTab === Tab.Nutrition) {
-      // If training data becomes available and we're on nutrition, switch to training
-      selectedTab = Tab.Training;
+    // Only auto-select when the date changes (not on manual tab switches)
+    if (currentSelectedDate !== lastSelectedDate) {
+      if (hasTraining) {
+        selectedTab = Tab.Training;
+      } else if (hasStrength) {
+        selectedTab = Tab.Strength;
+      } else {
+        selectedTab = Tab.Nutrition;
+      }
+      lastSelectedDate = currentSelectedDate;
     }
   });
 
@@ -152,5 +158,10 @@
     width: 100%;
     box-sizing: border-box;
     overflow: hidden; /* Prevent content overflow from affecting width */
+    display: none; /* Hide by default */
+  }
+
+  .tab-content.active {
+    display: block; /* Show when active */
   }
 </style>
