@@ -75,18 +75,30 @@
   function createChart() {
     if (!canvas) {
       chartError = 'Chart canvas not available';
+      if (retryCount < maxRetries) {
+        retryCount++;
+        setTimeout(() => createChart(), 200);
+      }
       return;
     }
 
-    if (!data.length) {
-      // This is not an error - just no data to display
-      chartError = null;
-      return;
-    }
+    // Always clear previous chart first
+    destroyChart();
 
     const ctx = canvas.getContext('2d');
     if (!ctx) {
       chartError = 'Unable to get chart context';
+      if (retryCount < maxRetries) {
+        retryCount++;
+        setTimeout(() => createChart(), 200);
+      }
+      return;
+    }
+
+    // Handle empty data case
+    if (!data.length) {
+      chartError = null;
+      isChartReady = true;
       return;
     }
 
@@ -485,12 +497,18 @@
   }
 
   onMount(() => {
-    if (data.length > 0) {
-      // Delay chart creation slightly to ensure DOM is ready
-      requestAnimationFrame(() => {
-        createChart();
-      });
-    }
+    // Always set up the chart container, even if no data initially
+    // Use a longer delay to ensure DOM is fully ready
+    setTimeout(() => {
+      if (canvas && typeof window !== 'undefined') {
+        if (data.length > 0) {
+          createChart();
+        } else {
+          // Initialize empty chart that can be updated later
+          isChartReady = true;
+        }
+      }
+    }, 100);
     
     // Set up visibility change handler
     if (typeof document !== 'undefined') {
@@ -527,8 +545,20 @@
   });
 
   // Reactive statement to update chart when data changes
-  $: if (data && canvas && typeof window !== 'undefined') {
-    updateChart();
+  $: if (canvas && typeof window !== 'undefined') {
+    // Always try to update/create chart when data changes
+    if (data.length > 0) {
+      if (!chart) {
+        // Create chart if it doesn't exist
+        setTimeout(() => createChart(), 50);
+      } else {
+        // Update existing chart
+        updateChart();
+      }
+    } else if (chart) {
+      // If no data but chart exists, update to show empty state
+      updateChart();
+    }
   }
   
   // Handle visibility changes for performance
@@ -588,7 +618,15 @@
     </div>
   {:else}
     <div class="chart-wrapper">
-      <canvas bind:this={canvas}></canvas>
+      <canvas bind:this={canvas} style="display: block; width: 100%; height: 100%;"></canvas>
+      {#if !chart && !loading && !chartError}
+        <div class="absolute inset-0 flex items-center justify-center bg-gray-50 dark:bg-gray-800 rounded">
+          <div class="text-gray-500 text-center">
+            <div class="loading loading-spinner loading-sm mb-2"></div>
+            <p class="text-sm">Initializing chart...</p>
+          </div>
+        </div>
+      {/if}
     </div>
   {/if}
 </div>
@@ -606,6 +644,8 @@
     width: 100%;
     background: white;
     border-radius: 0.375rem;
+    min-height: 400px; /* Ensure minimum height */
+    overflow: hidden;
   }
 
   /* Dark mode support */
