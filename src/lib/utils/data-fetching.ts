@@ -431,3 +431,76 @@ export function usePredictionTracking() {
     clearError: () => { error.set(null); }
   };
 }
+
+/**
+ * Hook for cleaning up historic prediction data
+ */
+export function usePredictionHistoryCleanup() {
+  const isCleaningUp = writable(false);
+  const error = writable<Error | null>(null);
+
+  const cleanupHistoricData = async () => {
+    let currentlyCleaningUp: boolean;
+    isCleaningUp.subscribe(v => currentlyCleaningUp = v)();
+    
+    if (currentlyCleaningUp!) return;
+
+    isCleaningUp.set(true);
+    error.set(null);
+
+    try {
+      const response = await fetch('/api/v0/prediction-history/cleanup', {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        
+        // Handle specific error cases
+        if (response.status === 503 && errorData.code === 'DATABASE_UNAVAILABLE') {
+          const cleanupError = new Error('Prediction data cleanup is temporarily unavailable') as ApiError;
+          cleanupError.code = 'DATABASE_UNAVAILABLE';
+          cleanupError.status = 503;
+          throw cleanupError;
+        }
+        
+        if (response.status === 401) {
+          throw new Error('Authentication required for data cleanup');
+        }
+        
+        throw new Error(errorData.error || `Server error: ${response.status}`);
+      }
+
+      const result = await response.json();
+      return result;
+    } catch (err) {
+      const cleanupError = err as Error;
+      error.set(cleanupError);
+      throw cleanupError;
+    } finally {
+      isCleaningUp.set(false);
+    }
+  };
+
+  return {
+    subscribe: derived([isCleaningUp, error], ([$isCleaningUp, $error]) => ({
+      isCleaningUp: $isCleaningUp,
+      error: $error
+    })).subscribe,
+    get isCleaningUp() { 
+      let value: boolean;
+      isCleaningUp.subscribe(v => value = v)();
+      return value!;
+    },
+    get error() { 
+      let value: Error | null;
+      error.subscribe(v => value = v)();
+      return value!;
+    },
+    cleanupHistoricData,
+    clearError: () => { error.set(null); }
+  };
+}

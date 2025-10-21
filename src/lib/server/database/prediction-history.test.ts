@@ -465,4 +465,89 @@ describe('PredictionHistoryDAO', () => {
 			expect(result.lastChecked).toBeDefined();
 		});
 	});
+
+	describe('deleteHistoricDataBeforeGoal', () => {
+		it('should delete all data when no goal is set', async () => {
+			mockDb.queryWithRetry.mockResolvedValue({ rowCount: 5 });
+
+			const result = await dao.deleteHistoricDataBeforeGoal(123, null);
+
+			expect(result).toBe(5);
+			expect(mockDb.queryWithRetry).toHaveBeenCalledWith(
+				expect.stringMatching(/DELETE FROM prediction_history\s+WHERE user_id = \$1/),
+				[123]
+			);
+		});
+
+		it('should delete data before goal start date', async () => {
+			mockDb.queryWithRetry.mockResolvedValue({ rowCount: 3 });
+
+			const result = await dao.deleteHistoricDataBeforeGoal(123, '2024-01-15');
+
+			expect(result).toBe(3);
+			expect(mockDb.queryWithRetry).toHaveBeenCalledWith(
+				expect.stringMatching(/DELETE FROM prediction_history\s+WHERE user_id = \$1 AND recorded_at < \$2/),
+				[123, '2024-01-15']
+			);
+		});
+
+		it('should validate user ID', async () => {
+			await expect(dao.deleteHistoricDataBeforeGoal(-1, null))
+				.rejects.toThrow('Invalid user ID: must be a positive integer');
+		});
+
+		it('should validate goal start date format', async () => {
+			await expect(dao.deleteHistoricDataBeforeGoal(123, 'invalid-date'))
+				.rejects.toThrow('Invalid goal start date format');
+		});
+
+		it('should handle database errors', async () => {
+			mockDb.queryWithRetry.mockRejectedValue(new Error('Database error'));
+
+			await expect(dao.deleteHistoricDataBeforeGoal(123, null))
+				.rejects.toThrow('Failed to delete historic prediction data for user 123');
+		});
+
+		it('should return 0 when no records are deleted', async () => {
+			mockDb.queryWithRetry.mockResolvedValue({ rowCount: 0 });
+
+			const result = await dao.deleteHistoricDataBeforeGoal(123, '2024-01-15');
+
+			expect(result).toBe(0);
+		});
+	});
+
+	describe('cleanupHistoricDataForGoal', () => {
+		it('should cleanup data with goal start date', async () => {
+			mockDb.queryWithRetry.mockResolvedValue({ rowCount: 2 });
+
+			const userGoal = { start_date: '2024-01-15' };
+			const result = await dao.cleanupHistoricDataForGoal(123, userGoal);
+
+			expect(result).toBe(2);
+			expect(mockDb.queryWithRetry).toHaveBeenCalledWith(
+				expect.stringContaining('WHERE user_id = $1 AND recorded_at < $2'),
+				[123, '2024-01-15']
+			);
+		});
+
+		it('should cleanup all data when no goal is provided', async () => {
+			mockDb.queryWithRetry.mockResolvedValue({ rowCount: 4 });
+
+			const result = await dao.cleanupHistoricDataForGoal(123, null);
+
+			expect(result).toBe(4);
+			expect(mockDb.queryWithRetry).toHaveBeenCalledWith(
+				expect.stringContaining('WHERE user_id = $1'),
+				[123]
+			);
+		});
+
+		it('should handle errors from deleteHistoricDataBeforeGoal', async () => {
+			mockDb.queryWithRetry.mockRejectedValue(new Error('Database error'));
+
+			await expect(dao.cleanupHistoricDataForGoal(123, null))
+				.rejects.toThrow('Failed to delete historic prediction data for user 123');
+		});
+	});
 });

@@ -461,6 +461,102 @@ export class PredictionHistoryDAO {
             };
         }
     }
+
+    /**
+     * Delete historic prediction data before a goal start date or all data if no goal is set
+     * @param userId - The user ID
+     * @param goalStartDate - The goal start date (ISO string), or null to delete all data
+     * @returns Promise<number> - Number of records deleted
+     */
+    public async deleteHistoricDataBeforeGoal(
+        userId: number, 
+        goalStartDate: string | null
+    ): Promise<number> {
+        try {
+            // Validate user ID
+            if (!PredictionValidator.validateUserId(userId)) {
+                throw new ValidationError('Invalid user ID: must be a positive integer', 'user_id');
+            }
+
+            let query: string;
+            let params: any[];
+
+            if (goalStartDate === null) {
+                // Delete all historic data for user if no goal is set
+                query = `
+                    DELETE FROM prediction_history 
+                    WHERE user_id = $1
+                `;
+                params = [userId];
+                
+                if (dev) {
+                    console.log(`Deleting all historic prediction data for user ${userId} (no goal set)`);
+                }
+            } else {
+                // Validate goal start date format
+                if (!PredictionValidator.validateDateFormat(goalStartDate)) {
+                    throw new ValidationError('Invalid goal start date format', 'goalStartDate');
+                }
+
+                // Delete data recorded before the goal start date
+                query = `
+                    DELETE FROM prediction_history 
+                    WHERE user_id = $1 AND recorded_at < $2
+                `;
+                params = [userId, goalStartDate];
+                
+                if (dev) {
+                    console.log(`Deleting historic prediction data for user ${userId} before ${goalStartDate}`);
+                }
+            }
+
+            const result = await db.queryWithRetry(query, params);
+            const deletedCount = result.rowCount || 0;
+
+            if (dev) {
+                console.log(`Deleted ${deletedCount} historic prediction records for user ${userId}`);
+            }
+
+            return deletedCount;
+
+        } catch (error) {
+            if (error instanceof ValidationError) {
+                throw error;
+            }
+            
+            if (dev) {
+                console.error(`Failed to delete historic data for user ${userId}:`, error);
+            }
+            
+            throw new QueryError(
+                `Failed to delete historic prediction data for user ${userId}`,
+                undefined,
+                error instanceof Error ? error : undefined
+            );
+        }
+    }
+
+    /**
+     * Clean up historic data for a user based on their current goal
+     * This is a convenience method that fetches the user's goal and cleans up accordingly
+     * @param userId - The user ID
+     * @param userGoal - The user's current goal object (with start_date), or null if no goal
+     * @returns Promise<number> - Number of records deleted
+     */
+    public async cleanupHistoricDataForGoal(
+        userId: number,
+        userGoal: { start_date: string } | null
+    ): Promise<number> {
+        try {
+            const goalStartDate = userGoal?.start_date || null;
+            return await this.deleteHistoricDataBeforeGoal(userId, goalStartDate);
+        } catch (error) {
+            if (dev) {
+                console.error(`Failed to cleanup historic data for user ${userId}:`, error);
+            }
+            throw error;
+        }
+    }
 }
 
 // Export singleton instance
