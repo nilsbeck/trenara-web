@@ -294,9 +294,6 @@
 	<div class="card dark:bg-gray-700 bg-gray-50 shadow-lg max-w-4xl w-full mt-6">
 		<div class="card-body">
 			<h2 class="card-title">Prediction Progress</h2>
-			<div class="text-sm text-gray-500 mb-4">
-				Track how your race predictions change over time as you train
-			</div>
 			
 			<PredictionChart 
 				data={chartData} 
