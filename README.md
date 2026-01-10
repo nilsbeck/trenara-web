@@ -2,7 +2,7 @@
 
 This is a personal project, primarily to learn building a web app with Svelte, TypeScript, and TailwindCSS.
 Since I needed something worth working on, I decided to build a new UI for the best running app out there,
-[Trenara](https://www.trenara.com). The latest version of the app is always automatically deployed to [https://trenara-web.vercel.app](https://trenara-web.vercel.app).
+[Trenara](https://www.trenara.com). The latest version of the app is always automatically deployed to [https://trenara-web.vercel.app](https://trenara-web-two.vercel.app).
 
 ## Goals
 
@@ -34,7 +34,7 @@ It shows the data for training, strength and nutrition. You can add RPE feedback
 ## What is the future?
 
 - Implement API calls to
-  - ✅ move a training to a different date
+  - ☐ move a training to a different date
   - set training circumstances
   - ✅ delete a training
   - ✅ add manual training
