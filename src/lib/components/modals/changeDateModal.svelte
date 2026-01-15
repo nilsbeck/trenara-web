@@ -37,18 +37,26 @@
 		const lastDay = new Date(year, month + 1, 0);
 		const firstDayOfWeek = (firstDay.getDay() + 6) % 7; // Convert Sunday=0 to Monday=0
 		
+		// Create the original selected date for comparison
+		const originalSelectedDate = selectedYear !== null && selectedMonth !== null && selectedDay !== null 
+			? new Date(selectedYear, selectedMonth, selectedDay) 
+			: null;
+		
 		const days = [];
 		
 		// Add days from previous month
 		const prevMonth = new Date(year, month - 1, 0);
 		for (let i = firstDayOfWeek - 1; i >= 0; i--) {
 			const dayDate = new Date(year, month - 1, prevMonth.getDate() - i);
+			const isOriginalSelected = originalSelectedDate && dayDate.getTime() === originalSelectedDate.getTime();
+			
 			days.push({
 				date: dayDate,
 				dayNumber: dayDate.getDate(),
 				isCurrentMonth: false,
 				isToday: false,
 				isSelected: false,
+				isOriginalSelected,
 				isPast: dayDate < today
 			});
 		}
@@ -58,6 +66,7 @@
 			const dayDate = new Date(year, month, day);
 			const isToday = dayDate.getTime() === today.getTime();
 			const isSelected = changeToDate && dayDate.getTime() === changeToDate.getTime();
+			const isOriginalSelected = originalSelectedDate && dayDate.getTime() === originalSelectedDate.getTime();
 			
 			days.push({
 				date: dayDate,
@@ -65,6 +74,7 @@
 				isCurrentMonth: true,
 				isToday,
 				isSelected,
+				isOriginalSelected,
 				isPast: dayDate < today
 			});
 		}
@@ -73,12 +83,15 @@
 		const remainingDays = 42 - days.length; // 6 rows × 7 days
 		for (let day = 1; day <= remainingDays; day++) {
 			const dayDate = new Date(year, month + 1, day);
+			const isOriginalSelected = originalSelectedDate && dayDate.getTime() === originalSelectedDate.getTime();
+			
 			days.push({
 				date: dayDate,
 				dayNumber: day,
 				isCurrentMonth: false,
 				isToday: false,
 				isSelected: false,
+				isOriginalSelected,
 				isPast: dayDate < today
 			});
 		}
@@ -188,6 +201,7 @@
 										class="date-picker-day"
 										class:is-today={day.isToday}
 										class:is-selected={day.isSelected}
+										class:is-original-selected={day.isOriginalSelected}
 										class:is-disabled={day.isPast || !day.isCurrentMonth}
 										class:is-other-month={!day.isCurrentMonth}
 										disabled={day.isPast || !day.isCurrentMonth}
@@ -378,6 +392,19 @@
 	.date-picker-day.is-selected:hover {
 		background-color: var(--color-secondary, #ec4899);
 		opacity: 0.9;
+	}
+
+	/* Original selected date styling - pink border only */
+	.date-picker-day.is-original-selected {
+		border: 2px solid var(--color-secondary, #ec4899);
+		font-weight: 600;
+	}
+
+	/* When original selected date is also the new selected date, prioritize filled background */
+	.date-picker-day.is-selected.is-original-selected {
+		background-color: var(--color-secondary, #ec4899);
+		color: white;
+		border: 2px solid var(--color-secondary, #ec4899);
 	}
 
 	/* Disabled (past dates) styling - dark mode */
