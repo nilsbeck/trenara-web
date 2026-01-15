@@ -60,7 +60,7 @@
 </script>
 
 
-	{#if selectedDay && selectedMonth && selectedYear}
+	{#if selectedDay !== null && selectedMonth !== null && selectedYear !== null}
 		<button
 			class="btn btn-ghost hover:bg-base-100 p-2"
 			aria-label="Change date"
