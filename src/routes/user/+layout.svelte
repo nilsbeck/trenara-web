@@ -1,6 +1,7 @@
 <script lang="ts">
 	import '../../app.css';
 	import Loading from '$lib/components/loading.svelte';
+	import ChatBubble from '$lib/components/ChatBubble.svelte';
 	import type { User } from '$lib/server/api/types';
 	import type { LayoutServerData } from './$types';
 	import AddTrainingModal from '$lib/components/modals/addTrainingModal.svelte';
@@ -36,3 +37,6 @@
 </div>
 
 <footer class="footer sm:footer-horizontal footer-center text-base-content p-4"></footer>
+
+<!-- Chat Bubble - appears on all authenticated pages -->
+<ChatBubble />
