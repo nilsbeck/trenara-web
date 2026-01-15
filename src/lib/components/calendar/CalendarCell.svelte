@@ -90,6 +90,6 @@
     background-color: var(--color-secondary);
   }
   .today {
-    background-color: rgba(234, 234, 234, 0.72);
+    background-color: var(--color-today);
   }
 </style> 

@@ -1,4 +1,17 @@
 @import "tailwindcss";
 @plugin "daisyui";
 
+/* Custom color variables for consistent theming */
+:root {
+  --color-secondary: #ec4899; /* Pink color for selected states */
+  --color-today: rgba(234, 234, 234, 0.72); /* Grey color for today */
+}
+
+/* Dark mode color adjustments */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --color-today: rgba(75, 85, 99, 0.72); /* Darker grey for today in dark mode */
+  }
+}
+
 
