@@ -1,17 +1,63 @@
-@import "tailwindcss";
-@plugin "daisyui";
+@import 'tailwindcss';
 
-/* Custom color variables for consistent theming */
-:root {
-  --color-secondary: #ec4899; /* Pink color for selected states */
-  --color-today: rgba(234, 234, 234, 0.72); /* Grey color for today */
+@theme {
+	/* Light mode — close to DaisyUI default light */
+	--color-border: hsl(220 13% 84%);
+	--color-input: hsl(220 13% 84%);
+	--color-ring: hsl(330 81% 60%);
+	--color-background: hsl(0 0% 100%);
+	--color-foreground: hsl(222 47% 11%);
+	--color-primary: hsl(330 81% 60%);
+	--color-primary-foreground: hsl(0 0% 100%);
+	--color-secondary: hsl(220 13% 91%);
+	--color-secondary-foreground: hsl(222 47% 11%);
+	--color-destructive: hsl(0 84% 60%);
+	--color-destructive-foreground: hsl(0 0% 100%);
+	--color-muted: hsl(220 14% 94%);
+	--color-muted-foreground: hsl(220 9% 46%);
+	--color-accent: hsl(220 14% 94%);
+	--color-accent-foreground: hsl(222 47% 11%);
+	--color-card: hsl(0 0% 100%);
+	--color-card-foreground: hsl(222 47% 11%);
+	--color-popover: hsl(0 0% 100%);
+	--color-popover-foreground: hsl(222 47% 11%);
+	--radius: 0.5rem;
+
+	/* Calendar dot / state colors */
+	--color-calendar-selected: hsl(330 81% 60%);
+	--color-calendar-today: hsl(220 13% 91%);
+	--color-dot-scheduled: hsl(210 100% 70%);
+	--color-dot-completed: hsl(142 71% 45%);
+	--color-dot-missed: hsl(0 84% 60%);
 }
 
-/* Dark mode color adjustments */
-@media (prefers-color-scheme: dark) {
-  :root {
-    --color-today: rgba(75, 85, 99, 0.72); /* Darker grey for today in dark mode */
-  }
+.dark {
+	/* Dark mode — matches DaisyUI "dark" theme: charcoal slate + purple primary */
+	--color-border: hsl(220 17% 26%);
+	--color-input: hsl(220 17% 26%);
+	--color-ring: hsl(330 81% 60%);
+	--color-background: hsl(220 18% 12%);
+	--color-foreground: hsl(220 14% 90%);
+	--color-primary: hsl(330 81% 60%);
+	--color-primary-foreground: hsl(0 0% 100%);
+	--color-secondary: hsl(220 17% 20%);
+	--color-secondary-foreground: hsl(220 14% 90%);
+	--color-destructive: hsl(0 72% 51%);
+	--color-destructive-foreground: hsl(0 0% 100%);
+	--color-muted: hsl(220 17% 20%);
+	--color-muted-foreground: hsl(220 12% 60%);
+	--color-accent: hsl(220 17% 20%);
+	--color-accent-foreground: hsl(220 14% 90%);
+	--color-card: hsl(220 18% 17%);
+	--color-card-foreground: hsl(220 14% 90%);
+	--color-popover: hsl(220 18% 17%);
+	--color-popover-foreground: hsl(220 14% 90%);
+
+	/* Calendar */
+	--color-calendar-today: hsl(220 17% 24%);
 }
 
-
+body {
+	@apply bg-background text-foreground;
+	font-family: system-ui, -apple-system, sans-serif;
+}
