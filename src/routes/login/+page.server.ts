@@ -1,54 +1,72 @@
-import { authApi } from '$lib/server/api';
-import type { AuthResponse, ApiError, LoginRequest } from '$lib/server/api/types';
 import { fail, redirect } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
-import { getSessionTokenCookie, setSessionTokenCookie, TokenType } from '$lib/server/auth'
+import { loginSchema } from '$lib/schemas/auth';
+import { authApi } from '$lib/server/trenara/auth';
+import { userApi } from '$lib/server/trenara';
+import { TokenType } from '$lib/server/auth/types';
+import { dev } from '$app/environment';
 
-export const load: PageServerLoad = async (event) => {
-	if (getSessionTokenCookie(event.cookies, TokenType.AccessToken)) {
-		return redirect(302, '/user');
+export const load: PageServerLoad = async ({ cookies }) => {
+	if (cookies.get(TokenType.AccessToken)) {
+		redirect(302, '/dashboard');
 	}
-	return;
 };
-
 
 export const actions: Actions = {
 	login: async ({ cookies, request }) => {
 		const formData = await request.formData();
-		const username = decodeURIComponent(formData.get('username')!.toString());
-		const password = decodeURIComponent(formData.get('password')!.toString());
+		const username = formData.get('username')?.toString() ?? '';
+		const password = formData.get('password')?.toString() ?? '';
 
-		if (username == "" || password == "") {
-			return fail(400, { message: 'Empty username or password' });
+		const result = loginSchema.safeParse({ username, password });
+		if (!result.success) {
+			return fail(400, {
+				message: result.error.errors[0]?.message ?? 'Invalid input'
+			});
 		}
 
 		try {
-			const data: LoginRequest = {
-				username: username!.toString(),
-				password: password!.toString()
+			const response = await authApi.login({
+				username: result.data.username,
+				password: result.data.password
+			});
+
+			const expirationDate = new Date(Date.now() + response.expires_in * 1000);
+			const cookieOptions = {
+				expires: expirationDate,
+				path: '/',
+				secure: !dev,
+				sameSite: 'lax' as const
 			};
-		  
-			const response: AuthResponse = await authApi.login(data);
 
-			const currentDate = new Date();
-			const expirationDate = new Date(currentDate.getTime() + response.expires_in * 1000);
-			setSessionTokenCookie(cookies, response.access_token, TokenType.AccessToken, expirationDate)
-			setSessionTokenCookie(cookies, response.refresh_token, TokenType.RefreshToken, expirationDate)
-		} catch (error) {
-			// Handle API errors
-			const apiError = error as ApiError;
-			if (apiError.status === 401) {
-			  console.error('Invalid credentials');
-			} else {
-			  console.error('Login failed:', apiError.status);
-			  // If there are field-specific errors, they'll be in apiError.errors
-			  if (apiError.errors) {
-				console.error('Validation errors:', apiError.errors);
-			  }
-			}
-		  }
+			cookies.set(TokenType.AccessToken, response.access_token, {
+				...cookieOptions,
+				httpOnly: true
+			});
+			cookies.set(TokenType.RefreshToken, response.refresh_token, {
+				...cookieOptions,
+				httpOnly: true
+			});
+			cookies.set(
+				`${TokenType.AccessToken}_expiration`,
+				expirationDate.toISOString(),
+				cookieOptions
+			);
+			cookies.set(
+				`${TokenType.RefreshToken}_expiration`,
+				expirationDate.toISOString(),
+				cookieOptions
+			);
 
-		return redirect(302, '/user');
-	},
+			// Fetch user profile to persist user_id and email as cookies,
+			// used by server-side API endpoints (e.g. prediction history).
+			const user = await userApi.getCurrentUser(cookies);
+			cookies.set('user_id', String(user.id), { ...cookieOptions, httpOnly: true });
+			cookies.set('user_email', user.email, { ...cookieOptions, httpOnly: true });
+		} catch {
+			return fail(401, { message: 'Invalid email or password' });
+		}
+
+		redirect(302, '/dashboard');
+	}
 };
-

@@ -1,129 +1,50 @@
 <script lang="ts">
-	import type { CalendarProps } from './types';
-	import type { ScheduledTraining, StrengthTraining, Entry } from '$lib/server/api/types';
-	import { createCalendarStore } from '$lib/stores/calendar.store.js';
-	import CalendarProvider from './CalendarProvider.svelte';
-	import CalendarHeader from './CalendarHeader.svelte';
-	import CalendarGridWithContext from './CalendarGridWithContext.svelte';
-	import CalendarDetails from './CalendarDetails.svelte';
-	import Loading from '../loading.svelte';
-	import { Tab } from './types';
+	import { setContext } from 'svelte';
+	import { createCalendarStore, type CalendarStore } from '$lib/stores/calendar.svelte';
+	import type { Schedule } from '$lib/server/trenara/types';
+	import CalendarHeader from './calendar-header.svelte';
+	import CalendarGrid from './calendar-grid.svelte';
+	import CalendarDetails from './calendar-details.svelte';
+	import { Loader2 } from 'lucide-svelte';
 
-	let selectedTab: Tab = $state(Tab.Training);
-	let { today, schedule }: CalendarProps = $props();
-	const initialDate = today || new Date();
-	
-	// Create calendar store
-	const calendarStore = createCalendarStore(initialDate);
-	
-	// Initialize store with provided schedule and load data
-	let initialized = false;
-	$effect(() => {
-		if (!initialized) {
-			initialized = true;
-			if (schedule) {
-				// Server-side data mode: use provided schedule
-				calendarStore.setSchedule(schedule);
-			} else {
-				// Client-side data mode: load data via API
-				calendarStore.loadMonthData(initialDate);
-			}
-		}
-	});
+	let { today, schedule }: { today: Date; schedule: Schedule } = $props();
 
-	// Subscribe to store values
-	let storeState = $state();
-	
-	// Subscribe to the store
+	// createCalendarStore only runs once — today is intentionally captured as the
+	// initial value; the store manages its own currentDate state after that.
+	// svelte-ignore state_referenced_locally
+	const store: CalendarStore = createCalendarStore(today);
+
+	setContext<CalendarStore>('calendar', store);
+
+	// Initialise selected date on mount inside an effect so Svelte 5 doesn't
+	// warn about capturing the initial prop value outside a closure.
 	$effect(() => {
-		const unsubscribe = calendarStore.subscribe((state) => {
-			storeState = state;
+		store.setSelectedDate({
+			year: today.getFullYear(),
+			month: today.getMonth(),
+			day: today.getDate()
 		});
-		
-		return unsubscribe;
 	});
 
-	// Derived values from store state
-	let selectedDate = $derived(storeState?.selectedDateString);
-	let selectedTraining = $derived(storeState?.filteredTrainings || []);
-	let selectedTrainingStrength = $derived(storeState?.filteredStrengthTrainings || []);
-
-	function getDateFromOffset(isoString: string): string {
-		const date = new Date(isoString);
-		const year = date.getFullYear();
-		const month = String(date.getMonth() + 1).padStart(2, '0');
-		const day = String(date.getDate()).padStart(2, '0');
-		return `${year}-${month}-${day}`;
-	}
-
-	let selectedRunTrainingEntry: Entry[] = $derived(
-		storeState?.schedule?.entries?.filter((entry: Entry) => {
-			const entryDate = getDateFromOffset(new Date(entry.start_time).toISOString());
-			return entryDate === selectedDate && entry.type === 'run';
-		}) ?? []
-	);
-
-	let selectedStrengthTrainingEntry: Entry[] = $derived(
-		storeState?.schedule?.entries?.filter((entry: Entry) => {
-			const entryDate = getDateFromOffset(new Date(entry.start_time).toISOString());
-			return entryDate === selectedDate && entry.type === 'strength';
-		}) ?? []
-	);
-
-	// Initialize the calendar on component mount
+	// Keep schedule in sync whenever the parent passes a new one.
 	$effect(() => {
-		if (storeState && storeState.selectedDate === null) {
-			calendarStore.setSelectedDate({
-				year: storeState.currentDate.getFullYear(),
-				month: storeState.currentDate.getMonth(),
-				day: storeState.currentDate.getDate()
-			});
-		}
+		store.setSchedule(schedule);
 	});
 </script>
 
-<CalendarProvider store={calendarStore}>
-	<div class="flex justify-center px-4">
-		<div class="calendar-container shadow-lg mx-auto items-center">
-			{#if storeState?.isLoading}
-				<div
-					class="loading-overlay absolute inset-0 flex items-center justify-center dark:bg-gray-700 bg-gray-50 rounded-xl"
-				>
-					<Loading />
-				</div>
-			{/if}
-			<div class="card rounded-t-xl rounded-b-none p-8 dark:bg-gray-800 bg-white">
-				<CalendarHeader />
-				<CalendarGridWithContext />
-			</div>
-			<CalendarDetails 
-				bind:selectedTab
-				{selectedTraining}
-				{selectedTrainingStrength}
-				{selectedRunTrainingEntry}
-				{selectedStrengthTrainingEntry}
-			/>
+<div class="relative w-[28rem] mx-auto flex flex-col gap-4">
+	{#if store.isLoading}
+		<div
+			class="absolute inset-0 z-10 flex items-center justify-center rounded-xl bg-background/60 backdrop-blur-sm"
+		>
+			<Loader2 class="h-8 w-8 animate-spin text-primary" />
 		</div>
+	{/if}
+
+	<div class="rounded-xl bg-card shadow-lg border border-border p-4">
+		<CalendarHeader />
+		<CalendarGrid />
 	</div>
-</CalendarProvider>
 
-<style>
-	.calendar-container {
-		width: 28rem; /* Fixed width equivalent to max-w-md (448px) */
-		min-width: 28rem; /* Prevent shrinking */
-		max-width: 28rem; /* Prevent growing */
-	}
-
-	.loading-overlay {
-		position: absolute;
-		top: 50%;
-		left: 50%;
-		transform: translate(-50%, -50%);
-		width: 80%;
-		height: 30%;
-		display: flex;
-		justify-content: center;
-		align-items: center;
-		z-index: 1000;
-	}
-</style>
+	<CalendarDetails />
+</div>

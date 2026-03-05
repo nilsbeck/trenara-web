@@ -1,10 +1,9 @@
-import * as auth from '$lib/server/auth';
 import { redirect } from '@sveltejs/kit';
 import type { PageServerLoad } from './$types';
+import { TokenManager } from '$lib/server/auth/token-manager';
 
-export const load: PageServerLoad = async (event) => {
-	auth.deleteSessionTokenCookie(event.cookies, auth.TokenType.AccessToken);
-	auth.deleteSessionTokenCookie(event.cookies, auth.TokenType.RefreshToken);
-
-	return redirect(302, '/login');
+export const load: PageServerLoad = async ({ cookies }) => {
+	const tokenManager = TokenManager.getInstance();
+	await tokenManager.logout(cookies);
+	redirect(302, '/login');
 };
