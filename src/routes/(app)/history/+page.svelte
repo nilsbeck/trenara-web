@@ -4,7 +4,8 @@
 		type ChartDataPoint
 	} from '$lib/components/charts/prediction-chart.svelte';
 	import { timeStringToSeconds, paceStringToSeconds } from '$lib/utils/format';
-	import { History, ArrowLeft } from 'lucide-svelte';
+	import { History, ArrowLeft, Loader2 } from 'lucide-svelte';
+	import { onMount } from 'svelte';
 
 	let { data }: { data: PageServerData } = $props();
 
@@ -17,8 +18,14 @@
 		created_at: string;
 	}
 
-	const chartData = $derived<ChartDataPoint[]>(
-		(data.records as PredictionRecord[])
+	const records = $derived(data.records as PredictionRecord[]);
+
+	// Defer chart rendering to after mount so the page shell paints instantly
+	let chartReady = $state(false);
+	let chartData = $state<ChartDataPoint[]>([]);
+
+	onMount(() => {
+		chartData = records
 			.map((r) => {
 				try {
 					return {
@@ -32,11 +39,9 @@
 					return null;
 				}
 			})
-			.filter((d): d is ChartDataPoint => d !== null)
-	);
-
-	const records = $derived(data.records as PredictionRecord[]);
-
+			.filter((d): d is ChartDataPoint => d !== null);
+		chartReady = true;
+	});
 </script>
 
 <div class="mx-auto max-w-4xl">
@@ -59,7 +64,14 @@
 	<!-- Chart -->
 	<div class="rounded-lg border border-border bg-card p-6 shadow-sm">
 		<h2 class="text-sm font-medium text-muted-foreground mb-4">All-Time Prediction Progress</h2>
-		<PredictionChart data={chartData} />
+		{#if chartReady}
+			<PredictionChart data={chartData} />
+		{:else}
+			<div class="flex items-center justify-center py-16">
+				<Loader2 class="h-5 w-5 animate-spin text-muted-foreground" />
+				<span class="ml-2 text-sm text-muted-foreground">Loading chart...</span>
+			</div>
+		{/if}
 	</div>
 
 	{#if records.length === 0}
