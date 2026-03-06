@@ -84,8 +84,10 @@
 	/** POST current prediction to the API; only stores if changed. */
 	async function trackCurrentPrediction() {
 		const time = userStats?.best_times?.time_for_goal;
-		const pace = userStats?.best_times?.pace_for_goal;
-		if (!time || !pace) return;
+		const rawPace = userStats?.best_times?.pace_for_goal;
+		if (!time || !rawPace) return;
+		// Strip any unit suffix (e.g. "min/km") before sending to API
+		const pace = rawPace.replace(/\s*min\/km\s*/, '').trim();
 		try {
 			const res = await fetch('/api/v1/prediction-history', {
 				method: 'POST',
