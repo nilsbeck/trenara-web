@@ -56,10 +56,10 @@
 <button
 	type="button"
 	onclick={open}
-	class="relative rounded-md p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+	class="relative rounded-md p-2.5 text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
 	aria-label="Give feedback"
 >
-	<Star class="h-4 w-4" />
+	<Star class="h-5 w-5" />
 	{#if entry.rpe != null}
 		<span
 			class="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-0.5 text-[10px] font-medium text-primary-foreground"

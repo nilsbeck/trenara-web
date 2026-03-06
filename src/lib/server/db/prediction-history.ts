@@ -127,20 +127,6 @@ export class PredictionHistoryDAO {
 		return { stored: true, record: data as PredictionRecord };
 	}
 
-	async deleteHistoricDataBeforeGoal(userId: number, goalStartDate: string): Promise<number> {
-		const { data, error } = await supabase
-			.from('prediction_history')
-			.delete()
-			.eq('user_id', userId)
-			.lt('recorded_at', goalStartDate)
-			.select();
-
-		if (error) {
-			console.error('Failed to delete historic data:', error.message);
-			return 0;
-		}
-		return data?.length ?? 0;
-	}
 }
 
 export const predictionHistoryDAO = PredictionHistoryDAO.getInstance();

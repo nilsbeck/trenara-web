@@ -13,7 +13,7 @@ export const POST: RequestHandler = async ({ request, cookies }) => {
 	const result = addTrainingSchema.safeParse(body);
 
 	if (!result.success) {
-		error(400, result.error.issues[0].message);
+		error(400, 'Invalid request body');
 	}
 
 	const { name, timeInSeconds, date, distanceInKm } = result.data;

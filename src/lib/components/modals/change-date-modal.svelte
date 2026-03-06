@@ -181,10 +181,10 @@
 <button
 	type="button"
 	onclick={open}
-	class="rounded-md p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+	class="rounded-md p-2.5 text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
 	aria-label="Change date"
 >
-	<CalendarDays class="h-4 w-4" />
+	<CalendarDays class="h-5 w-5" />
 </button>
 
 <dialog

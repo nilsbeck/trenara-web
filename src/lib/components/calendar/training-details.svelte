@@ -98,8 +98,8 @@
 				{#if entry}
 					<Check class="h-5 w-5 shrink-0 text-green-500" />
 				{/if}
-				<div class="min-w-0">
-					<h3 class="text-base font-semibold text-foreground truncate">
+				<div class="min-w-0 flex items-baseline gap-1.5 flex-wrap">
+					<h3 class="text-base font-semibold text-foreground">
 						{#if entry && !training}
 							{entry.name}
 						{:else if training}
@@ -107,7 +107,7 @@
 						{/if}
 					</h3>
 					{#if training}
-						<span class="text-[10px] text-muted-foreground">
+						<span class="text-[10px] text-muted-foreground whitespace-nowrap">
 							[{training.training.total_distance}, {training.training.total_time}{training.training.total_time.split(':').length === 2 ? 'min' : 'h'}]
 						</span>
 					{/if}
@@ -115,7 +115,7 @@
 			</div>
 
 			<!-- Action buttons -->
-			<div class="flex items-center gap-0.5 shrink-0">
+			<div class="flex items-center gap-1.5 shrink-0">
 				{#if entry && training}
 					<GiveFeedbackModal {training} {entry} />
 				{/if}
@@ -123,7 +123,7 @@
 					<ChangeDateModal
 						{training}
 						{selectedDate}
-						onMoved={() => { onScheduleChanged?.(); location.reload(); }}
+						onMoved={() => { onScheduleChanged?.(); }}
 					/>
 				{/if}
 				{#if canDelete}
@@ -155,10 +155,10 @@
 						<button
 							type="button"
 							onclick={() => (confirmingDelete = true)}
-							class="rounded-md p-1.5 text-muted-foreground hover:bg-muted hover:text-destructive transition-colors"
+							class="rounded-md p-2.5 text-muted-foreground hover:bg-muted hover:text-destructive transition-colors"
 							aria-label="Delete training"
 						>
-							<Trash2 class="h-4 w-4" />
+							<Trash2 class="h-5 w-5" />
 						</button>
 					{/if}
 				{/if}

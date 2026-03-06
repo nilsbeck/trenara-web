@@ -13,7 +13,13 @@ export const GET: RequestHandler = async ({ url, cookies }) => {
 	}
 
 	const dateParam = url.searchParams.get('date');
-	const date = dateParam ? new Date(Number(dateParam)) : new Date();
+	const dateMs = dateParam ? Number(dateParam) : NaN;
+	const date = Number.isFinite(dateMs) ? new Date(dateMs) : new Date();
+
+	// Guard against invalid dates (NaN timestamp, out-of-range values)
+	if (isNaN(date.getTime())) {
+		error(400, 'Invalid date parameter');
+	}
 
 	const month = date.getMonth();
 	const year = date.getFullYear();

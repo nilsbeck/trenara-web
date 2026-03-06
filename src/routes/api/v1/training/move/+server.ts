@@ -13,7 +13,7 @@ export const PUT: RequestHandler = async ({ request, cookies }) => {
 	const result = changeDateSchema.safeParse(body);
 
 	if (!result.success) {
-		error(400, result.error.issues[0].message);
+		error(400, 'Invalid request body');
 	}
 
 	const { entryId, newDate, includeFuture, action } = result.data;

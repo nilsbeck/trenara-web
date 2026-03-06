@@ -14,9 +14,14 @@ export const GET: RequestHandler = async ({ url, cookies }) => {
 		error(401, 'User ID not found');
 	}
 
-	const startDate = url.searchParams.get('startDate') ?? undefined;
-	const limit = url.searchParams.get('limit')
-		? Number(url.searchParams.get('limit'))
+	const startDateParam = url.searchParams.get('startDate');
+	const startDate = startDateParam && /^\d{4}-\d{2}-\d{2}$/.test(startDateParam)
+		? startDateParam
+		: undefined;
+
+	const rawLimit = url.searchParams.get('limit') ? Number(url.searchParams.get('limit')) : undefined;
+	const limit = rawLimit && Number.isFinite(rawLimit) && rawLimit > 0
+		? Math.min(rawLimit, 200)
 		: undefined;
 
 	const records = await predictionHistoryDAO.getUserPredictionHistory(userId, {
@@ -41,7 +46,7 @@ export const POST: RequestHandler = async ({ request, cookies }) => {
 	const result = predictionRecordSchema.safeParse(body);
 
 	if (!result.success) {
-		error(400, result.error.issues[0].message);
+		error(400, 'Invalid request body');
 	}
 
 	const { time, pace } = result.data;

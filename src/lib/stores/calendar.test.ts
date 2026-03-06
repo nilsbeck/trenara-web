@@ -124,6 +124,12 @@ describe('filteredTrainings', () => {
 // getTrainingStatusForDate
 // ─────────────────────────────────────────────────────────────
 describe('getTrainingStatusForDate', () => {
+	it('returns "none" when no schedule is set (statusIndex is null)', () => {
+		// No setSchedule call — schedule remains null → statusIndex is null
+		const store = createCalendarStore(new Date('2025-03-05'));
+		expect(store.getTrainingStatusForDate({ type: 'run', day: 5 })).toBe('none');
+	});
+
 	it('returns "none" when schedule is empty', () => {
 		const store = createCalendarStore(new Date('2025-03-05'));
 		store.setSchedule(makeSchedule());
@@ -323,6 +329,41 @@ describe('loadMonthData', () => {
 		expect(store.error).toBeInstanceOf(Error);
 		expect(store.error?.message).toBe('Failed to load month data');
 		expect(store.isLoading).toBe(false);
+	});
+
+	it('returns cached schedule on second load of same month (cache hit)', async () => {
+		const schedule = makeSchedule({ id: 42 });
+		mockFetch.mockResolvedValue({
+			ok: true,
+			json: () => Promise.resolve(schedule)
+		});
+
+		const store = createCalendarStore(new Date('2025-03-05'));
+		await store.loadMonthData(new Date('2025-03-05'));
+		expect(mockFetch).toHaveBeenCalledTimes(1);
+		expect(store.schedule?.id).toBe(42);
+
+		// Second load of the same month — should use cache, not fetch
+		await store.loadMonthData(new Date('2025-03-15'));
+		expect(mockFetch).toHaveBeenCalledTimes(1); // still 1
+		expect(store.schedule?.id).toBe(42);
+	});
+
+	it('refresh() busts cache and re-fetches', async () => {
+		const schedule1 = makeSchedule({ id: 1 });
+		const schedule2 = makeSchedule({ id: 2 });
+		mockFetch
+			.mockResolvedValueOnce({ ok: true, json: () => Promise.resolve(schedule1) })
+			.mockResolvedValueOnce({ ok: true, json: () => Promise.resolve(schedule2) });
+
+		const store = createCalendarStore(new Date('2025-03-05'));
+		await store.loadMonthData(new Date('2025-03-05'));
+		expect(store.schedule?.id).toBe(1);
+
+		// refresh should bust cache and fetch fresh data
+		await store.navigation.refresh();
+		expect(mockFetch).toHaveBeenCalledTimes(2);
+		expect(store.schedule?.id).toBe(2);
 	});
 });
 

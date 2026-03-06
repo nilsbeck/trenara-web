@@ -234,41 +234,6 @@ describe('PredictionHistoryDAO.storeIfChanged', () => {
 });
 
 // ─────────────────────────────────────────────────────────────
-// PredictionHistoryDAO — deleteHistoricDataBeforeGoal
-// ─────────────────────────────────────────────────────────────
-describe('PredictionHistoryDAO.deleteHistoricDataBeforeGoal', () => {
-	let dao: PredictionHistoryDAO;
-
-	beforeEach(() => {
-		dao = PredictionHistoryDAO.getInstance();
-		vi.clearAllMocks();
-		for (const method of ['select', 'eq', 'order', 'limit', 'gte', 'lte', 'lt', 'upsert', 'delete']) {
-			(mockChain[method] as ReturnType<typeof vi.fn>).mockReturnValue(mockChain);
-		}
-		mockFrom.mockReturnValue(mockChain);
-		// Make the chain awaitable and return two deleted rows
-		(mockChain as Record<string, unknown>)['then'] = vi.fn(
-			(resolve: (v: unknown) => void, reject?: (e: unknown) => void) =>
-				Promise.resolve({ data: [{ id: 1 }, { id: 2 }], error: null }).then(resolve, reject)
-		);
-	});
-
-	it('returns the count of deleted rows on success', async () => {
-		const count = await dao.deleteHistoricDataBeforeGoal(1, '2025-01-01');
-		expect(count).toBe(2);
-	});
-
-	it('returns 0 on supabase error', async () => {
-		(mockChain as Record<string, unknown>)['then'] = vi.fn(
-			(resolve: (v: unknown) => void, reject?: (e: unknown) => void) =>
-				Promise.resolve({ data: null, error: new Error('DB error') }).then(resolve, reject)
-		);
-		const count = await dao.deleteHistoricDataBeforeGoal(1, '2025-01-01');
-		expect(count).toBe(0);
-	});
-});
-
-// ─────────────────────────────────────────────────────────────
 // PredictionHistoryDAO — getUserPredictionHistory
 // ─────────────────────────────────────────────────────────────
 describe('PredictionHistoryDAO.getUserPredictionHistory', () => {
@@ -391,16 +356,5 @@ describe('PredictionHistoryDAO — null-data defensive branches', () => {
 
 		const records = await dao.getUserPredictionHistory(1);
 		expect(records).toEqual([]);
-	});
-
-	it('deleteHistoricDataBeforeGoal returns 0 when data is null and no error', async () => {
-		// Supabase returns {data: null, error: null} — triggers the `data?.length ?? 0` branch
-		(mockChain as Record<string, unknown>)['then'] = (
-			resolve: (v: unknown) => void,
-			reject?: (e: unknown) => void
-		) => Promise.resolve({ data: null, error: null }).then(resolve, reject);
-
-		const count = await dao.deleteHistoricDataBeforeGoal(1, '2025-01-01');
-		expect(count).toBe(0);
 	});
 });

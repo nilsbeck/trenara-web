@@ -14,8 +14,12 @@ export const DELETE: RequestHandler = async ({ request, cookies }) => {
 	//       'scheduled'       → delete a scheduled (future) training from the plan
 	const type: string = body?.type ?? 'entry';
 
-	if (typeof trainingId !== 'number') {
+	if (typeof trainingId !== 'number' || !Number.isFinite(trainingId) || trainingId <= 0) {
 		error(400, 'Missing or invalid trainingId');
+	}
+
+	if (type !== 'entry' && type !== 'scheduled') {
+		error(400, 'Invalid type (must be "entry" or "scheduled")');
 	}
 
 	if (type === 'scheduled') {

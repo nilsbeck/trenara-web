@@ -28,6 +28,76 @@ export enum Tab {
 	Nutrition = 'nutrition'
 }
 
+// ── Helpers (pure, no allocations on hot path) ──────────────
+
+/** Extract YYYY-MM-DD from an ISO timestamp without creating a Date object. */
+function isoToDateString(iso: string): string {
+	return iso.slice(0, 10);
+}
+
+/** Extract YYYY-MM-DD from an entry start_time, handling timezone offset. */
+function entryDateString(startTime: string): string {
+	// start_time may be an ISO string like "2025-03-05T08:00:00.000Z"
+	// We need local-date, so we go through Date for TZ correction.
+	const d = new Date(startTime);
+	const y = d.getFullYear();
+	const m = String(d.getMonth() + 1).padStart(2, '0');
+	const day = String(d.getDate()).padStart(2, '0');
+	return `${y}-${m}-${day}`;
+}
+
+/** Build a cache key from a Date (YYYY-MM). */
+function monthKey(date: Date): string {
+	return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+}
+
+// ── Status index type ───────────────────────────────────────
+
+type StatusIndex = {
+	scheduledRuns: Set<string>;
+	completedRuns: Set<string>;
+	scheduledStrength: Set<string>;
+	completedStrength: Set<string>;
+};
+
+/** Build O(1) lookup sets from a schedule. Called once per schedule change. */
+function buildStatusIndex(schedule: Schedule): StatusIndex {
+	const scheduledRuns = new Set<string>();
+	const completedRuns = new Set<string>();
+	const scheduledStrength = new Set<string>();
+	const completedStrength = new Set<string>();
+
+	for (const t of schedule.trainings ?? []) {
+		scheduledRuns.add(isoToDateString(t.day_long));
+	}
+	for (const s of schedule.strength_trainings ?? []) {
+		scheduledStrength.add(isoToDateString(s.day));
+	}
+	for (const e of schedule.entries ?? []) {
+		const d = entryDateString(e.start_time);
+		if (e.type === 'run') {
+			completedRuns.add(d);
+		} else if (e.type === 'strength') {
+			completedStrength.add(d);
+		}
+	}
+
+	return { scheduledRuns, completedRuns, scheduledStrength, completedStrength };
+}
+
+// ── Entry date cache ────────────────────────────────────────
+
+/** Pre-compute date strings for all entries so filters don't re-parse. */
+function buildEntryDateCache(entries: Entry[]): Map<Entry, string> {
+	const map = new Map<Entry, string>();
+	for (const e of entries) {
+		map.set(e, entryDateString(e.start_time));
+	}
+	return map;
+}
+
+// ─────────────────────────────────────────────────────────────
+
 export function createCalendarStore(initialDate: Date) {
 	// Core state
 	let currentDate = $state(initialDate);
@@ -35,6 +105,19 @@ export function createCalendarStore(initialDate: Date) {
 	let schedule = $state<Schedule | null>(null);
 	let isLoading = $state(false);
 	let error = $state<Error | null>(null);
+
+	// ── Month schedule cache (avoids re-fetching visited months) ──
+	const scheduleCache = new Map<string, Schedule>();
+
+	// ── Pre-computed status index (rebuilt when schedule changes) ──
+	const statusIndex = $derived<StatusIndex | null>(
+		schedule ? buildStatusIndex(schedule) : null
+	);
+
+	// ── Pre-computed entry date cache ─────────────────────────────
+	const entryDates = $derived<Map<Entry, string>>(
+		buildEntryDateCache(schedule?.entries ?? [])
+	);
 
 	// Derived: selected date as formatted string
 	const selectedDateString = $derived(
@@ -86,42 +169,25 @@ export function createCalendarStore(initialDate: Date) {
 		};
 	});
 
-	function getDateFromOffset(isoString: string): string {
-		const date = new Date(isoString);
-		const year = date.getFullYear();
-		const month = String(date.getMonth() + 1).padStart(2, '0');
-		const day = String(date.getDate()).padStart(2, '0');
-		return `${year}-${month}-${day}`;
-	}
-
-	// Derived: entries filtered for selected date (run)
+	// Derived: entries filtered for selected date (run) — uses cached dates
 	const selectedRunEntries = $derived(
 		schedule?.entries?.filter((entry: Entry) => {
 			if (!selectedDateString) return false;
-			const entryDate = getDateFromOffset(new Date(entry.start_time).toISOString());
-			return entryDate === selectedDateString && entry.type === 'run';
+			return entryDates.get(entry) === selectedDateString && entry.type === 'run';
 		}) ?? []
 	);
 
-	// Derived: entries filtered for selected date (strength)
+	// Derived: entries filtered for selected date (strength) — uses cached dates
 	const selectedStrengthEntries = $derived(
 		schedule?.entries?.filter((entry: Entry) => {
 			if (!selectedDateString) return false;
-			const entryDate = getDateFromOffset(new Date(entry.start_time).toISOString());
-			return entryDate === selectedDateString && entry.type === 'strength';
+			return entryDates.get(entry) === selectedDateString && entry.type === 'strength';
 		}) ?? []
 	);
 
-	// Training status methods
+	// Training status — O(1) lookups via pre-computed Sets
 	function getTrainingStatusForDate(filter: TrainingFilter): TrainingStatus {
-		if (
-			!schedule ||
-			(!schedule.trainings?.length &&
-				!schedule.strength_trainings?.length &&
-				!schedule.entries?.length)
-		) {
-			return 'none';
-		}
+		if (!statusIndex) return 'none';
 
 		const year = currentDate.getFullYear();
 		const month = currentDate.getMonth();
@@ -133,35 +199,13 @@ export function createCalendarStore(initialDate: Date) {
 		const isPast = targetDate < today && !isToday;
 
 		if (filter.type === 'strength') {
-			const hasScheduledStrength = schedule.strength_trainings?.some(
-				(entry: StrengthTraining) => {
-					const entryDate = new Date(entry.day).toISOString().split('T')[0];
-					return entryDate === calendarDate;
-				}
-			);
-
-			const hasCompletedStrength = schedule.entries?.some((entry: Entry) => {
-				const entryDate = new Date(entry.start_time).toISOString().split('T')[0];
-				return entryDate === calendarDate && entry.type === 'strength';
-			});
-
-			if (hasCompletedStrength) return 'completed';
-			if (hasScheduledStrength) return isPast ? 'missed' : 'scheduled';
+			if (statusIndex.completedStrength.has(calendarDate)) return 'completed';
+			if (statusIndex.scheduledStrength.has(calendarDate)) return isPast ? 'missed' : 'scheduled';
 			return 'none';
 		}
 
-		const hasScheduledRun = schedule.trainings?.some((entry: ScheduledTraining) => {
-			const entryDate = new Date(entry.day_long).toISOString().split('T')[0];
-			return entryDate === calendarDate;
-		});
-
-		const hasCompletedRun = schedule.entries?.some((entry: Entry) => {
-			const entryDate = new Date(entry.start_time).toISOString().split('T')[0];
-			return entryDate === calendarDate && entry.type === 'run';
-		});
-
-		if (hasCompletedRun) return 'completed';
-		if (hasScheduledRun) return isPast ? 'missed' : 'scheduled';
+		if (statusIndex.completedRuns.has(calendarDate)) return 'completed';
+		if (statusIndex.scheduledRuns.has(calendarDate)) return isPast ? 'missed' : 'scheduled';
 		return 'none';
 	}
 
@@ -184,6 +228,14 @@ export function createCalendarStore(initialDate: Date) {
 
 		try {
 			currentDate = date;
+			const key = monthKey(date);
+
+			// Check cache first
+			const cached = scheduleCache.get(key);
+			if (cached) {
+				schedule = cached;
+				return;
+			}
 
 			const response = await fetch(`/api/v1/schedule?date=${date.getTime()}`);
 
@@ -193,6 +245,7 @@ export function createCalendarStore(initialDate: Date) {
 
 			const data = await response.json();
 			schedule = data;
+			scheduleCache.set(key, data);
 		} catch (err) {
 			error = err instanceof Error ? err : new Error('Failed to load month data');
 			schedule = {
@@ -236,6 +289,8 @@ export function createCalendarStore(initialDate: Date) {
 	}
 
 	async function refresh() {
+		// Bust cache for current month so we get fresh data
+		scheduleCache.delete(monthKey(currentDate));
 		await loadMonthData(currentDate);
 	}
 

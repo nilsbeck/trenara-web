@@ -15,19 +15,33 @@
 	let nutritionData = $state<NutritionAdvice | null>(null);
 	let nutritionLoading = $state(false);
 	let lastNutritionDate: string | null = null;
+	let nutritionAbort: AbortController | null = null;
 
 	async function loadNutrition(timestamp: string) {
 		if (timestamp === lastNutritionDate) return; // already loaded for this date
 		lastNutritionDate = timestamp;
+
+		// Abort any in-flight request before starting a new one
+		nutritionAbort?.abort();
+		const controller = new AbortController();
+		nutritionAbort = controller;
+
 		nutritionLoading = true;
 		try {
-			const res = await fetch(`/api/v1/nutrition?timestamp=${encodeURIComponent(timestamp)}`);
+			const res = await fetch(`/api/v1/nutrition?timestamp=${encodeURIComponent(timestamp)}`, {
+				signal: controller.signal
+			});
 			if (!res.ok) throw new Error(`${res.status}`);
 			nutritionData = await res.json();
-		} catch {
+		} catch (e) {
+			// Ignore aborted requests — a newer one is already in flight
+			if (e instanceof DOMException && e.name === 'AbortError') return;
 			nutritionData = null;
 		} finally {
-			nutritionLoading = false;
+			// Only clear loading if this is still the active request
+			if (nutritionAbort === controller) {
+				nutritionLoading = false;
+			}
 		}
 	}
 

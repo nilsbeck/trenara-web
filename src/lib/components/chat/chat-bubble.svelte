@@ -1,6 +1,7 @@
 <script lang="ts">
 	import type { ChatThread, ChatMessage } from '$lib/server/trenara/types';
 	import { MessageCircle, X, Loader2 } from 'lucide-svelte';
+	import DOMPurify from 'dompurify';
 
 	let isOpen = $state(false);
 	let threads = $state<ChatThread[]>([]);
@@ -140,7 +141,7 @@
 										: 'bg-muted text-card-foreground'}"
 								>
 									{#if message.body_html}
-										{@html message.body_html}
+										{@html DOMPurify.sanitize(message.body_html)}
 									{:else}
 										{message.body}
 									{/if}
