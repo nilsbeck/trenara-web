@@ -1,10 +1,21 @@
 <script lang="ts">
 	import type { PageServerData } from './$types';
 	import type { User } from '$lib/server/trenara/types';
-	import { Loader2, UserCircle } from 'lucide-svelte';
+	import { Loader2, UserCircle, ArrowLeft } from 'lucide-svelte';
 
 	let { data }: { data: PageServerData } = $props();
 </script>
+
+<div class="mx-auto max-w-lg">
+	<div class="mb-6">
+		<a
+			href="/dashboard"
+			class="inline-flex items-center gap-1.5 rounded-md p-2 text-muted-foreground hover:bg-accent hover:text-foreground"
+			aria-label="Back to dashboard"
+		>
+			<ArrowLeft class="h-5 w-5" />
+		</a>
+	</div>
 
 {#await data.userData}
 	<div class="flex items-center justify-center py-12">
@@ -12,7 +23,7 @@
 	</div>
 {:then user}
 	{@const u = user as User}
-	<div class="mx-auto max-w-lg">
+	<div>
 		<div class="rounded-lg border border-border bg-card p-6 shadow-sm">
 			<div class="mb-6 flex items-center gap-4">
 				{#if u.profile_picture?.path}
@@ -145,3 +156,4 @@
 {:catch}
 	<p class="text-center text-sm text-destructive">Could not load user data.</p>
 {/await}
+</div>
