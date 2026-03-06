@@ -36,6 +36,7 @@
 	);
 
 	const records = $derived(data.records as PredictionRecord[]);
+
 </script>
 
 <div class="mx-auto max-w-4xl">
@@ -56,45 +57,13 @@
 	</div>
 
 	<!-- Chart -->
-	<div class="rounded-lg border border-border bg-card p-6 shadow-sm mb-6">
+	<div class="rounded-lg border border-border bg-card p-6 shadow-sm">
 		<h2 class="text-sm font-medium text-muted-foreground mb-4">All-Time Prediction Progress</h2>
 		<PredictionChart data={chartData} />
 	</div>
 
-	<!-- Data table -->
-	{#if records.length > 0}
-		<div class="rounded-lg border border-border bg-card shadow-sm overflow-hidden">
-			<table class="w-full text-sm">
-				<thead>
-					<tr class="border-b border-border bg-muted/50">
-						<th class="px-4 py-3 text-left font-medium text-muted-foreground">Date</th>
-						<th class="px-4 py-3 text-left font-medium text-muted-foreground">Predicted Time</th>
-						<th class="px-4 py-3 text-left font-medium text-muted-foreground">Predicted Pace</th>
-					</tr>
-				</thead>
-				<tbody>
-					{#each [...records].reverse() as record, i}
-						<tr class={i % 2 === 0 ? 'bg-card' : 'bg-muted/20'}>
-							<td class="px-4 py-2.5 text-card-foreground">
-								{new Date(record.recorded_at).toLocaleDateString('en-US', {
-									year: 'numeric',
-									month: 'short',
-									day: 'numeric'
-								})}
-							</td>
-							<td class="px-4 py-2.5 text-card-foreground font-mono">
-								{record.predicted_time}
-							</td>
-							<td class="px-4 py-2.5 text-card-foreground font-mono">
-								{record.predicted_pace} min/km
-							</td>
-						</tr>
-					{/each}
-				</tbody>
-			</table>
-		</div>
-	{:else}
-		<div class="rounded-lg border border-border bg-card p-8 text-center shadow-sm">
+	{#if records.length === 0}
+		<div class="rounded-lg border border-border bg-card p-8 text-center shadow-sm mt-6">
 			<p class="text-muted-foreground">No prediction history available yet.</p>
 			<p class="mt-1 text-sm text-muted-foreground">
 				Predictions are recorded automatically when you visit your dashboard.
