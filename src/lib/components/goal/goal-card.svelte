@@ -1,5 +1,6 @@
 <script lang="ts">
 	import type { Goal, UserStats } from '$lib/server/trenara/types';
+	import { onMount } from 'svelte';
 	import { Trophy, Calendar, Target, RefreshCw } from 'lucide-svelte';
 	import PredictionChart, {
 		type ChartDataPoint
@@ -105,9 +106,8 @@
 		}
 	}
 
-	// Initialise on mount
-	$effect(() => {
-		// Load history + track once
+	// Initialise on mount (browser-only; $effect can run during SSR in Svelte 5)
+	onMount(() => {
 		loadPredictionHistory();
 		trackCurrentPrediction();
 	});

@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { getContext } from 'svelte';
+	import { browser } from '$app/environment';
 	import type { CalendarStore } from '$lib/stores/calendar.svelte';
 	import { Tab } from '$lib/stores/calendar.svelte';
 	import type { NutritionAdvice } from '$lib/server/trenara/types';
@@ -80,9 +81,9 @@
 		}
 	});
 
-	// Fetch nutrition data when the Nutrition tab becomes active
+	// Fetch nutrition data when the Nutrition tab becomes active (browser-only)
 	$effect(() => {
-		if (activeTab === Tab.Nutrition && store.selectedDateString) {
+		if (browser && activeTab === Tab.Nutrition && store.selectedDateString) {
 			loadNutrition(store.selectedDateString);
 		}
 	});
