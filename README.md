@@ -28,18 +28,10 @@ It has some drawbacks, that this web app aims to improve and mitigate.
 
 ## What is the status?
 
-The app is still under development, but the core functionality is already implemented. It is reading the data from the trenara API, which I had to reverse engineer.
-It shows the data for training, strength and nutrition. You can add RPE feedback per training.
+The core functionality is implemented. The app reads data from the reverse-engineered trenara API and displays training, strength and nutrition data. You can add RPE feedback, move or delete trainings, add manual trainings, and view training progress over time in a chart.
 
 ## What is the future?
 
-- Implement API calls to
-  - ✅ move a training to a different date
-  - set training circumstances
-  - ✅ delete a training
-  - ✅ add manual training
-- ✅ Refactoring
-- ✅ Add a graph that shows the training progress over time 
+- Implement API calls to set training circumstances
 - Improve dialog usages to change data
-- ✅ Remove axios usage in favor of sveltes native fetch API
 - Add tests
