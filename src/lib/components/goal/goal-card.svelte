@@ -1,7 +1,7 @@
 <script lang="ts">
 	import type { Goal, UserStats } from '$lib/server/trenara/types';
 	import { onMount } from 'svelte';
-	import { Trophy, Calendar, Target, RefreshCw } from 'lucide-svelte';
+	import { Trophy, Calendar, Target } from 'lucide-svelte';
 	import PredictionChart, {
 		type ChartDataPoint
 	} from '$lib/components/charts/prediction-chart.svelte';
@@ -127,16 +127,8 @@
 
 		<!-- Historical chart for completed goals -->
 		<div class="mt-6">
-			<div class="flex items-center justify-between mb-2">
+			<div class="mb-2">
 				<h3 class="text-sm font-medium text-muted-foreground">Historical Prediction Progress</h3>
-				<button
-					type="button"
-					onclick={() => loadPredictionHistory()}
-					class="rounded p-1 text-muted-foreground hover:text-foreground"
-					aria-label="Reload chart"
-				>
-					<RefreshCw class="h-3.5 w-3.5" />
-				</button>
 			</div>
 			<PredictionChart data={chartData} loading={chartLoading} error={chartError} />
 		</div>
@@ -217,16 +209,8 @@
 
 		<!-- Prediction chart -->
 		<div>
-			<div class="flex items-center justify-between mb-2">
+			<div class="mb-2">
 				<h3 class="text-sm font-medium text-muted-foreground">Prediction Progress</h3>
-				<button
-					type="button"
-					onclick={() => loadPredictionHistory()}
-					class="rounded p-1 text-muted-foreground hover:text-foreground"
-					aria-label="Reload chart"
-				>
-					<RefreshCw class="h-3.5 w-3.5" />
-				</button>
 			</div>
 			<PredictionChart data={chartData} loading={chartLoading} error={chartError} />
 		</div>
