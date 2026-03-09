@@ -174,7 +174,7 @@
 						<tr class="border-b border-border">
 							<td class="px-4 py-2 font-medium text-card-foreground">Goal</td>
 							<td class="px-4 py-2 text-card-foreground">{goal.time}</td>
-							<td class="px-4 py-2 text-card-foreground">{goal.pace} {goal.pace_unit}</td>
+							<td class="px-4 py-2 text-card-foreground">{goal.pace}</td>
 						</tr>
 						<tr>
 							<td class="px-4 py-2 font-medium text-card-foreground">Current Prediction</td>
@@ -183,7 +183,6 @@
 							</td>
 							<td class="px-4 py-2 text-card-foreground">
 								{userStats.best_times.pace_for_goal ?? 'N/A'}
-								{userStats.best_times.pace_unit ?? ''}
 							</td>
 						</tr>
 					</tbody>

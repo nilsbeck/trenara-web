@@ -281,7 +281,7 @@
 						Time: {d.formattedTime}
 					</text>
 					<text x={tx + 8} y={52} style="font-size:10px" fill={RED}>
-						Pace: {d.formattedPace} min/km
+						Pace: {d.formattedPace}
 					</text>
 				{/if}
 			</g>
