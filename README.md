@@ -34,4 +34,4 @@ The core functionality is implemented. The app reads data from the reverse-engin
 
 - Implement API calls to set training circumstances
 - Improve dialog usages to change data
-- Add tests
+- Increase test coverage
