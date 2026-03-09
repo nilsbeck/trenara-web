@@ -20,3 +20,7 @@ jobs:
 
       - name: Run check
         run: bun run check
+        env:
+          BASIC_BEARER_TOKEN: placeholder
+          SUPABASE_URL: https://placeholder.supabase.co
+          SUPABASE_SERVICE_ROLE_KEY: placeholder
