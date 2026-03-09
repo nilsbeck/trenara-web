@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { getContext } from 'svelte';
 	import { browser } from '$app/environment';
+	import { invalidateAll } from '$app/navigation';
 	import type { CalendarStore } from '$lib/stores/calendar.svelte';
 	import { Tab } from '$lib/stores/calendar.svelte';
 	import type { NutritionAdvice } from '$lib/server/trenara/types';
@@ -139,7 +140,7 @@
 					training={selectedTraining}
 					entry={selectedEntry}
 					isLoading={store.isLoading}
-					onScheduleChanged={() => store.refresh()}
+					onScheduleChanged={() => { store.refresh(); invalidateAll(); }}
 				/>
 			{:else if activeTab === Tab.Strength}
 				<StrengthDetails

@@ -47,7 +47,7 @@ export const trainingApi = {
 	async testChangeDate(
 		cookies: Cookies,
 		entryId: number,
-		date: Date,
+		date: string,
 		includeFuture: boolean
 	): Promise<TestScheduleResponse> {
 		return fetchClient.put<TestScheduleResponse>(
@@ -60,7 +60,7 @@ export const trainingApi = {
 	async saveChangeDate(
 		cookies: Cookies,
 		entryId: number,
-		date: Date,
+		date: string,
 		includeFuture: boolean
 	): Promise<SaveScheduleResponse> {
 		return fetchClient.put<SaveScheduleResponse>(

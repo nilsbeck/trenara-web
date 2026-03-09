@@ -2,6 +2,7 @@ import { json, error } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { trainingApi } from '$lib/server/trenara';
 import { TokenType } from '$lib/server/auth/types';
+import { HttpError } from '$lib/server/trenara/client';
 import { changeDateSchema } from '$lib/schemas/training';
 
 export const PUT: RequestHandler = async ({ request, cookies }) => {
@@ -17,13 +18,19 @@ export const PUT: RequestHandler = async ({ request, cookies }) => {
 	}
 
 	const { entryId, newDate, includeFuture, action } = result.data;
-	const targetDate = new Date(newDate);
 
-	if (action === 'test') {
-		const data = await trainingApi.testChangeDate(cookies, entryId, targetDate, includeFuture);
+	try {
+		if (action === 'test') {
+			const data = await trainingApi.testChangeDate(cookies, entryId, newDate, includeFuture);
+			return json(data);
+		}
+
+		const data = await trainingApi.saveChangeDate(cookies, entryId, newDate, includeFuture);
 		return json(data);
+	} catch (e) {
+		if (e instanceof HttpError) {
+			error(e.status, e.message);
+		}
+		throw e;
 	}
-
-	const data = await trainingApi.saveChangeDate(cookies, entryId, targetDate, includeFuture);
-	return json(data);
 };

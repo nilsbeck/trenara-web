@@ -1,6 +1,6 @@
 <script lang="ts">
 	import type { ScheduledTraining } from '$lib/server/trenara/types';
-	import { CalendarDays, ChevronLeft, ChevronRight, X, Loader2 } from 'lucide-svelte';
+	import { CalendarDays, ChevronLeft, ChevronRight, X, Loader2, TriangleAlert } from 'lucide-svelte';
 
 	let {
 		training,
@@ -17,6 +17,7 @@
 	let changeToDate = $state<Date | null>(null);
 	let submitting = $state(false);
 	let error = $state<string | null>(null);
+	let warning = $state<string | null>(null);
 
 	// Parse the original training date for highlighting
 	const originalDate = $derived.by(() => {
@@ -31,6 +32,7 @@
 	function open() {
 		changeToDate = null;
 		error = null;
+		warning = null;
 		// Start the picker on the month of the training
 		if (originalDate) {
 			pickerDate = new Date(originalDate.getFullYear(), originalDate.getMonth(), 1);
@@ -125,39 +127,81 @@
 		return days;
 	});
 
-	async function handleMove() {
+	async function handleTest() {
 		if (!changeToDate) return;
 
 		submitting = true;
 		error = null;
+		warning = null;
+
+		const y = changeToDate.getFullYear();
+		const m = String(changeToDate.getMonth() + 1).padStart(2, '0');
+		const d = String(changeToDate.getDate()).padStart(2, '0');
+		const newDate = `${y}-${m}-${d}T00:00:00.000Z`;
 
 		try {
-			// Step 1: Test if move is possible
 			const testRes = await fetch('/api/v1/training/move', {
 				method: 'PUT',
 				headers: { 'Content-Type': 'application/json' },
 				body: JSON.stringify({
 					entryId: training.id,
-					newDate: changeToDate.toISOString(),
+					newDate,
 					includeFuture: false,
 					action: 'test'
 				})
 			});
 
-			if (!testRes.ok) {
+			if (testRes.ok) {
+				const data = await testRes.json();
+				if (data.goal_possible === false) {
+					const hours = Math.floor(data.new_goal_time / 3600);
+					const mins = Math.floor((data.new_goal_time % 3600) / 60);
+					const secs = data.new_goal_time % 60;
+					const newTime = `${hours}:${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+					warning = `Your goal time would change to ${newTime}. Do you want to continue?`;
+					return;
+				}
+			} else if (testRes.status >= 400 && testRes.status < 500) {
+				// Goal-related rejection from the backend — treat as a warning the user can override
 				const data = await testRes.json().catch(() => ({}));
-				throw new Error(
-					data.message ?? `Cannot move training: the change would affect your goal (${testRes.status})`
-				);
+				warning = data.message ?? 'This change may affect your goal. Do you want to continue?';
+				return;
+			} else {
+				// Backend test endpoint error — treat as warning since save may still work
+				const data = await testRes.json().catch(() => ({}));
+				warning = data.message ?? 'Could not verify this change. Do you want to continue?';
+				return;
 			}
 
-			// Step 2: Save the move
+			// Test passed with goal_possible — proceed to save directly
+			await saveMove(newDate);
+		} catch (e) {
+			error = e instanceof Error ? e.message : 'An unexpected error occurred';
+		} finally {
+			submitting = false;
+		}
+	}
+
+	async function saveMove(newDate?: string) {
+		if (!changeToDate) return;
+
+		submitting = true;
+		error = null;
+
+		const date = newDate ?? (() => {
+			const y = changeToDate.getFullYear();
+			const m = String(changeToDate.getMonth() + 1).padStart(2, '0');
+			const d = String(changeToDate.getDate()).padStart(2, '0');
+			return `${y}-${m}-${d}T00:00:00.000Z`;
+		})();
+
+		try {
 			const saveRes = await fetch('/api/v1/training/move', {
 				method: 'PUT',
 				headers: { 'Content-Type': 'application/json' },
 				body: JSON.stringify({
 					entryId: training.id,
-					newDate: changeToDate.toISOString(),
+					newDate: date,
 					includeFuture: false,
 					action: 'save'
 				})
@@ -271,6 +315,13 @@
 			<p class="mt-4 text-sm text-destructive">{error}</p>
 		{/if}
 
+		{#if warning}
+			<div class="mt-4 flex items-start gap-2 rounded-md bg-yellow-500/10 border border-yellow-500/30 p-3">
+				<TriangleAlert class="h-4 w-4 text-yellow-500 mt-0.5 shrink-0" />
+				<p class="text-sm text-yellow-500">{warning}</p>
+			</div>
+		{/if}
+
 		<!-- Actions -->
 		<div class="flex items-center justify-end gap-3 mt-4">
 			<button
@@ -280,19 +331,35 @@
 			>
 				Cancel
 			</button>
-			<button
-				type="button"
-				disabled={!changeToDate || submitting}
-				onclick={handleMove}
-				class="inline-flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50 transition-colors"
-			>
-				{#if submitting}
-					<Loader2 class="h-4 w-4 animate-spin" />
-					Moving...
-				{:else}
-					Move Training
-				{/if}
-			</button>
+			{#if warning}
+				<button
+					type="button"
+					disabled={submitting}
+					onclick={() => saveMove()}
+					class="inline-flex items-center gap-2 rounded-md bg-yellow-600 px-4 py-2 text-sm font-medium text-white hover:bg-yellow-500 disabled:opacity-50 transition-colors"
+				>
+					{#if submitting}
+						<Loader2 class="h-4 w-4 animate-spin" />
+						Moving...
+					{:else}
+						Move Anyway
+					{/if}
+				</button>
+			{:else}
+				<button
+					type="button"
+					disabled={!changeToDate || submitting}
+					onclick={handleTest}
+					class="inline-flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50 transition-colors"
+				>
+					{#if submitting}
+						<Loader2 class="h-4 w-4 animate-spin" />
+						Moving...
+					{:else}
+						Move Training
+					{/if}
+				</button>
+			{/if}
 		</div>
 	</div>
 </dialog>
