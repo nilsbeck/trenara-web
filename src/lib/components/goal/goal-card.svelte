@@ -106,10 +106,51 @@
 		}
 	}
 
+	/** Archive completed goal to history (best-effort, fire-and-forget). */
+	async function archiveCompletedGoal() {
+		if (!isPast) return;
+		const latest = await predictionHistoryDAO_getLatest();
+		try {
+			await fetch('/api/v1/goal-history', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({
+					goal_name: goal.name,
+					distance: goal.distance,
+					goal_time: goal.time,
+					goal_pace: goal.pace,
+					final_predicted_time: latest?.time ?? userStats?.best_times?.time_for_goal ?? null,
+					final_predicted_pace: latest?.pace ?? userStats?.best_times?.pace_for_goal?.replace(/\s*min\/km\s*/, '').trim() ?? null,
+					start_date: goal.start_date,
+					end_date: goal.end_date
+				})
+			});
+		} catch {
+			// Archiving is best-effort
+		}
+	}
+
+	/** Fetch the latest prediction to use as final prediction for archiving. */
+	async function predictionHistoryDAO_getLatest(): Promise<{ time: string; pace: string } | null> {
+		try {
+			const params = new URLSearchParams({ limit: '1' });
+			const res = await fetch(`/api/v1/prediction-history?${params}`);
+			if (!res.ok) return null;
+			const { records } = await res.json();
+			if (records?.length > 0) {
+				return { time: records[records.length - 1].predicted_time, pace: records[records.length - 1].predicted_pace };
+			}
+			return null;
+		} catch {
+			return null;
+		}
+	}
+
 	// Initialise on mount (browser-only; $effect can run during SSR in Svelte 5)
 	onMount(() => {
 		loadPredictionHistory();
 		trackCurrentPrediction();
+		archiveCompletedGoal();
 	});
 </script>
 

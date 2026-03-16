@@ -1,7 +1,7 @@
 <script lang="ts">
 	import type { User } from '$lib/server/trenara/types';
 	import type { LayoutServerData } from './$types';
-	import { Loader2, ChevronDown, LogOut, LayoutDashboard, UserCircle, Target, History } from 'lucide-svelte';
+	import { Loader2, ChevronDown, LogOut, LayoutDashboard, UserCircle, Target, History, Archive } from 'lucide-svelte';
 	import AddTrainingModal from '$lib/components/modals/add-training-modal.svelte';
 	import ChatBubble from '$lib/components/chat/chat-bubble.svelte';
 
@@ -111,6 +111,15 @@
 							>
 								<History class="h-4 w-4" />
 								Prediction History
+							</a>
+							<a
+								href="/goal/history"
+								class="flex items-center gap-2 px-4 py-2 text-sm text-foreground hover:bg-accent"
+								role="menuitem"
+								onclick={closeMenu}
+							>
+								<Archive class="h-4 w-4" />
+								Goal History
 							</a>
 							<div class="my-1 border-t border-border"></div>
 							<a
