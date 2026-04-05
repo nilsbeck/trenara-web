@@ -78,14 +78,14 @@ describe('setToken', () => {
 		expect(opts.maxAge).toBe(7200);
 	});
 
-	it('sets httpOnly only on the token cookie, not the expiration cookie', () => {
+	it('sets httpOnly on both the token cookie and the expiration cookie', () => {
 		const cookies = makeCookies();
 		const expiresAt = new Date(Date.now() + 3600 * 1000);
 
 		manager.setToken(cookies, 'tok', TokenType.AccessToken, expiresAt);
 
 		expect(cookies._store[TokenType.AccessToken].options.httpOnly).toBe(true);
-		expect(cookies._store[`${TokenType.AccessToken}_expiration`].options.httpOnly).toBeUndefined();
+		expect(cookies._store[`${TokenType.AccessToken}_expiration`].options.httpOnly).toBe(true);
 	});
 
 	it('sets secure:true in production (dev=false)', () => {

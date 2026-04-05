@@ -27,7 +27,8 @@ export const authApi = {
 		return fetchClient.request<AuthResponse>('/oauth/token', {
 			method: 'POST',
 			headers: {
-				'Content-Type': 'application/x-www-form-urlencoded'
+				'Content-Type': 'application/x-www-form-urlencoded',
+				Authorization: `Basic ${BASIC_BEARER_TOKEN}`
 			},
 			body: formData.toString()
 		});
