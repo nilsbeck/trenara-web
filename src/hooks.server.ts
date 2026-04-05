@@ -1,6 +1,6 @@
 import type { Handle } from '@sveltejs/kit';
 import { TokenManager } from '$lib/server/auth/token-manager';
-import { userApi } from '$lib/server/trenara';
+import { verifyUserId } from '$lib/server/auth/user-identity';
 
 const tokenManager = TokenManager.getInstance();
 
@@ -20,15 +20,20 @@ const handleAuth: Handle = async ({ event, resolve }) => {
 		return resolve(event);
 	}
 
-	// Derive user identity from the access token via the Trenara API to prevent
-	// IDOR: reading user_id from a client-controllable cookie would allow an
-	// authenticated attacker to access another user's data by spoofing the cookie.
-	try {
-		const user = await userApi.getCurrentUser(event.cookies);
-		event.locals.user = { id: user.id, email: user.email };
-	} catch {
-		// If identity cannot be confirmed, clear all session cookies so the
-		// login page does not redirect back to the app and cause an infinite loop.
+	// Verify user identity via HMAC signature stored at login.
+	// This prevents IDOR: an attacker who modifies the user_id cookie cannot
+	// produce a valid signature without the server-side SESSION_SECRET, so
+	// the tampered value is rejected here with no extra API call.
+	const userIdStr = event.cookies.get('user_id');
+	const userIdSig = event.cookies.get('user_id_sig');
+	const userEmail = event.cookies.get('user_email');
+
+	if (userIdStr && userIdSig && userEmail && verifyUserId(userIdStr, userIdSig)) {
+		event.locals.user = { id: Number(userIdStr), email: userEmail };
+	} else {
+		// Sig missing or invalid (e.g. existing session predates this change).
+		// Clear the entire session so the login page doesn't redirect back to
+		// the app, which would cause an infinite redirect loop.
 		await tokenManager.logout(event.cookies);
 		event.locals.user = null;
 	}

@@ -24,3 +24,4 @@ jobs:
           BASIC_BEARER_TOKEN: placeholder
           SUPABASE_URL: https://placeholder.supabase.co
           SUPABASE_SERVICE_ROLE_KEY: placeholder
+          SESSION_SECRET: placeholder-secret-for-type-checking-only

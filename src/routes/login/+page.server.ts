@@ -4,6 +4,7 @@ import { loginSchema } from '$lib/schemas/auth';
 import { authApi } from '$lib/server/trenara/auth';
 import { userApi } from '$lib/server/trenara';
 import { TokenType } from '$lib/server/auth/types';
+import { signUserId } from '$lib/server/auth/user-identity';
 import { dev } from '$app/environment';
 
 export const load: PageServerLoad = async ({ cookies }) => {
@@ -59,10 +60,12 @@ export const actions: Actions = {
 				cookieOptions
 			);
 
-			// Fetch user profile to persist user_id and email as cookies,
-			// used by server-side API endpoints (e.g. prediction history).
+			// Fetch user profile to persist user_id and email as cookies.
+			// A server-signed signature is stored alongside user_id so that
+			// hooks.server.ts can verify identity without an extra API call.
 			const user = await userApi.getCurrentUser(cookies);
 			cookies.set('user_id', String(user.id), { ...cookieOptions, httpOnly: true });
+			cookies.set('user_id_sig', signUserId(user.id), { ...cookieOptions, httpOnly: true });
 			cookies.set('user_email', user.email, { ...cookieOptions, httpOnly: true });
 		} catch {
 			return fail(401, { message: 'Invalid email or password' });

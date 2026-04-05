@@ -150,6 +150,7 @@ export class TokenManager {
 		this.deleteToken(cookies, TokenType.AccessToken);
 		this.deleteToken(cookies, TokenType.RefreshToken);
 		cookies.delete('user_id', { path: '/' });
+		cookies.delete('user_id_sig', { path: '/' });
 		cookies.delete('user_email', { path: '/' });
 		cookies.delete('trenara_session', { path: '/' });
 	}
