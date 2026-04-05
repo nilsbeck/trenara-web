@@ -34,6 +34,7 @@ export const actions: Actions = {
 			const expirationDate = new Date(Date.now() + response.expires_in * 1000);
 			const cookieOptions = {
 				expires: expirationDate,
+				maxAge: response.expires_in,
 				path: '/',
 				secure: !dev,
 				sameSite: 'lax' as const
