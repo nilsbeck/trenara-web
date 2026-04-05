@@ -31,6 +31,10 @@ const handleAuth: Handle = async ({ event, resolve }) => {
 	if (userIdStr && userIdSig && userEmail && verifyUserId(userIdStr, userIdSig)) {
 		event.locals.user = { id: Number(userIdStr), email: userEmail };
 	} else {
+		// Sig missing or invalid (e.g. existing session predates this change).
+		// Clear the entire session so the login page doesn't redirect back to
+		// the app, which would cause an infinite redirect loop.
+		await tokenManager.logout(event.cookies);
 		event.locals.user = null;
 	}
 
