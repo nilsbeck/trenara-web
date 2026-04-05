@@ -27,6 +27,9 @@ const handleAuth: Handle = async ({ event, resolve }) => {
 		const user = await userApi.getCurrentUser(event.cookies);
 		event.locals.user = { id: user.id, email: user.email };
 	} catch {
+		// If identity cannot be confirmed, clear all session cookies so the
+		// login page does not redirect back to the app and cause an infinite loop.
+		await tokenManager.logout(event.cookies);
 		event.locals.user = null;
 	}
 
