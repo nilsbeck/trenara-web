@@ -29,7 +29,11 @@ export class TokenManager {
 		const nearFutureThreshold = 43200; // 12 hours in seconds
 		const now = Math.floor(Date.now() / 1000);
 
-		if (expirationDate - nearFutureThreshold < now && expirationDate > now) {
+		if (expirationDate <= now) {
+			return false;
+		}
+
+		if (expirationDate - nearFutureThreshold < now) {
 			return this.refreshToken(cookies);
 		}
 
@@ -87,6 +91,7 @@ export class TokenManager {
 			expires: expiresAt,
 			maxAge,
 			path: '/',
+			httpOnly: true,
 			secure: !dev,
 			sameSite: 'lax'
 		});
