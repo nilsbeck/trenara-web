@@ -25,7 +25,7 @@ export class TokenManager {
 		const expirationStr = cookies.get(`${TokenType.AccessToken}_expiration`);
 		if (!expirationStr) return false;
 
-		const expirationDate = parseInt(expirationStr, 10);
+		const expirationDate = Math.floor(new Date(expirationStr).getTime() / 1000);
 		const nearFutureThreshold = 43200; // 12 hours in seconds
 		const now = Math.floor(Date.now() / 1000);
 
@@ -81,8 +81,11 @@ export class TokenManager {
 	}
 
 	setToken(cookies: Cookies, token: string, tokenType: TokenType, expiresAt: Date): void {
+		const maxAge = Math.floor((expiresAt.getTime() - Date.now()) / 1000);
+
 		cookies.set(`${tokenType}_expiration`, expiresAt.toISOString(), {
 			expires: expiresAt,
+			maxAge,
 			path: '/',
 			secure: !dev,
 			sameSite: 'lax'
@@ -90,6 +93,7 @@ export class TokenManager {
 
 		cookies.set(tokenType.toString(), token, {
 			expires: expiresAt,
+			maxAge,
 			path: '/',
 			httpOnly: true,
 			secure: !dev,
