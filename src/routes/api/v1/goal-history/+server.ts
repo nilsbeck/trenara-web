@@ -21,7 +21,7 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 	const result = archiveGoalSchema.safeParse(body);
 
 	if (!result.success) {
-		error(400, result.error.errors[0]?.message ?? 'Invalid request body');
+		error(400, result.error.issues[0]?.message ?? 'Invalid request body');
 	}
 
 	const {
