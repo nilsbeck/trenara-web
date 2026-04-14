@@ -39,14 +39,7 @@ const handleAuth: Handle = async ({ event, resolve }) => {
 		event.locals.user = null;
 	}
 
-	const response = await resolve(event);
-
-	response.headers.set(
-		'Content-Security-Policy',
-		"default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' https: data:; connect-src 'self' https://backend-prod.trenara.com; font-src 'self'; frame-ancestors 'none'"
-	);
-
-	return response;
+	return resolve(event);
 };
 
 export const handle = handleAuth;
