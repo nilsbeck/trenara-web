@@ -16,6 +16,7 @@ const handleAuth: Handle = async ({ event, resolve }) => {
 	const isValid = await tokenManager.validateAndRefreshToken(event.cookies);
 
 	if (!isValid) {
+		await tokenManager.logout(event.cookies);
 		event.locals.user = null;
 		return resolve(event);
 	}

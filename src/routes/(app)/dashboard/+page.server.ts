@@ -7,10 +7,16 @@ function daysInMonth(year: number, month: number): number {
 }
 
 export const load: PageServerLoad = async ({ cookies }) => {
+	const [schedule, goal, userStats] = await Promise.all([
+		getMonthlySchedule(cookies),
+		trainingApi.getGoal(cookies).catch(() => null),
+		userApi.getUserStats(cookies).catch(() => null)
+	]);
+
 	return {
-		goal: trainingApi.getGoal(cookies),
-		userStats: userApi.getUserStats(cookies),
-		schedule: getMonthlySchedule(cookies)
+		schedule,
+		goal,
+		userStats
 	};
 };
 
