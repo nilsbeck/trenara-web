@@ -44,7 +44,7 @@
 		"@supabase/supabase-js": "^2.103.0",
 		"@tailwindcss/vite": "^4.2.2",
 		"bits-ui": "^2.17.3",
-		"dompurify": "^3.4.0",
+		"dompurify": "^3.4.11",
 		"lucide-svelte": "^1.0.1",
 		"tailwindcss": "^4.2.2",
 		"zod": "^4.3.6"
