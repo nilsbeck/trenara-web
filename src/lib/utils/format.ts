@@ -19,17 +19,13 @@ export function timeStringToSeconds(timeStr: string): number {
 }
 
 /**
- * Convert pace string (MM:SS, "MM:SS min/km", or "MM:SS min/mi") to seconds per unit.
+ * Convert pace string (MM:SS or "MM:SS min/km") to seconds per km.
  */
 export function paceStringToSeconds(paceStr: string): number {
-    // Fix: Strip all letters, slashes, and spaces to cleanly extract just the numbers
-    const clean = paceStr.replace(/[a-z\/\s]/gi, '').trim();
-    const parts = clean.split(':').map(Number);
-    
-    if (parts.length === 2 && !isNaN(parts[0]) && !isNaN(parts[1])) {
-        return parts[0] * 60 + parts[1];
-    }
-    return 0;
+	const clean = paceStr.replace(/\s*min\/km\s*/, '').trim();
+	const parts = clean.split(':').map(Number);
+	if (parts.length === 2) return parts[0] * 60 + parts[1];
+	return 0;
 }
 
 /**
@@ -70,23 +66,23 @@ export function formatDateShort(dateStr: string): string {
  * have no use for a "0 km/h" instruction (e.g. rest blocks).
  */
 export function paceToKmh(pace: string | number, unit?: string): number | null {
-    let secondsPerUnit: number;
+	let secondsPerUnit: number;
 
-    if (typeof pace === 'number') {
-        if (!isFinite(pace) || pace <= 0) return null;
-        // Fix: Automatically detect raw seconds vs decimal minutes
-        secondsPerUnit = pace > 40 ? pace : pace * 60;
-    } else {
-        secondsPerUnit = paceStringToSeconds(pace);
-        if (!secondsPerUnit) return null;
-    }
+	if (typeof pace === 'number') {
+		if (!isFinite(pace) || pace <= 0) return null;
+		secondsPerUnit = pace > 40 ? pace : pace * 60;
+	} else {
+		secondsPerUnit = paceStringToSeconds(pace);
+		if (!secondsPerUnit) return null;
+	}
 
-    // Fix: Safely check for 'mi' anywhere in the string
-    const distanceUnit = (unit ?? '').toLowerCase();
-    const isMiles = distanceUnit.includes('mi');
-    
-    const kmh = 3600 / secondsPerUnit;
-    return isMiles ? kmh * 1.60934 : kmh;
+	// Only look at the distance-unit segment (after the "/"), since "min/km"
+	// itself contains the substring "mi" (from "min") and would otherwise
+	// be misdetected as miles.
+	const distanceUnit = (unit ?? '').toLowerCase().split('/')[1] ?? '';
+	const isMiles = distanceUnit.startsWith('mi');
+	const kmh = 3600 / secondsPerUnit;
+	return isMiles ? kmh * 1.60934 : kmh;
 }
 
 /**

@@ -67,7 +67,7 @@ function toInstruction(
 				: null;
 
 	return {
-		title: block.text || block.type || 'Run',
+		title: block.text?.split(/[\s:]+/)[0] || block.type || 'Run',
 		type: block.type,
 		distance: block.distance || undefined,
 		time: block.time || undefined,
