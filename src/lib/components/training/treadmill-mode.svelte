@@ -118,10 +118,13 @@
 					<p class="text-5xl font-bold tabular-nums text-primary">{current.speedLabel}</p>
 				{/if}
 
-				{#if current.distance || current.time}
+				{#if current.distance}
+					<p class="text-5xl font-bold tabular-nums text-primary">{current.distance}</p>
+				{/if}
+
+				{#if current.time}
 					<div class="flex gap-4 text-sm text-muted-foreground">
-						{#if current.distance}<span>{current.distance}</span>{/if}
-						{#if current.time}<span>{current.time}</span>{/if}
+						<span>{current.time}</span>
 					</div>
 				{/if}
 			</div>

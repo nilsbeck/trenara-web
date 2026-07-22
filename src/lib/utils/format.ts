@@ -70,7 +70,7 @@ export function paceToKmh(pace: string | number, unit?: string): number | null {
 
 	if (typeof pace === 'number') {
 		if (!isFinite(pace) || pace <= 0) return null;
-		secondsPerUnit = pace * 60;
+		secondsPerUnit = pace > 40 ? pace : pace * 60;
 	} else {
 		secondsPerUnit = paceStringToSeconds(pace);
 		if (!secondsPerUnit) return null;
