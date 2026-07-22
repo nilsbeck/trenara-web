@@ -6,7 +6,9 @@ import {
 	paceStringToSeconds,
 	secondsToTimeString,
 	secondsToPaceString,
-	formatDateShort
+	formatDateShort,
+	paceToKmh,
+	formatSpeedKmh
 } from './format';
 
 // ─────────────────────────────────────────────────────────────
@@ -192,5 +194,78 @@ describe('formatDateShort', () => {
 	it('does not include the year', () => {
 		const result = formatDateShort('2025-03-20');
 		expect(result).not.toMatch(/2025/);
+	});
+});
+
+// ─────────────────────────────────────────────────────────────
+// paceToKmh
+// ─────────────────────────────────────────────────────────────
+describe('paceToKmh', () => {
+	it('converts a decimal min/km pace to km/h', () => {
+		// 4.5 min/km = 4:30/km -> 60 / 4.5 = 13.33... km/h
+		expect(paceToKmh(4.5, 'min/km')).toBeCloseTo(13.333, 2);
+	});
+
+	it('converts a "MM:SS" pace string to km/h', () => {
+		// 5:00/km -> 12 km/h
+		expect(paceToKmh('5:00', 'min/km')).toBeCloseTo(12, 5);
+	});
+
+	it('converts a "MM:SS min/km" pace string to km/h', () => {
+		expect(paceToKmh('6:00 min/km', 'min/km')).toBeCloseTo(10, 5);
+	});
+
+	it('applies the mile-to-km conversion for min/mi paces', () => {
+		// 8:03/mi ~ 5:00/km, so this should be close to 12 km/h
+		expect(paceToKmh(8.05, 'min/mi')).toBeCloseTo(11.99, 1);
+	});
+
+	it('returns null for a zero decimal pace', () => {
+		expect(paceToKmh(0, 'min/km')).toBeNull();
+	});
+
+	it('returns null for a negative decimal pace', () => {
+		expect(paceToKmh(-1, 'min/km')).toBeNull();
+	});
+
+	it('returns null for an unparsable pace string', () => {
+		expect(paceToKmh('rest', 'min/km')).toBeNull();
+	});
+
+	it('returns null for an empty pace string', () => {
+		expect(paceToKmh('', 'min/km')).toBeNull();
+	});
+
+	it('treats a missing unit as km', () => {
+		expect(paceToKmh(5)).toBeCloseTo(12, 5);
+	});
+});
+
+// ─────────────────────────────────────────────────────────────
+// formatSpeedKmh
+// ─────────────────────────────────────────────────────────────
+describe('formatSpeedKmh', () => {
+	it('formats a speed to one decimal place with a km/h suffix', () => {
+		expect(formatSpeedKmh(13.333)).toBe('13.3 km/h');
+	});
+
+	it('rounds to the nearest tenth', () => {
+		expect(formatSpeedKmh(12)).toBe('12.0 km/h');
+	});
+
+	it('returns null for null input', () => {
+		expect(formatSpeedKmh(null)).toBeNull();
+	});
+
+	it('returns null for undefined input', () => {
+		expect(formatSpeedKmh(undefined)).toBeNull();
+	});
+
+	it('returns null for zero', () => {
+		expect(formatSpeedKmh(0)).toBeNull();
+	});
+
+	it('returns null for a negative speed', () => {
+		expect(formatSpeedKmh(-5)).toBeNull();
 	});
 });

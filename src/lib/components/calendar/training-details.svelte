@@ -4,6 +4,8 @@
 	import GiveFeedbackModal from '$lib/components/modals/give-feedback-modal.svelte';
 	import ChangeDateModal from '$lib/components/modals/change-date-modal.svelte';
 	import RateTrainingInline from '$lib/components/training/rate-training-inline.svelte';
+	import TreadmillMode from '$lib/components/training/treadmill-mode.svelte';
+	import { blockTypeColor } from '$lib/utils/block-color';
 
 	let {
 		selectedDate,
@@ -25,19 +27,6 @@
 	let deleting = $state(false);
 	let confirmingDelete = $state(false);
 
-	/** Map a block type string to a display colour. */
-	function blockTypeColor(type: string | undefined): string {
-		if (!type) return '#60a5fa';
-		const t = type.toLowerCase();
-		if (t.includes('warm') || t.includes('cool')) return '#60a5fa'; // blue
-		if (t === 'run' || t === 'easy' || t === 'jog') return '#facc15'; // yellow
-		if (t === 'tempo' || t === 'fast' || t === 'threshold') return '#f97316'; // orange
-		if (t === 'interval' || t === 'rep') return '#a855f7'; // purple
-		if (t === 'rest' || t === 'recovery' || t === 'walk') return '#94a3b8'; // slate
-		if (t === 'block') return '#4ade80'; // green
-		return '#60a5fa'; // default blue
-	}
-
 	// True when selectedDate is today or in the future
 	const isTodayOrFuture = $derived.by(() => {
 		if (!selectedDate) return false;
@@ -49,6 +38,9 @@
 
 	// Show delete only for scheduled (unexecuted) trainings on today or future dates
 	const canDelete = $derived(training !== null && entry === null && isTodayOrFuture);
+
+	// Treadmill mode is only meaningful for a training that hasn't been completed yet
+	const canUseTreadmillMode = $derived(training !== null && entry === null);
 
 	// Reset confirmation state whenever the training changes (user navigates to another day)
 	$effect(() => {
@@ -112,8 +104,12 @@
 					</h3>
 					{#if training}
 						<span class="text-[10px] text-muted-foreground whitespace-nowrap">
-							[{training.training.total_distance}, {training.training.total_time}{training.training.total_time.split(':').length === 2 ? 'min' : 'h'}]
+							[{training.training.total_distance}, {training.training
+								.total_time}{training.training.total_time.split(':').length === 2 ? 'min' : 'h'}]
 						</span>
+					{/if}
+					{#if canUseTreadmillMode && training}
+						<TreadmillMode {training} />
 					{/if}
 				</div>
 			</div>
@@ -127,7 +123,9 @@
 					<ChangeDateModal
 						{training}
 						{selectedDate}
-						onMoved={() => { onScheduleChanged?.(); }}
+						onMoved={() => {
+							onScheduleChanged?.();
+						}}
 					/>
 				{/if}
 				{#if canDelete}
@@ -220,14 +218,17 @@
 										></div>
 										<div
 											class="absolute inset-0 left-1/2"
-											style="background-color: {blockTypeColor(block.blocks[block.blocks.length - 1]?.type)}"
+											style="background-color: {blockTypeColor(
+												block.blocks[block.blocks.length - 1]?.type
+											)}"
 										></div>
 									</div>
 									<span class="text-sm font-medium text-foreground">
 										{#if block.text}
 											{block.text}{#if block.repeat && block.repeat > 1}&nbsp;×{block.repeat}{/if}
 										{:else}
-											Block{#if block.repeat && block.repeat > 1} ×{block.repeat}{/if}:
+											Block{#if block.repeat && block.repeat > 1}
+												×{block.repeat}{/if}:
 										{/if}
 									</span>
 								</div>
@@ -335,7 +336,9 @@
 										<td class="px-3 py-2 text-right text-foreground">-</td>
 									{/if}
 									{#if entry}
-										<td class="px-3 py-2 text-right text-foreground">{entry.avg_heartbeat ?? '-'}</td>
+										<td class="px-3 py-2 text-right text-foreground"
+											>{entry.avg_heartbeat ?? '-'}</td
+										>
 									{/if}
 								</tr>
 								<tr class="border-t border-border">
@@ -349,7 +352,9 @@
 										<td class="px-3 py-2 text-right text-foreground">-</td>
 									{/if}
 									{#if entry}
-										<td class="px-3 py-2 text-right text-foreground">{entry.total_altitude ?? '-'}</td>
+										<td class="px-3 py-2 text-right text-foreground"
+											>{entry.total_altitude ?? '-'}</td
+										>
 									{/if}
 								</tr>
 								{#if entry}
