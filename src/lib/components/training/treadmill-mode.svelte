@@ -121,6 +121,12 @@
 					<p class="text-5xl font-bold tabular-nums text-primary">{current.speedLabel}</p>
 				{/if}
 
+				{#if current.cumulativeDistanceLabel}
+					<p class="text-2xl font-semibold tabular-nums text-muted-foreground">
+						{current.cumulativeDistanceLabel}
+					</p>
+				{/if}
+
 				{#if current.distance}
 					<p class="text-5xl font-bold tabular-nums text-primary">{current.distance}</p>
 				{/if}

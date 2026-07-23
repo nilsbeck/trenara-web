@@ -108,14 +108,15 @@
 								.total_time}{training.training.total_time.split(':').length === 2 ? 'min' : 'h'}]
 						</span>
 					{/if}
-					{#if canUseTreadmillMode && training}
-						<TreadmillMode {training} />
-					{/if}
+					
 				</div>
 			</div>
 
 			<!-- Action buttons -->
 			<div class="flex items-center gap-1.5 shrink-0">
+				{#if canUseTreadmillMode && training}
+					<TreadmillMode {training} />
+				{/if}
 				{#if entry && training}
 					<GiveFeedbackModal {training} {entry} />
 				{/if}

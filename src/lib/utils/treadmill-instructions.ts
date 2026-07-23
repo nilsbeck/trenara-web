@@ -10,6 +10,8 @@ export interface TreadmillInstruction {
 	time?: string;
 	/** Speed in km/h, pre-formatted (e.g. "13.3 km/h"), or null if not applicable. */
 	speedLabel: string | null;
+	/** Running total distance covered through the end of this step, pre-formatted (e.g. "3.2 km"), or null. */
+	cumulativeDistanceLabel: string | null;
 	/** 1-based repetition index, set when this step belongs to a repeated set. */
 	repeatIndex?: number;
 	/** Total number of repetitions, set alongside repeatIndex. */
@@ -29,31 +31,64 @@ export function buildTreadmillInstructions(training: ScheduledTraining): Treadmi
 	const blocks = training.training?.blocks ?? [];
 	const instructions: TreadmillInstruction[] = [];
 
+	// Running total distance (km) covered through the end of each step.
+	let cumulativeKm = 0;
+	const push = (
+		block: TrainingBlock,
+		repeatIndex?: number,
+		repeatTotal?: number,
+		groupLabel?: string
+	) => {
+		cumulativeKm += blockDistanceKm(block);
+		instructions.push(
+			toInstruction(block, cumulativeKm, repeatIndex, repeatTotal, groupLabel)
+		);
+	};
+
 	for (const block of blocks) {
 		if (block.blocks && block.blocks.length > 0) {
 			const repeat = block.repeat && block.repeat > 1 ? block.repeat : 1;
 			for (let r = 1; r <= repeat; r++) {
 				for (const sub of block.blocks) {
-					instructions.push(
-						toInstruction(
-							sub,
-							repeat > 1 ? r : undefined,
-							repeat > 1 ? repeat : undefined,
-							block.text
-						)
+					push(
+						sub,
+						repeat > 1 ? r : undefined,
+						repeat > 1 ? repeat : undefined,
+						block.text
 					);
 				}
 			}
 		} else {
-			instructions.push(toInstruction(block));
+			push(block);
 		}
 	}
 
 	return instructions;
 }
 
+/**
+ * Best-effort distance of a single block in kilometres.
+ *
+ * Prefers the pre-computed `calc_distance_in_km`, falling back to the
+ * block's own distance value/unit. Time-only blocks (e.g. "run for 5 min")
+ * contribute 0 since there's no fixed distance.
+ */
+function blockDistanceKm(block: TrainingBlock): number {
+	if (typeof block.calc_distance_in_km === 'number' && block.calc_distance_in_km > 0) {
+		return block.calc_distance_in_km;
+	}
+	if (block.distance_value > 0) {
+		const unit = (block.distance_unit ?? '').toLowerCase();
+		if (unit.startsWith('km')) return block.distance_value;
+		if (unit.startsWith('mi')) return block.distance_value * 1.60934;
+		if (unit.startsWith('m')) return block.distance_value / 1000;
+	}
+	return 0;
+}
+
 function toInstruction(
 	block: TrainingBlock,
+	cumulativeKm: number,
 	repeatIndex?: number,
 	repeatTotal?: number,
 	groupLabel?: string
@@ -72,6 +107,7 @@ function toInstruction(
 		distance: block.distance || undefined,
 		time: block.time || undefined,
 		speedLabel: formatSpeedKmh(speedKmh),
+		cumulativeDistanceLabel: cumulativeKm > 0 ? `${cumulativeKm.toFixed(1)} km` : null,
 		repeatIndex,
 		repeatTotal,
 		groupLabel
