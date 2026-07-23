@@ -123,17 +123,17 @@
 
 				{#if current.cumulativeDistanceLabel}
 					<p class="text-2xl font-semibold tabular-nums text-muted-foreground">
-						{current.cumulativeDistanceLabel}
+						Total: {current.cumulativeDistanceLabel}
 					</p>
 				{/if}
 
 				{#if current.distance}
-					<p class="text-5xl font-bold tabular-nums text-primary">{current.distance}</p>
+					<p class="text-2xl font-semibold tabular-nums text-muted-foreground">Step:{current.distance}</p>
 				{/if}
 
 				{#if current.time}
 					<div class="flex gap-4 text-sm text-muted-foreground">
-						<span>{current.time}</span>
+						<span>{current.time}</span>min
 					</div>
 				{/if}
 			</div>
