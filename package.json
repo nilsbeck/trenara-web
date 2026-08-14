@@ -20,7 +20,7 @@
 	},
 	"devDependencies": {
 		"@sveltejs/adapter-vercel": "6.3.4",
-		"@sveltejs/kit": "2.67.0",
+		"@sveltejs/kit": "2.70.2",
 		"@sveltejs/vite-plugin-svelte": "^7.1.2",
 		"@testing-library/jest-dom": "^6.9.1",
 		"@testing-library/svelte": "5.4.2",
