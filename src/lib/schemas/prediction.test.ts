@@ -42,6 +42,37 @@ describe('predictionRecordSchema', () => {
 		expect(predictionRecordSchema.safeParse({ time: '1:30:00', pace: 'fast' }).success).toBe(false);
 	});
 
+	it('accepts an optional 10K reference', () => {
+		expect(
+			predictionRecordSchema.safeParse({
+				time: '1:30:00',
+				pace: '5:30',
+				time_10k: '42:00',
+				pace_10k: '4:12'
+			}).success
+		).toBe(true);
+	});
+
+	it('accepts a record without the 10K reference', () => {
+		const result = predictionRecordSchema.safeParse({ time: '1:30:00', pace: '5:30' });
+		expect(result.success).toBe(true);
+		if (result.success) {
+			expect(result.data.time_10k).toBeUndefined();
+			expect(result.data.pace_10k).toBeUndefined();
+		}
+	});
+
+	it('rejects a malformed 10K pace', () => {
+		expect(
+			predictionRecordSchema.safeParse({
+				time: '1:30:00',
+				pace: '5:30',
+				time_10k: '42:00',
+				pace_10k: '4:12:00'
+			}).success
+		).toBe(false);
+	});
+
 	it('rejects missing fields', () => {
 		expect(predictionRecordSchema.safeParse({}).success).toBe(false);
 		expect(predictionRecordSchema.safeParse({ time: '1:30:00' }).success).toBe(false);

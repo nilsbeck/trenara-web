@@ -13,11 +13,16 @@
 	let {
 		data = [],
 		loading = false,
-		error = null
+		error = null,
+		timeLabel = 'Predicted Time',
+		paceLabel = 'Predicted Pace'
 	}: {
 		data: ChartDataPoint[];
 		loading?: boolean;
 		error?: string | null;
+		/** Legend labels — the series differs per chart (goal distance vs. 10K). */
+		timeLabel?: string;
+		paceLabel?: string;
 	} = $props();
 
 	// Layout constants
@@ -150,11 +155,11 @@
 		<div class="mb-2 flex items-center justify-center gap-6 text-xs">
 			<span class="flex items-center gap-1.5">
 				<span class="inline-block h-0.5 w-4 rounded" style="background:{BLUE}"></span>
-				<span class="text-muted-foreground">Predicted Time</span>
+				<span class="text-muted-foreground">{timeLabel}</span>
 			</span>
 			<span class="flex items-center gap-1.5">
 				<span class="inline-block h-0.5 w-4 rounded" style="background:{RED}"></span>
-				<span class="text-muted-foreground">Predicted Pace</span>
+				<span class="text-muted-foreground">{paceLabel}</span>
 			</span>
 		</div>
 

@@ -38,7 +38,8 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 		error(400, 'Invalid request body');
 	}
 
-	const { time, pace } = result.data;
-	const storeResult = await predictionHistoryDAO.storeIfChanged(locals.user.id, time, pace);
+	const { time, pace, time_10k, pace_10k } = result.data;
+	const tenK = time_10k && pace_10k ? { time: time_10k, pace: pace_10k } : null;
+	const storeResult = await predictionHistoryDAO.storeIfChanged(locals.user.id, time, pace, tenK);
 	return json(storeResult);
 };

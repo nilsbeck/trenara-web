@@ -37,3 +37,15 @@ CREATE TABLE IF NOT EXISTS goal_history (
 
 CREATE INDEX IF NOT EXISTS idx_goal_history_user_end_date
     ON goal_history(user_id, end_date DESC);
+
+-- 10K reference prediction (added later)
+-- The goal-distance prediction (predicted_time / predicted_pace) changes meaning
+-- whenever the user's goal distance changes, which makes the all-time series
+-- incomparable. These columns carry the 10K prediction for the same day so the
+-- long-term history can be plotted against a fixed distance.
+-- Rows recorded before this migration keep NULL here and are skipped by the
+-- all-time chart.
+
+ALTER TABLE prediction_history
+    ADD COLUMN IF NOT EXISTS predicted_time_10k VARCHAR(20),
+    ADD COLUMN IF NOT EXISTS predicted_pace_10k VARCHAR(20);
