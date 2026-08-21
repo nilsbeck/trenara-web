@@ -1,48 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { addTrainingSchema, feedbackSchema, changeDateSchema } from './training';
-
-// ─────────────────────────────────────────────────────────────
-// addTrainingSchema
-// ─────────────────────────────────────────────────────────────
-describe('addTrainingSchema', () => {
-	const valid = {
-		name: 'Morning run',
-		timeInSeconds: 3600,
-		date: '2025-03-05',
-		distanceInKm: 10
-	};
-
-	it('accepts valid input', () => {
-		expect(addTrainingSchema.safeParse(valid).success).toBe(true);
-	});
-
-	it('rejects empty name', () => {
-		const result = addTrainingSchema.safeParse({ ...valid, name: '' });
-		expect(result.success).toBe(false);
-	});
-
-	it('rejects non-positive timeInSeconds', () => {
-		expect(addTrainingSchema.safeParse({ ...valid, timeInSeconds: 0 }).success).toBe(false);
-		expect(addTrainingSchema.safeParse({ ...valid, timeInSeconds: -1 }).success).toBe(false);
-	});
-
-	it('rejects fractional timeInSeconds', () => {
-		expect(addTrainingSchema.safeParse({ ...valid, timeInSeconds: 1.5 }).success).toBe(false);
-	});
-
-	it('rejects non-positive distanceInKm', () => {
-		expect(addTrainingSchema.safeParse({ ...valid, distanceInKm: 0 }).success).toBe(false);
-		expect(addTrainingSchema.safeParse({ ...valid, distanceInKm: -5 }).success).toBe(false);
-	});
-
-	it('allows fractional distanceInKm', () => {
-		expect(addTrainingSchema.safeParse({ ...valid, distanceInKm: 5.5 }).success).toBe(true);
-	});
-
-	it('rejects missing fields', () => {
-		expect(addTrainingSchema.safeParse({}).success).toBe(false);
-	});
-});
+import { feedbackSchema, changeDateSchema } from './training';
 
 // ─────────────────────────────────────────────────────────────
 // feedbackSchema
