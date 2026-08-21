@@ -1,38 +1,7 @@
 @import 'tailwindcss';
 
 @theme {
-	/* Light mode — close to DaisyUI default light */
-	--color-border: hsl(220 13% 84%);
-	--color-input: hsl(220 13% 84%);
-	--color-ring: hsl(330 81% 60%);
-	--color-background: hsl(0 0% 100%);
-	--color-foreground: hsl(222 47% 11%);
-	--color-primary: hsl(330 81% 60%);
-	--color-primary-foreground: hsl(0 0% 100%);
-	--color-secondary: hsl(220 13% 91%);
-	--color-secondary-foreground: hsl(222 47% 11%);
-	--color-destructive: hsl(0 84% 60%);
-	--color-destructive-foreground: hsl(0 0% 100%);
-	--color-muted: hsl(220 14% 94%);
-	--color-muted-foreground: hsl(220 9% 46%);
-	--color-accent: hsl(220 14% 94%);
-	--color-accent-foreground: hsl(222 47% 11%);
-	--color-card: hsl(0 0% 100%);
-	--color-card-foreground: hsl(222 47% 11%);
-	--color-popover: hsl(0 0% 100%);
-	--color-popover-foreground: hsl(222 47% 11%);
-	--radius: 0.5rem;
-
-	/* Calendar dot / state colors */
-	--color-calendar-selected: hsl(330 81% 60%);
-	--color-calendar-today: hsl(220 13% 91%);
-	--color-dot-scheduled: hsl(210 100% 70%);
-	--color-dot-completed: hsl(142 71% 45%);
-	--color-dot-missed: hsl(0 84% 60%);
-}
-
-.dark {
-	/* Dark mode — matches DaisyUI "dark" theme: charcoal slate + purple primary */
+	/* Charcoal slate + pink primary. The app is dark only — there is no light palette. */
 	--color-border: hsl(220 17% 26%);
 	--color-input: hsl(220 17% 26%);
 	--color-ring: hsl(330 81% 60%);
@@ -52,9 +21,19 @@
 	--color-card-foreground: hsl(220 14% 90%);
 	--color-popover: hsl(220 18% 17%);
 	--color-popover-foreground: hsl(220 14% 90%);
+	--radius: 0.5rem;
 
-	/* Calendar */
+	/* Calendar dot / state colors */
+	--color-calendar-selected: hsl(330 81% 60%);
 	--color-calendar-today: hsl(220 17% 24%);
+	--color-dot-scheduled: hsl(210 100% 70%);
+	--color-dot-completed: hsl(142 71% 45%);
+	--color-dot-missed: hsl(0 84% 60%);
+}
+
+:root {
+	/* Renders native form controls, scrollbars and autofill dark to match. */
+	color-scheme: dark;
 }
 
 body {

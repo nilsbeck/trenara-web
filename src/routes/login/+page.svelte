@@ -9,10 +9,10 @@
 
 <div class="flex min-h-screen flex-col items-center justify-center px-6 py-12">
 	<div class="w-full max-w-sm space-y-8">
-		<div class="text-center">
-			<h1 class="text-3xl font-bold tracking-tight text-foreground">Trenara</h1>
-			<p class="mt-1 text-xs text-muted-foreground">Unofficial client</p>
-			<p class="mt-2 text-sm text-muted-foreground">Sign in to your account</p>
+		<div class="flex flex-col items-center text-center">
+			<img src="/logo.svg" alt="" width="64" height="64" class="mb-4 h-16 w-16" />
+			<h1 class="text-3xl font-bold tracking-tight text-foreground">Trainara</h1>
+			<p class="mt-1 text-xs text-muted-foreground">An unofficial Trenara client</p>
 		</div>
 
 		{#if form?.message}

@@ -1,4 +1,4 @@
-# Agent Instructions: Trenara web
+# Agent Instructions: Trainara web
 
 ## 1. Role & Context
 
