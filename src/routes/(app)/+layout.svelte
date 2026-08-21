@@ -169,4 +169,4 @@
 	</main>
 </div>
 
-<ChatBubble />
+<ChatBubble currentUserId={userData?.id ?? null} />
