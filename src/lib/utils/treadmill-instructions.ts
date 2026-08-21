@@ -95,7 +95,10 @@ function toInstruction(
 				: null;
 
 	return {
-		title: block.text?.split(/[\s:]+/)[0] || block.type || 'Run',
+		// Keep the block text whole. Splitting on whitespace to shorten it kept
+		// only the first token, which turns "Warm up" into "Warm" and
+		// "800m fast" into "800m" — the part that carries the instruction is lost.
+		title: block.text || block.type || 'Run',
 		type: block.type,
 		distance: block.distance || undefined,
 		time: block.time || undefined,
