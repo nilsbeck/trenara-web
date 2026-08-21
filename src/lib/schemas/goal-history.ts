@@ -1,18 +1,24 @@
 import { z } from 'zod';
 
-const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
-const timeRegex = /^\d{2}:\d{2}:\d{2}$/;
-const paceRegex = /^\d{2}:\d{2}$/;
+// Trenara reports durations and paces without zero-padding ("3:45:00", "5:20")
+// and sometimes appends the unit ("5:20 min/km"), so accept those shapes and
+// normalise before validating rather than rejecting them.
+const timeString = z.string().regex(/^\d{1,2}:\d{2}(:\d{2})?$/, 'Invalid time format');
+
+const paceString = z
+	.string()
+	.transform((value) => value.replace(/\s*min\/(km|mi)\s*/i, '').trim())
+	.pipe(z.string().regex(/^\d{1,2}:\d{2}$/, 'Invalid pace format'));
 
 export const archiveGoalSchema = z.object({
 	goal_name: z.string().min(1).max(255),
 	distance: z.string().min(1).max(50),
-	goal_time: z.string().regex(timeRegex, 'goal_time must be HH:MM:SS'),
-	goal_pace: z.string().regex(paceRegex, 'goal_pace must be MM:SS'),
-	final_predicted_time: z.string().regex(timeRegex).nullable().optional(),
-	final_predicted_pace: z.string().regex(paceRegex).nullable().optional(),
-	start_date: z.string().regex(dateRegex, 'start_date must be YYYY-MM-DD'),
-	end_date: z.string().regex(dateRegex, 'end_date must be YYYY-MM-DD')
+	goal_time: timeString,
+	goal_pace: paceString,
+	final_predicted_time: timeString.nullable().optional(),
+	final_predicted_pace: paceString.nullable().optional(),
+	start_date: z.string().date(),
+	end_date: z.string().date()
 });
 
 export type ArchiveGoalData = z.infer<typeof archiveGoalSchema>;

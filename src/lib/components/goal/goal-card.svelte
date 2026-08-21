@@ -124,19 +124,26 @@
 		}
 	}
 
-	/** Archive completed goal to history (best-effort, fire-and-forget). */
-	async function archiveCompletedGoal() {
-		if (!isPast) return;
-		const latest = await predictionHistoryDAO_getLatest();
+	/**
+	 * Archive the current goal to history (best-effort, fire-and-forget).
+	 *
+	 * Runs for active goals too, not just completed ones: Trenara's /api/goal
+	 * only ever returns the goal that is current right now, so a goal that is
+	 * replaced before anyone opens this page after its end date would otherwise
+	 * be lost for good. The API upserts on (user, name, end date), so repeat
+	 * visits refresh the stored final prediction instead of piling up rows.
+	 */
+	async function archiveGoal() {
+		const latest = await getLatestPrediction();
 		try {
-			await fetch('/api/v1/goal-history', {
+			const res = await fetch('/api/v1/goal-history', {
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json' },
 				body: JSON.stringify({
 					goal_name: goal.name,
 					distance: goal.distance,
 					goal_time: goal.time,
-					goal_pace: goal.pace,
+					goal_pace: stripPaceUnit(goal.pace),
 					final_predicted_time: latest?.time ?? userStats?.best_times?.time_for_goal ?? null,
 					final_predicted_pace:
 						latest?.pace ??
@@ -147,13 +154,17 @@
 					end_date: goal.end_date
 				})
 			});
-		} catch {
-			// Archiving is best-effort
+			if (!res.ok) {
+				// Not fatal, but silent failures here are why history stays empty.
+				console.warn(`Failed to archive goal (${res.status}): ${await res.text()}`);
+			}
+		} catch (e) {
+			console.warn('Failed to archive goal:', e);
 		}
 	}
 
 	/** Fetch the latest prediction to use as final prediction for archiving. */
-	async function predictionHistoryDAO_getLatest(): Promise<{ time: string; pace: string } | null> {
+	async function getLatestPrediction(): Promise<{ time: string; pace: string } | null> {
 		try {
 			const params = new URLSearchParams({ limit: '1' });
 			const res = await fetch(`/api/v1/prediction-history?${params}`);
@@ -175,7 +186,7 @@
 	onMount(() => {
 		loadPredictionHistory();
 		trackCurrentPrediction();
-		archiveCompletedGoal();
+		archiveGoal();
 	});
 </script>
 
