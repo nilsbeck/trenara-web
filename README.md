@@ -5,19 +5,19 @@
 > You need a valid Trenara subscription for the official app to use it.
 > All trademarks and product names belong to their respective owners.
 
-This is a personal project, primarily to learn building a web app with Svelte, TypeScript, and TailwindCSS.
+Trainara is a personal project, primarily to learn building a web app with Svelte, TypeScript, and TailwindCSS.
 Since I needed something worth working on, I decided to build a new UI for the best running app out there,
 [Trenara](https://www.trenara.com). That client is called **Trainara**. The latest version of the app is always automatically deployed to [https://trenara-web.vercel.app](https://trenara-web-two.vercel.app).
 
 ## Goals
 
 - Learn Svelte, TypeScript, and TailwindCSS
-- Improve the trenara experience for me (and frankly, any other trenara user)
+- Improve the Trenara experience for me (and frankly, any other trenara user)
 - Have fun
 
 ## What does it do differently?
 
-Currently, trenara is a mobile app for iOS and Android written in Flutter.
+Currently, Trenara is a mobile app for iOS and Android written in Flutter.
 It has some drawbacks, that this web app aims to improve and mitigate.
 
 - It is a mobile app only, so it's not accessible from everywhere
@@ -33,7 +33,7 @@ It has some drawbacks, that this web app aims to improve and mitigate.
 
 ## What is the status?
 
-The core functionality is implemented. The app reads data from the reverse-engineered trenara API and displays training, strength and nutrition data. You can add RPE feedback, move or delete trainings, add manual trainings, view training progress over time in a chart, and track your predicted race performance over time with an overall prediction history view.
+The core functionality is implemented. The app reads data from the reverse-engineered Trenara API and displays training, strength and nutrition data. You can add RPE feedback, move or delete trainings, view training progress over time in a chart, and track your predicted race performance over time with an overall prediction history view.
 
 ## What is the future?
 
