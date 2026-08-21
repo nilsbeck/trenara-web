@@ -60,6 +60,8 @@
 		user_id: number;
 		predicted_time: string;
 		predicted_pace: string;
+		predicted_time_10k: string | null;
+		predicted_pace_10k: string | null;
 		recorded_at: string;
 		created_at: string;
 	}
@@ -82,18 +84,34 @@
 			.filter((d): d is ChartDataPoint => d !== null);
 	}
 
-	/** POST current prediction to the API; only stores if changed. */
+	/** Strip any unit suffix (e.g. "min/km") before sending a pace to the API. */
+	function stripPaceUnit(pace: string): string {
+		return pace.replace(/\s*min\/km\s*/, '').trim();
+	}
+
+	/**
+	 * POST current prediction to the API; only stores if changed.
+	 *
+	 * Sends both the goal-distance prediction (what this card's chart plots) and
+	 * the 10K prediction, which the all-time history uses as a fixed reference so
+	 * the series stays comparable across goals of different distances.
+	 */
 	async function trackCurrentPrediction() {
 		const time = userStats?.best_times?.time_for_goal;
 		const rawPace = userStats?.best_times?.pace_for_goal;
 		if (!time || !rawPace) return;
-		// Strip any unit suffix (e.g. "min/km") before sending to API
-		const pace = rawPace.replace(/\s*min\/km\s*/, '').trim();
+		const pace = stripPaceUnit(rawPace);
+
+		const time10k = userStats?.best_times?.time_for_10;
+		const rawPace10k = userStats?.best_times?.pace_for_10;
+		const reference =
+			time10k && rawPace10k ? { time_10k: time10k, pace_10k: stripPaceUnit(rawPace10k) } : {};
+
 		try {
 			const res = await fetch('/api/v1/prediction-history', {
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ time, pace })
+				body: JSON.stringify({ time, pace, ...reference })
 			});
 			if (!res.ok) return; // non-critical, fail silently
 			const result = await res.json();
@@ -120,7 +138,11 @@
 					goal_time: goal.time,
 					goal_pace: goal.pace,
 					final_predicted_time: latest?.time ?? userStats?.best_times?.time_for_goal ?? null,
-					final_predicted_pace: latest?.pace ?? userStats?.best_times?.pace_for_goal?.replace(/\s*min\/km\s*/, '').trim() ?? null,
+					final_predicted_pace:
+						latest?.pace ??
+						(userStats?.best_times?.pace_for_goal
+							? stripPaceUnit(userStats.best_times.pace_for_goal)
+							: null),
 					start_date: goal.start_date,
 					end_date: goal.end_date
 				})
@@ -138,7 +160,10 @@
 			if (!res.ok) return null;
 			const { records } = await res.json();
 			if (records?.length > 0) {
-				return { time: records[records.length - 1].predicted_time, pace: records[records.length - 1].predicted_pace };
+				return {
+					time: records[records.length - 1].predicted_time,
+					pace: records[records.length - 1].predicted_pace
+				};
 			}
 			return null;
 		} catch {

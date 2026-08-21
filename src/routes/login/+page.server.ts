@@ -53,11 +53,7 @@ export const actions: Actions = {
 			...cookieOptions,
 			httpOnly: true
 		});
-		cookies.set(
-			`${TokenType.AccessToken}_expiration`,
-			expirationDate.toISOString(),
-			cookieOptions
-		);
+		cookies.set(`${TokenType.AccessToken}_expiration`, expirationDate.toISOString(), cookieOptions);
 		cookies.set(
 			`${TokenType.RefreshToken}_expiration`,
 			expirationDate.toISOString(),

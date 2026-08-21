@@ -9,14 +9,14 @@ export const GET: RequestHandler = async ({ url, locals }) => {
 	}
 
 	const startDateParam = url.searchParams.get('startDate');
-	const startDate = startDateParam && /^\d{4}-\d{2}-\d{2}$/.test(startDateParam)
-		? startDateParam
-		: undefined;
+	const startDate =
+		startDateParam && /^\d{4}-\d{2}-\d{2}$/.test(startDateParam) ? startDateParam : undefined;
 
-	const rawLimit = url.searchParams.get('limit') ? Number(url.searchParams.get('limit')) : undefined;
-	const limit = rawLimit && Number.isFinite(rawLimit) && rawLimit > 0
-		? Math.min(rawLimit, 200)
+	const rawLimit = url.searchParams.get('limit')
+		? Number(url.searchParams.get('limit'))
 		: undefined;
+	const limit =
+		rawLimit && Number.isFinite(rawLimit) && rawLimit > 0 ? Math.min(rawLimit, 200) : undefined;
 
 	const records = await predictionHistoryDAO.getUserPredictionHistory(locals.user.id, {
 		startDate,
@@ -38,7 +38,8 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 		error(400, 'Invalid request body');
 	}
 
-	const { time, pace } = result.data;
-	const storeResult = await predictionHistoryDAO.storeIfChanged(locals.user.id, time, pace);
+	const { time, pace, time_10k, pace_10k } = result.data;
+	const tenK = time_10k && pace_10k ? { time: time_10k, pace: pace_10k } : null;
+	const storeResult = await predictionHistoryDAO.storeIfChanged(locals.user.id, time, pace, tenK);
 	return json(storeResult);
 };

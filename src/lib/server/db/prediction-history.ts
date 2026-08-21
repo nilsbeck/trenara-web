@@ -1,12 +1,25 @@
 import { supabase } from './client';
 
-interface PredictionRecord {
+export interface PredictionRecord {
 	id: number;
 	user_id: number;
+	/** Prediction for the user's current goal distance. */
 	predicted_time: string;
 	predicted_pace: string;
+	/**
+	 * Prediction for a fixed 10K reference distance. Null on rows recorded
+	 * before 10K tracking was introduced.
+	 */
+	predicted_time_10k: string | null;
+	predicted_pace_10k: string | null;
 	recorded_at: string;
 	created_at: string;
+}
+
+/** The 10K reference prediction recorded alongside the goal prediction. */
+export interface TenKPrediction {
+	time: string;
+	pace: string;
 }
 
 interface PredictionHistoryOptions {
@@ -93,14 +106,39 @@ export class PredictionHistoryDAO {
 	async storeIfChanged(
 		userId: number,
 		time: string,
-		pace: string
+		pace: string,
+		tenK?: TenKPrediction | null
 	): Promise<{ stored: boolean; record?: PredictionRecord }> {
 		if (!PredictionValidator.validateTime(time) || !PredictionValidator.validatePace(pace)) {
 			return { stored: false };
 		}
 
+		// The 10K reference is secondary: if it is malformed we still record the
+		// goal prediction rather than losing the day entirely.
+		let reference: TenKPrediction | null = null;
+		if (tenK) {
+			if (
+				PredictionValidator.validateTime(tenK.time) &&
+				PredictionValidator.validatePace(tenK.pace)
+			) {
+				reference = tenK;
+			} else {
+				console.warn('Ignoring malformed 10K prediction:', tenK);
+			}
+		}
+
 		const latest = await this.getLatestPrediction(userId);
-		if (latest && latest.predicted_time === time && latest.predicted_pace === pace) {
+		const unchanged =
+			latest !== null &&
+			latest.predicted_time === time &&
+			latest.predicted_pace === pace &&
+			// A newly available 10K reference is a change worth recording, even
+			// when the goal prediction itself stayed put.
+			(reference === null ||
+				(latest.predicted_time_10k === reference.time &&
+					latest.predicted_pace_10k === reference.pace));
+
+		if (unchanged) {
 			return { stored: false };
 		}
 
@@ -112,6 +150,11 @@ export class PredictionHistoryDAO {
 					user_id: userId,
 					predicted_time: time,
 					predicted_pace: pace,
+					// Omitted when absent so an existing row's 10K values are not
+					// overwritten with null by the upsert.
+					...(reference
+						? { predicted_time_10k: reference.time, predicted_pace_10k: reference.pace }
+						: {}),
 					recorded_at: today
 				},
 				{ onConflict: 'user_id,recorded_at' }
@@ -126,7 +169,6 @@ export class PredictionHistoryDAO {
 
 		return { stored: true, record: data as PredictionRecord };
 	}
-
 }
 
 export const predictionHistoryDAO = PredictionHistoryDAO.getInstance();

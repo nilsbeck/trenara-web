@@ -1,7 +1,16 @@
 <script lang="ts">
 	import type { User } from '$lib/server/trenara/types';
 	import type { LayoutServerData } from './$types';
-	import { Loader2, ChevronDown, LogOut, LayoutDashboard, UserCircle, Target, History, Archive } from 'lucide-svelte';
+	import {
+		Loader2,
+		ChevronDown,
+		LogOut,
+		LayoutDashboard,
+		UserCircle,
+		Target,
+		History,
+		Archive
+	} from 'lucide-svelte';
 	import AddTrainingModal from '$lib/components/modals/add-training-modal.svelte';
 	import ChatBubble from '$lib/components/chat/chat-bubble.svelte';
 
@@ -11,11 +20,13 @@
 	let userData = $state<User | null>(null);
 
 	$effect(() => {
-		data.userData.then((u) => {
-			userData = u as User;
-		}).catch(() => {
-			userData = null;
-		});
+		data.userData
+			.then((u) => {
+				userData = u as User;
+			})
+			.catch(() => {
+				userData = null;
+			});
 	});
 
 	function toggleMenu() {
@@ -54,7 +65,10 @@
 					<button
 						type="button"
 						class="flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium text-foreground hover:bg-accent"
-						onclick={(e) => { e.stopPropagation(); toggleMenu(); }}
+						onclick={(e) => {
+							e.stopPropagation();
+							toggleMenu();
+						}}
 					>
 						{#if userData?.profile_picture?.path}
 							<img

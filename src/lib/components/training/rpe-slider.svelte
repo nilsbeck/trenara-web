@@ -12,16 +12,56 @@
 	} = $props();
 
 	const rpeData = [
-		{ title: 'Very light', description: 'Hardly any exertion, but more than sleeping or watching TV. Almost no muscle strain, just a very easy movement.' },
-		{ title: 'Light', description: 'Feels like you can maintain this for hours. Easy to breathe and carry a conversation. Muscles feel relaxed with minimal strain, i.e., a recovery or LSD run.' },
-		{ title: 'Light', description: 'Feels like you can maintain this for hours. Easy to breathe and carry a conversation. Muscles feel slightly engaged but not straining, i.e., a recovery or LSD run.' },
-		{ title: 'Moderate', description: 'Breathing heavily, can hold a short conversation. Muscles start to feel some strain but still somewhat comfortable. Becoming noticeably challenging, i.e. an extensive interval or tempo session.' },
-		{ title: 'Moderate', description: 'Breathing heavily, can hold a short conversation. Muscles are working harder and feeling some fatigue but still manageable. Becoming noticeably challenging, i.e. an extensive interval or tempo session.' },
-		{ title: 'Moderate', description: 'Breathing heavily, can hold a short conversation. Muscles are working significantly, starting to feel fatigue and burn, i.e. an extensive interval or tempo session.' },
-		{ title: 'Vigorous', description: 'Borderline uncomfortable. Short of breath, can speak a sentence. Muscles feel increasingly strained and tired but you can still push through, i.e. most tempo runs and intervals.' },
-		{ title: 'Vigorous', description: 'Borderline uncomfortable. Short of breath, can speak a sentence. Muscles are burning and it is harder to maintain pace, i.e. most tempo runs and intervals.' },
-		{ title: 'Very hard', description: 'Very difficult to maintain exercise intensity. Can barely breathe and speak only a few words. Muscles are near failure, feeling intense fatigue and strain, i.e. fast intervals.' },
-		{ title: 'Max effort', description: "Feels almost impossible to keep going. Completely out of breath, unable to talk. Muscles are screaming with fatigue and you can't push any harder. Can only maintain for a very short time, i.e. very hard intervals with a high pace and little recovery time." }
+		{
+			title: 'Very light',
+			description:
+				'Hardly any exertion, but more than sleeping or watching TV. Almost no muscle strain, just a very easy movement.'
+		},
+		{
+			title: 'Light',
+			description:
+				'Feels like you can maintain this for hours. Easy to breathe and carry a conversation. Muscles feel relaxed with minimal strain, i.e., a recovery or LSD run.'
+		},
+		{
+			title: 'Light',
+			description:
+				'Feels like you can maintain this for hours. Easy to breathe and carry a conversation. Muscles feel slightly engaged but not straining, i.e., a recovery or LSD run.'
+		},
+		{
+			title: 'Moderate',
+			description:
+				'Breathing heavily, can hold a short conversation. Muscles start to feel some strain but still somewhat comfortable. Becoming noticeably challenging, i.e. an extensive interval or tempo session.'
+		},
+		{
+			title: 'Moderate',
+			description:
+				'Breathing heavily, can hold a short conversation. Muscles are working harder and feeling some fatigue but still manageable. Becoming noticeably challenging, i.e. an extensive interval or tempo session.'
+		},
+		{
+			title: 'Moderate',
+			description:
+				'Breathing heavily, can hold a short conversation. Muscles are working significantly, starting to feel fatigue and burn, i.e. an extensive interval or tempo session.'
+		},
+		{
+			title: 'Vigorous',
+			description:
+				'Borderline uncomfortable. Short of breath, can speak a sentence. Muscles feel increasingly strained and tired but you can still push through, i.e. most tempo runs and intervals.'
+		},
+		{
+			title: 'Vigorous',
+			description:
+				'Borderline uncomfortable. Short of breath, can speak a sentence. Muscles are burning and it is harder to maintain pace, i.e. most tempo runs and intervals.'
+		},
+		{
+			title: 'Very hard',
+			description:
+				'Very difficult to maintain exercise intensity. Can barely breathe and speak only a few words. Muscles are near failure, feeling intense fatigue and strain, i.e. fast intervals.'
+		},
+		{
+			title: 'Max effort',
+			description:
+				"Feels almost impossible to keep going. Completely out of breath, unable to talk. Muscles are screaming with fatigue and you can't push any harder. Can only maintain for a very short time, i.e. very hard intervals with a high pace and little recovery time."
+		}
 	];
 
 	const currentRpe = $derived(rpeData[value - 1]);
@@ -53,8 +93,8 @@
 		{#each Array.from({ length: 10 }, (_, i) => i + 1) as n}
 			<span
 				class="w-5 text-center transition-all duration-150"
-				style={n === value ? `color: ${currentColor}; font-weight: 600;` : ''}
-			>{n}</span>
+				style={n === value ? `color: ${currentColor}; font-weight: 600;` : ''}>{n}</span
+			>
 		{/each}
 	</div>
 </div>

@@ -1,8 +1,16 @@
 import { z } from 'zod';
 
+const timeString = z.string().regex(/^\d{1,2}:\d{2}(:\d{2})?$/, 'Invalid time format');
+const paceString = z.string().regex(/^\d{1,2}:\d{2}$/, 'Invalid pace format');
+
 export const predictionRecordSchema = z.object({
-	time: z.string().regex(/^\d{1,2}:\d{2}(:\d{2})?$/, 'Invalid time format'),
-	pace: z.string().regex(/^\d{1,2}:\d{2}$/, 'Invalid pace format')
+	// Prediction for the user's current goal distance.
+	time: timeString,
+	pace: paceString,
+	// Fixed 10K reference, used for the comparable all-time history. Optional so
+	// clients that cannot resolve it still record the goal prediction.
+	time_10k: timeString.optional(),
+	pace_10k: paceString.optional()
 });
 
 export const predictionHistoryQuerySchema = z.object({

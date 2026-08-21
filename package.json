@@ -19,6 +19,7 @@
 		"test:coverage:open": "vitest run --coverage && open coverage/index.html"
 	},
 	"devDependencies": {
+		"@eslint/js": "^10.0.1",
 		"@sveltejs/adapter-vercel": "6.3.4",
 		"@sveltejs/kit": "2.70.2",
 		"@sveltejs/vite-plugin-svelte": "^7.1.2",

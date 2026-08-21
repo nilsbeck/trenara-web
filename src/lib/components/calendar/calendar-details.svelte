@@ -140,7 +140,10 @@
 					training={selectedTraining}
 					entry={selectedEntry}
 					isLoading={store.isLoading}
-					onScheduleChanged={() => { store.refresh(); invalidateAll(); }}
+					onScheduleChanged={() => {
+						store.refresh();
+						invalidateAll();
+					}}
 				/>
 			{:else if activeTab === Tab.Strength}
 				<StrengthDetails

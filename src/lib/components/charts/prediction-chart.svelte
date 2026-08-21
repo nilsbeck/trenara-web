@@ -13,11 +13,16 @@
 	let {
 		data = [],
 		loading = false,
-		error = null
+		error = null,
+		timeLabel = 'Predicted Time',
+		paceLabel = 'Predicted Pace'
 	}: {
 		data: ChartDataPoint[];
 		loading?: boolean;
 		error?: string | null;
+		/** Legend labels — the series differs per chart (goal distance vs. 10K). */
+		timeLabel?: string;
+		paceLabel?: string;
 	} = $props();
 
 	// Layout constants
@@ -150,11 +155,11 @@
 		<div class="mb-2 flex items-center justify-center gap-6 text-xs">
 			<span class="flex items-center gap-1.5">
 				<span class="inline-block h-0.5 w-4 rounded" style="background:{BLUE}"></span>
-				<span class="text-muted-foreground">Predicted Time</span>
+				<span class="text-muted-foreground">{timeLabel}</span>
 			</span>
 			<span class="flex items-center gap-1.5">
 				<span class="inline-block h-0.5 w-4 rounded" style="background:{RED}"></span>
-				<span class="text-muted-foreground">Predicted Pace</span>
+				<span class="text-muted-foreground">{paceLabel}</span>
 			</span>
 		</div>
 
@@ -170,7 +175,15 @@
 				<!-- Grid lines (horizontal) -->
 				{#each timeTicks as tick}
 					{@const y = timeY(tick)}
-					<line x1={0} y1={y} x2={cw} y2={y} stroke="currentColor" class="text-border" stroke-dasharray="3,3" />
+					<line
+						x1={0}
+						y1={y}
+						x2={cw}
+						y2={y}
+						stroke="currentColor"
+						class="text-border"
+						stroke-dasharray="3,3"
+					/>
 				{/each}
 
 				<!-- X axis -->
@@ -180,51 +193,71 @@
 				<line x1={0} y1={0} x2={0} y2={ch} stroke={BLUE} opacity="0.3" />
 				{#each timeTicks as tick}
 					{@const y = timeY(tick)}
-					<text x={-8} {y} text-anchor="end" dominant-baseline="middle" class="fill-current text-muted-foreground" style="font-size:10px">
+					<text
+						x={-8}
+						{y}
+						text-anchor="end"
+						dominant-baseline="middle"
+						class="fill-current text-muted-foreground"
+						style="font-size:10px"
+					>
 						{secondsToTimeString(tick)}
 					</text>
 				{/each}
-				<text
-					x={-8}
-					y={-12}
-					text-anchor="end"
-					style="font-size:9px;fill:{BLUE}"
-				>
-					Time
-				</text>
+				<text x={-8} y={-12} text-anchor="end" style="font-size:9px;fill:{BLUE}"> Time </text>
 
 				<!-- Y-right axis (pace) -->
 				<line x1={cw} y1={0} x2={cw} y2={ch} stroke={RED} opacity="0.3" />
 				{#each paceTicks as tick}
 					{@const y = paceY(tick)}
-					<text x={cw + 8} {y} text-anchor="start" dominant-baseline="middle" class="fill-current text-muted-foreground" style="font-size:10px">
+					<text
+						x={cw + 8}
+						{y}
+						text-anchor="start"
+						dominant-baseline="middle"
+						class="fill-current text-muted-foreground"
+						style="font-size:10px"
+					>
 						{secondsToPaceString(tick)}
 					</text>
 				{/each}
-				<text
-					x={cw + 8}
-					y={-12}
-					text-anchor="start"
-					style="font-size:9px;fill:{RED}"
-				>
-					Pace
-				</text>
+				<text x={cw + 8} y={-12} text-anchor="start" style="font-size:9px;fill:{RED}"> Pace </text>
 
 				<!-- X labels -->
 				{#each xLabels as { i, label }}
-					<text x={xPos(i)} y={ch + 20} text-anchor="middle" class="fill-current text-muted-foreground" style="font-size:10px">
+					<text
+						x={xPos(i)}
+						y={ch + 20}
+						text-anchor="middle"
+						class="fill-current text-muted-foreground"
+						style="font-size:10px"
+					>
 						{label}
 					</text>
 				{/each}
 
 				<!-- Time line -->
 				{#if data.length > 1}
-					<path d={timePath} fill="none" stroke={BLUE} stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round" />
+					<path
+						d={timePath}
+						fill="none"
+						stroke={BLUE}
+						stroke-width="2.5"
+						stroke-linejoin="round"
+						stroke-linecap="round"
+					/>
 				{/if}
 
 				<!-- Pace line -->
 				{#if data.length > 1}
-					<path d={pacePath} fill="none" stroke={RED} stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round" />
+					<path
+						d={pacePath}
+						fill="none"
+						stroke={RED}
+						stroke-width="2.5"
+						stroke-linejoin="round"
+						stroke-linecap="round"
+					/>
 				{/if}
 
 				<!-- Data points (time) -->
@@ -269,12 +302,35 @@
 					{@const hx = xPos(hoverIdx)}
 
 					<!-- Vertical guide line -->
-					<line x1={hx} y1={0} x2={hx} y2={ch} stroke="currentColor" class="text-muted-foreground" stroke-dasharray="2,2" opacity="0.5" />
+					<line
+						x1={hx}
+						y1={0}
+						x2={hx}
+						y2={ch}
+						stroke="currentColor"
+						class="text-muted-foreground"
+						stroke-dasharray="2,2"
+						opacity="0.5"
+					/>
 
 					<!-- Tooltip background -->
 					{@const tx = hx < cw / 2 ? hx + 12 : hx - 160}
-					<rect x={tx} y={4} width="148" height="60" rx="6" class="fill-current text-card" stroke="currentColor" stroke-width="0.5" />
-					<text x={tx + 8} y={20} style="font-size:11px;font-weight:600" class="fill-current text-card-foreground">
+					<rect
+						x={tx}
+						y={4}
+						width="148"
+						height="60"
+						rx="6"
+						class="fill-current text-card"
+						stroke="currentColor"
+						stroke-width="0.5"
+					/>
+					<text
+						x={tx + 8}
+						y={20}
+						style="font-size:11px;font-weight:600"
+						class="fill-current text-card-foreground"
+					>
 						{formatDateShort(d.date)}
 					</text>
 					<text x={tx + 8} y={36} style="font-size:10px" fill={BLUE}>

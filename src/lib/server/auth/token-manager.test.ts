@@ -104,7 +104,9 @@ describe('setToken', () => {
 
 		manager.setToken(cookies, 'tok', TokenType.AccessToken, expiresAt);
 
-		expect(cookies._store[`${TokenType.AccessToken}_expiration`].value).toBe(expiresAt.toISOString());
+		expect(cookies._store[`${TokenType.AccessToken}_expiration`].value).toBe(
+			expiresAt.toISOString()
+		);
 	});
 
 	it('sets path "/" and sameSite "lax" on both cookies', () => {

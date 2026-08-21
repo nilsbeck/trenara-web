@@ -1,6 +1,13 @@
 <script lang="ts">
 	import type { ScheduledTraining } from '$lib/server/trenara/types';
-	import { CalendarDays, ChevronLeft, ChevronRight, X, Loader2, TriangleAlert } from 'lucide-svelte';
+	import {
+		CalendarDays,
+		ChevronLeft,
+		ChevronRight,
+		X,
+		Loader2,
+		TriangleAlert
+	} from 'lucide-svelte';
 
 	let {
 		training,
@@ -188,12 +195,14 @@
 		submitting = true;
 		error = null;
 
-		const date = newDate ?? (() => {
-			const y = changeToDate.getFullYear();
-			const m = String(changeToDate.getMonth() + 1).padStart(2, '0');
-			const d = String(changeToDate.getDate()).padStart(2, '0');
-			return `${y}-${m}-${d}T00:00:00.000Z`;
-		})();
+		const date =
+			newDate ??
+			(() => {
+				const y = changeToDate.getFullYear();
+				const m = String(changeToDate.getMonth() + 1).padStart(2, '0');
+				const d = String(changeToDate.getDate()).padStart(2, '0');
+				return `${y}-${m}-${d}T00:00:00.000Z`;
+			})();
 
 		try {
 			const saveRes = await fetch('/api/v1/training/move', {
@@ -234,7 +243,9 @@
 <dialog
 	bind:this={dialogEl}
 	class="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-sm rounded-lg border border-border bg-card p-0 shadow-xl backdrop:bg-black/50"
-	onclick={(e) => { if (e.target === dialogEl) close(); }}
+	onclick={(e) => {
+		if (e.target === dialogEl) close();
+	}}
 >
 	<div class="p-6">
 		<!-- Header -->
@@ -316,7 +327,9 @@
 		{/if}
 
 		{#if warning}
-			<div class="mt-4 flex items-start gap-2 rounded-md bg-yellow-500/10 border border-yellow-500/30 p-3">
+			<div
+				class="mt-4 flex items-start gap-2 rounded-md bg-yellow-500/10 border border-yellow-500/30 p-3"
+			>
 				<TriangleAlert class="h-4 w-4 text-yellow-500 mt-0.5 shrink-0" />
 				<p class="text-sm text-yellow-500">{warning}</p>
 			</div>

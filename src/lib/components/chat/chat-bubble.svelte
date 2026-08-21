@@ -160,9 +160,7 @@
 
 				<!-- Read-only notice -->
 				<div class="border-t border-border px-4 py-2.5">
-					<p class="text-center text-xs text-muted-foreground">
-						Read-only view
-					</p>
+					<p class="text-center text-xs text-muted-foreground">Read-only view</p>
 				</div>
 			{/if}
 

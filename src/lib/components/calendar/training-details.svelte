@@ -108,7 +108,6 @@
 								.total_time}{training.training.total_time.split(':').length === 2 ? 'min' : 'h'}]
 						</span>
 					{/if}
-					
 				</div>
 			</div>
 

@@ -80,17 +80,22 @@ describe('GoalHistoryDAO.getGoalHistory', () => {
 		setThenResult([]);
 		await dao.getGoalHistory(42);
 		expect(mockFrom).toHaveBeenCalledWith('goal_history');
-		expect((mockChain.eq as ReturnType<typeof vi.fn>)).toHaveBeenCalledWith('user_id', 42);
+		expect(mockChain.eq as ReturnType<typeof vi.fn>).toHaveBeenCalledWith('user_id', 42);
 	});
 
 	it('orders results by end_date descending', async () => {
 		setThenResult([]);
 		await dao.getGoalHistory(42);
-		expect((mockChain.order as ReturnType<typeof vi.fn>)).toHaveBeenCalledWith('end_date', { ascending: false });
+		expect(mockChain.order as ReturnType<typeof vi.fn>).toHaveBeenCalledWith('end_date', {
+			ascending: false
+		});
 	});
 
 	it('returns records on success', async () => {
-		const records = [sampleRecord, { ...sampleRecord, id: 2, goal_name: '10km Race', end_date: '2025-04-15' }];
+		const records = [
+			sampleRecord,
+			{ ...sampleRecord, id: 2, goal_name: '10km Race', end_date: '2025-04-15' }
+		];
 		setThenResult(records);
 		const result = await dao.getGoalHistory(42);
 		expect(result).toHaveLength(2);
@@ -129,7 +134,7 @@ describe('GoalHistoryDAO.archiveGoal', () => {
 	it('upserts with the correct conflict key', async () => {
 		mockSingle.mockResolvedValueOnce({ data: sampleRecord, error: null });
 		await dao.archiveGoal(42, sampleGoal);
-		expect((mockChain.upsert as ReturnType<typeof vi.fn>)).toHaveBeenCalledWith(
+		expect(mockChain.upsert as ReturnType<typeof vi.fn>).toHaveBeenCalledWith(
 			expect.objectContaining({
 				user_id: 42,
 				goal_name: 'Marathon Berlin',
@@ -165,7 +170,7 @@ describe('GoalHistoryDAO.archiveGoal', () => {
 		});
 		const result = await dao.archiveGoal(42, goalWithoutPrediction);
 		expect(result.stored).toBe(true);
-		expect((mockChain.upsert as ReturnType<typeof vi.fn>)).toHaveBeenCalledWith(
+		expect(mockChain.upsert as ReturnType<typeof vi.fn>).toHaveBeenCalledWith(
 			expect.objectContaining({
 				final_predicted_time: null,
 				final_predicted_pace: null
