@@ -74,7 +74,7 @@
 
 		<p class="text-center text-xs text-muted-foreground">
 			This is an unofficial, unaffiliated third-party client. It is not developed, endorsed or
-			supported by Trenara.
+			supported by Trenara. A valid subscription for the official Trenara app is required to use it.
 		</p>
 	</div>
 </div>
