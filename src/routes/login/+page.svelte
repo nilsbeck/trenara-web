@@ -11,6 +11,7 @@
 	<div class="w-full max-w-sm space-y-8">
 		<div class="text-center">
 			<h1 class="text-3xl font-bold tracking-tight text-foreground">Trenara</h1>
+			<p class="mt-1 text-xs text-muted-foreground">Unofficial client</p>
 			<p class="mt-2 text-sm text-muted-foreground">Sign in to your account</p>
 		</div>
 
@@ -70,5 +71,10 @@
 				Sign in
 			</button>
 		</form>
+
+		<p class="text-center text-xs text-muted-foreground">
+			This is an unofficial, unaffiliated third-party client. It is not developed, endorsed or
+			supported by Trenara.
+		</p>
 	</div>
 </div>

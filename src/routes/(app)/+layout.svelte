@@ -58,6 +58,13 @@
 			</div>
 
 			<div class="flex items-center gap-2">
+				<span
+					class="hidden text-xs text-muted-foreground sm:inline"
+					title="This is an unofficial, unaffiliated third-party client. It is not developed, endorsed or supported by Trenara."
+				>
+					Unofficial client
+				</span>
+
 				<AddTrainingModal />
 
 				<!-- User Menu -->
@@ -90,6 +97,8 @@
 							onclick={(e) => e.stopPropagation()}
 							onkeydown={(e) => e.key === 'Escape' && closeMenu()}
 						>
+							<p class="px-4 py-2 text-xs text-muted-foreground sm:hidden">Unofficial client</p>
+							<div class="my-1 border-t border-border sm:hidden"></div>
 							<a
 								href="/dashboard"
 								class="flex items-center gap-2 px-4 py-2 text-sm text-foreground hover:bg-accent"
