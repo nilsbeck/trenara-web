@@ -1,10 +1,9 @@
 import { json, error } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { chatApi } from '$lib/server/trenara';
-import { TokenType } from '$lib/server/auth/types';
 
-export const GET: RequestHandler = async ({ params, url, cookies }) => {
-	if (!cookies.get(TokenType.AccessToken)) {
+export const GET: RequestHandler = async ({ params, url, cookies, locals }) => {
+	if (!locals.user) {
 		error(401, 'Unauthorized');
 	}
 
@@ -27,8 +26,8 @@ export const GET: RequestHandler = async ({ params, url, cookies }) => {
 	return json(data);
 };
 
-export const POST: RequestHandler = async ({ params, request, cookies }) => {
-	if (!cookies.get(TokenType.AccessToken)) {
+export const POST: RequestHandler = async ({ params, request, cookies, locals }) => {
+	if (!locals.user) {
 		error(401, 'Unauthorized');
 	}
 

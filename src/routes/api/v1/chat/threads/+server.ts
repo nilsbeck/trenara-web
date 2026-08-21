@@ -1,10 +1,9 @@
 import { json, error } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { chatApi } from '$lib/server/trenara';
-import { TokenType } from '$lib/server/auth/types';
 
-export const GET: RequestHandler = async ({ cookies }) => {
-	if (!cookies.get(TokenType.AccessToken)) {
+export const GET: RequestHandler = async ({ cookies, locals }) => {
+	if (!locals.user) {
 		error(401, 'Unauthorized');
 	}
 

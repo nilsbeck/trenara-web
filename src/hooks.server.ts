@@ -1,23 +1,28 @@
 import type { Handle } from '@sveltejs/kit';
 import { TokenManager } from '$lib/server/auth/token-manager';
 import { verifyUserId } from '$lib/server/auth/user-identity';
+import { userApi } from '$lib/server/trenara/user';
 
 const tokenManager = TokenManager.getInstance();
 
 const handleAuth: Handle = async ({ event, resolve }) => {
-	const accessToken = event.cookies.get('access-token');
+	event.locals.user = null;
 
-	if (!accessToken) {
-		event.locals.user = null;
+	// Nothing to restore — an anonymous visitor, not an expired session.
+	if (!tokenManager.hasSessionCookies(event.cookies)) {
 		return resolve(event);
 	}
 
-	// Validate and potentially refresh the token
-	const isValid = await tokenManager.validateAndRefreshToken(event.cookies);
+	const status = await tokenManager.validateAndRefreshToken(event.cookies);
 
-	if (!isValid) {
+	if (status === 'invalid') {
 		await tokenManager.logout(event.cookies);
-		event.locals.user = null;
+		return resolve(event);
+	}
+
+	// The auth API was unreachable. The session is probably still fine, so the
+	// cookies are left alone; this one request is just served unauthenticated.
+	if (status === 'unavailable') {
 		return resolve(event);
 	}
 
@@ -31,12 +36,26 @@ const handleAuth: Handle = async ({ event, resolve }) => {
 
 	if (userIdStr && userIdSig && userEmail && verifyUserId(userIdStr, userIdSig)) {
 		event.locals.user = { id: Number(userIdStr), email: userEmail };
-	} else {
-		// Sig missing or invalid (e.g. existing session predates this change).
-		// Clear the entire session so the login page doesn't redirect back to
-		// the app, which would cause an infinite redirect loop.
+
+		// Slide the identity cookies forward whenever the tokens are renewed so
+		// they never expire out from under a session that is still in use.
+		if (status === 'refreshed') {
+			tokenManager.setIdentityCookies(event.cookies, event.locals.user);
+		}
+
+		return resolve(event);
+	}
+
+	// The identity cookies are missing, expired or unsigned (for example a
+	// session created before signing existed, or after SESSION_SECRET was
+	// rotated). The tokens are still good, so rebuild the identity from the API
+	// rather than throwing the user back to the login screen.
+	try {
+		const user = await userApi.getCurrentUser(event.cookies);
+		tokenManager.setIdentityCookies(event.cookies, { id: user.id, email: user.email });
+		event.locals.user = { id: user.id, email: user.email };
+	} catch {
 		await tokenManager.logout(event.cookies);
-		event.locals.user = null;
 	}
 
 	return resolve(event);

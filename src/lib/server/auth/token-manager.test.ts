@@ -4,6 +4,10 @@ import { TokenType } from './types';
 
 vi.mock('$app/environment', () => ({ dev: false }));
 
+vi.mock('$lib/server/auth/user-identity', () => ({
+	signUserId: (id: number) => `sig-${id}`
+}));
+
 vi.mock('$lib/server/trenara/auth', () => ({
 	authApi: {
 		refreshToken: vi.fn(),
@@ -43,6 +47,9 @@ function makeCookies(initial: Record<string, string> = {}): Cookies & {
 let manager: import('./token-manager').TokenManager;
 
 beforeEach(async () => {
+	// Reset the module registry too: TokenManager is a singleton that caches
+	// in-flight refreshes, and that cache must not leak between tests.
+	vi.resetModules();
 	vi.clearAllMocks();
 	const mod = await import('./token-manager');
 	manager = mod.TokenManager.getInstance();
@@ -52,30 +59,27 @@ beforeEach(async () => {
 // setToken
 // ─────────────────────────────────────────────────────────────
 describe('setToken', () => {
-	it('includes maxAge on the token cookie', () => {
-		const now = 1_000_000_000_000;
-		vi.spyOn(Date, 'now').mockReturnValue(now);
-
+	it('outlives the access token so the refresh token survives it', async () => {
+		const { SESSION_COOKIE_MAX_AGE } = await import('./token-manager');
 		const cookies = makeCookies();
-		const expiresAt = new Date(now + 3600 * 1000); // 1 hour from now
+		const expiresAt = new Date(Date.now() + 3600 * 1000); // 1 hour from now
 
 		manager.setToken(cookies, 'tok', TokenType.AccessToken, expiresAt);
 
 		const opts = cookies._store[TokenType.AccessToken].options;
-		expect(opts.maxAge).toBe(3600);
+		expect(opts.maxAge).toBe(SESSION_COOKIE_MAX_AGE);
+		expect(SESSION_COOKIE_MAX_AGE).toBeGreaterThan(3600);
 	});
 
-	it('includes maxAge on the expiration cookie', () => {
-		const now = 1_000_000_000_000;
-		vi.spyOn(Date, 'now').mockReturnValue(now);
-
+	it('gives the expiration cookie the same long lifetime', async () => {
+		const { SESSION_COOKIE_MAX_AGE } = await import('./token-manager');
 		const cookies = makeCookies();
-		const expiresAt = new Date(now + 7200 * 1000); // 2 hours from now
+		const expiresAt = new Date(Date.now() + 7200 * 1000); // 2 hours from now
 
 		manager.setToken(cookies, 'tok', TokenType.RefreshToken, expiresAt);
 
 		const opts = cookies._store[`${TokenType.RefreshToken}_expiration`].options;
-		expect(opts.maxAge).toBe(7200);
+		expect(opts.maxAge).toBe(SESSION_COOKIE_MAX_AGE);
 	});
 
 	it('sets httpOnly on both the token cookie and the expiration cookie', () => {
@@ -126,24 +130,33 @@ describe('setToken', () => {
 // validateAndRefreshToken
 // ─────────────────────────────────────────────────────────────
 describe('validateAndRefreshToken', () => {
-	it('returns false when there is no access token', async () => {
+	it('returns invalid when there are no tokens at all', async () => {
 		const cookies = makeCookies();
-		expect(await manager.validateAndRefreshToken(cookies)).toBe(false);
+		expect(await manager.validateAndRefreshToken(cookies)).toBe('invalid');
 	});
 
-	it('returns false when the expiration cookie is missing', async () => {
-		const cookies = makeCookies({ 'access-token': 'tok' });
-		expect(await manager.validateAndRefreshToken(cookies)).toBe(false);
+	it('refreshes when the expiration cookie is missing', async () => {
+		const { authApi } = await import('$lib/server/trenara/auth');
+		vi.mocked(authApi.refreshToken).mockResolvedValueOnce({
+			access_token: 'new-access',
+			refresh_token: 'new-refresh',
+			expires_in: 86400,
+			token_type: 'Bearer'
+		});
+
+		const cookies = makeCookies({ 'access-token': 'tok', 'refresh-token': 'r' });
+
+		expect(await manager.validateAndRefreshToken(cookies)).toBe('refreshed');
 	});
 
-	it('returns true for a token more than 12 hours from expiry', async () => {
+	it('returns valid for a token more than 12 hours from expiry', async () => {
 		const expiry = new Date(Date.now() + 48 * 3600 * 1000); // 48 h from now
 		const cookies = makeCookies({
 			'access-token': 'tok',
 			'access-token_expiration': expiry.toISOString()
 		});
 
-		expect(await manager.validateAndRefreshToken(cookies)).toBe(true);
+		expect(await manager.validateAndRefreshToken(cookies)).toBe('valid');
 	});
 
 	it('correctly parses an ISO expiration string (regression: parseInt gave wrong year)', async () => {
@@ -169,9 +182,44 @@ describe('validateAndRefreshToken', () => {
 
 		const result = await manager.validateAndRefreshToken(cookies);
 
-		expect(result).toBe(true);
+		expect(result).toBe('refreshed');
 		expect(authApi.refreshToken).toHaveBeenCalledOnce();
 		expect(authApi.refreshToken).toHaveBeenCalledWith({ refresh_token: 'old-refresh' });
+	});
+
+	it('refreshes an already-expired access token instead of ending the session', async () => {
+		const { authApi } = await import('$lib/server/trenara/auth');
+		vi.mocked(authApi.refreshToken).mockResolvedValueOnce({
+			access_token: 'new-access',
+			refresh_token: 'new-refresh',
+			expires_in: 86400,
+			token_type: 'Bearer'
+		});
+
+		const expiry = new Date(Date.now() - 30 * 24 * 3600 * 1000); // a month ago
+		const cookies = makeCookies({
+			'access-token': 'old-tok',
+			'refresh-token': 'old-refresh',
+			'access-token_expiration': expiry.toISOString()
+		});
+
+		expect(await manager.validateAndRefreshToken(cookies)).toBe('refreshed');
+		expect(cookies._store['access-token'].value).toBe('new-access');
+	});
+
+	it('refreshes when the access token cookie is gone but the refresh token is not', async () => {
+		const { authApi } = await import('$lib/server/trenara/auth');
+		vi.mocked(authApi.refreshToken).mockResolvedValueOnce({
+			access_token: 'new-access',
+			refresh_token: 'new-refresh',
+			expires_in: 86400,
+			token_type: 'Bearer'
+		});
+
+		const cookies = makeCookies({ 'refresh-token': 'old-refresh' });
+
+		expect(await manager.validateAndRefreshToken(cookies)).toBe('refreshed');
+		expect(cookies._store['access-token'].value).toBe('new-access');
 	});
 
 	it('updates cookies with new tokens after a successful refresh', async () => {
@@ -196,7 +244,7 @@ describe('validateAndRefreshToken', () => {
 		expect(cookies._store['refresh-token'].value).toBe('new-refresh');
 	});
 
-	it('returns false when refresh token is missing during refresh', async () => {
+	it('returns invalid when the refresh token is missing during refresh', async () => {
 		const expiry = new Date(Date.now() + 6 * 3600 * 1000);
 		// No refresh-token in jar
 		const cookies = makeCookies({
@@ -204,21 +252,102 @@ describe('validateAndRefreshToken', () => {
 			'access-token_expiration': expiry.toISOString()
 		});
 
-		expect(await manager.validateAndRefreshToken(cookies)).toBe(false);
+		expect(await manager.validateAndRefreshToken(cookies)).toBe('invalid');
 	});
 
-	it('returns false when the refresh API call fails', async () => {
+	it('returns unavailable — not invalid — when the refresh call fails on the network', async () => {
 		const { authApi } = await import('$lib/server/trenara/auth');
-		vi.mocked(authApi.refreshToken).mockRejectedValueOnce(new Error('network error'));
+		const { NetworkError } = await import('$lib/server/trenara/client');
+		vi.mocked(authApi.refreshToken).mockRejectedValueOnce(new NetworkError('network error'));
 
 		const expiry = new Date(Date.now() + 6 * 3600 * 1000);
 		const cookies = makeCookies({
 			'access-token': 'old-tok',
-			'refresh-token': 'old-refresh',
+			'refresh-token': 'transient-refresh',
 			'access-token_expiration': expiry.toISOString()
 		});
 
-		expect(await manager.validateAndRefreshToken(cookies)).toBe(false);
+		expect(await manager.validateAndRefreshToken(cookies)).toBe('unavailable');
+		// The session cookies must survive so the next request can retry.
+		expect(cookies._store['refresh-token'].value).toBe('transient-refresh');
+	});
+
+	it('returns unavailable when the auth server returns a 5xx', async () => {
+		const { authApi } = await import('$lib/server/trenara/auth');
+		const { HttpError } = await import('$lib/server/trenara/client');
+		vi.mocked(authApi.refreshToken).mockRejectedValueOnce(new HttpError('boom', 502));
+
+		const cookies = makeCookies({ 'refresh-token': 'server-down-refresh' });
+
+		expect(await manager.validateAndRefreshToken(cookies)).toBe('unavailable');
+	});
+
+	it('returns invalid when the auth server rejects the refresh token', async () => {
+		const { authApi } = await import('$lib/server/trenara/auth');
+		const { AuthenticationError } = await import('$lib/server/trenara/client');
+		vi.mocked(authApi.refreshToken).mockRejectedValueOnce(new AuthenticationError('nope'));
+
+		const cookies = makeCookies({ 'refresh-token': 'revoked-refresh' });
+
+		expect(await manager.validateAndRefreshToken(cookies)).toBe('invalid');
+	});
+
+	it('refreshes once for concurrent requests carrying the same token', async () => {
+		const { authApi } = await import('$lib/server/trenara/auth');
+		vi.mocked(authApi.refreshToken).mockResolvedValue({
+			access_token: 'new-access',
+			refresh_token: 'new-refresh',
+			expires_in: 86400,
+			token_type: 'Bearer'
+		});
+
+		const jars = [1, 2, 3].map(() => makeCookies({ 'refresh-token': 'shared-refresh' }));
+		const results = await Promise.all(jars.map((c) => manager.validateAndRefreshToken(c)));
+
+		expect(results).toEqual(['refreshed', 'refreshed', 'refreshed']);
+		expect(authApi.refreshToken).toHaveBeenCalledOnce();
+		// Every jar gets the new tokens, not just the one that did the work.
+		for (const jar of jars) {
+			expect(jar._store['access-token'].value).toBe('new-access');
+		}
+	});
+
+	it("does not let one user's refresh satisfy another user's request", async () => {
+		const { authApi } = await import('$lib/server/trenara/auth');
+		vi.mocked(authApi.refreshToken).mockImplementation(async ({ refresh_token }) => ({
+			access_token: `access-for-${refresh_token}`,
+			refresh_token: `next-${refresh_token}`,
+			expires_in: 86400,
+			token_type: 'Bearer'
+		}));
+
+		const a = makeCookies({ 'refresh-token': 'user-a' });
+		const b = makeCookies({ 'refresh-token': 'user-b' });
+
+		await Promise.all([manager.validateAndRefreshToken(a), manager.validateAndRefreshToken(b)]);
+
+		expect(a._store['access-token'].value).toBe('access-for-user-a');
+		expect(b._store['access-token'].value).toBe('access-for-user-b');
+	});
+});
+
+// ─────────────────────────────────────────────────────────────
+// setIdentityCookies
+// ─────────────────────────────────────────────────────────────
+describe('setIdentityCookies', () => {
+	it('stores id, signature and email as long-lived httpOnly cookies', async () => {
+		const { SESSION_COOKIE_MAX_AGE } = await import('./token-manager');
+		const cookies = makeCookies();
+
+		manager.setIdentityCookies(cookies, { id: 42, email: 'user@example.com' });
+
+		expect(cookies._store.user_id.value).toBe('42');
+		expect(cookies._store.user_id_sig.value).toBe('sig-42');
+		expect(cookies._store.user_email.value).toBe('user@example.com');
+		for (const key of ['user_id', 'user_id_sig', 'user_email']) {
+			expect(cookies._store[key].options.httpOnly).toBe(true);
+			expect(cookies._store[key].options.maxAge).toBe(SESSION_COOKIE_MAX_AGE);
+		}
 	});
 });
 
@@ -251,6 +380,7 @@ describe('logout', () => {
 			'refresh-token': 'r',
 			'refresh-token_expiration': expiry,
 			user_id: '42',
+			user_id_sig: 'sig-42',
 			user_email: 'user@example.com',
 			trenara_session: 'sess'
 		});
@@ -263,6 +393,7 @@ describe('logout', () => {
 			'refresh-token',
 			'refresh-token_expiration',
 			'user_id',
+			'user_id_sig',
 			'user_email',
 			'trenara_session'
 		]) {
