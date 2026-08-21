@@ -14,9 +14,13 @@ import type { AuthResponse } from '$lib/server/trenara/types';
  * the refresh token; if the cookies carrying that refresh token died with the
  * access token, a user who did not open the app before the access token
  * expired would lose the refresh token too and be forced to log in again.
- * 400 days is the maximum lifetime browsers accept for a cookie.
+ *
+ * Browsers accept up to 400 days. This caps it well short of that: the cookie
+ * is a long-lived credential, and 90 days bounds how long a stolen cookie jar
+ * stays useful. The window slides on every token refresh, so it is 90 days of
+ * *inactivity* that ends a session, not 90 days of use.
  */
-export const SESSION_COOKIE_MAX_AGE = 400 * 24 * 60 * 60;
+export const SESSION_COOKIE_MAX_AGE = 90 * 24 * 60 * 60;
 
 /** Renew the access token once less than this much of its life is left. */
 const REFRESH_THRESHOLD_MS = 12 * 60 * 60 * 1000;
