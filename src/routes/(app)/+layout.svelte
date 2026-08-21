@@ -45,7 +45,15 @@
 	<nav class="border-b border-border bg-card">
 		<div class="mx-auto flex max-w-7xl items-center justify-between px-4 py-3 sm:px-6 lg:px-8">
 			<div class="flex items-center gap-4">
-				<a href="/dashboard" class="text-xl font-bold tracking-tight text-foreground">Trenara</a>
+				<div class="flex flex-col leading-tight">
+					<a href="/dashboard" class="text-xl font-bold tracking-tight text-foreground">Trenara</a>
+					<span
+						class="text-xs text-muted-foreground"
+						title="This is an unofficial, unaffiliated third-party client. It is not developed, endorsed or supported by Trenara."
+					>
+						Unofficial client
+					</span>
+				</div>
 				{#await data.userData}
 					<Loader2 class="h-4 w-4 animate-spin text-muted-foreground" />
 				{:then resolvedUser}

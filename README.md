@@ -1,5 +1,10 @@
 # About
 
+> **Disclaimer:** This is an **unofficial, unaffiliated third-party client** for Trenara.
+> It is not developed, endorsed, sponsored, or supported by Trenara in any way.
+> You need a valid Trenara subscription for the official app to use it.
+> All trademarks and product names belong to their respective owners.
+
 This is a personal project, primarily to learn building a web app with Svelte, TypeScript, and TailwindCSS.
 Since I needed something worth working on, I decided to build a new UI for the best running app out there,
 [Trenara](https://www.trenara.com). The latest version of the app is always automatically deployed to [https://trenara-web.vercel.app](https://trenara-web-two.vercel.app).
@@ -35,3 +40,12 @@ The core functionality is implemented. The app reads data from the reverse-engin
 - Implement API calls to set training circumstances
 - Improve dialog usages to change data
 - Increase test coverage
+
+## Disclaimer
+
+This project is an unofficial, unaffiliated third-party client for [Trenara](https://www.trenara.com).
+It is not affiliated with, endorsed by, or supported by Trenara. It is not a replacement for the
+official app and does not grant access on its own: you need a valid Trenara subscription for the
+official app to use it, and you sign in with your own Trenara account. It talks to a reverse-engineered
+API and may break at any time. Use it at your own risk. For official support, please use the official
+Trenara app.
