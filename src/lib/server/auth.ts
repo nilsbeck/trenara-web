@@ -1,16 +1,21 @@
 import type { Cookies } from '@sveltejs/kit';
 export enum TokenType {
-	AccessToken = "access-token", 
-	RefreshToken = "refresh-token"
+	AccessToken = 'access-token',
+	RefreshToken = 'refresh-token'
 }
 
-export function setSessionTokenCookie(cookies: Cookies, token: string, tokenType: TokenType, expiresAt: Date) {
-	cookies.set(tokenType+"_expiration", expiresAt.toISOString(), {
+export function setSessionTokenCookie(
+	cookies: Cookies,
+	token: string,
+	tokenType: TokenType,
+	expiresAt: Date
+) {
+	cookies.set(tokenType + '_expiration', expiresAt.toISOString(), {
 		expires: expiresAt,
 		path: '/',
 		secure: true,
 		sameSite: 'lax'
-	})
+	});
 	cookies.set(tokenType.toString(), token, {
 		expires: expiresAt,
 		path: '/',

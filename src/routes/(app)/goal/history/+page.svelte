@@ -47,7 +47,9 @@
 							<th class="px-4 py-2.5 text-left font-medium text-muted-foreground">Goal</th>
 							<th class="px-4 py-2.5 text-left font-medium text-muted-foreground">Distance</th>
 							<th class="px-4 py-2.5 text-left font-medium text-muted-foreground">Target Time</th>
-							<th class="px-4 py-2.5 text-left font-medium text-muted-foreground">Final Prediction</th>
+							<th class="px-4 py-2.5 text-left font-medium text-muted-foreground"
+								>Final Prediction</th
+							>
 							<th class="px-4 py-2.5 text-left font-medium text-muted-foreground">Period</th>
 							<th class="px-4 py-2.5 text-left font-medium text-muted-foreground">Duration</th>
 						</tr>
@@ -64,7 +66,9 @@
 								<td class="px-4 py-2.5 text-card-foreground">
 									{#if record.final_predicted_time}
 										<div>{record.final_predicted_time}</div>
-										<div class="text-xs text-muted-foreground">{record.final_predicted_pace ?? ''}</div>
+										<div class="text-xs text-muted-foreground">
+											{record.final_predicted_pace ?? ''}
+										</div>
 									{:else}
 										<span class="text-muted-foreground">N/A</span>
 									{/if}

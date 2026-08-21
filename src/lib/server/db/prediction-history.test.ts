@@ -149,7 +149,17 @@ describe('PredictionHistoryDAO.storeIfChanged', () => {
 		dao = PredictionHistoryDAO.getInstance();
 		vi.clearAllMocks();
 		// Restore default chain return values after clearAllMocks
-		for (const method of ['select', 'eq', 'order', 'limit', 'gte', 'lte', 'lt', 'upsert', 'delete']) {
+		for (const method of [
+			'select',
+			'eq',
+			'order',
+			'limit',
+			'gte',
+			'lte',
+			'lt',
+			'upsert',
+			'delete'
+		]) {
 			(mockChain[method] as ReturnType<typeof vi.fn>).mockReturnValue(mockChain);
 		}
 		mockFrom.mockReturnValue(mockChain);
@@ -351,7 +361,17 @@ describe('PredictionHistoryDAO.storeIfChanged', () => {
 describe('PredictionHistoryDAO.getUserPredictionHistory', () => {
 	let dao: PredictionHistoryDAO;
 
-	const CHAIN_METHODS = ['select', 'eq', 'order', 'limit', 'gte', 'lte', 'lt', 'upsert', 'delete'] as const;
+	const CHAIN_METHODS = [
+		'select',
+		'eq',
+		'order',
+		'limit',
+		'gte',
+		'lte',
+		'lt',
+		'upsert',
+		'delete'
+	] as const;
 
 	function setThenResult(data: unknown, error: unknown = null) {
 		(mockChain as Record<string, unknown>)['then'] = (
@@ -378,8 +398,22 @@ describe('PredictionHistoryDAO.getUserPredictionHistory', () => {
 
 	it('returns records on success', async () => {
 		const fakeRecords = [
-			{ id: 1, user_id: 1, predicted_time: '1:30:00', predicted_pace: '5:30', recorded_at: '2025-03-01', created_at: '2025-03-01T00:00:00Z' },
-			{ id: 2, user_id: 1, predicted_time: '1:28:00', predicted_pace: '5:20', recorded_at: '2025-03-05', created_at: '2025-03-05T00:00:00Z' }
+			{
+				id: 1,
+				user_id: 1,
+				predicted_time: '1:30:00',
+				predicted_pace: '5:30',
+				recorded_at: '2025-03-01',
+				created_at: '2025-03-01T00:00:00Z'
+			},
+			{
+				id: 2,
+				user_id: 1,
+				predicted_time: '1:28:00',
+				predicted_pace: '5:20',
+				recorded_at: '2025-03-05',
+				created_at: '2025-03-05T00:00:00Z'
+			}
 		];
 		setThenResult(fakeRecords);
 		const records = await dao.getUserPredictionHistory(1);
@@ -390,19 +424,25 @@ describe('PredictionHistoryDAO.getUserPredictionHistory', () => {
 	it('applies startDate filter (calls .gte on the chain)', async () => {
 		setThenResult([]);
 		await dao.getUserPredictionHistory(1, { startDate: '2025-03-01' });
-		expect((mockChain.gte as ReturnType<typeof vi.fn>)).toHaveBeenCalledWith('recorded_at', '2025-03-01');
+		expect(mockChain.gte as ReturnType<typeof vi.fn>).toHaveBeenCalledWith(
+			'recorded_at',
+			'2025-03-01'
+		);
 	});
 
 	it('applies endDate filter (calls .lte on the chain)', async () => {
 		setThenResult([]);
 		await dao.getUserPredictionHistory(1, { endDate: '2025-03-31' });
-		expect((mockChain.lte as ReturnType<typeof vi.fn>)).toHaveBeenCalledWith('recorded_at', '2025-03-31');
+		expect(mockChain.lte as ReturnType<typeof vi.fn>).toHaveBeenCalledWith(
+			'recorded_at',
+			'2025-03-31'
+		);
 	});
 
 	it('applies limit filter (calls .limit on the chain)', async () => {
 		setThenResult([]);
 		await dao.getUserPredictionHistory(1, { limit: 50 });
-		expect((mockChain.limit as ReturnType<typeof vi.fn>)).toHaveBeenCalledWith(50);
+		expect(mockChain.limit as ReturnType<typeof vi.fn>).toHaveBeenCalledWith(50);
 	});
 
 	it('returns empty array on supabase error', async () => {
@@ -418,7 +458,17 @@ describe('PredictionHistoryDAO.getUserPredictionHistory', () => {
 describe('PredictionHistoryDAO.storeIfChanged — upsert failure', () => {
 	let dao: PredictionHistoryDAO;
 
-	const CHAIN_METHODS = ['select', 'eq', 'order', 'limit', 'gte', 'lte', 'lt', 'upsert', 'delete'] as const;
+	const CHAIN_METHODS = [
+		'select',
+		'eq',
+		'order',
+		'limit',
+		'gte',
+		'lte',
+		'lt',
+		'upsert',
+		'delete'
+	] as const;
 
 	beforeEach(() => {
 		dao = PredictionHistoryDAO.getInstance();
@@ -448,7 +498,17 @@ describe('PredictionHistoryDAO.storeIfChanged — upsert failure', () => {
 describe('PredictionHistoryDAO — null-data defensive branches', () => {
 	let dao: PredictionHistoryDAO;
 
-	const CHAIN_METHODS = ['select', 'eq', 'order', 'limit', 'gte', 'lte', 'lt', 'upsert', 'delete'] as const;
+	const CHAIN_METHODS = [
+		'select',
+		'eq',
+		'order',
+		'limit',
+		'gte',
+		'lte',
+		'lt',
+		'upsert',
+		'delete'
+	] as const;
 
 	beforeEach(() => {
 		dao = PredictionHistoryDAO.getInstance();

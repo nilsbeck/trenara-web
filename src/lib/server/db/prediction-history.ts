@@ -169,7 +169,6 @@ export class PredictionHistoryDAO {
 
 		return { stored: true, record: data as PredictionRecord };
 	}
-
 }
 
 export const predictionHistoryDAO = PredictionHistoryDAO.getInstance();

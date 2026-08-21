@@ -71,7 +71,25 @@ describe('filteredTrainings', () => {
 						day: 20250305,
 						title: 'Easy run',
 						type: 'run',
-						training: { blocks: [], total_time: '45:00', total_time_in_sec: 2700, core_time: '30:00', core_time_in_sec: 1800, core_time_value: 30, core_time_unit: 'min', total_time_value: 45, total_time_unit: 'min', total_distance: '8km', total_distance_value: 8, total_distance_unit: 'km', total_distance_unit_text: 'km', core_distance: '6km', core_distance_value: 6, core_distance_unit: 'km', core_distance_unit_text: 'km' },
+						training: {
+							blocks: [],
+							total_time: '45:00',
+							total_time_in_sec: 2700,
+							core_time: '30:00',
+							core_time_in_sec: 1800,
+							core_time_value: 30,
+							core_time_unit: 'min',
+							total_time_value: 45,
+							total_time_unit: 'min',
+							total_distance: '8km',
+							total_distance_value: 8,
+							total_distance_unit: 'km',
+							total_distance_unit_text: 'km',
+							core_distance: '6km',
+							core_distance_value: 6,
+							core_distance_unit: 'km',
+							core_distance_unit_text: 'km'
+						},
 						can_be_edited: true,
 						description: '',
 						show_description_from: 0,
@@ -80,7 +98,16 @@ describe('filteredTrainings', () => {
 						hex_training: '#60a5fa',
 						hex_completed: null,
 						last_garmin_sync: '',
-						training_condition: { id: 1, height_difference: '0', surface: 'road', updated_at: 0, height: null, height_value: null, height_unit: null, height_unit_text: null }
+						training_condition: {
+							id: 1,
+							height_difference: '0',
+							surface: 'road',
+							updated_at: 0,
+							height: null,
+							height_value: null,
+							height_unit: null,
+							height_unit_text: null
+						}
 					}
 				]
 			})
@@ -101,7 +128,25 @@ describe('filteredTrainings', () => {
 						day: 20250306,
 						title: 'Tomorrow run',
 						type: 'run',
-						training: { blocks: [], total_time: '45:00', total_time_in_sec: 2700, core_time: '30:00', core_time_in_sec: 1800, core_time_value: 30, core_time_unit: 'min', total_time_value: 45, total_time_unit: 'min', total_distance: '8km', total_distance_value: 8, total_distance_unit: 'km', total_distance_unit_text: 'km', core_distance: '6km', core_distance_value: 6, core_distance_unit: 'km', core_distance_unit_text: 'km' },
+						training: {
+							blocks: [],
+							total_time: '45:00',
+							total_time_in_sec: 2700,
+							core_time: '30:00',
+							core_time_in_sec: 1800,
+							core_time_value: 30,
+							core_time_unit: 'min',
+							total_time_value: 45,
+							total_time_unit: 'min',
+							total_distance: '8km',
+							total_distance_value: 8,
+							total_distance_unit: 'km',
+							total_distance_unit_text: 'km',
+							core_distance: '6km',
+							core_distance_value: 6,
+							core_distance_unit: 'km',
+							core_distance_unit_text: 'km'
+						},
 						can_be_edited: true,
 						description: '',
 						show_description_from: 0,
@@ -110,7 +155,16 @@ describe('filteredTrainings', () => {
 						hex_training: '#60a5fa',
 						hex_completed: null,
 						last_garmin_sync: '',
-						training_condition: { id: 1, height_difference: '0', surface: 'road', updated_at: 0, height: null, height_value: null, height_unit: null, height_unit_text: null }
+						training_condition: {
+							id: 1,
+							height_difference: '0',
+							surface: 'road',
+							updated_at: 0,
+							height: null,
+							height_value: null,
+							height_unit: null,
+							height_unit_text: null
+						}
 					}
 				]
 			})
@@ -154,7 +208,25 @@ describe('getTrainingStatusForDate', () => {
 						day: Number(dateStr.replace(/-/g, '')),
 						title: 'Future run',
 						type: 'run',
-						training: { blocks: [], total_time: '45:00', total_time_in_sec: 2700, core_time: '30:00', core_time_in_sec: 1800, core_time_value: 30, core_time_unit: 'min', total_time_value: 45, total_time_unit: 'min', total_distance: '8km', total_distance_value: 8, total_distance_unit: 'km', total_distance_unit_text: 'km', core_distance: '6km', core_distance_value: 6, core_distance_unit: 'km', core_distance_unit_text: 'km' },
+						training: {
+							blocks: [],
+							total_time: '45:00',
+							total_time_in_sec: 2700,
+							core_time: '30:00',
+							core_time_in_sec: 1800,
+							core_time_value: 30,
+							core_time_unit: 'min',
+							total_time_value: 45,
+							total_time_unit: 'min',
+							total_distance: '8km',
+							total_distance_value: 8,
+							total_distance_unit: 'km',
+							total_distance_unit_text: 'km',
+							core_distance: '6km',
+							core_distance_value: 6,
+							core_distance_unit: 'km',
+							core_distance_unit_text: 'km'
+						},
 						can_be_edited: true,
 						description: '',
 						show_description_from: 0,
@@ -163,7 +235,16 @@ describe('getTrainingStatusForDate', () => {
 						hex_training: '#60a5fa',
 						hex_completed: null,
 						last_garmin_sync: '',
-						training_condition: { id: 1, height_difference: '0', surface: 'road', updated_at: 0, height: null, height_value: null, height_unit: null, height_unit_text: null }
+						training_condition: {
+							id: 1,
+							height_difference: '0',
+							surface: 'road',
+							updated_at: 0,
+							height: null,
+							height_value: null,
+							height_unit: null,
+							height_unit_text: null
+						}
 					}
 				]
 			})
@@ -458,7 +539,9 @@ describe('selectedRunEntries', () => {
 
 	it('excludes strength entries from selectedRunEntries', () => {
 		const store = createCalendarStore(new Date('2025-03-05'));
-		store.setSchedule(makeSchedule({ entries: [makeEntry('strength', '2025-03-05T08:00:00.000Z')] }));
+		store.setSchedule(
+			makeSchedule({ entries: [makeEntry('strength', '2025-03-05T08:00:00.000Z')] })
+		);
 		store.setSelectedDate({ year: 2025, month: 2, day: 5 });
 		expect(store.selectedRunEntries).toHaveLength(0);
 	});
@@ -476,7 +559,21 @@ describe('selectedRunEntries', () => {
 // ─────────────────────────────────────────────────────────────
 describe('getTrainingStatusForDate — strength and missed', () => {
 	function makeStrengthTraining(day: string) {
-		return { id: 1, strength_id: null, type_id: 1, title: 'Core', training_type: 'strength', description: '', icon_url: '', day, time: '08:00', rest_between_sets: 60, rest_between_exercises: 90, exercises: [], accessories: [] };
+		return {
+			id: 1,
+			strength_id: null,
+			type_id: 1,
+			title: 'Core',
+			training_type: 'strength',
+			description: '',
+			icon_url: '',
+			day,
+			time: '08:00',
+			rest_between_sets: 60,
+			rest_between_exercises: 90,
+			exercises: [],
+			accessories: []
+		};
 	}
 
 	it('returns "scheduled" for a future strength training', () => {
@@ -488,43 +585,115 @@ describe('getTrainingStatusForDate — strength and missed', () => {
 
 		const store = createCalendarStore(futureDate);
 		store.setSchedule(makeSchedule({ strength_trainings: [makeStrengthTraining(dateStr)] }));
-		expect(store.getTrainingStatusForDate({ type: 'strength', day: futureDate.getDate() })).toBe('scheduled');
+		expect(store.getTrainingStatusForDate({ type: 'strength', day: futureDate.getDate() })).toBe(
+			'scheduled'
+		);
 	});
 
 	it('returns "completed" when a strength entry exists', () => {
 		const store = createCalendarStore(new Date('2025-01-10'));
-		store.setSchedule(makeSchedule({
-			entries: [{
-				id: 20, name: 'Strength', start_time: '2025-01-10T08:00:00.000Z', type: 'strength',
-				icon: '', total_altitude: null, avg_heartbeat: null, rpe: null, comment: null,
-				strava: false, strava_url: null, garmin: false, polar: false, trenara: true,
-				distance: '0km', distance_value: 0, distance_unit: 'km', distance_unit_text: 'km',
-				time: '30:00', time_in_sec: 1800, time_value: 30, time_unit: 'min',
-				pace: '-', pace_value: 0, pace_unit: 'min/km', gps_media: [], notification: null, laps: [], splits: []
-			}]
-		}));
+		store.setSchedule(
+			makeSchedule({
+				entries: [
+					{
+						id: 20,
+						name: 'Strength',
+						start_time: '2025-01-10T08:00:00.000Z',
+						type: 'strength',
+						icon: '',
+						total_altitude: null,
+						avg_heartbeat: null,
+						rpe: null,
+						comment: null,
+						strava: false,
+						strava_url: null,
+						garmin: false,
+						polar: false,
+						trenara: true,
+						distance: '0km',
+						distance_value: 0,
+						distance_unit: 'km',
+						distance_unit_text: 'km',
+						time: '30:00',
+						time_in_sec: 1800,
+						time_value: 30,
+						time_unit: 'min',
+						pace: '-',
+						pace_value: 0,
+						pace_unit: 'min/km',
+						gps_media: [],
+						notification: null,
+						laps: [],
+						splits: []
+					}
+				]
+			})
+		);
 		expect(store.getTrainingStatusForDate({ type: 'strength', day: 10 })).toBe('completed');
 	});
 
 	it('returns "missed" for a past scheduled run with no entry', () => {
 		// Use January 2025 (clearly in the past) as both the store view month and training date
 		const store = createCalendarStore(new Date('2025-01-15'));
-		store.setSchedule(makeSchedule({
-			trainings: [{
-				id: 5, day_long: '2025-01-05', day: 20250105, title: 'Past run', type: 'run',
-				training: { blocks: [], total_time: '45:00', total_time_in_sec: 2700, core_time: '30:00', core_time_in_sec: 1800, core_time_value: 30, core_time_unit: 'min', total_time_value: 45, total_time_unit: 'min', total_distance: '8km', total_distance_value: 8, total_distance_unit: 'km', total_distance_unit_text: 'km', core_distance: '6km', core_distance_value: 6, core_distance_unit: 'km', core_distance_unit_text: 'km' },
-				can_be_edited: false, description: '', show_description_from: 0, nutritional_advice: '',
-				icon_url: '', hex_training: '#60a5fa', hex_completed: null, last_garmin_sync: '',
-				training_condition: { id: 1, height_difference: '0', surface: 'road', updated_at: 0, height: null, height_value: null, height_unit: null, height_unit_text: null }
-			}],
-			entries: []
-		}));
+		store.setSchedule(
+			makeSchedule({
+				trainings: [
+					{
+						id: 5,
+						day_long: '2025-01-05',
+						day: 20250105,
+						title: 'Past run',
+						type: 'run',
+						training: {
+							blocks: [],
+							total_time: '45:00',
+							total_time_in_sec: 2700,
+							core_time: '30:00',
+							core_time_in_sec: 1800,
+							core_time_value: 30,
+							core_time_unit: 'min',
+							total_time_value: 45,
+							total_time_unit: 'min',
+							total_distance: '8km',
+							total_distance_value: 8,
+							total_distance_unit: 'km',
+							total_distance_unit_text: 'km',
+							core_distance: '6km',
+							core_distance_value: 6,
+							core_distance_unit: 'km',
+							core_distance_unit_text: 'km'
+						},
+						can_be_edited: false,
+						description: '',
+						show_description_from: 0,
+						nutritional_advice: '',
+						icon_url: '',
+						hex_training: '#60a5fa',
+						hex_completed: null,
+						last_garmin_sync: '',
+						training_condition: {
+							id: 1,
+							height_difference: '0',
+							surface: 'road',
+							updated_at: 0,
+							height: null,
+							height_value: null,
+							height_unit: null,
+							height_unit_text: null
+						}
+					}
+				],
+				entries: []
+			})
+		);
 		expect(store.getTrainingStatusForDate({ type: 'run', day: 5 })).toBe('missed');
 	});
 
 	it('returns "missed" for a past scheduled strength with no entry', () => {
 		const store = createCalendarStore(new Date('2025-01-15'));
-		store.setSchedule(makeSchedule({ strength_trainings: [makeStrengthTraining('2025-01-05')], entries: [] }));
+		store.setSchedule(
+			makeSchedule({ strength_trainings: [makeStrengthTraining('2025-01-05')], entries: [] })
+		);
 		expect(store.getTrainingStatusForDate({ type: 'strength', day: 5 })).toBe('missed');
 	});
 });
@@ -547,15 +716,56 @@ describe('hasTrainingEntriesForDate', () => {
 		const dateStr = `${yyyy}-${mm}-${dd}`;
 
 		const store = createCalendarStore(futureDate);
-		store.setSchedule(makeSchedule({
-			trainings: [{
-				id: 1, day_long: dateStr, day: Number(dateStr.replace(/-/g, '')), title: 'Run', type: 'run',
-				training: { blocks: [], total_time: '45:00', total_time_in_sec: 2700, core_time: '30:00', core_time_in_sec: 1800, core_time_value: 30, core_time_unit: 'min', total_time_value: 45, total_time_unit: 'min', total_distance: '8km', total_distance_value: 8, total_distance_unit: 'km', total_distance_unit_text: 'km', core_distance: '6km', core_distance_value: 6, core_distance_unit: 'km', core_distance_unit_text: 'km' },
-				can_be_edited: true, description: '', show_description_from: 0, nutritional_advice: '',
-				icon_url: '', hex_training: '#60a5fa', hex_completed: null, last_garmin_sync: '',
-				training_condition: { id: 1, height_difference: '0', surface: 'road', updated_at: 0, height: null, height_value: null, height_unit: null, height_unit_text: null }
-			}]
-		}));
+		store.setSchedule(
+			makeSchedule({
+				trainings: [
+					{
+						id: 1,
+						day_long: dateStr,
+						day: Number(dateStr.replace(/-/g, '')),
+						title: 'Run',
+						type: 'run',
+						training: {
+							blocks: [],
+							total_time: '45:00',
+							total_time_in_sec: 2700,
+							core_time: '30:00',
+							core_time_in_sec: 1800,
+							core_time_value: 30,
+							core_time_unit: 'min',
+							total_time_value: 45,
+							total_time_unit: 'min',
+							total_distance: '8km',
+							total_distance_value: 8,
+							total_distance_unit: 'km',
+							total_distance_unit_text: 'km',
+							core_distance: '6km',
+							core_distance_value: 6,
+							core_distance_unit: 'km',
+							core_distance_unit_text: 'km'
+						},
+						can_be_edited: true,
+						description: '',
+						show_description_from: 0,
+						nutritional_advice: '',
+						icon_url: '',
+						hex_training: '#60a5fa',
+						hex_completed: null,
+						last_garmin_sync: '',
+						training_condition: {
+							id: 1,
+							height_difference: '0',
+							surface: 'road',
+							updated_at: 0,
+							height: null,
+							height_value: null,
+							height_unit: null,
+							height_unit_text: null
+						}
+					}
+				]
+			})
+		);
 		expect(store.hasTrainingEntriesForDate({ type: 'run', day: futureDate.getDate() })).toBe(true);
 	});
 });

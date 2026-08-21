@@ -110,14 +110,10 @@ export function createCalendarStore(initialDate: Date) {
 	const scheduleCache = new Map<string, Schedule>();
 
 	// ── Pre-computed status index (rebuilt when schedule changes) ──
-	const statusIndex = $derived<StatusIndex | null>(
-		schedule ? buildStatusIndex(schedule) : null
-	);
+	const statusIndex = $derived<StatusIndex | null>(schedule ? buildStatusIndex(schedule) : null);
 
 	// ── Pre-computed entry date cache ─────────────────────────────
-	const entryDates = $derived<Map<Entry, string>>(
-		buildEntryDateCache(schedule?.entries ?? [])
-	);
+	const entryDates = $derived<Map<Entry, string>>(buildEntryDateCache(schedule?.entries ?? []));
 
 	// Derived: selected date as formatted string
 	const selectedDateString = $derived(
@@ -149,8 +145,7 @@ export function createCalendarStore(initialDate: Date) {
 		const isSunday = firstDayOfMonth === 0;
 		const offsetAtStart = isSunday ? firstDayOfMonth + 6 : firstDayOfMonth - 1;
 
-		let daysInCurrentMonthWithOffset =
-			new Date(year, month + 1, 0).getDate() + firstDayOfMonth - 1;
+		let daysInCurrentMonthWithOffset = new Date(year, month + 1, 0).getDate() + firstDayOfMonth - 1;
 		if (isSunday) {
 			daysInCurrentMonthWithOffset += 7;
 		}

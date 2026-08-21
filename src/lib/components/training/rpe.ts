@@ -9,5 +9,5 @@ export const rpeColors = [
 	'#ef4444', // 7 - red
 	'#dc2626', // 8 - red-600
 	'#b91c1c', // 9 - red-700
-	'#7f1d1d'  // 10 - red-900
+	'#7f1d1d' // 10 - red-900
 ] as const;

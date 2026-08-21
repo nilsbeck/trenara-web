@@ -123,7 +123,10 @@ export class TokenManager {
 	async authenticate(
 		email: string,
 		password: string
-	): Promise<{ success: boolean; cookies?: { access_token: string; refresh_token: string; expiration: Date } }> {
+	): Promise<{
+		success: boolean;
+		cookies?: { access_token: string; refresh_token: string; expiration: Date };
+	}> {
 		try {
 			const response: AuthResponse = await authApi.login({
 				username: email,

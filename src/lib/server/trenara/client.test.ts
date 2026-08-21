@@ -8,7 +8,10 @@ import { HttpError, AuthenticationError, NetworkError, TimeoutError } from './cl
 // ─────────────────────────────────────────────────────────────
 
 // Helper to build a mock Response
-function mockResponse(body: unknown, init: ResponseInit & { headers?: Record<string, string> } = {}) {
+function mockResponse(
+	body: unknown,
+	init: ResponseInit & { headers?: Record<string, string> } = {}
+) {
 	const status = init.status ?? 200;
 	const headers = new Headers(init.headers ?? { 'content-type': 'application/json' });
 	return {
@@ -221,9 +224,7 @@ describe('retry logic', () => {
 
 	it('does not retry on 401', async () => {
 		vi.mocked(fetch).mockResolvedValueOnce(mockResponse({}, { status: 401 }));
-		await expect(fetchClient.get('/api/auth', { retries: 2 })).rejects.toThrow(
-			AuthenticationError
-		);
+		await expect(fetchClient.get('/api/auth', { retries: 2 })).rejects.toThrow(AuthenticationError);
 		expect(fetch).toHaveBeenCalledTimes(1);
 	});
 });

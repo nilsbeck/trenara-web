@@ -111,9 +111,9 @@
 				{/if}
 
 				<p class="text-2xl font-semibold leading-snug text-foreground">
-					{current.title} 
+					{current.title}
 					{#if current.repeatIndex}
-							· Rep {current.repeatIndex}/{current.repeatTotal}
+						· Rep {current.repeatIndex}/{current.repeatTotal}
 					{/if}
 				</p>
 
@@ -128,7 +128,9 @@
 				{/if}
 
 				{#if current.distance}
-					<p class="text-2xl font-semibold tabular-nums text-muted-foreground">Step:{current.distance}</p>
+					<p class="text-2xl font-semibold tabular-nums text-muted-foreground">
+						Step:{current.distance}
+					</p>
 				{/if}
 
 				{#if current.time}

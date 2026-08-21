@@ -38,10 +38,14 @@ export const trainingApi = {
 	},
 
 	async putFeedback(cookies: Cookies, entryId: number, feedback: number): Promise<unknown> {
-		return fetchClient.put(`/api/entries/${entryId}/rpe`, { rpe: feedback }, {
-			headers: bearerHeader(cookies),
-			cookies
-		});
+		return fetchClient.put(
+			`/api/entries/${entryId}/rpe`,
+			{ rpe: feedback },
+			{
+				headers: bearerHeader(cookies),
+				cookies
+			}
+		);
 	},
 
 	async testChangeDate(

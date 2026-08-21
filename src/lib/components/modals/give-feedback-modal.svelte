@@ -75,7 +75,9 @@
 <dialog
 	bind:this={dialogEl}
 	class="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-md rounded-lg border border-border bg-card p-0 shadow-xl backdrop:bg-black/50"
-	onclick={(e) => { if (e.target === dialogEl) close(); }}
+	onclick={(e) => {
+		if (e.target === dialogEl) close();
+	}}
 >
 	<div class="p-6">
 		<div class="flex items-center justify-between mb-4">
@@ -131,7 +133,12 @@
 	}
 
 	@keyframes star-pulse {
-		0%, 100% { opacity: 1; }
-		50% { opacity: 0.5; }
+		0%,
+		100% {
+			opacity: 1;
+		}
+		50% {
+			opacity: 0.5;
+		}
 	}
 </style>

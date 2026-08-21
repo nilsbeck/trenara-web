@@ -160,7 +160,10 @@
 			if (!res.ok) return null;
 			const { records } = await res.json();
 			if (records?.length > 0) {
-				return { time: records[records.length - 1].predicted_time, pace: records[records.length - 1].predicted_pace };
+				return {
+					time: records[records.length - 1].predicted_time,
+					pace: records[records.length - 1].predicted_pace
+				};
 			}
 			return null;
 		} catch {

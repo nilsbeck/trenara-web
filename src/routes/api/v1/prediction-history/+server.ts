@@ -9,14 +9,14 @@ export const GET: RequestHandler = async ({ url, locals }) => {
 	}
 
 	const startDateParam = url.searchParams.get('startDate');
-	const startDate = startDateParam && /^\d{4}-\d{2}-\d{2}$/.test(startDateParam)
-		? startDateParam
-		: undefined;
+	const startDate =
+		startDateParam && /^\d{4}-\d{2}-\d{2}$/.test(startDateParam) ? startDateParam : undefined;
 
-	const rawLimit = url.searchParams.get('limit') ? Number(url.searchParams.get('limit')) : undefined;
-	const limit = rawLimit && Number.isFinite(rawLimit) && rawLimit > 0
-		? Math.min(rawLimit, 200)
+	const rawLimit = url.searchParams.get('limit')
+		? Number(url.searchParams.get('limit'))
 		: undefined;
+	const limit =
+		rawLimit && Number.isFinite(rawLimit) && rawLimit > 0 ? Math.min(rawLimit, 200) : undefined;
 
 	const records = await predictionHistoryDAO.getUserPredictionHistory(locals.user.id, {
 		startDate,

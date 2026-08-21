@@ -27,9 +27,7 @@ export const GET: RequestHandler = async ({ url, cookies }) => {
 	const firstDayOfMonth = firstDayOfMonthDate.getDay();
 
 	const nextMonday = new Date(firstDayOfMonthDate);
-	nextMonday.setDate(
-		nextMonday.getDate() + ((1 + 7 - firstDayOfMonthDate.getDay()) % 7 || 7)
-	);
+	nextMonday.setDate(nextMonday.getDate() + ((1 + 7 - firstDayOfMonthDate.getDay()) % 7 || 7));
 	const offsetAtStart = firstDayOfMonth === 0 ? firstDayOfMonth + 6 : firstDayOfMonth - 1;
 	const weeksInMonth = Math.ceil((offsetAtStart + daysInMonth(year, month)) / 7);
 
@@ -42,9 +40,7 @@ export const GET: RequestHandler = async ({ url, cookies }) => {
 	}
 
 	const schedules = await Promise.all(
-		timestamps.map((ts) =>
-			trainingApi.getSchedule(cookies, Math.floor(ts.getTime() / 1000))
-		)
+		timestamps.map((ts) => trainingApi.getSchedule(cookies, Math.floor(ts.getTime() / 1000)))
 	);
 
 	const merged = {

@@ -110,9 +110,9 @@ describe('predictionHistoryQuerySchema', () => {
 	});
 
 	it('rejects invalid date format for start_date', () => {
-		expect(
-			predictionHistoryQuerySchema.safeParse({ start_date: '01/01/2025' }).success
-		).toBe(false);
+		expect(predictionHistoryQuerySchema.safeParse({ start_date: '01/01/2025' }).success).toBe(
+			false
+		);
 	});
 
 	it('rejects limit above 500', () => {

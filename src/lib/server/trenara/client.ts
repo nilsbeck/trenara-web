@@ -30,7 +30,10 @@ export class AuthenticationError extends HttpError {
 }
 
 export class NetworkError extends Error {
-	constructor(message: string, public originalError?: Error) {
+	constructor(
+		message: string,
+		public originalError?: Error
+	) {
 		super(message);
 		this.name = 'NetworkError';
 	}
@@ -84,7 +87,10 @@ class FetchClient {
 			.join('; ');
 	}
 
-	async request<T>(url: string, options: RequestOptions & Omit<RequestInit, 'headers'> = {}): Promise<T> {
+	async request<T>(
+		url: string,
+		options: RequestOptions & Omit<RequestInit, 'headers'> = {}
+	): Promise<T> {
 		const fullUrl = this.buildUrl(url, options.params);
 		const maxRetries = options.retries ?? 0;
 
@@ -158,8 +164,7 @@ class FetchClient {
 
 				// Only retry on network/server errors
 				const isRetryable =
-					error instanceof NetworkError ||
-					(error instanceof HttpError && error.status >= 500);
+					error instanceof NetworkError || (error instanceof HttpError && error.status >= 500);
 
 				if (isRetryable && attempt < maxRetries) {
 					await new Promise((r) => setTimeout(r, Math.pow(2, attempt) * 1000));

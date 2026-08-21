@@ -50,6 +50,7 @@ This document outlines the design for replacing the axios HTTP client with Svelt
 **Purpose:** Replace the current `ApiClient` class with a fetch-based implementation.
 
 **Key Features:**
+
 - Singleton pattern (same as current)
 - Automatic token refresh on 401 responses
 - Request/response interceptor functionality
@@ -57,20 +58,21 @@ This document outlines the design for replacing the axios HTTP client with Svelt
 - Error handling and transformation
 
 **Interface:**
+
 ```typescript
 export class FetchClient {
-    private static instance: FetchClient;
-    private baseURL: string;
-    private defaultHeaders: Record<string, string>;
-    private isRefreshing: boolean = false;
-    private refreshPromise: Promise<boolean> | null = null;
+	private static instance: FetchClient;
+	private baseURL: string;
+	private defaultHeaders: Record<string, string>;
+	private isRefreshing: boolean = false;
+	private refreshPromise: Promise<boolean> | null = null;
 
-    public static getInstance(): FetchClient;
-    public async request<T>(url: string, options?: RequestOptions): Promise<T>;
-    public async get<T>(url: string, options?: RequestOptions): Promise<T>;
-    public async post<T>(url: string, data?: any, options?: RequestOptions): Promise<T>;
-    public async put<T>(url: string, data?: any, options?: RequestOptions): Promise<T>;
-    public async delete<T>(url: string, options?: RequestOptions): Promise<T>;
+	public static getInstance(): FetchClient;
+	public async request<T>(url: string, options?: RequestOptions): Promise<T>;
+	public async get<T>(url: string, options?: RequestOptions): Promise<T>;
+	public async post<T>(url: string, data?: any, options?: RequestOptions): Promise<T>;
+	public async put<T>(url: string, data?: any, options?: RequestOptions): Promise<T>;
+	public async delete<T>(url: string, options?: RequestOptions): Promise<T>;
 }
 ```
 
@@ -79,11 +81,13 @@ export class FetchClient {
 **Purpose:** Replicate axios interceptor functionality using a custom wrapper system.
 
 **Components:**
+
 - `RequestInterceptor`: Processes requests before sending
 - `ResponseInterceptor`: Processes responses after receiving
 - `ErrorInterceptor`: Handles errors and token refresh
 
 **Flow:**
+
 ```
 Request → RequestInterceptor → Fetch → ResponseInterceptor → Result
                                  ↓
@@ -95,6 +99,7 @@ Request → RequestInterceptor → Fetch → ResponseInterceptor → Result
 **Purpose:** Maintain the automatic token refresh functionality that prevents users from being logged out.
 
 **Key Features:**
+
 - Detect 401 Unauthorized responses
 - Automatically attempt token refresh using refresh token cookie
 - Retry original request with new token
@@ -102,6 +107,7 @@ Request → RequestInterceptor → Fetch → ResponseInterceptor → Result
 - Handle refresh failures gracefully
 
 **Implementation Strategy:**
+
 ```typescript
 private async handleUnauthorized(originalRequest: RequestInfo, originalOptions: RequestInit): Promise<Response> {
     if (this.isRefreshing) {
@@ -112,7 +118,7 @@ private async handleUnauthorized(originalRequest: RequestInfo, originalOptions: 
 
     this.isRefreshing = true;
     this.refreshPromise = this.refreshToken();
-    
+
     try {
         const success = await this.refreshPromise;
         if (success) {
@@ -132,11 +138,13 @@ private async handleUnauthorized(originalRequest: RequestInfo, originalOptions: 
 **Purpose:** Ensure seamless integration with SvelteKit's cookie handling system.
 
 **Server-Side Considerations:**
+
 - Forward cookies from incoming requests to API calls
 - Handle cookie updates from API responses
 - Maintain cookie security settings (httpOnly, secure, sameSite)
 
 **Client-Side Considerations:**
+
 - Cookies are automatically included in fetch requests to same origin
 - Handle cross-origin cookie requirements if needed
 
@@ -145,6 +153,7 @@ private async handleUnauthorized(originalRequest: RequestInfo, originalOptions: 
 **Purpose:** Maintain consistent error handling across all API calls.
 
 **Error Types:**
+
 - Network errors (connection failures)
 - HTTP errors (4xx, 5xx status codes)
 - Authentication errors (401, 403)
@@ -152,6 +161,7 @@ private async handleUnauthorized(originalRequest: RequestInfo, originalOptions: 
 - Server errors (500, 502, 503, etc.)
 
 **Error Transformation:**
+
 ```typescript
 interface ApiError {
     message: string;
@@ -176,11 +186,11 @@ private transformError(response: Response, data?: any): ApiError {
 
 ```typescript
 interface RequestOptions {
-    headers?: Record<string, string>;
-    cookies?: Cookies; // For server-side requests
-    timeout?: number;
-    retries?: number;
-    signal?: AbortSignal;
+	headers?: Record<string, string>;
+	cookies?: Cookies; // For server-side requests
+	timeout?: number;
+	retries?: number;
+	signal?: AbortSignal;
 }
 ```
 
@@ -188,10 +198,10 @@ interface RequestOptions {
 
 ```typescript
 interface FetchResponse<T> {
-    data: T;
-    status: number;
-    statusText: string;
-    headers: Headers;
+	data: T;
+	status: number;
+	statusText: string;
+	headers: Headers;
 }
 ```
 
@@ -235,18 +245,21 @@ ApiError (base)
 ## Testing Strategy
 
 ### Unit Tests
+
 - Test FetchClient methods individually
 - Mock fetch responses for different scenarios
 - Test error handling paths
 - Test token refresh mechanism
 
 ### Integration Tests
+
 - Test complete API call flows
 - Test authentication scenarios
 - Test error recovery mechanisms
 - Test cookie handling
 
 ### Migration Tests
+
 - Compare axios vs fetch responses
 - Ensure identical behavior
 - Performance benchmarking
@@ -281,24 +294,28 @@ ApiError (base)
 ## Migration Plan
 
 ### Phase 1: Create Fetch Client
+
 - Implement `FetchClient` class
 - Add request/response interceptors
 - Implement token refresh mechanism
 - Add comprehensive error handling
 
 ### Phase 2: Parallel Implementation
+
 - Create fetch-based versions of API modules
 - Maintain axios versions for comparison
 - Add feature flags to switch between implementations
 - Comprehensive testing of both implementations
 
 ### Phase 3: Gradual Migration
+
 - Migrate API modules one by one
 - Start with less critical modules
 - Monitor for issues and performance
 - Rollback capability if needed
 
 ### Phase 4: Complete Migration
+
 - Remove axios dependency
 - Clean up old code
 - Update documentation
@@ -307,16 +324,19 @@ ApiError (base)
 ## Performance Considerations
 
 ### Bundle Size Reduction
+
 - Axios bundle size: ~13KB gzipped
 - Native fetch: 0KB (built into browsers)
 - Expected reduction: ~13KB
 
 ### Runtime Performance
+
 - Native fetch is generally faster than axios
 - Reduced memory footprint
 - Fewer function calls in request path
 
 ### Caching Strategy
+
 - Implement request deduplication
 - Cache frequently accessed data
 - Optimize cookie handling
@@ -324,17 +344,20 @@ ApiError (base)
 ## Security Considerations
 
 ### Cookie Security
+
 - Maintain httpOnly flag for auth cookies
 - Ensure secure flag in production
 - Proper sameSite configuration
 - Cookie expiration handling
 
 ### Token Security
+
 - Secure token storage in httpOnly cookies
 - Automatic token refresh without exposing tokens to client-side JavaScript
 - Proper token cleanup on logout
 
 ### Request Security
+
 - CSRF protection through sameSite cookies
 - Proper CORS handling
 - Request timeout to prevent hanging requests
@@ -342,18 +365,21 @@ ApiError (base)
 ## Monitoring and Debugging
 
 ### Logging Strategy
+
 - Request/response logging in development
 - Error logging with context
 - Performance metrics collection
 - Token refresh event logging
 
 ### Debug Tools
+
 - Network tab compatibility
 - Request/response inspection
 - Error stack traces
 - Performance profiling
 
 ### Metrics to Track
+
 - Request success/failure rates
 - Token refresh frequency
 - Response times

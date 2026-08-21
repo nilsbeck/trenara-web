@@ -95,7 +95,9 @@
 <dialog
 	bind:this={dialogEl}
 	class="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-md rounded-lg border border-border bg-card p-0 shadow-xl backdrop:bg-black/50"
-	onclick={(e) => { if (e.target === dialogEl) close(); }}
+	onclick={(e) => {
+		if (e.target === dialogEl) close();
+	}}
 >
 	<div class="p-6">
 		<!-- Header -->
@@ -116,7 +118,8 @@
 				<legend class="mb-1.5 text-sm font-medium text-card-foreground">Type</legend>
 				<div class="flex rounded-md border border-border overflow-hidden">
 					<label
-						class="flex-1 cursor-pointer text-center py-2 text-sm font-medium transition-colors {trainingType === 'run'
+						class="flex-1 cursor-pointer text-center py-2 text-sm font-medium transition-colors {trainingType ===
+						'run'
 							? 'bg-primary text-primary-foreground'
 							: 'bg-card text-muted-foreground hover:bg-muted/50'}"
 					>
@@ -130,7 +133,8 @@
 						Run
 					</label>
 					<label
-						class="flex-1 cursor-pointer text-center py-2 text-sm font-medium transition-colors border-l border-border {trainingType === 'bike'
+						class="flex-1 cursor-pointer text-center py-2 text-sm font-medium transition-colors border-l border-border {trainingType ===
+						'bike'
 							? 'bg-primary text-primary-foreground'
 							: 'bg-card text-muted-foreground hover:bg-muted/50'}"
 					>
@@ -240,10 +244,7 @@
 				</div>
 			{:else}
 				<div>
-					<label
-						for="training-pace"
-						class="mb-1.5 block text-sm font-medium text-card-foreground"
-					>
+					<label for="training-pace" class="mb-1.5 block text-sm font-medium text-card-foreground">
 						Average Speed (km/h)
 					</label>
 					<input

@@ -40,9 +40,7 @@ export function buildTreadmillInstructions(training: ScheduledTraining): Treadmi
 		groupLabel?: string
 	) => {
 		cumulativeKm += blockDistanceKm(block);
-		instructions.push(
-			toInstruction(block, cumulativeKm, repeatIndex, repeatTotal, groupLabel)
-		);
+		instructions.push(toInstruction(block, cumulativeKm, repeatIndex, repeatTotal, groupLabel));
 	};
 
 	for (const block of blocks) {
@@ -50,12 +48,7 @@ export function buildTreadmillInstructions(training: ScheduledTraining): Treadmi
 			const repeat = block.repeat && block.repeat > 1 ? block.repeat : 1;
 			for (let r = 1; r <= repeat; r++) {
 				for (const sub of block.blocks) {
-					push(
-						sub,
-						repeat > 1 ? r : undefined,
-						repeat > 1 ? repeat : undefined,
-						block.text
-					);
+					push(sub, repeat > 1 ? r : undefined, repeat > 1 ? repeat : undefined, block.text);
 				}
 			}
 		} else {
