@@ -11,7 +11,6 @@
 		History,
 		Archive
 	} from 'lucide-svelte';
-	import AddTrainingModal from '$lib/components/modals/add-training-modal.svelte';
 	import ChatBubble from '$lib/components/chat/chat-bubble.svelte';
 
 	let { children, data }: { children: any; data: LayoutServerData } = $props();
@@ -69,8 +68,6 @@
 			</div>
 
 			<div class="flex items-center gap-2">
-				<AddTrainingModal />
-
 				<!-- User Menu -->
 				<div class="relative">
 					<button
