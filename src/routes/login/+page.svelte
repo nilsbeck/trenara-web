@@ -12,7 +12,7 @@
 		<div class="flex flex-col items-center text-center">
 			<img src="/logo.svg" alt="" width="64" height="64" class="mb-4 h-16 w-16" />
 			<h1 class="text-3xl font-bold tracking-tight text-foreground">Trainara</h1>
-			<p class="mt-1 text-xs text-muted-foreground">Unofficial client</p>
+			<p class="mt-1 text-xs text-muted-foreground">An unofficial Trenara client</p>
 		</div>
 
 		{#if form?.message}
