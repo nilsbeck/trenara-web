@@ -154,28 +154,32 @@ class FetchClient {
 					errorData
 				);
 			} catch (error) {
-				lastError = error as Error;
+				// Normalise a failed fetch up front so it is recognised as a
+				// network error by the retry check below, not just on the way out.
+				const normalized =
+					error instanceof TypeError && error.message.includes('fetch')
+						? new NetworkError('Network request failed', error)
+						: error;
 
-				if (error instanceof Error && error.name === 'AbortError') {
+				lastError = normalized as Error;
+
+				if (normalized instanceof Error && normalized.name === 'AbortError') {
 					throw new TimeoutError(`Request timeout after ${options.timeout}ms`);
 				}
 
-				if (error instanceof AuthenticationError) throw error;
+				if (normalized instanceof AuthenticationError) throw normalized;
 
 				// Only retry on network/server errors
 				const isRetryable =
-					error instanceof NetworkError || (error instanceof HttpError && error.status >= 500);
+					normalized instanceof NetworkError ||
+					(normalized instanceof HttpError && normalized.status >= 500);
 
 				if (isRetryable && attempt < maxRetries) {
 					await new Promise((r) => setTimeout(r, Math.pow(2, attempt) * 1000));
 					continue;
 				}
 
-				if (error instanceof TypeError && (error as Error).message.includes('fetch')) {
-					throw new NetworkError('Network request failed', error as Error);
-				}
-
-				throw error;
+				throw normalized;
 			}
 		}
 

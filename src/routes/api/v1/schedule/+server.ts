@@ -1,14 +1,13 @@
 import { json, error } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { trainingApi } from '$lib/server/trenara';
-import { TokenType } from '$lib/server/auth/types';
 
 function daysInMonth(year: number, month: number): number {
 	return new Date(year, month + 1, 0).getDate();
 }
 
-export const GET: RequestHandler = async ({ url, cookies }) => {
-	if (!cookies.get(TokenType.AccessToken)) {
+export const GET: RequestHandler = async ({ url, cookies, locals }) => {
+	if (!locals.user) {
 		error(401, 'Unauthorized');
 	}
 

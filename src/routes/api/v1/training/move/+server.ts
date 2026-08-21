@@ -1,12 +1,11 @@
 import { json, error } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { trainingApi } from '$lib/server/trenara';
-import { TokenType } from '$lib/server/auth/types';
 import { HttpError } from '$lib/server/trenara/client';
 import { changeDateSchema } from '$lib/schemas/training';
 
-export const PUT: RequestHandler = async ({ request, cookies }) => {
-	if (!cookies.get(TokenType.AccessToken)) {
+export const PUT: RequestHandler = async ({ request, cookies, locals }) => {
+	if (!locals.user) {
 		error(401, 'Unauthorized');
 	}
 

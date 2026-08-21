@@ -24,13 +24,16 @@ export const authApi = {
 		formData.append('grant_type', 'refresh_token');
 		formData.append('refresh_token', data.refresh_token);
 
+		// Retried: losing a session because the token endpoint blipped would
+		// log the user out for no good reason.
 		return fetchClient.request<AuthResponse>('/oauth/token', {
 			method: 'POST',
 			headers: {
 				'Content-Type': 'application/x-www-form-urlencoded',
 				Authorization: `Basic ${BASIC_BEARER_TOKEN}`
 			},
-			body: formData.toString()
+			body: formData.toString(),
+			retries: 2
 		});
 	}
 };
