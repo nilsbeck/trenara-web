@@ -174,7 +174,7 @@ describe('error handling', () => {
 		await expect(fetchClient.get('/api/missing')).rejects.toThrow(HttpError);
 		try {
 			await fetchClient.get('/api/missing');
-		} catch (e) {
+		} catch {
 			// re-mock for the second call
 		}
 	});
