@@ -16,6 +16,12 @@
 		const ms = new Date(end).getTime() - new Date(start).getTime();
 		return Math.round(ms / (1000 * 60 * 60 * 24 * 7));
 	}
+
+	// Goals are archived while they are still running, so the end date is what
+	// tells a finished goal from the one currently being trained for.
+	function isCompleted(end: string): boolean {
+		return new Date(end).getTime() < Date.now();
+	}
 </script>
 
 <div class="mx-auto max-w-4xl">
@@ -37,7 +43,7 @@
 
 		{#if data.records.length === 0}
 			<p class="text-sm text-muted-foreground">
-				No archived goals yet. Completed goals will appear here automatically.
+				No archived goals yet. Goals are recorded automatically once you visit the goal page.
 			</p>
 		{:else}
 			<div class="overflow-x-auto">
@@ -52,6 +58,7 @@
 							>
 							<th class="px-4 py-2.5 text-left font-medium text-muted-foreground">Period</th>
 							<th class="px-4 py-2.5 text-left font-medium text-muted-foreground">Duration</th>
+							<th class="px-4 py-2.5 text-left font-medium text-muted-foreground">Status</th>
 						</tr>
 					</thead>
 					<tbody>
@@ -79,6 +86,21 @@
 								</td>
 								<td class="px-4 py-2.5 text-card-foreground">
 									{durationWeeks(record.start_date, record.end_date)} weeks
+								</td>
+								<td class="px-4 py-2.5">
+									{#if isCompleted(record.end_date)}
+										<span
+											class="inline-flex rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground"
+										>
+											Completed
+										</span>
+									{:else}
+										<span
+											class="inline-flex rounded-full bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary"
+										>
+											In progress
+										</span>
+									{/if}
 								</td>
 							</tr>
 						{/each}
