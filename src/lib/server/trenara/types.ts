@@ -565,6 +565,21 @@ export interface ExchangeTrainingRequest {
 	training_id: number;
 }
 
+/**
+ * Body of `PUT /schedule/trainings/{id}/cooldown`.
+ *
+ * The one request shape here that has NOT been observed on the wire. The flags
+ * that drive it — `can_toggle_cooldown` and `has_cooldown` — are real and do
+ * come back true, but no capture of the request itself exists yet, so both the
+ * path and this body are inferred from the six siblings, which are uniformly
+ * `PUT .../{field}` carrying the field's new value. Confirm against a capture
+ * before trusting it; if it is wrong, `trainingApi.setCooldown` is the only
+ * place that needs changing.
+ */
+export interface ToggleCooldownRequest {
+	has_cooldown: boolean;
+}
+
 /** Body of `PUT /schedule/trainings/{id}/cross_train`. */
 export interface CrossTrainRequest {
 	/** See `CROSS_TYPES`; typed loosely because that list is incomplete. */

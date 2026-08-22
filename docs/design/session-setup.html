@@ -2140,7 +2140,7 @@
 				</tr>
 				<tr>
 					<td class="f">can_toggle_cooldown<br>has_cooldown</td>
-					<td class="f">setter unknown</td>
+					<td class="f">PUT .../cooldown<br><small>inferred</small></td>
 					<td>A <em>Remove</em> / <em>Add back</em> control on the cool-down block itself; the
 						row persists as a ghost when off. Also listed as a switch in the index. Flipping
 						it moves the block, its shape segment and its share of the totals. Off earns a
@@ -2279,15 +2279,32 @@
 		<div class="gap">
 			<span class="m">!</span>
 			<div>
-				<h4>The cool-down switch has no endpoint yet</h4>
+				<h4>The cool-down endpoint is inferred, not observed</h4>
 				<p>
-					<code>can_toggle_cooldown</code> and <code>has_cooldown</code> tell us a session has a
-					cool-down and whether it is currently in the plan, but nothing in
-					<code>training.ts</code> can flip it and no request has been observed. The UI is
-					designed and the visual consequence is specified — block, shape segment and totals
-					all move — so this is one captured request away from shipping. Best guess:
-					<code>PUT /schedule/trainings/{id}/cooldown</code> returning the usual full detail,
-					which is all the front end needs to redraw.
+					<code>can_toggle_cooldown</code> and <code>has_cooldown</code> are real and do come back
+					true — plenty of runs simply have no cool-down to drop, which is what the flag is for.
+					The request that flips it is the one thing here nobody has captured, so the path and body
+					are inferred from the six siblings, which are uniformly
+					<code>PUT .../{field}</code> carrying that field's new value:
+					<code>PUT /schedule/trainings/{id}/cooldown</code> with
+					<code>{ has_cooldown: false }</code>. It is isolated in
+					<code>trainingApi.setCooldown</code> — one line to correct if a capture disagrees, with
+					the UI, the state handling and the tests all unaffected.
+				</p>
+			</div>
+		</div>
+		<div class="gap">
+			<span class="m q">?</span>
+			<div>
+				<h4>Which block is the cool-down?</h4>
+				<p>
+					Nothing in the payload flags it, so the control finds it by matching a block
+					<code>type</code> containing “cool” — the same assumption
+					<code>blockTypeColor</code> already makes. A session can report
+					<code>has_cooldown</code> while naming its block something else, and attaching the
+					control to the wrong block would be worse than not finding one, so the fallback is a
+					row of its own rather than a guess. A block-level flag upstream would remove the
+					guesswork entirely.
 				</p>
 			</div>
 		</div>
@@ -2412,7 +2429,7 @@
 				<li><strong>1 · Read.</strong> Detail fetch, identity strip, shape bar, chips rendering current values. No editing. Ships value on its own — right now the runner can’t see the shoe or terrain at all.</li>
 				<li><strong>2 · Tune.</strong> Effort, volume, terrain, shoe. All four are the same commit path, so they land together.</li>
 				<li><strong>3 · Replace.</strong> Activity and workout swap with the Undo toast. Workout can ship as soon as the candidate list is wired; activity waits on the <code>cross_type</code> enumeration.</li>
-				<li><strong>4 · Cool-down.</strong> A control on the block plus a row in the index, blocked only on the endpoint. Small, but it is the one change that visibly rewrites the plan, so it wants the block list and shape bar from step 1 already in place.</li>
+				<li><strong>4 · Cool-down.</strong> A control on the block plus a switch in the index. Small, but it is the one change that visibly rewrites the plan, so it wants the block list and shape bar from step 1 already in place.</li>
 			</ul>
 		</div>
 		<div class="panel">

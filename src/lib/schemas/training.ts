@@ -48,6 +48,14 @@ export const setDistanceSchema = z.object({ distanceValue: changeStepValue });
 export const setShoeSchema = z.object({ shoeId: z.number().int().positive() });
 
 /**
+ * Whether the training should keep its cool-down.
+ *
+ * An explicit target rather than a toggle: two taps racing each other would
+ * otherwise land on whichever order the server happened to process.
+ */
+export const setCooldownSchema = z.object({ hasCooldown: z.boolean() });
+
+/**
  * `cross_type` is a plain string on purpose. CROSS_TYPES lists only the values
  * we have observed and the real list is longer (elliptical among them), so
  * refusing an unseen value would break a feature the backend already supports.
@@ -63,5 +71,6 @@ export type TrainingConditionData = z.infer<typeof trainingConditionSchema>;
 export type SetIntensityData = z.infer<typeof setIntensitySchema>;
 export type SetDistanceData = z.infer<typeof setDistanceSchema>;
 export type SetShoeData = z.infer<typeof setShoeSchema>;
+export type SetCooldownData = z.infer<typeof setCooldownSchema>;
 export type CrossTrainData = z.infer<typeof crossTrainSchema>;
 export type ExchangeTrainingData = z.infer<typeof exchangeTrainingSchema>;

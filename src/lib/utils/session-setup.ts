@@ -175,8 +175,9 @@ export function sessionSettings(training: ScheduledTraining): Setting[] {
 		});
 	}
 
-	// Only sessions that have a cool-down can drop one. Its control lives on the
-	// block itself, since that is what it acts on and it is already on screen.
+	// Only sessions that have a cool-down can drop one — plenty of runs have
+	// none, and those cannot gain one. Its control lives on the block itself,
+	// since that is what it acts on and it is already on screen.
 	if (training.can_toggle_cooldown) {
 		settings.push({
 			key: 'cooldown',
@@ -219,6 +220,29 @@ export function chipSettings(training: ScheduledTraining): Setting[] {
 	return sessionSettings(training).filter(
 		(s) => s.chip === 'always' || (s.chip === 'changed' && s.changed)
 	);
+}
+
+/**
+ * Where the cool-down sits in the training's top-level blocks, or -1 when it
+ * cannot be pointed at.
+ *
+ * The API does not flag which block is the cool-down, so this matches on the
+ * block type containing "cool" — the same assumption `blockTypeColor` already
+ * makes. A session can report `has_cooldown` while naming its block something
+ * we do not recognise, and mislabelling a core block would be worse than not
+ * finding one: -1 means the control renders as its own row instead of being
+ * attached to the wrong block.
+ */
+export function cooldownBlockIndex(training: ScheduledTraining): number {
+	if (!training.has_cooldown) return -1;
+
+	const blocks = training.training?.blocks ?? [];
+	// Searched from the end: a cool-down is the last thing in a session, and a
+	// warm-up shares neither the word nor the position.
+	for (let i = blocks.length - 1; i >= 0; i--) {
+		if ((blocks[i].type ?? '').toLowerCase().includes('cool')) return i;
+	}
+	return -1;
 }
 
 export interface ShapeSegment {

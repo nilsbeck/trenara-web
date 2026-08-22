@@ -195,6 +195,31 @@ export const trainingApi = {
 		);
 	},
 
+	/**
+	 * Add or remove the training's cool-down.
+	 *
+	 * Gated by `can_toggle_cooldown`, which is only true on sessions that have a
+	 * cool-down to drop — plenty of runs have none, and those cannot gain one.
+	 * The response carries the rebuilt training: dropping the cool-down removes
+	 * its block and subtracts its distance and time from the totals.
+	 *
+	 * Unlike its siblings this endpoint has not been observed. See
+	 * {@link ToggleCooldownRequest} — the path and body are inferred from the
+	 * uniform shape of the other six, and this method is the single place to
+	 * correct if a capture shows otherwise.
+	 */
+	async setCooldown(
+		cookies: Cookies,
+		trainingId: number,
+		hasCooldown: boolean
+	): Promise<ScheduledTrainingDetail> {
+		return fetchClient.put<ScheduledTrainingDetail>(
+			`/api/schedule/trainings/${trainingId}/cooldown`,
+			{ has_cooldown: hasCooldown },
+			{ headers: bearerHeader(cookies), cookies }
+		);
+	},
+
 	/** Assign one of the user's shoes (see `userApi.getShoes`) to this training. */
 	async setSuggestedShoe(
 		cookies: Cookies,

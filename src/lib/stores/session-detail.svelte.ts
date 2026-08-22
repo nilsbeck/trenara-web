@@ -126,6 +126,16 @@ export class SessionDetailStore {
 		return this.#mutate('shoe', 'shoe', 'PUT', { shoeId });
 	}
 
+	/**
+	 * Add or drop the cool-down.
+	 *
+	 * Takes the target state rather than flipping the current one, so a double
+	 * tap cannot land on whichever order the server happened to process.
+	 */
+	setCooldown(hasCooldown: boolean) {
+		return this.#mutate('cooldown', 'cooldown', 'PUT', { hasCooldown });
+	}
+
 	crossTrain(crossType: string) {
 		return this.#mutate('activity', 'cross-train', 'PUT', { crossType });
 	}

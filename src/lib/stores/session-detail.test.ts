@@ -193,6 +193,25 @@ describe('SessionDetailStore', () => {
 		expect(store.pending).toBeNull();
 	});
 
+	it('sends the target cool-down state, not a flip', async () => {
+		const fetchMock = vi.mocked(fetch);
+		fetchMock.mockResolvedValueOnce(jsonResponse(detail({ has_cooldown: true })));
+		const store = new SessionDetailStore();
+		store.load(42);
+		await vi.waitFor(() => expect(store.detail).not.toBeNull());
+
+		// A target rather than a toggle: two taps racing each other cannot land
+		// on whichever order the server happened to process.
+		fetchMock.mockResolvedValueOnce(jsonResponse(detail({ has_cooldown: false })));
+		await store.setCooldown(false);
+
+		expect(fetchMock).toHaveBeenLastCalledWith(
+			'/api/v1/training/42/cooldown',
+			expect.objectContaining({ method: 'PUT', body: JSON.stringify({ hasCooldown: false }) })
+		);
+		expect(store.detail?.has_cooldown).toBe(false);
+	});
+
 	it('drops the cached alternatives once the workout is replaced', async () => {
 		const fetchMock = vi.mocked(fetch);
 		fetchMock.mockResolvedValueOnce(jsonResponse(detail()));

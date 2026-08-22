@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { render, screen, waitFor, cleanup } from '@testing-library/svelte';
+import { render, screen, waitFor, cleanup, fireEvent } from '@testing-library/svelte';
 import TrainingDetails from '$lib/components/calendar/training-details.svelte';
 import type { ScheduledTraining } from '$lib/server/trenara/types';
 
@@ -115,6 +115,111 @@ describe('training-details session setup', () => {
 		expect(screen.queryByLabelText('Start treadmill mode')).toBeNull();
 		expect(screen.queryByText('Shoe')).toBeNull();
 		expect(screen.queryByText('Terrain')).toBeNull();
+		vi.unstubAllGlobals();
+	});
+});
+
+describe('cool-down', () => {
+	/** A session with a cool-down it is allowed to drop. */
+	const withCooldown: ScheduledTraining = {
+		...detail,
+		can_toggle_cooldown: true,
+		has_cooldown: true,
+		training: {
+			...detail.training,
+			blocks: [
+				{ order: 1, type: 'warmup', hex_graph: '#90CFF1', text: 'Warm-up: 2km' },
+				{ order: 2, type: 'run', hex_graph: '#E69F00', text: 'Run 8km' },
+				{ order: 3, type: 'cooldown', hex_graph: '#90CFF1', text: 'Cool-down: 2km easy' }
+			]
+		}
+	};
+
+	it('offers no cool-down control on a session that has none', async () => {
+		vi.stubGlobal(
+			'fetch',
+			vi.fn().mockResolvedValue({ ok: true, status: 200, json: async () => detail })
+		);
+
+		render(TrainingDetails, {
+			props: { selectedDate: '2026-08-22', training: base, entry: null, isLoading: false }
+		});
+
+		await waitFor(() => expect(screen.getAllByText('Treadmill · Flat').length).toBeGreaterThan(0));
+		expect(screen.queryByText('Remove')).toBeNull();
+		expect(screen.queryByText('Cool-down removed')).toBeNull();
+		vi.unstubAllGlobals();
+	});
+
+	it('puts Remove on the cool-down block, and swaps in a ghost row once it is gone', async () => {
+		const dropped = {
+			...withCooldown,
+			has_cooldown: false,
+			training: { ...withCooldown.training, blocks: withCooldown.training.blocks.slice(0, 2) }
+		};
+
+		const fetchMock = vi
+			.fn()
+			.mockResolvedValueOnce({ ok: true, status: 200, json: async () => withCooldown })
+			.mockResolvedValueOnce({ ok: true, status: 200, json: async () => dropped });
+		vi.stubGlobal('fetch', fetchMock);
+
+		render(TrainingDetails, {
+			props: { selectedDate: '2026-08-22', training: base, entry: null, isLoading: false }
+		});
+
+		await waitFor(() => expect(screen.getByText('Cool-down: 2km easy')).toBeTruthy());
+		await fireEvent.click(screen.getByText('Remove'));
+
+		// The response rebuilds the training, so the block goes and the plan
+		// shows what is missing rather than silently closing up.
+		await waitFor(() => expect(screen.getByText('Cool-down removed')).toBeTruthy());
+		expect(screen.queryByText('Cool-down: 2km easy')).toBeNull();
+		expect(screen.getByText('Add back')).toBeTruthy();
+
+		expect(fetchMock).toHaveBeenLastCalledWith(
+			'/api/v1/training/42/cooldown',
+			expect.objectContaining({ body: JSON.stringify({ hasCooldown: false }) })
+		);
+		vi.unstubAllGlobals();
+	});
+
+	it('chips a removed cool-down so the deviation is visible without scrolling', async () => {
+		const dropped = { ...withCooldown, has_cooldown: false };
+		vi.stubGlobal(
+			'fetch',
+			vi.fn().mockResolvedValue({ ok: true, status: 200, json: async () => dropped })
+		);
+
+		render(TrainingDetails, {
+			props: { selectedDate: '2026-08-22', training: base, entry: null, isLoading: false }
+		});
+
+		await waitFor(() => expect(screen.getAllByText('No cool-down').length).toBeGreaterThan(0));
+		vi.unstubAllGlobals();
+	});
+
+	it('gives the control its own row when the block cannot be identified', async () => {
+		// has_cooldown is true, but no block names itself as the cool-down.
+		const unnamed = {
+			...withCooldown,
+			training: { ...withCooldown.training, blocks: withCooldown.training.blocks.slice(0, 2) }
+		};
+		vi.stubGlobal(
+			'fetch',
+			vi.fn().mockResolvedValue({ ok: true, status: 200, json: async () => unnamed })
+		);
+
+		render(TrainingDetails, {
+			props: { selectedDate: '2026-08-22', training: base, entry: null, isLoading: false }
+		});
+
+		// Attaching it to whichever block happened to be last would mislabel one,
+		// so the control appears on a row of its own. "Remove" is what marks it:
+		// the sheet's switch names the cool-down too, but never offers that.
+		await waitFor(() => expect(screen.getByText('Remove')).toBeTruthy());
+		expect(screen.getAllByText('Cool-down').length).toBeGreaterThan(0);
+		expect(screen.queryByText('Cool-down removed')).toBeNull();
 		vi.unstubAllGlobals();
 	});
 });

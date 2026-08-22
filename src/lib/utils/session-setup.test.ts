@@ -6,6 +6,7 @@ import {
 	heightLabel,
 	selectedStep,
 	sessionSettings,
+	cooldownBlockIndex,
 	shapeSegments,
 	shoeName,
 	shoeTypeLabel,
@@ -345,5 +346,46 @@ describe('shapeSegments', () => {
 		const training = tempoRun();
 		training.training.blocks = [{ order: 1, type: 'run', hex_graph: '#fff' }];
 		expect(shapeSegments(training)).toEqual([]);
+	});
+});
+
+describe('cooldownBlockIndex', () => {
+	function withBlocks(types: string[], overrides: Partial<ScheduledTraining> = {}) {
+		const training = tempoRun({ can_toggle_cooldown: true, has_cooldown: true, ...overrides });
+		training.training.blocks = types.map((type, i) => ({
+			order: i + 1,
+			type,
+			distance_value: 1,
+			distance_unit: 'km'
+		}));
+		return training;
+	}
+
+	it('finds the cool-down block by its type', () => {
+		expect(cooldownBlockIndex(withBlocks(['warmup', 'core', 'cooldown']))).toBe(2);
+	});
+
+	it('accepts the spellings the API might use', () => {
+		expect(cooldownBlockIndex(withBlocks(['warmup', 'cool_down']))).toBe(1);
+		expect(cooldownBlockIndex(withBlocks(['warmup', 'Cooldown']))).toBe(1);
+	});
+
+	it('does not mistake the warm-up for it', () => {
+		expect(cooldownBlockIndex(withBlocks(['warmup', 'core']))).toBe(-1);
+	});
+
+	it('returns -1 rather than guessing when no block names itself', () => {
+		// Mislabelling a core block would be worse than not finding one — the
+		// caller renders a row of its own instead.
+		expect(cooldownBlockIndex(withBlocks(['warmup', 'core', 'run']))).toBe(-1);
+	});
+
+	it('returns -1 once the cool-down has been dropped', () => {
+		const training = withBlocks(['warmup', 'core'], { has_cooldown: false });
+		expect(cooldownBlockIndex(training)).toBe(-1);
+	});
+
+	it('takes the last match, since a cool-down closes the session', () => {
+		expect(cooldownBlockIndex(withBlocks(['cooldown', 'core', 'cooldown']))).toBe(2);
 	});
 });

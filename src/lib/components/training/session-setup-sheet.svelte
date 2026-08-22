@@ -14,6 +14,7 @@
 		Repeat,
 		X
 	} from 'lucide-svelte';
+	import CooldownIcon from '$lib/components/icons/cooldown-icon.svelte';
 	import type { SessionDetailStore } from '$lib/stores/session-detail.svelte';
 	import {
 		ACTIVITIES,
@@ -190,14 +191,40 @@
 
 			{#if cooldown}
 				<!--
-					Listed for completeness — the index is the full inventory of what
-					this session allows — but the control the runner reaches for is on
-					the cool-down block itself, where it can be seen taking effect.
+					The index is the full inventory of what this session allows, so the
+					cool-down is listed here too — but as a switch rather than a
+					drill-in, and the control a runner actually reaches for is the one on
+					the block itself, where the change can be seen happening.
 				-->
-				<p class="mt-4 text-[11px] leading-relaxed text-muted-foreground">
-					The cool-down is {cooldown.changed ? 'removed' : 'part of this session'}. Add or remove it
-					on the cool-down block in the training details.
-				</p>
+				<button
+					type="button"
+					disabled={store.pending === 'cooldown'}
+					onclick={() => store.setCooldown(!training.has_cooldown)}
+					class="flex w-full items-center gap-3 border-t border-border px-1 py-3 text-left text-sm disabled:opacity-60"
+				>
+					<CooldownIcon class="h-4 w-4 shrink-0 text-muted-foreground" />
+					<span class="flex-1">
+						Cool-down
+						<span class="block text-[11px] text-muted-foreground">
+							{training.has_cooldown ? 'Part of this session' : 'Removed from this session'}
+						</span>
+					</span>
+					{#if store.pending === 'cooldown'}
+						<Loader2 class="h-4 w-4 shrink-0 animate-spin text-muted-foreground" />
+					{:else}
+						<span
+							class="relative h-5 w-9 shrink-0 rounded-full border transition-colors {training.has_cooldown
+								? 'border-primary bg-primary/30'
+								: 'border-border bg-muted'}"
+						>
+							<span
+								class="absolute top-[2px] h-[15px] w-[15px] rounded-full transition-all {training.has_cooldown
+									? 'left-[17px] bg-primary'
+									: 'left-[2px] bg-muted-foreground'}"
+							></span>
+						</span>
+					{/if}
+				</button>
 			{/if}
 
 			{#if replaceSettings.length > 0}

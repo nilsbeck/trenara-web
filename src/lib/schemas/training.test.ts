@@ -6,6 +6,7 @@ import {
 	setIntensitySchema,
 	setDistanceSchema,
 	setShoeSchema,
+	setCooldownSchema,
 	crossTrainSchema,
 	exchangeTrainingSchema
 } from './training';
@@ -191,5 +192,17 @@ describe('exchangeTrainingSchema', () => {
 		// Upstream calls it training_id, which is easy to confuse with the
 		// scheduled training in the path. The schema forces the distinction.
 		expect(exchangeTrainingSchema.safeParse({ training_id: 20112 }).success).toBe(false);
+	});
+});
+
+describe('setCooldownSchema', () => {
+	it('takes the target state', () => {
+		expect(setCooldownSchema.safeParse({ hasCooldown: false }).success).toBe(true);
+		expect(setCooldownSchema.safeParse({ hasCooldown: true }).success).toBe(true);
+	});
+
+	it('rejects anything but a boolean, so "toggle" cannot be expressed', () => {
+		expect(setCooldownSchema.safeParse({ hasCooldown: 'false' }).success).toBe(false);
+		expect(setCooldownSchema.safeParse({}).success).toBe(false);
 	});
 });

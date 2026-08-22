@@ -9,7 +9,8 @@
 	import SetupRail from '$lib/components/training/setup-rail.svelte';
 	import SessionSetupSheet from '$lib/components/training/session-setup-sheet.svelte';
 	import { SessionDetailStore } from '$lib/stores/session-detail.svelte';
-	import { isRun, type SettingKey } from '$lib/utils/session-setup';
+	import CooldownToggle from '$lib/components/training/cooldown-toggle.svelte';
+	import { cooldownBlockIndex, isRun, type SettingKey } from '$lib/utils/session-setup';
 	import { blockTypeColor } from '$lib/utils/block-color';
 
 	let {
@@ -74,6 +75,31 @@
 	const canUseTreadmillMode = $derived(
 		shownTraining !== null && entry === null && isRun(shownTraining)
 	);
+
+	// ── Cool-down ──────────────────────────────────────────────────
+	//
+	// Only sessions that have a cool-down can drop one, and the API does not
+	// flag which block it is, so the control attaches to the block we can
+	// identify and falls back to its own row when we cannot.
+	const canToggleCooldown = $derived(
+		detailStore.detail !== null && entry === null && !!detailStore.detail.can_toggle_cooldown
+	);
+
+	const cooldownIndex = $derived(
+		detailStore.detail && canToggleCooldown ? cooldownBlockIndex(detailStore.detail) : -1
+	);
+
+	/** True when the cool-down is on but its block could not be pointed at. */
+	const cooldownNeedsOwnRow = $derived(
+		canToggleCooldown && !!detailStore.detail?.has_cooldown && cooldownIndex === -1
+	);
+
+	/** True when the cool-down has been dropped, so the plan shows what is gone. */
+	const cooldownRemoved = $derived(canToggleCooldown && !detailStore.detail?.has_cooldown);
+
+	function setCooldown(next: boolean) {
+		void detailStore.setCooldown(next);
+	}
 
 	function openSetup(key: SettingKey | null) {
 		// The cool-down has no editor of its own — its control is on the block.
@@ -273,7 +299,7 @@
 			{#if shownTraining?.training?.blocks && shownTraining.training.blocks.length > 0}
 				<div class="flex flex-col gap-3">
 					<h4 class="text-sm font-medium text-foreground">Training details</h4>
-					{#each shownTraining.training.blocks as block}
+					{#each shownTraining.training.blocks as block, blockIndex}
 						{#if block.blocks && block.blocks.length > 0}
 							<!-- Composite block (intervals / repeat sets) -->
 							<div class="flex flex-col gap-1.5">
@@ -321,9 +347,48 @@
 									style="background-color: {blockTypeColor(block.type)}"
 								></div>
 								<span class="text-foreground">{block.text}</span>
+								{#if blockIndex === cooldownIndex}
+									<CooldownToggle
+										hasCooldown={true}
+										pending={detailStore.pending === 'cooldown'}
+										onchange={setCooldown}
+									/>
+								{/if}
 							</div>
 						{/if}
 					{/each}
+
+					{#if cooldownNeedsOwnRow}
+						<!-- The session has a cool-down but did not name its block in a
+						     way we recognise, so the control gets a row of its own rather
+						     than being attached to whichever block happens to be last. -->
+						<div class="flex items-center gap-2.5 text-sm">
+							<div
+								class="h-4 w-4 shrink-0 rounded-full"
+								style="background-color: {blockTypeColor('cooldown')}"
+							></div>
+							<span class="text-foreground">Cool-down</span>
+							<CooldownToggle
+								hasCooldown={true}
+								pending={detailStore.pending === 'cooldown'}
+								onchange={setCooldown}
+							/>
+						</div>
+					{/if}
+
+					{#if cooldownRemoved}
+						<!-- Removed, the cool-down stays in place as a ghost: the plan shows
+						     what is missing and offers it straight back. -->
+						<div class="flex items-center gap-2.5 text-sm">
+							<div class="h-4 w-4 shrink-0 rounded-full border border-dashed border-border"></div>
+							<span class="text-muted-foreground">Cool-down removed</span>
+							<CooldownToggle
+								hasCooldown={false}
+								pending={detailStore.pending === 'cooldown'}
+								onchange={setCooldown}
+							/>
+						</div>
+					{/if}
 				</div>
 			{/if}
 
