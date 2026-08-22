@@ -2134,9 +2134,9 @@
 				</tr>
 				<tr>
 					<td class="f">can_change_pacing_plan<br>change_pacing_plan_package</td>
-					<td class="f">no setter yet</td>
-					<td>Pacing plan row — same step control as effort</td>
-					<td>Row absent. False on every payload seen so far</td>
+					<td class="f">setter unknown</td>
+					<td>Race day only. A picker between three named strategies, not a step scale</td>
+					<td>Row absent — every session that is not the goal race</td>
 				</tr>
 				<tr>
 					<td class="f">can_toggle_cooldown<br>has_cooldown</td>
@@ -2323,14 +2323,44 @@
 			</div>
 		</div>
 		<div class="gap">
+			<span class="m q">?</span>
+			<div>
+				<h4>The pacing plan is race day, and it is not a dial</h4>
+				<p>
+					It appears on one session in the whole plan: the goal race, on the last day. That is
+					why <code>can_change_pacing_plan</code> is <code>false</code> on every payload captured
+					so far — a midweek tempo, an easy run and a bike ride are not races.
+				</p>
+				<p>
+					It also breaks the pattern the other two packages set. Effort and volume are
+					continuous dials whose steps are percentage deltas; the pacing plan is a choice
+					between three named strategies — <em>no plan</em>, <em>plan A</em>, <em>plan B</em> —
+					and picking one rewrites the session into a schedule of when to run how fast for how
+					far. So its <code>ChangeStep.value</code> is an identifier, not a percentage, and its
+					editor is a picker like the workout swap rather than a step scale like effort. The
+					shape bar earns its place here more than anywhere else: a pacing plan is literally a
+					shape.
+				</p>
+				<p>
+					One capture of that session settles the rest — the endpoint, the step values, and the
+					coach's own copy for the three options.
+				</p>
+			</div>
+		</div>
+		<div class="gap">
 			<span class="m">!</span>
 			<div>
-				<h4>Pacing plan still has no setter</h4>
+				<h4>The race-day session is locked, and delete does not know it</h4>
 				<p>
-					<code>can_change_pacing_plan</code> ships a full
-					<code>change_pacing_plan_package</code> and is <code>false</code> on every payload
-					captured so far, with no observed endpoint. The design reserves a row using the same
-					step control as effort; it ships when we see one true.
+					On that session nothing else can be changed and it cannot be deleted at all — the
+					pacing plan is the only thing on offer. The capability flags carry that, and the
+					setup rail already respects them: everything gated by a <code>can_*</code> simply
+					would not render. The delete button does not. It is gated on
+					<code>training !== null &amp;&amp; entry === null</code> and the date being today or
+					later, never on <code>can_be_edited</code> — unlike the move-date control right
+					beside it, which does check. So the one session that must not offer delete is exactly
+					the one that would, and the server would refuse the call. Pre-existing, but this is
+					where it bites.
 				</p>
 			</div>
 		</div>
