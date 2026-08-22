@@ -5,6 +5,11 @@
 	import ChangeDateModal from '$lib/components/modals/change-date-modal.svelte';
 	import RateTrainingInline from '$lib/components/training/rate-training-inline.svelte';
 	import TreadmillMode from '$lib/components/training/treadmill-mode.svelte';
+	import SessionShapeBar from '$lib/components/training/session-shape-bar.svelte';
+	import SetupRail from '$lib/components/training/setup-rail.svelte';
+	import SessionSetupSheet from '$lib/components/training/session-setup-sheet.svelte';
+	import { SessionDetailStore } from '$lib/stores/session-detail.svelte';
+	import { isRun, type SettingKey } from '$lib/utils/session-setup';
 	import { blockTypeColor } from '$lib/utils/block-color';
 
 	let {
@@ -39,8 +44,42 @@
 	// Show delete only for scheduled (unexecuted) trainings on today or future dates
 	const canDelete = $derived(training !== null && entry === null && isTodayOrFuture);
 
-	// Treadmill mode is only meaningful for a training that hasn't been completed yet
-	const canUseTreadmillMode = $derived(training !== null && entry === null);
+	// ── Session setup ──────────────────────────────────────────────
+	//
+	// The week payload carries none of the capability flags, so the setup
+	// controls come from a separate detail fetch and appear a moment after the
+	// rest of the card. Until then this renders the week's copy unchanged.
+	const detailStore = new SessionDetailStore();
+
+	let setupOpen = $state(false);
+	let setupSection = $state<SettingKey | null>(null);
+
+	$effect(() => {
+		// Only worth fetching for a session the runner can still change.
+		detailStore.load(training && entry === null ? training.id : null);
+	});
+
+	// The detail once it lands, the week's copy until then.
+	const shownTraining = $derived(detailStore.detail ?? training);
+
+	// The setup rail needs the flags, so it waits for the detail.
+	const canShowSetup = $derived(
+		detailStore.detail !== null && entry === null && detailStore.detail.can_be_edited
+	);
+
+	// Treadmill mode is only meaningful for a running session that hasn't been
+	// completed yet. A cross-trained session has no pace to hold on a belt, so
+	// the button goes with the rest of the running detail — and it goes as soon
+	// as the swap lands, which is why this reads the detail rather than the week.
+	const canUseTreadmillMode = $derived(
+		shownTraining !== null && entry === null && isRun(shownTraining)
+	);
+
+	function openSetup(key: SettingKey | null) {
+		// The cool-down has no editor of its own — its control is on the block.
+		setupSection = key === 'cooldown' ? null : key;
+		setupOpen = true;
+	}
 
 	// Reset confirmation state whenever the training changes (user navigates to another day)
 	$effect(() => {
@@ -90,31 +129,49 @@
 	<div class="flex flex-col gap-4">
 		<!-- Title + action buttons -->
 		<div class="flex items-start justify-between gap-2">
-			<div class="flex items-center gap-2 min-w-0">
+			<div class="flex min-w-0 items-stretch gap-2">
 				{#if entry}
-					<Check class="h-5 w-5 shrink-0 text-green-500" />
+					<Check class="mt-0.5 h-5 w-5 shrink-0 text-green-500" />
+				{:else if shownTraining}
+					<!--
+						hex_training is already per-workout-type and is the same value the
+						mobile app paints, so the colour coding comes from the server. It
+						is never used as text colour: several of those hues fail contrast
+						on the charcoal ground.
+					-->
+					<span
+						class="w-[3px] shrink-0 self-stretch rounded-full"
+						style="background-color: {shownTraining.hex_training}"
+					></span>
 				{/if}
-				<div class="min-w-0 flex items-baseline gap-1.5 flex-wrap">
-					<h3 class="text-base font-semibold text-foreground">
-						{#if entry && !training}
-							{entry.name}
-						{:else if training}
-							{training.title}
+				<div class="min-w-0 flex-1">
+					<div class="flex min-w-0 flex-wrap items-baseline gap-1.5">
+						<h3 class="text-base font-semibold text-foreground">
+							{#if entry && !training}
+								{entry.name}
+							{:else if shownTraining}
+								{shownTraining.title}
+							{/if}
+						</h3>
+						{#if shownTraining}
+							<span class="whitespace-nowrap text-[10px] text-muted-foreground">
+								[{shownTraining.training.total_distance ??
+									shownTraining.training.total_time}{shownTraining.training.total_distance
+									? ', ' + shownTraining.training.total_time
+									: ''}{shownTraining.training.total_time.split(':').length === 2 ? 'min' : 'h'}]
+							</span>
 						{/if}
-					</h3>
-					{#if training}
-						<span class="text-[10px] text-muted-foreground whitespace-nowrap">
-							[{training.training.total_distance}, {training.training
-								.total_time}{training.training.total_time.split(':').length === 2 ? 'min' : 'h'}]
-						</span>
+					</div>
+					{#if shownTraining && !entry}
+						<SessionShapeBar training={shownTraining} />
 					{/if}
 				</div>
 			</div>
 
 			<!-- Action buttons -->
 			<div class="flex items-center gap-1.5 shrink-0">
-				{#if canUseTreadmillMode && training}
-					<TreadmillMode {training} />
+				{#if canUseTreadmillMode && shownTraining}
+					<TreadmillMode training={shownTraining} />
 				{/if}
 				{#if entry && training}
 					<GiveFeedbackModal {training} {entry} />
@@ -167,6 +224,17 @@
 			</div>
 		</div>
 
+		<!-- Session setup: what is applied, and the way to change it -->
+		{#if canShowSetup && detailStore.detail}
+			<SetupRail training={detailStore.detail} pending={detailStore.pending} onopen={openSetup} />
+			<SessionSetupSheet
+				training={detailStore.detail}
+				store={detailStore}
+				bind:open={setupOpen}
+				bind:section={setupSection}
+			/>
+		{/if}
+
 		<!-- Inline rating prompt (shown when training is completed but not yet rated) -->
 		{#if needsRating && entry && training}
 			<RateTrainingInline {entry} />
@@ -178,13 +246,13 @@
 			class:details-blurred={needsRating}
 		>
 			<!-- Coach message bubble -->
-			{#if training?.description}
+			{#if shownTraining?.description}
 				<div class="flex gap-2">
 					<div class="mt-0.5 flex-shrink-0">
 						<MessageCircle class="h-4 w-4 text-primary" />
 					</div>
 					<div class="rounded-xl rounded-tl-none bg-muted px-3 py-2">
-						<p class="text-sm text-foreground leading-relaxed">{training.description}</p>
+						<p class="text-sm text-foreground leading-relaxed">{shownTraining.description}</p>
 					</div>
 				</div>
 			{/if}
@@ -202,10 +270,10 @@
 			{/if}
 
 			<!-- Training blocks -->
-			{#if training?.training?.blocks && training.training.blocks.length > 0}
+			{#if shownTraining?.training?.blocks && shownTraining.training.blocks.length > 0}
 				<div class="flex flex-col gap-3">
 					<h4 class="text-sm font-medium text-foreground">Training details</h4>
-					{#each training.training.blocks as block}
+					{#each shownTraining.training.blocks as block}
 						{#if block.blocks && block.blocks.length > 0}
 							<!-- Composite block (intervals / repeat sets) -->
 							<div class="flex flex-col gap-1.5">
@@ -260,7 +328,7 @@
 			{/if}
 
 			<!-- Plan vs Actual metrics table -->
-			{#if training || entry}
+			{#if shownTraining || entry}
 				<div>
 					<h4 class="mb-2 text-sm font-medium text-foreground">Metrics</h4>
 					<div class="overflow-hidden rounded-lg border border-border">
@@ -286,7 +354,7 @@
 									</td>
 									{#if training}
 										<td class="px-3 py-2 text-right text-foreground">
-											{training.training?.total_distance ?? '-'}
+											{shownTraining?.training?.total_distance ?? '-'}
 										</td>
 									{/if}
 									{#if entry}
@@ -302,7 +370,7 @@
 									</td>
 									{#if training}
 										<td class="px-3 py-2 text-right text-foreground">
-											{training.training?.core_distance ?? '-'}
+											{shownTraining?.training?.core_distance ?? '-'}
 										</td>
 									{/if}
 									{#if entry}
@@ -318,7 +386,7 @@
 									</td>
 									{#if training}
 										<td class="px-3 py-2 text-right text-foreground">
-											{training.training?.total_time ?? '-'}
+											{shownTraining?.training?.total_time ?? '-'}
 										</td>
 									{/if}
 									{#if entry}

@@ -1238,7 +1238,9 @@
 					The sliders chip is the only always-present affordance and the only way to reach a
 					setting that has no chip yet. The header keeps the icons it already has — treadmill
 					mode, move date, delete — because those act on the session as a whole rather than on
-					its setup, and the treadmill button stays mobile-only as it is today.
+					its setup. Treadmill mode stays mobile-only as it is today, and now also drops off a
+					cross-trained session: a ride has no pace to hold, so it goes with the rest of the
+					running detail.
 				</p>
 			</div>
 			<div class="note">
@@ -1689,7 +1691,10 @@
 					'<div class="shape">' + shapeHtml + '</div>' +
 				'</div>' +
 				'<div class="ident-actions">' +
-					'<button type="button" tabindex="-1" aria-hidden="true">' + ic('i-treadmill-mode', 17) + '</button>' +
+					// Treadmill mode is a running thing. A cycling session has no pace
+					// to hold, so the button goes with the rest of the running detail.
+					(s.cross_type ? '' :
+						'<button type="button" tabindex="-1" aria-hidden="true">' + ic('i-treadmill-mode', 17) + '</button>') +
 					'<button type="button" tabindex="-1" aria-hidden="true">' + ic('i-move', 17) + '</button>' +
 					'<button type="button" tabindex="-1" aria-hidden="true">' + ic('i-trash', 17) + '</button>' +
 				'</div>' +
@@ -2145,8 +2150,9 @@
 				<tr>
 					<td class="f">cross_type</td>
 					<td class="f">—</td>
-					<td>Sets the activity icon; <em>hides</em> shoe, terrain and cool-down</td>
-					<td>Null means running: shoe, terrain and cool-down return</td>
+					<td>Sets the activity icon; <em>hides</em> shoe, terrain, cool-down and the header’s
+						treadmill-mode button</td>
+					<td>Null means running: all four return</td>
 				</tr>
 			</tbody>
 		</table>
