@@ -3,12 +3,12 @@ import type { ChatMessage } from '$lib/server/trenara/types';
 import {
 	createPendingMessage,
 	hasNewReply,
-	isAscending,
 	isPending,
 	mergeFetched,
 	removeMessage,
 	replaceMessage,
 	serverIds,
+	toOldestFirst,
 	withMessage
 } from './message-list';
 
@@ -21,27 +21,40 @@ function message(id: number, created_at: number, user_id = ME, body = `m${id}`):
 
 const isOwn = (m: ChatMessage) => m.user_id === ME;
 
-describe('isAscending', () => {
-	it('treats an empty or single-message list as ascending', () => {
-		expect(isAscending([])).toBe(true);
-		expect(isAscending([message(1, 100)])).toBe(true);
+describe('toOldestFirst', () => {
+	// Trenara pages newest-first: page 1 is the ten most recent messages. The
+	// bubble renders top-to-bottom and scrolls to the bottom, so the response
+	// has to be flipped or the newest message ends up off-screen at the top.
+	it('flips the newest-first response so the newest message is last', () => {
+		const fetched = [message(3, 300), message(2, 200), message(1, 100)];
+		expect(toOldestFirst(fetched).map((m) => m.id)).toEqual([1, 2, 3]);
 	});
 
-	it('detects oldest-first and newest-first lists', () => {
-		expect(isAscending([message(1, 100), message(2, 200)])).toBe(true);
-		expect(isAscending([message(2, 200), message(1, 100)])).toBe(false);
+	it('leaves an already oldest-first list alone', () => {
+		const fetched = [message(1, 100), message(2, 200)];
+		expect(toOldestFirst(fetched).map((m) => m.id)).toEqual([1, 2]);
+	});
+
+	it('orders messages sent in the same second by id', () => {
+		const fetched = [message(2, 100), message(1, 100)];
+		expect(toOldestFirst(fetched).map((m) => m.id)).toEqual([1, 2]);
+	});
+
+	it('does not mutate the response', () => {
+		const fetched = [message(2, 200), message(1, 100)];
+		toOldestFirst(fetched);
+		expect(fetched.map((m) => m.id)).toEqual([2, 1]);
+	});
+
+	it('handles an empty thread', () => {
+		expect(toOldestFirst([])).toEqual([]);
 	});
 });
 
 describe('withMessage', () => {
-	it('appends to an oldest-first list', () => {
+	it('adds to the newest end of the list', () => {
 		const list = withMessage([message(1, 100), message(2, 200)], message(3, 300));
 		expect(list.map((m) => m.id)).toEqual([1, 2, 3]);
-	});
-
-	it('prepends to a newest-first list', () => {
-		const list = withMessage([message(2, 200), message(1, 100)], message(3, 300));
-		expect(list.map((m) => m.id)).toEqual([3, 2, 1]);
 	});
 
 	it('does not mutate the input', () => {
@@ -100,11 +113,11 @@ describe('mergeFetched', () => {
 		expect(merged.some(isPending)).toBe(false);
 	});
 
-	it('keeps the pending message at the newest end of a newest-first list', () => {
+	it('keeps the pending message at the newest end of the list', () => {
 		const pending = createPendingMessage('what pace?', ME);
-		const merged = mergeFetched([message(2, 200), message(1, 100)], [pending]);
+		const merged = mergeFetched([message(1, 100), message(2, 200)], [pending]);
 
-		expect(merged[0].body).toBe('what pace?');
+		expect(merged[merged.length - 1].body).toBe('what pace?');
 	});
 
 	it('takes the server list as the truth for everything else', () => {
