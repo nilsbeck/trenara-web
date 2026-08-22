@@ -4,3 +4,4 @@ export { authApi } from './auth';
 export { userApi } from './user';
 export { trainingApi } from './training';
 export { chatApi } from './chat';
+export { newsApi } from './news';

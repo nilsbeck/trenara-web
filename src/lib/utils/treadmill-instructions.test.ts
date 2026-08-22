@@ -170,3 +170,82 @@ describe('buildTreadmillInstructions', () => {
 		expect(result[0].title).toBe('jog');
 	});
 });
+
+// ─────────────────────────────────────────────────────────────
+// Cross-trained sessions
+//
+// Swapping a training to another activity (e.g. road_bike) keeps the
+// duration but drops every distance and pace field to null. These
+// blocks still have to render, just without a speed.
+// ─────────────────────────────────────────────────────────────
+describe('buildTreadmillInstructions — cross-trained sessions', () => {
+	function makeRideBlock(): TrainingBlock {
+		return {
+			order: 1,
+			type: 'run', // the API keeps type "run" even for a bike ride
+			prior: 'time',
+			calc_distance_in_km: null,
+			calc_time_in_sec: 6223,
+			time: '01:43:43',
+			time_in_sec: 6223,
+			time_value: 6223,
+			time_unit: 'sec',
+			distance: null,
+			distance_value: null,
+			distance_unit: null,
+			distance_unit_text: null,
+			pace: null,
+			pace_value: null,
+			pace_unit: null,
+			pace_per_hour: null,
+			pace_per_hour_value: null,
+			pace_per_hour_unit: null,
+			prefer_pph: false,
+			text: 'Ride 01:43:43',
+			text_pph: 'Ride 01:43:43'
+		};
+	}
+
+	it('renders a ride with its duration and no speed', () => {
+		const training = makeTraining([
+			{ order: 1, repeat: 1, type: 'core', blocks: [makeRideBlock()] }
+		]);
+		const result = buildTreadmillInstructions(training);
+
+		expect(result).toHaveLength(1);
+		expect(result[0].title).toBe('Ride 01:43:43');
+		expect(result[0].time).toBe('01:43:43');
+		expect(result[0].distance).toBeUndefined();
+		expect(result[0].speedLabel).toBeNull();
+	});
+
+	it('contributes no distance to the running total', () => {
+		const training = makeTraining([
+			{ order: 1, repeat: 1, type: 'core', blocks: [makeRideBlock()] }
+		]);
+		const result = buildTreadmillInstructions(training);
+
+		expect(result[0].cumulativeDistanceLabel).toBeNull();
+	});
+
+	it('handles a group block that carries no measurements of its own', () => {
+		// Group blocks omit time/distance/pace entirely — only the leaves have them.
+		const training = makeTraining([
+			{
+				order: 1,
+				repeat: 2,
+				type: 'core',
+				blocks: [
+					makeBlock({ text: 'Run 400m', distance: '400m', distance_value: 400, distance_unit: 'm' })
+				]
+			}
+		]);
+		const result = buildTreadmillInstructions(training);
+
+		expect(result).toHaveLength(2);
+		expect(result[0].repeatIndex).toBe(1);
+		expect(result[1].repeatIndex).toBe(2);
+		// 400 m per rep, counted in metres rather than kilometres.
+		expect(result[1].cumulativeDistanceLabel).toBe('0.8 km');
+	});
+});

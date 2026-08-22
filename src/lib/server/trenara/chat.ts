@@ -34,10 +34,17 @@ export const chatApi = {
 		});
 	},
 
+	/**
+	 * Post a message to a thread.
+	 *
+	 * The field is `body`, matching the messages that come back. An earlier
+	 * version sent `content`, which is what this app's own internal route uses
+	 * but not what Trenara expects.
+	 */
 	async sendMessage(cookies: Cookies, threadId: number, content: string): Promise<ChatMessage> {
 		return fetchClient.post<ChatMessage>(
 			`/api/threads/${threadId}/messages`,
-			{ content },
+			{ body: content },
 			{ headers: bearerHeader(cookies), cookies }
 		);
 	}
