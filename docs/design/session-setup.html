@@ -673,6 +673,27 @@
 
 	.row.switch-row { cursor: pointer; }
 
+	.row .rsub {
+		display: block;
+		font-size: 11.5px;
+		color: var(--app-dim);
+		margin-top: 1px;
+	}
+
+	.row.lit {
+		background: color-mix(in srgb, var(--accent) 12%, transparent);
+		border-radius: 8px;
+	}
+
+	.row .spin {
+		width: 14px; height: 14px;
+		border: 1.5px solid var(--app-border);
+		border-top-color: var(--accent);
+		border-radius: 999px;
+		flex: 0 0 auto;
+		animation: spin 0.6s linear infinite;
+	}
+
 	.sw {
 		width: 36px;
 		height: 21px;
@@ -771,6 +792,64 @@
 	.toast button:hover { background: var(--app-muted); }
 
 	/* ── Spec furniture ─────────────────────────────────────────── */
+	.cal-demo {
+		display: grid;
+		grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+		gap: 22px;
+		margin-top: 26px;
+	}
+
+	.cal-demo > div {
+		background: var(--panel);
+		border: 1px solid var(--rule);
+		border-radius: 12px;
+		padding: 18px 20px;
+	}
+
+	.cal-demo .grp-label { color: var(--dimmer); }
+
+	.cal-row { display: flex; gap: 8px; }
+
+	.cal-day {
+		width: 40px; height: 42px;
+		border-radius: 9px;
+		background: var(--app-bg);
+		border: 1px solid var(--rule);
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		justify-content: center;
+		gap: 3px;
+		font-size: 0.82rem;
+		color: var(--text);
+		font-variant-numeric: tabular-nums;
+		position: relative;
+	}
+
+	.cal-dots { display: flex; align-items: center; gap: 3px; height: 5px; }
+	.cal-dots i { width: 5px; height: 5px; border-radius: 999px; display: block; }
+	.cal-dots i.cb { width: 9px; height: 3px; border-radius: 2px; }
+
+	.cal-note {
+		font-size: 0.85rem;
+		color: var(--dimmer);
+		margin: 12px 0 0;
+		line-height: 1.45;
+	}
+
+	.legend {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 10px 24px;
+		margin-top: 22px;
+		font-size: 0.88rem;
+		color: #aeb6c3;
+	}
+
+	.legend span { display: flex; align-items: center; gap: 8px; }
+	.legend i { width: 9px; height: 9px; border-radius: 999px; flex: 0 0 auto; }
+	.legend code { font-size: 0.72rem; }
+
 	.notes { display: flex; flex-direction: column; gap: 26px; }
 
 	.note {
@@ -1079,8 +1158,20 @@
 				<p>
 					Every chip is both the applied value and the way in. Chips that still match the
 					coach’s plan sit muted; anything you changed picks up a pink dot and a tinted border,
-					so “what did I touch on this session” is one glance. Effort and volume chips only
-					appear once they differ from plan — at 0% they are noise.
+					so “what did I touch on this session” is one glance.
+				</p>
+			</div>
+			<div class="note">
+				<span class="k">Chip rail</span>
+				<h3>The rail and the index are one list</h3>
+				<p>
+					Both render from the same array of settings, so a setting cannot carry a different
+					name, icon, value or position in one than it has in the other — “Adidas Boston 13”
+					on the chip is “Adidas Boston 13” in the row. What differs is only which ones show:
+					terrain and shoe always, because they are the session’s standing setup; effort,
+					volume and cool-down only once they differ from plan, since at “as planned” they
+					are noise. Activity and workout never get a chip — the identity strip is already
+					showing them, the icon for one and the title for the other.
 				</p>
 			</div>
 			<div class="note">
@@ -1121,7 +1212,8 @@
 					the list, the shape bar loses its trailing segment and the totals fall by that
 					distance and time. Seeing the plan change <em>is</em> the confirmation. Turned off it
 					earns a “No cool-down” chip, because that is now a deviation from what the coach
-					wrote.
+					wrote. It is the one chip with no editor behind it, so it opens the index and lights
+					up its own row rather than landing you somewhere that doesn’t exist.
 				</p>
 			</div>
 		</div>
@@ -1325,6 +1417,19 @@
 		return null;
 	}
 
+	function shoeName(sh) {
+		if (!sh) return null;
+		return sh.brand === 'Other' ? sh.name : sh.brand + ' ' + sh.name;
+	}
+
+	/** Label for a cross_type. Unregistered types fall back to their own name. */
+	function activityLabel(ct) {
+		for (var i = 0; i < ACTIVITIES.length; i++) {
+			if (ACTIVITIES[i].v === (ct || null)) return ACTIVITIES[i].label;
+		}
+		return String(ct).replace(/_/g, ' ').replace(/^./, function (c) { return c.toUpperCase(); });
+	}
+
 	function surfaceOpt() {
 		for (var i = 0; i < SURFACES.length; i++) if (SURFACES[i].v === s.surface) return SURFACES[i];
 		return null;
@@ -1349,39 +1454,95 @@
 			'<use href="#' + id + '"/></svg>';
 	}
 
-	// ── Chip rail ────────────────────────────────────────────────────
-	function chipDefs() {
+	// ── Settings ─────────────────────────────────────────────────────
+	//
+	// One list, two views. The chip rail and the sheet index both render
+	// from this, so a setting cannot appear in one with a different name,
+	// icon, value or position than it has in the other.
+	//
+	// `chip` says when the setting earns a place on the rail:
+	//   'always'  — part of the session's standing setup (running only)
+	//   'changed' — only once it differs from what the coach planned
+	//   'never'   — already shown by the identity strip, so a chip would
+	//               repeat it: the activity is the icon, the workout is
+	//               the title
+	function settings() {
 		var out = [];
+
 		if (!s.cross_type) {
+			var su = surfaceOpt(), he = heightOpt();
+			out.push({
+				key: 'terrain', view: 'terrain', label: 'Terrain',
+				icon: su ? su.icon : 'i-mountain',
+				value: su ? su.label + ' · ' + (he ? he.label : 'Flat') : null,
+				changed: false, chip: 'always'
+			});
 			var sh = shoe();
 			out.push({
-				key: 'shoe', view: 'shoe', icon: 'i-shoe',
-				label: sh ? sh.name : 'Shoe', ghost: !sh, changed: false
-			});
-			var su = surfaceOpt();
-			out.push({
-				key: 'terrain', view: 'terrain', icon: su ? su.icon : 'i-mountain',
-				label: su ? (su.label + (s.height && s.height !== 'flat' ? ' · ' + heightOpt().label : '')) : 'Terrain',
-				ghost: !su, changed: false
+				key: 'shoe', view: 'shoe', label: 'Shoe', icon: 'i-shoe',
+				value: shoeName(sh),
+				changed: false, chip: 'always'
 			});
 		}
-		if (s.can_change_intensity && s.intensity !== 0) {
+
+		if (s.can_change_intensity) {
 			out.push({
-				key: 'effort', view: 'effort', icon: 'i-gauge',
-				label: stepText(s.intensitySteps, s.intensity), ghost: false, changed: true
+				key: 'effort', view: 'effort', label: 'Effort', icon: 'i-gauge',
+				value: stepText(s.intensitySteps, s.intensity),
+				changed: s.intensity !== 0, chip: 'changed'
 			});
 		}
-		if (s.can_change_distance && s.distance !== 0) {
+
+		if (s.can_change_distance) {
 			out.push({
-				key: 'volume', view: 'volume', icon: 'i-volume',
-				label: stepText(s.distanceSteps, s.distance), ghost: false, changed: true
+				key: 'volume', view: 'volume', label: 'Volume', icon: 'i-volume',
+				value: stepText(s.distanceSteps, s.distance),
+				changed: s.distance !== 0, chip: 'changed'
 			});
 		}
-		if (s.can_toggle_cooldown && !s.has_cooldown) {
+
+		if (s.can_toggle_cooldown) {
 			out.push({
-				key: 'cooldown', view: 'index', icon: 'i-cooldown',
-				label: 'No cool-down', ghost: false, changed: true
+				key: 'cooldown', view: 'index', label: 'Cool-down', icon: 'i-cooldown',
+				value: s.has_cooldown
+					? (s.cooldown ? s.cooldown.t.replace('Cool-down: ', '') : 'On')
+					: 'Removed',
+				chipLabel: 'No cool-down',
+				changed: !s.has_cooldown, chip: 'changed', toggle: true
 			});
+		}
+
+		if (s.can_change_pacing_plan) {
+			out.push({
+				key: 'pacing', view: 'pacing', label: 'Pacing plan', icon: 'i-gauge',
+				value: 'Even', changed: false, chip: 'changed'
+			});
+		}
+
+		if (s.can_cross_train) {
+			out.push({
+				key: 'activity', view: 'activity', label: 'Activity', icon: s.activity,
+				value: activityLabel(s.cross_type),
+				changed: !!s.cross_type, chip: 'never', replace: true
+			});
+		}
+
+		if (s.can_be_exchanged) {
+			out.push({
+				key: 'workout', view: 'workout', label: 'Workout', icon: 'i-swap',
+				value: s.title, changed: false, chip: 'never', replace: true
+			});
+		}
+
+		return out;
+	}
+
+	// ── Chip rail ────────────────────────────────────────────────────
+	function chipDefs() {
+		var all = settings(), out = [];
+		for (var i = 0; i < all.length; i++) {
+			var d = all[i];
+			if (d.chip === 'always' || (d.chip === 'changed' && d.changed)) out.push(d);
 		}
 		return out;
 	}
@@ -1390,12 +1551,14 @@
 		var defs = chipDefs(), html = '';
 		for (var i = 0; i < defs.length; i++) {
 			var d = defs[i];
-			var cls = 'chip' + (d.ghost ? ' ghost' : '') + (d.changed ? ' changed' : '') +
+			var ghost = d.value == null;
+			var cls = 'chip' + (ghost ? ' ghost' : '') + (d.changed ? ' changed' : '') +
 				(pending === d.key ? ' syncing' : '') + (flashKey === d.key ? ' flash' : '');
-			html += '<button type="button" class="' + cls + '" data-open="' + d.view + '">' +
+			html += '<button type="button" class="' + cls + '" data-open="' + d.view +
+				'" data-focus="' + d.key + '">' +
 				(pending === d.key ? '<span class="spin"></span>' : ic(d.icon, 13)) +
 				(d.changed ? '<span class="dot"></span>' : '') +
-				esc(d.label) + '</button>';
+				esc(d.chipLabel || d.value || d.label) + '</button>';
 		}
 		if (defs.length === 0) {
 			return '<button type="button" class="chip" data-open="index">' +
@@ -1441,53 +1604,32 @@
 	}
 
 	// ── Sheet views ──────────────────────────────────────────────────
-	function rowHtml(view, icon, label, value, changed) {
-		return '<button type="button" class="row" data-open="' + view + '">' +
-			'<span class="ri">' + ic(icon, 17) + '</span>' +
-			'<span class="rl">' + esc(label) + '</span>' +
-			'<span class="rv' + (changed ? ' changed' : '') + '">' + esc(value) + '</span>' +
+	function rowHtml(d) {
+		if (d.toggle) {
+			return '<button type="button" class="row switch-row' +
+				(highlight === d.key ? ' lit' : '') + '" data-toggle="' + d.key + '">' +
+				'<span class="ri">' + ic(d.icon, 17) + '</span>' +
+				'<span class="rl">' + esc(d.label) +
+				'<span class="rsub">' + esc(d.value) + '</span></span>' +
+				(pending === d.key
+					? '<span class="spin"></span>'
+					: '<span class="sw' + (s.has_cooldown ? ' on' : '') + '"><i></i></span>') +
+				'</button>';
+		}
+		return '<button type="button" class="row' + (highlight === d.key ? ' lit' : '') +
+			'" data-open="' + d.view + '" data-focus="' + d.key + '">' +
+			'<span class="ri">' + ic(d.icon, 17) + '</span>' +
+			'<span class="rl">' + esc(d.label) + '</span>' +
+			'<span class="rv' + (d.changed ? ' changed' : '') + '">' +
+			esc(d.value == null ? 'Not set' : d.value) + '</span>' +
 			'<span class="rc">' + ic('i-next', 15) + '</span></button>';
 	}
 
 	function viewIndex() {
-		var tune = '', replace = '';
-		if (!s.cross_type) {
-			var su = surfaceOpt();
-			tune += rowHtml('terrain', 'i-mountain', 'Terrain',
-				su ? su.label + ' · ' + heightOpt().label : 'Not set', false);
-		}
-		if (s.can_change_intensity) {
-			tune += rowHtml('effort', 'i-gauge', 'Effort',
-				stepText(s.intensitySteps, s.intensity), s.intensity !== 0);
-		}
-		if (s.can_change_distance) {
-			tune += rowHtml('volume', 'i-volume', 'Volume',
-				stepText(s.distanceSteps, s.distance), s.distance !== 0);
-		}
-		if (!s.cross_type) {
-			var sh = shoe();
-			tune += rowHtml('shoe', 'i-shoe', 'Shoe', sh ? sh.name : 'Not set', false);
-		}
-		if (s.can_toggle_cooldown) {
-			tune += '<button type="button" class="row switch-row" data-toggle="cooldown">' +
-				'<span class="ri">' + ic('i-cooldown', 17) + '</span>' +
-				'<span class="rl">Cool-down' +
-				(s.cooldown ? '<span class="ps" style="display:block;font-size:11.5px;color:var(--app-dim)">' +
-					esc(s.cooldown.t.replace('Cool-down: ', '')) + '</span>' : '') +
-				'</span>' +
-				(pending === 'cooldown'
-					? '<span class="spin" style="width:13px;height:13px;border:1.5px solid var(--app-border);border-top-color:var(--accent);border-radius:999px"></span>'
-					: '<span class="sw' + (s.has_cooldown ? ' on' : '') + '"><i></i></span>') +
-				'</button>';
-		}
-		if (s.can_change_pacing_plan) {
-			tune += rowHtml('pacing', 'i-gauge', 'Pacing plan', 'Even', false);
-		}
-		if (s.can_cross_train) {
-			replace += rowHtml('activity', s.activity, 'Activity', s.cross_type ? 'Cycling' : 'Run', !!s.cross_type);
-		}
-		if (s.can_be_exchanged) {
-			replace += rowHtml('workout', 'i-swap', 'Workout', s.title, false);
+		var all = settings(), tune = '', replace = '';
+		for (var i = 0; i < all.length; i++) {
+			if (all[i].replace) replace += rowHtml(all[i]);
+			else tune += rowHtml(all[i]);
 		}
 
 		return '<p class="sheet-text">Everything Coach Christophe allows on this session. ' +
@@ -1552,7 +1694,7 @@
 			html += '<button type="button" class="pick" data-set="shoe" data-value="' + sh.id +
 				'" aria-pressed="' + (s.shoeId === sh.id) + '">' +
 				'<span class="pi">' + ic('i-shoe', 17) + '</span>' +
-				'<span class="pm"><span class="pn">' + esc(sh.brand === 'Other' ? sh.name : sh.brand + ' ' + sh.name) +
+				'<span class="pm"><span class="pn">' + esc(shoeName(sh)) +
 				(sh.preferred ? '<span class="badge fav">Favourite</span>' : '') +
 				'<span class="badge">' + esc(SHOE_TYPE_TEXT[sh.type] || sh.type) + '</span></span>' +
 				'<span class="ps">' + esc(sh.done) + ' of ' + esc(sh.life) + ' · ' + pct + '%</span>' +
@@ -1620,6 +1762,7 @@
 	var toastMsg = document.getElementById('toastMsg');
 	var staged = null;
 	var toastTimer = null;
+	var highlight = null;
 
 	function render() {
 		cardBody.innerHTML = renderCard();
@@ -1635,11 +1778,17 @@
 		}
 	}
 
-	function open(v) {
+	function open(v, focus) {
 		if (v === 'pacing') v = 'effort';
 		view = v;
 		staged = v === 'terrain' ? { surface: s.surface || 'road', height: s.height || 'flat' } : null;
+		// A chip whose setting has no editor of its own — the cool-down switch —
+		// opens the index and lights up its row rather than landing you nowhere.
+		highlight = v === 'index' && focus ? focus : null;
 		render();
+		if (highlight) {
+			setTimeout(function () { highlight = null; if (view === 'index') render(); }, 1400);
+		}
 	}
 
 	function close() { view = null; render(); }
@@ -1716,7 +1865,10 @@
 			return;
 		}
 
-		if (t.hasAttribute('data-open')) { open(t.getAttribute('data-open')); return; }
+		if (t.hasAttribute('data-open')) {
+			open(t.getAttribute('data-open'), t.getAttribute('data-focus'));
+			return;
+		}
 
 		if (t.getAttribute('data-toggle') === 'cooldown') {
 			commit('cooldown', { has_cooldown: !s.has_cooldown }, false);
@@ -1911,25 +2063,67 @@
 <section>
 	<div class="sec-head">
 		<h2>Spilling the colour into the month grid</h2>
-		<span class="tag">optional, one line of CSS</span>
+		<span class="tag">revised — strength needs shape, not colour</span>
 	</div>
 	<div class="prose">
 		<p style="color:#aeb6c3">
-			Today a scheduled day gets a generic blue dot. Since <code>hex_training</code> is already
-			per-workout-type, painting the dot with it turns the month into a training-mix overview:
-			three oranges in a week is a lot of tempo. Completed keeps its green, missed keeps its
-			red — status still beats type. It only works because the dot never carries meaning
-			alone; the day’s session name is one tap away, and the legend below is worth showing
-			once.
+			Today the grid has exactly three dot colours, and running and strength share all three:
+			<code>calendar-cell.svelte</code> paints both dots from
+			<code>--color-dot-scheduled</code>, <code>--color-dot-completed</code> and
+			<code>--color-dot-missed</code>. Strength has no colour of its own. The only thing
+			separating the two is that the strength dot sits second in the pair — which works on a
+			day that has both, and tells you nothing on a day that has only strength.
+		</p>
+		<p style="color:#aeb6c3">
+			That breaks the idea of painting the run dot with <code>hex_training</code>: the moment
+			one dot carries workout type, the two stop being parallel and the pair reads as one
+			coloured thing next to one blue thing. So the rule has to split — <strong>shape says what
+			it is, colour says how it is going</strong>. A run stays a filled dot, strength becomes a
+			small bar. Then the run dot is free to carry its training colour while scheduled, and
+			completed green and missed red still override it, because status beats type.
 		</p>
 	</div>
-	<div style="display:flex;gap:26px;flex-wrap:wrap;margin-top:20px;align-items:center;font-size:0.9rem;color:#aeb6c3">
-		<span style="display:flex;align-items:center;gap:8px"><span style="width:9px;height:9px;border-radius:99px;background:var(--t-tempo)"></span>Tempo</span>
-		<span style="display:flex;align-items:center;gap:8px"><span style="width:9px;height:9px;border-radius:99px;background:var(--t-easy)"></span>Easy + strides</span>
-		<span style="display:flex;align-items:center;gap:8px"><span style="width:9px;height:9px;border-radius:99px;background:#D55E00"></span>Interval</span>
-		<span style="display:flex;align-items:center;gap:8px"><span style="width:9px;height:9px;border-radius:99px;background:var(--t-bike)"></span>Cross-training</span>
-		<span style="display:flex;align-items:center;gap:8px"><span style="width:9px;height:9px;border-radius:99px;background:#4ade80"></span>Completed</span>
+
+	<div class="cal-demo">
+		<div class="cal-now">
+			<p class="grp-label" style="margin-top:0">Today</p>
+			<div class="cal-row">
+				<span class="cal-day">12<span class="cal-dots"><i class="cd" style="background:#66B3FF"></i></span></span>
+				<span class="cal-day">13<span class="cal-dots"><i class="cd" style="background:#21C45D"></i></span></span>
+				<span class="cal-day">14<span class="cal-dots"><i class="cd" style="background:#EF4343"></i></span></span>
+				<span class="cal-day">15<span class="cal-dots"><i class="cd" style="background:#66B3FF"></i><i class="cd" style="background:#66B3FF"></i></span></span>
+			</div>
+			<p class="cal-note">Run and strength are the same blue. Day 15 has both — you have to
+				know the second dot means strength.</p>
+		</div>
+		<div class="cal-next">
+			<p class="grp-label" style="margin-top:0">Proposed</p>
+			<div class="cal-row">
+				<span class="cal-day">12<span class="cal-dots"><i class="cd" style="background:#E69F00"></i></span></span>
+				<span class="cal-day">13<span class="cal-dots"><i class="cd" style="background:#21C45D"></i></span></span>
+				<span class="cal-day">14<span class="cal-dots"><i class="cd" style="background:#EF4343"></i></span></span>
+				<span class="cal-day">15<span class="cal-dots"><i class="cd" style="background:#7B3294"></i><i class="cb" style="background:#66B3FF"></i></span></span>
+			</div>
+			<p class="cal-note">Tempo, done, missed, then an easy run plus strength. The bar is
+				strength at any status; the dot carries the session’s own colour until it is done.</p>
+		</div>
 	</div>
+
+	<div class="legend">
+		<span><i style="background:#E69F00"></i>Tempo <code>#E69F00</code></span>
+		<span><i style="background:#7B3294"></i>Easy + strides <code>#7B3294</code></span>
+		<span><i style="background:#D55E00"></i>Interval <code>#D55E00</code></span>
+		<span><i style="background:#1BB9AA"></i>Cross-training <code>#1BB9AA</code></span>
+		<span><i style="background:#21C45D"></i>Completed <code>--color-dot-completed</code></span>
+		<span><i style="background:#EF4343"></i>Missed <code>--color-dot-missed</code></span>
+		<span><i style="background:#66B3FF;border-radius:2px;width:11px;height:4px"></i>Strength <code>--color-dot-scheduled</code></span>
+	</div>
+
+	<p class="prose" style="color:#8d95a5;font-size:0.92rem;margin-top:20px">
+		One caveat before this ships: colour must never be the only carrier. It is not here — the
+		day’s session name is one tap away in the detail card, and shape already separates the two
+		disciplines — but a legend belongs somewhere the first time a runner sees a coloured grid.
+	</p>
 </section>
 
 <section>
