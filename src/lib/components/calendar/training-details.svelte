@@ -9,6 +9,7 @@
 		Trash2,
 		Loader2,
 		Star,
+		Repeat,
 		TriangleAlert,
 		X
 	} from 'lucide-svelte';
@@ -112,6 +113,14 @@
 		void detailStore.setCooldown(next);
 	}
 
+	// Whether the session itself can be replaced, which decides if its title is
+	// a control or just a heading.
+	const canChangeSession = $derived(
+		canShowSetup &&
+			!!detailStore.detail &&
+			(!!detailStore.detail.can_cross_train || !!detailStore.detail.can_be_exchanged)
+	);
+
 	function openSetup(key: SettingKey | null) {
 		// The cool-down has no editor of its own — its control is on the block.
 		setupSection = key === 'cooldown' ? null : key;
@@ -183,13 +192,32 @@
 				{/if}
 				<div class="min-w-0 flex-1">
 					<div class="flex min-w-0 flex-wrap items-baseline gap-1.5">
-						<h3 class="text-base font-semibold text-foreground">
-							{#if entry && !training}
-								{entry.name}
-							{:else if shownTraining}
-								{shownTraining.title}
-							{/if}
-						</h3>
+						{#if canChangeSession && shownTraining}
+							<!--
+								The title is the session's badge, so by the same rule the chips
+								follow it is also the way to change it. Burying the biggest
+								change of all two taps deep, while the small tweaks sit on the
+								card as chips, had it exactly backwards.
+							-->
+							<button
+								type="button"
+								onclick={() => openSetup('session')}
+								class="group flex items-baseline gap-1.5 text-left"
+							>
+								<h3 class="text-base font-semibold text-foreground">{shownTraining.title}</h3>
+								<Repeat
+									class="h-3 w-3 shrink-0 self-center text-muted-foreground transition-colors group-hover:text-foreground"
+								/>
+							</button>
+						{:else}
+							<h3 class="text-base font-semibold text-foreground">
+								{#if entry && !training}
+									{entry.name}
+								{:else if shownTraining}
+									{shownTraining.title}
+								{/if}
+							</h3>
+						{/if}
 						{#if shownTraining}
 							<span class="whitespace-nowrap text-[10px] text-muted-foreground">
 								[{shownTraining.training.total_distance ??

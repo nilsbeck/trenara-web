@@ -290,6 +290,25 @@
 		flex-wrap: wrap;
 	}
 
+	.title-btn {
+		display: inline-flex;
+		align-items: center;
+		gap: 5px;
+		background: transparent;
+		border: 0;
+		padding: 0;
+		font: inherit;
+		font-size: 15px;
+		font-weight: 600;
+		letter-spacing: -0.01em;
+		color: var(--app-fg);
+		cursor: pointer;
+	}
+
+	.title-btn svg { color: var(--app-dim); transition: color 0.15s; }
+	.title-btn:hover svg { color: var(--app-fg); }
+	.title-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 4px; }
+
 	.ident-meta {
 		font-size: 11.5px;
 		color: var(--app-dim);
@@ -1290,10 +1309,17 @@
 					is ours to absorb.
 				</p>
 				<p>
-					So it is one row, and one list grouped by what each option <em>is</em> — another
-					session, or a different sport — rather than by which call serves it. Which endpoint
-					fires is decided per option, at the moment of tapping. When only one of the two flags
-					is set only that group renders, and the row reads the same either way.
+					So it is one list, grouped by what each option <em>is</em> — another session, or a
+					different sport — rather than by which call serves it. Which endpoint fires is decided
+					per option, at the moment of tapping. When only one of the two flags is set only that
+					group renders.
+				</p>
+				<p>
+					And it opens from the title. The chips put terrain and shoe on the card while the
+					biggest change of all sat two taps deep behind the sliders button, which is exactly
+					backwards. The title is the session’s badge, so by the same rule the chips follow it
+					is also the way to change it — a small swap glyph beside it, no new chrome. The title
+					stays a plain heading on a session that cannot be replaced.
 				</p>
 			</div>
 			<div class="note">
@@ -1723,7 +1749,15 @@
 				'<span class="ident-rail"></span>' +
 				'<span class="ident-icon">' + ic(s.activity, 19) + '</span>' +
 				'<div class="ident-main">' +
-					'<div class="ident-title">' + esc(s.title) +
+					'<div class="ident-title">' +
+						// The title is the session's badge, so it is also the way to change
+						// it — the same rule the chips follow. Leaving the biggest change
+						// two taps deep while the small tweaks sat on the card had it
+						// backwards.
+						(s.can_cross_train || s.can_be_exchanged
+							? '<button type="button" class="title-btn" data-open="session">' +
+								esc(s.title) + ic('i-swap', 12) + '</button>'
+							: esc(s.title)) +
 						'<span class="ident-meta' + (flashKey === 'meta' ? ' flash' : '') + '">' + esc(metaText()) + '</span>' +
 					'</div>' +
 					'<div class="shape">' + shapeHtml + '</div>' +

@@ -446,8 +446,56 @@ describe('switching back to a run', () => {
 		await fireEvent.click(screen.getByLabelText('Session setup'));
 		await fireEvent.click(await waitFor(() => screen.getByText('Session')));
 
-		const cycling = await waitFor(() => screen.getByRole('button', { name: 'Cycling' }));
-		expect((cycling as HTMLButtonElement).disabled).toBe(true);
+		// The card's title is a button named "Cycling" too now, so name alone no
+		// longer identifies the tile — aria-pressed does.
+		const tile = await waitFor(() => {
+			const found = screen
+				.getAllByRole('button', { name: 'Cycling' })
+				.find((b) => b.hasAttribute('aria-pressed'));
+			if (!found) throw new Error('activity tile not rendered yet');
+			return found;
+		});
+		expect((tile as HTMLButtonElement).disabled).toBe(true);
+		vi.unstubAllGlobals();
+	});
+});
+
+describe('changing the session from the card', () => {
+	const swappable: ScheduledTraining = { ...detail, can_cross_train: true, can_be_exchanged: true };
+
+	it('opens the session editor straight from the title', async () => {
+		const fetchMock = vi
+			.fn()
+			.mockResolvedValueOnce({ ok: true, status: 200, json: async () => swappable })
+			.mockResolvedValue({ ok: true, status: 200, json: async () => [] });
+		vi.stubGlobal('fetch', fetchMock);
+
+		render(TrainingDetails, {
+			props: { selectedDate: '2026-08-22', training: base, entry: null, isLoading: false }
+		});
+
+		// Two taps deep behind the sliders chip put the biggest change furthest
+		// away, while the small tweaks sat on the card as chips.
+		const title = await waitFor(() => screen.getByRole('button', { name: /Tempo run/ }));
+		await fireEvent.click(title);
+
+		await waitFor(() => expect(screen.getByText('Change this session')).toBeTruthy());
+		vi.unstubAllGlobals();
+	});
+
+	it('leaves the title a plain heading when nothing can replace the session', async () => {
+		const locked = { ...detail, can_cross_train: false, can_be_exchanged: false };
+		vi.stubGlobal(
+			'fetch',
+			vi.fn().mockResolvedValue({ ok: true, status: 200, json: async () => locked })
+		);
+
+		render(TrainingDetails, {
+			props: { selectedDate: '2026-08-22', training: base, entry: null, isLoading: false }
+		});
+
+		await waitFor(() => expect(screen.getAllByText('Treadmill · Flat').length).toBeGreaterThan(0));
+		expect(screen.queryByRole('button', { name: /Tempo run/ })).toBeNull();
 		vi.unstubAllGlobals();
 	});
 });
