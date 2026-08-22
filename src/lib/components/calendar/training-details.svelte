@@ -1,6 +1,9 @@
 <script lang="ts">
 	import type { ScheduledTraining, Entry } from '$lib/server/trenara/types';
 	import {
+		Activity,
+		Bike,
+		Footprints,
 		MessageCircle,
 		Clock,
 		Route,
@@ -23,6 +26,7 @@
 	import { SessionDetailStore } from '$lib/stores/session-detail.svelte';
 	import CooldownBlock from '$lib/components/training/cooldown-block.svelte';
 	import {
+		activityIcon,
 		cooldownBlockIndex,
 		isRun,
 		sessionSummary,
@@ -126,6 +130,14 @@
 			(!!detailStore.detail.can_cross_train || !!detailStore.detail.can_be_exchanged)
 	);
 
+	// The offer expires: an Undo still sitting there ten minutes later is not
+	// about the tap that produced it any more.
+	$effect(() => {
+		if (!detailStore.undoable) return;
+		const timer = setTimeout(() => detailStore.dismissUndo(), 8000);
+		return () => clearTimeout(timer);
+	});
+
 	function openSetup(key: SettingKey | null) {
 		setupSection = key;
 		setupOpen = true;
@@ -187,12 +199,28 @@
 						hex_training is already per-workout-type and is the same value the
 						mobile app paints, so the colour coding comes from the server. It
 						is never used as text colour: several of those hues fail contrast
-						on the charcoal ground.
+						on the charcoal ground — the rail and an 18% tint behind the icon
+						carry it instead.
 					-->
 					<span
 						class="w-[3px] shrink-0 self-stretch rounded-full"
 						style="background-color: {shownTraining.hex_training}"
 					></span>
+					{#if !entry}
+						{@const kind = activityIcon(shownTraining.cross_type)}
+						<span
+							class="mt-0.5 grid h-8 w-8 shrink-0 place-items-center rounded-lg"
+							style="background-color: color-mix(in srgb, {shownTraining.hex_training} 18%, transparent); color: {shownTraining.hex_training}"
+						>
+							{#if kind === 'bike'}
+								<Bike class="h-4 w-4" />
+							{:else if kind === 'run'}
+								<Footprints class="h-4 w-4" />
+							{:else}
+								<Activity class="h-4 w-4" />
+							{/if}
+						</span>
+					{/if}
 				{/if}
 				<div class="min-w-0 flex-1">
 					<div class="flex min-w-0 flex-wrap items-baseline gap-1.5">
@@ -303,6 +331,35 @@
 				cool-down control sits on the block instead, out here, so without
 				this a refused change looked exactly like a button doing nothing.
 			-->
+			{#if detailStore.undoable && !setupOpen}
+				<!--
+					Replacing a session rewrites every block, which is a lot for one
+					tap — but it is reversible, so this stands in for a confirm dialog
+					rather than making every deliberate swap answer one.
+				-->
+				<div
+					class="mt-2 flex items-center gap-2 rounded-lg bg-muted px-3 py-2 text-xs"
+					role="status"
+				>
+					<span class="flex-1 text-foreground">{detailStore.undoable.message}</span>
+					<button
+						type="button"
+						onclick={() => detailStore.undo()}
+						class="shrink-0 rounded-full border border-border px-2.5 py-0.5 font-medium text-foreground transition-colors hover:border-primary hover:text-primary"
+					>
+						Undo
+					</button>
+					<button
+						type="button"
+						onclick={() => detailStore.dismissUndo()}
+						aria-label="Dismiss"
+						class="shrink-0 text-muted-foreground transition-colors hover:text-foreground"
+					>
+						<X class="h-3.5 w-3.5" />
+					</button>
+				</div>
+			{/if}
+
 			{#if detailStore.error && !setupOpen}
 				<div
 					class="mt-2 flex items-start gap-2 rounded-lg bg-destructive/15 px-3 py-2 text-xs text-foreground"

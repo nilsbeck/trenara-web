@@ -312,22 +312,26 @@ describe('SessionDetailStore', () => {
 		expect(store.error).toBeNull();
 	});
 
-	it('drops the cached alternatives once the workout is replaced', async () => {
+	it('replaces the cached alternatives once the workout is replaced', async () => {
 		const fetchMock = vi.mocked(fetch);
-		fetchMock.mockResolvedValueOnce(jsonResponse(detail()));
+		fetchMock.mockResolvedValueOnce(jsonResponse(detail({ title: 'Tempo run' })));
 		const store = new SessionDetailStore();
 		store.load(42);
 		await vi.waitFor(() => expect(store.detail).not.toBeNull());
 
-		fetchMock.mockResolvedValueOnce(jsonResponse([{ id: 20112 }]));
+		fetchMock.mockResolvedValueOnce(jsonResponse([{ id: 20112, title: 'Easy run' }]));
 		await store.loadCandidates();
 		expect(store.candidates).toHaveLength(1);
 
-		fetchMock.mockResolvedValueOnce(jsonResponse(detail({ title: 'Easy run' })));
+		// The old list described a session that is no longer there, so it is
+		// dropped — and fetched again straight away, because the undo offer
+		// depends on whether the previous session is among the new ones.
+		fetchMock
+			.mockResolvedValueOnce(jsonResponse(detail({ title: 'Easy run' })))
+			.mockResolvedValueOnce(jsonResponse([{ id: 991, title: 'Tempo run' }]));
 		await store.exchange(20112);
 
-		// They described the session that is no longer there.
-		expect(store.candidates).toBeNull();
+		expect(store.candidates).toEqual([{ id: 991, title: 'Tempo run' }]);
 	});
 
 	it('fetches the shoe locker once, when it is first needed', async () => {
@@ -360,5 +364,103 @@ describe('SessionDetailStore', () => {
 		expect(await inFlight).toBe(false);
 
 		expect(store.detail?.title).not.toBe('Stale');
+	});
+});
+
+describe('undoing a session swap', () => {
+	beforeEach(() => {
+		vi.stubGlobal('fetch', vi.fn());
+	});
+
+	afterEach(() => {
+		vi.unstubAllGlobals();
+	});
+
+	async function loaded(initial = detail()) {
+		vi.mocked(fetch).mockResolvedValueOnce(jsonResponse(initial));
+		const store = new SessionDetailStore();
+		store.load(42);
+		await vi.waitFor(() => expect(store.detail).not.toBeNull());
+		return store;
+	}
+
+	it('offers an exact undo after an activity swap', async () => {
+		const store = await loaded(detail({ cross_type: null }));
+
+		vi.mocked(fetch).mockResolvedValueOnce(jsonResponse(detail({ cross_type: 'road_bike' })));
+		await store.crossTrain('road_bike');
+		expect(store.undoable?.message).toMatch(/cycling/i);
+
+		// The inverse of a cross-train is a cross-train, so this is precise.
+		vi.mocked(fetch).mockResolvedValueOnce(jsonResponse(detail({ cross_type: null })));
+		await store.undo();
+		expect(vi.mocked(fetch)).toHaveBeenLastCalledWith(
+			'/api/v1/training/42/cross-train',
+			expect.objectContaining({ body: JSON.stringify({ crossType: null }) })
+		);
+	});
+
+	it('offers to undo an exchange when the old session is still on offer', async () => {
+		const store = await loaded(detail({ title: 'Tempo run' }));
+
+		vi.mocked(fetch)
+			.mockResolvedValueOnce(jsonResponse(detail({ title: 'Easy run' })))
+			.mockResolvedValueOnce(jsonResponse([{ id: 991, title: 'Tempo run' }]));
+		await store.exchange(20112);
+
+		expect(store.undoable?.message).toContain('Easy run');
+
+		vi.mocked(fetch)
+			.mockResolvedValueOnce(jsonResponse(detail({ title: 'Tempo run' })))
+			.mockResolvedValueOnce(jsonResponse([]));
+		await store.undo();
+
+		// Not the *last* call: exchanging refreshes the candidate list after,
+		// since the ones it held describe a session that is no longer there.
+		expect(vi.mocked(fetch)).toHaveBeenCalledWith(
+			'/api/v1/training/42/exchange',
+			expect.objectContaining({ body: JSON.stringify({ candidateId: 991 }) })
+		);
+	});
+
+	it('offers no undo when the old session is not among the candidates', async () => {
+		// Promising an undo that would fail on the tap is worse than not
+		// offering one.
+		const store = await loaded(detail({ title: 'Tempo run' }));
+
+		vi.mocked(fetch)
+			.mockResolvedValueOnce(jsonResponse(detail({ title: 'Easy run' })))
+			.mockResolvedValueOnce(jsonResponse([{ id: 992, title: 'Intervals' }]));
+		await store.exchange(20112);
+
+		expect(store.undoable).toBeNull();
+	});
+
+	it('drops the offer when something else is changed', async () => {
+		const store = await loaded(detail({ cross_type: null }));
+
+		vi.mocked(fetch).mockResolvedValueOnce(jsonResponse(detail({ cross_type: 'road_bike' })));
+		await store.crossTrain('road_bike');
+		expect(store.undoable).not.toBeNull();
+
+		vi.mocked(fetch).mockResolvedValueOnce(jsonResponse(detail()));
+		await store.setEffort(-2);
+		expect(store.undoable).toBeNull();
+	});
+
+	it('drops the offer when the runner moves to another day', async () => {
+		const store = await loaded(detail({ cross_type: null }));
+
+		vi.mocked(fetch).mockResolvedValueOnce(jsonResponse(detail({ cross_type: 'road_bike' })));
+		await store.crossTrain('road_bike');
+
+		vi.mocked(fetch).mockResolvedValueOnce(jsonResponse(detail()));
+		store.load(43);
+		expect(store.undoable).toBeNull();
+	});
+
+	it('does nothing when there is nothing to undo', async () => {
+		const store = await loaded();
+		expect(await store.undo()).toBe(false);
 	});
 });

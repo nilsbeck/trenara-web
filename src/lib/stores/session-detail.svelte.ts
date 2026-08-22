@@ -6,7 +6,7 @@ import type {
 	TrainingHeightDifference,
 	TrainingSurface
 } from '$lib/server/trenara/types';
-import type { SettingKey } from '$lib/utils/session-setup';
+import { activityLabel, type SettingKey } from '$lib/utils/session-setup';
 
 /**
  * The detail and mutations for one selected training.
@@ -33,6 +33,15 @@ export class SessionDetailStore {
 	pending = $state<SettingKey | null>(null);
 	error = $state<string | null>(null);
 
+	/**
+	 * The last session swap, and how to put it back.
+	 *
+	 * Replacing a session rewrites every block, which is a lot to do on one tap
+	 * — but it is reversible, so an undo is a better answer than a confirm
+	 * dialog standing between the runner and every swap they meant.
+	 */
+	undoable = $state<{ message: string; apply: () => Promise<boolean> } | null>(null);
+
 	loading = $state(false);
 
 	#trainingId: number | null = null;
@@ -51,6 +60,7 @@ export class SessionDetailStore {
 		this.candidates = null;
 		this.pending = null;
 		this.error = null;
+		this.undoable = null;
 
 		if (trainingId == null) {
 			this.loading = false;
@@ -166,12 +176,52 @@ export class SessionDetailStore {
 	}
 
 	/** Swap the activity. `null` turns the session back into a run. */
-	crossTrain(crossType: string | null) {
-		return this.#mutate('session', 'cross-train', 'PUT', { crossType });
+	async crossTrain(crossType: string | null): Promise<boolean> {
+		const previous = this.detail?.cross_type ?? null;
+		if (!(await this.#mutate('session', 'cross-train', 'PUT', { crossType }))) return false;
+
+		// The inverse of a cross-train is exactly a cross-train, so this undo is
+		// precise rather than a best effort.
+		this.undoable = {
+			message: `Swapped to ${activityLabel(crossType)}.`,
+			apply: () => this.crossTrain(previous)
+		};
+		return true;
 	}
 
-	exchange(candidateId: number) {
-		return this.#mutate('session', 'exchange', 'PUT', { candidateId });
+	async exchange(candidateId: number): Promise<boolean> {
+		const previousTitle = this.detail?.title;
+		if (!(await this.#mutate('session', 'exchange', 'PUT', { candidateId }))) return false;
+
+		// Undoing an exchange means exchanging back, and that needs the old session
+		// to still be on offer — which is not guaranteed. So the offer is made
+		// only once the candidate is actually in hand, and stays unmade rather
+		// than promising something that would fail on the tap.
+		await this.loadCandidates();
+		const back = previousTitle
+			? this.candidates?.find((candidate) => candidate.title === previousTitle)
+			: undefined;
+
+		if (back) {
+			this.undoable = {
+				message: `Swapped to ${this.detail?.title ?? 'another session'}.`,
+				apply: () => this.exchange(back.id)
+			};
+		}
+
+		return true;
+	}
+
+	/** Put the last swap back, if it is still possible. */
+	async undo(): Promise<boolean> {
+		const pending = this.undoable;
+		if (!pending) return false;
+		this.undoable = null;
+		return pending.apply();
+	}
+
+	dismissUndo(): void {
+		this.undoable = null;
 	}
 
 	/**
@@ -196,6 +246,7 @@ export class SessionDetailStore {
 
 		this.pending = key;
 		this.error = null;
+		this.undoable = null;
 		const trainingId = this.#trainingId;
 
 		try {

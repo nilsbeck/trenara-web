@@ -235,6 +235,19 @@ export function sessionSummary(training: ScheduledTraining): string {
 		.join(' · ');
 }
 
+/**
+ * Which icon stands for a session's activity.
+ *
+ * Derived from `cross_type` alone, never from the title: titles are localised
+ * and the workout-type list is open-ended, so a second icon set keyed off them
+ * would be guesswork. An activity we cannot name gets the generic mark rather
+ * than a wrong one.
+ */
+export function activityIcon(crossType: string | null | undefined): 'run' | 'bike' | 'other' {
+	if (!crossType) return 'run';
+	return crossType === 'road_bike' ? 'bike' : 'other';
+}
+
 /** True when the training is a run rather than a cross-trained session. */
 export function isRun(training: ScheduledTraining): boolean {
 	return !training.cross_type;
