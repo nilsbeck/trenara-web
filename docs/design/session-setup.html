@@ -669,7 +669,12 @@
 		color: var(--app-dim);
 	}
 
-	.badge.fav { background: color-mix(in srgb, var(--accent) 20%, transparent); color: #f7a3ca; }
+	.badge.coach {
+		background: color-mix(in srgb, var(--accent) 20%, transparent);
+		color: #f7a3ca;
+	}
+
+	.pick .ps.warn { color: var(--warn); }
 
 	.row.switch-row { cursor: pointer; }
 
@@ -1204,6 +1209,29 @@
 				</p>
 			</div>
 			<div class="note">
+				<span class="k">Shoe</span>
+				<h3>“Which pair today”, not “which pair do you like”</h3>
+				<p>
+					The list is ordered by what suits <em>this</em> session: the coach’s suggestion
+					leads, and the terrain outranks it, because setting the surface to trail is newer
+					information than the plan’s default. Each shoe’s <code>type</code> — supertrainer,
+					race shoe, long run, trail — is the signal, with the reason stated once as a heading
+					rather than repeated per row, and wear underneath so a pair at 79% is visible before
+					you commit to it. Retired pairs are filtered out; they are not a choice.
+				</p>
+			</div>
+			<div class="note">
+				<span class="k">Shoe</span>
+				<h3>The one place with a client-side rule</h3>
+				<p>
+					Everywhere else the server decides. Here it can’t: nothing in the payload says which
+					shoe suits which session, so the ordering is ours. It stays defensible by hiding
+					nothing, blocking nothing, and staying silent when it has no signal — on road or
+					treadmill no rule fires and the server’s own order stands. <code>preferred</code> is
+					deliberately unused: it would float a favourite above the shoe the terrain calls for.
+				</p>
+			</div>
+			<div class="note">
 				<span class="k">Cool-down</span>
 				<h3>The switch has to move the plan</h3>
 				<p>
@@ -1226,9 +1254,11 @@
 
 	// ── Fixture data, transcribed from src/lib/server/trenara/payloads.test.ts ──
 	var SHOES = [
-		{ id: 6404, brand: 'Adidas', name: 'Boston 13', type: 'supertrainer', preferred: false, pct: 30.26, done: '242.08 km', life: '800 km' },
-		{ id: 7781, brand: 'Nike', name: 'Vomero 18', type: 'long_run', preferred: true, pct: 78.5, done: '628 km', life: '800 km' },
-		{ id: 2446, brand: 'Other', name: 'La Sportiva', type: 'trail', preferred: false, pct: 12.41, done: '99.31 km', life: '800 km' }
+		{ id: 6404, brand: 'Adidas', name: 'Boston 13', type: 'supertrainer', preferred: false, pct: 30.26, done: '242.08 km', life: '800 km', retired_at: null },
+		{ id: 7781, brand: 'Nike', name: 'Vomero 18', type: 'long_run', preferred: true, pct: 78.5, done: '628 km', life: '800 km', retired_at: null },
+		{ id: 2446, brand: 'Other', name: 'La Sportiva', type: 'trail', preferred: false, pct: 12.41, done: '99.31 km', life: '800 km', retired_at: null },
+		{ id: 8120, brand: 'Nike', name: 'Vaporfly 3', type: 'supershoe', preferred: false, pct: 41.5, done: '166 km', life: '400 km', retired_at: null },
+		{ id: 3011, brand: 'Asics', name: 'Novablast 4', type: 'supertrainer', preferred: false, pct: 100, done: '812 km', life: '800 km', retired_at: '2026-06-02' }
 	];
 
 	var SHOE_TYPE_TEXT = {
@@ -1315,7 +1345,7 @@
 			],
 			distanceSteps: null,
 			intensity: -2, distance: 0,
-			surface: 'treadmill', height: 'flat', shoeId: 6404,
+			surface: 'treadmill', height: 'flat', shoeId: 6404, suggestedShoeId: 6404,
 			can_toggle_cooldown: true, has_cooldown: true,
 			base: { km: 10, sec: 3368 },
 			cooldown: { w: 2, c: '#90CFF1', km: 2, sec: 700, t: 'Cool-down: 2 km easy' },
@@ -1339,7 +1369,7 @@
 				{ value: -10, text: '−10%' }, { value: 0, text: '0%' }
 			],
 			intensity: 0, distance: 0,
-			surface: null, height: null, shoeId: null,
+			surface: null, height: null, shoeId: null, suggestedShoeId: 7781,
 			can_toggle_cooldown: true, has_cooldown: true,
 			base: { km: 10.09, sec: 3229 },
 			cooldown: { w: 2, c: '#90CFF1', km: 2, sec: 700, t: 'Cool-down: 2 km easy' },
@@ -1357,7 +1387,7 @@
 			intensitySteps: [{ value: 0, text: 'As planned' }],
 			distanceSteps: null,
 			intensity: 0, distance: 0,
-			surface: null, height: null, shoeId: null,
+			surface: null, height: null, shoeId: null, suggestedShoeId: null,
 			can_toggle_cooldown: false, has_cooldown: false,
 			base: { km: null, sec: 6224 },
 			cooldown: null,
@@ -1686,24 +1716,102 @@
 					'session, so there is nothing to change here today.</p>' : '');
 	}
 
+	/**
+	 * How well a shoe suits *this* session.
+	 *
+	 * An ordering hint — it never hides or blocks a pair, and where there is
+	 * no signal it leaves the server's order alone rather than inventing one.
+	 *
+	 * `preferred` is deliberately not consulted. It says which pair the runner
+	 * likes, which is a different question from which pair belongs on today's
+	 * session, and letting it rank would float a favourite above a shoe the
+	 * terrain actually calls for.
+	 *
+	 * The strongest signal is the coach's own suggestion. Terrain outranks it
+	 * because the runner set the terrain *after* the plan was written: telling
+	 * us you are heading onto a trail is newer information than the default.
+	 */
+	function shoeFit(sh) {
+		var rank = 0, reason = null;
+		var km = shownKm();
+
+		if (s.suggestedShoeId === sh.id) rank += 3;
+
+		if (s.surface === 'single_track') {
+			if (sh.type === 'trail') { rank += 4; reason = 'Grip for the trail'; }
+			else rank -= 2;
+		} else if (s.surface && sh.type === 'trail') {
+			rank -= 3;
+		}
+
+		if (s.surface === 'athletics_track') {
+			if (sh.type === 'supershoe') { rank += 4; reason = 'Race shoe for the track'; }
+			else if (sh.type === 'supertrainer') { rank += 2; reason = reason || 'Quick enough for the track'; }
+		}
+
+		if (km != null && km >= 18 && sh.type === 'long_run') {
+			rank += 3; reason = reason || 'Built for the distance';
+		}
+
+		// Worn past its expected distance: still offered, just not promoted.
+		if (sh.pct >= 85) rank -= 2;
+
+		return { rank: rank, reason: reason, worn: sh.pct >= 70, spent: sh.pct >= 85 };
+	}
+
 	function viewShoe() {
-		var html = '';
+		var list = [];
 		for (var i = 0; i < SHOES.length; i++) {
-			var sh = SHOES[i];
-			var pct = Math.round(sh.pct);
+			// A retired pair is not a choice. Every shoe seen so far has
+			// retired_at null, so this filter is untested against real data.
+			if (SHOES[i].retired_at) continue;
+			var fit = shoeFit(SHOES[i]);
+			list.push({ sh: SHOES[i], fit: fit });
+		}
+		// Array.prototype.sort is stable, so equal ranks keep the order the
+		// server sent them in.
+		list.sort(function (a, b) { return b.fit.rank - a.fit.rank; });
+
+		// Split into "fits today" and the rest, so the reason is stated once as a
+		// heading instead of repeated on every row.
+		var suited = list.length > 0 && list[0].fit.reason ? list[0].fit.reason : null;
+		var html = '', restHeaded = false;
+
+		for (var j = 0; j < list.length; j++) {
+			var sh = list[j].sh, fit = list[j].fit, pct = Math.round(sh.pct);
+			var picked = s.shoeId === sh.id;
+
+			if (suited && j === 0) {
+				html += '<p class="grp-label" style="margin-top:0">' + esc(suited) + '</p>';
+			} else if (suited && !fit.reason && !restHeaded) {
+				html += '<p class="grp-label">Your other shoes</p>';
+				restHeaded = true;
+			}
+
 			html += '<button type="button" class="pick" data-set="shoe" data-value="' + sh.id +
-				'" aria-pressed="' + (s.shoeId === sh.id) + '">' +
+				'" aria-pressed="' + picked + '">' +
 				'<span class="pi">' + ic('i-shoe', 17) + '</span>' +
-				'<span class="pm"><span class="pn">' + esc(shoeName(sh)) +
-				(sh.preferred ? '<span class="badge fav">Favourite</span>' : '') +
-				'<span class="badge">' + esc(SHOE_TYPE_TEXT[sh.type] || sh.type) + '</span></span>' +
-				'<span class="ps">' + esc(sh.done) + ' of ' + esc(sh.life) + ' · ' + pct + '%</span>' +
-				'<span class="wear"><i class="' + (pct > 70 ? 'hot' : '') + '" style="width:' + pct + '%"></i></span></span>' +
-				(s.shoeId === sh.id ? '<span style="color:var(--accent)">' + ic('i-check', 16) + '</span>' : '') +
+				'<span class="pm">' +
+					'<span class="pn">' + esc(shoeName(sh)) +
+						'<span class="badge">' + esc(SHOE_TYPE_TEXT[sh.type] || sh.type) + '</span>' +
+						(s.suggestedShoeId === sh.id
+							? '<span class="badge coach">Coach’s pick</span>' : '') +
+					'</span>' +
+					'<span class="ps' + (fit.spent ? ' warn' : '') + '">' + esc(sh.done) + ' of ' +
+						esc(sh.life) + ' · ' + pct + '%' +
+						(fit.spent ? ' · past its distance' : '') + '</span>' +
+					'<span class="wear"><i class="' + (fit.worn ? 'hot' : '') + '" style="width:' +
+						Math.min(pct, 100) + '%"></i></span>' +
+				'</span>' +
+				(picked ? '<span style="color:var(--accent)">' + ic('i-check', 16) + '</span>' : '') +
 				'</button>';
 		}
-		return '<p class="sheet-text">Trenara suggests a pair when the session is planned. ' +
-			'Picking another one here only changes this session.</p>' + html;
+
+		var where = surfaceOpt();
+		return '<p class="sheet-text">Which pair for this session. Coach Christophe’s suggestion ' +
+			'leads' + (where ? ', unless the ' + where.label.toLowerCase() + ' you picked calls for ' +
+			'something else' : '') + '. Wear is under each pair — nothing is hidden and nothing is ' +
+			'blocked.</p>' + html;
 	}
 
 	function viewActivity() {
@@ -2176,14 +2284,16 @@
 		<div class="gap">
 			<span class="m">!</span>
 			<div>
-				<h4>We can’t tell the coach’s shoe from the runner’s shoe</h4>
+				<h4>The coach’s pick is destroyed the first time you change it</h4>
 				<p>
-					<code>suggested_shoe</code> is one field doing two jobs: it is the recommendation
-					<em>and</em> the assignment, so after the first change the recommendation is gone. The
-					design sidesteps it by badging <code>preferred</code> shoes as “Favourite” instead of
-					labelling anything “Recommended”. If the backend can add a <code>suggested_by</code>
-					or keep the original id, the sheet can offer “back to the suggested pair” — which is
-					the thing a runner will actually ask for.
+					<code>suggested_shoe</code> is one field doing two jobs — it is the recommendation
+					<em>and</em> it is the assignment — so once the runner picks something else, what the
+					coach suggested is gone. That matters more now than it did: the recommendation leads
+					the list and carries the badge, so the design needs the original to survive. A second
+					field, or a flag on the shoe, closes it. Until then the badge can only be shown until
+					the first change, and after that the ordering falls back to terrain and distance
+					alone. The prototype models the field that doesn’t exist yet, as
+					<code>suggestedShoeId</code>.
 				</p>
 			</div>
 		</div>
