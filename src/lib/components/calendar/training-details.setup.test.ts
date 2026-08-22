@@ -223,3 +223,61 @@ describe('cool-down', () => {
 		vi.unstubAllGlobals();
 	});
 });
+
+describe('setup errors outside the sheet', () => {
+	const withCooldown: ScheduledTraining = {
+		...detail,
+		can_toggle_cooldown: true,
+		has_cooldown: true,
+		training: {
+			...detail.training,
+			blocks: [
+				{ order: 1, type: 'warmup', hex_graph: '#90CFF1', text: 'Warm-up: 2km' },
+				{ order: 2, type: 'cooldown', hex_graph: '#90CFF1', text: 'Cool-down: 2km easy' }
+			]
+		}
+	};
+
+	it('shows why a refused cool-down change did nothing', async () => {
+		const fetchMock = vi
+			.fn()
+			.mockResolvedValueOnce({ ok: true, status: 200, json: async () => withCooldown })
+			.mockResolvedValueOnce({
+				ok: false,
+				status: 404,
+				json: async () => ({ message: 'Not Found' })
+			});
+		vi.stubGlobal('fetch', fetchMock);
+
+		render(TrainingDetails, {
+			props: { selectedDate: '2026-08-22', training: base, entry: null, isLoading: false }
+		});
+
+		await waitFor(() => expect(screen.getByText('Cool-down: 2km easy')).toBeTruthy());
+		await fireEvent.click(screen.getByText('Remove'));
+
+		// The control is on the block, outside the sheet, so without this the
+		// failure was silent and looked like a button doing nothing.
+		await waitFor(() => expect(screen.getByText('Not Found')).toBeTruthy());
+		expect(screen.getByText('Cool-down: 2km easy')).toBeTruthy();
+		vi.unstubAllGlobals();
+	});
+
+	it('says so when the server answers but changes nothing', async () => {
+		const fetchMock = vi
+			.fn()
+			.mockResolvedValueOnce({ ok: true, status: 200, json: async () => withCooldown })
+			.mockResolvedValueOnce({ ok: true, status: 200, json: async () => withCooldown });
+		vi.stubGlobal('fetch', fetchMock);
+
+		render(TrainingDetails, {
+			props: { selectedDate: '2026-08-22', training: base, entry: null, isLoading: false }
+		});
+
+		await waitFor(() => expect(screen.getByText('Cool-down: 2km easy')).toBeTruthy());
+		await fireEvent.click(screen.getByText('Remove'));
+
+		await waitFor(() => expect(screen.getByText(/did not remove the cool-down/i)).toBeTruthy());
+		vi.unstubAllGlobals();
+	});
+});

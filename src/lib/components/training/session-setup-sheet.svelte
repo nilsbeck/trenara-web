@@ -156,7 +156,9 @@
 	</div>
 
 	<div class="max-h-[70vh] overflow-y-auto px-4 pb-5 pt-3">
-		{#if store.error}
+		<!-- Only while the sheet is actually open: a closed dialog still holds its
+		     content, and the card shows the same error out there. -->
+		{#if store.error && open}
 			<p class="mb-3 rounded-lg bg-destructive/15 px-3 py-2 text-xs text-destructive-foreground">
 				{store.error}
 			</p>

@@ -131,9 +131,23 @@ export class SessionDetailStore {
 	 *
 	 * Takes the target state rather than flipping the current one, so a double
 	 * tap cannot land on whichever order the server happened to process.
+	 *
+	 * This is the one endpoint whose shape was inferred rather than observed
+	 * (see `trainingApi.setCooldown`), so "answered 200 and changed nothing" is
+	 * a real possibility here in a way it is not for its siblings. Left alone
+	 * that reads as a button doing nothing, so it is checked and reported.
 	 */
-	setCooldown(hasCooldown: boolean) {
-		return this.#mutate('cooldown', 'cooldown', 'PUT', { hasCooldown });
+	async setCooldown(hasCooldown: boolean): Promise<boolean> {
+		if (!(await this.#mutate('cooldown', 'cooldown', 'PUT', { hasCooldown }))) return false;
+
+		if (this.detail && this.detail.has_cooldown !== hasCooldown) {
+			this.error = hasCooldown
+				? 'Trenara did not add the cool-down back — the session is unchanged.'
+				: 'Trenara did not remove the cool-down — the session is unchanged.';
+			return false;
+		}
+
+		return true;
 	}
 
 	crossTrain(crossType: string) {

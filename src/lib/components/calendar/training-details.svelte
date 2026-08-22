@@ -1,6 +1,17 @@
 <script lang="ts">
 	import type { ScheduledTraining, Entry } from '$lib/server/trenara/types';
-	import { MessageCircle, Clock, Route, Gauge, Check, Trash2, Loader2, Star } from 'lucide-svelte';
+	import {
+		MessageCircle,
+		Clock,
+		Route,
+		Gauge,
+		Check,
+		Trash2,
+		Loader2,
+		Star,
+		TriangleAlert,
+		X
+	} from 'lucide-svelte';
 	import GiveFeedbackModal from '$lib/components/modals/give-feedback-modal.svelte';
 	import ChangeDateModal from '$lib/components/modals/change-date-modal.svelte';
 	import RateTrainingInline from '$lib/components/training/rate-training-inline.svelte';
@@ -253,6 +264,29 @@
 		<!-- Session setup: what is applied, and the way to change it -->
 		{#if canShowSetup && detailStore.detail}
 			<SetupRail training={detailStore.detail} pending={detailStore.pending} onopen={openSetup} />
+
+			<!--
+				Setup errors are shown inside the sheet while it is open. The
+				cool-down control sits on the block instead, out here, so without
+				this a refused change looked exactly like a button doing nothing.
+			-->
+			{#if detailStore.error && !setupOpen}
+				<div
+					class="mt-2 flex items-start gap-2 rounded-lg bg-destructive/15 px-3 py-2 text-xs text-foreground"
+					role="status"
+				>
+					<TriangleAlert class="mt-0.5 h-3.5 w-3.5 shrink-0 text-destructive" />
+					<span class="flex-1">{detailStore.error}</span>
+					<button
+						type="button"
+						onclick={() => detailStore.dismissError()}
+						aria-label="Dismiss"
+						class="shrink-0 text-muted-foreground transition-colors hover:text-foreground"
+					>
+						<X class="h-3.5 w-3.5" />
+					</button>
+				</div>
+			{/if}
 			<SessionSetupSheet
 				training={detailStore.detail}
 				store={detailStore}

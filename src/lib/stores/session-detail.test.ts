@@ -212,6 +212,34 @@ describe('SessionDetailStore', () => {
 		expect(store.detail?.has_cooldown).toBe(false);
 	});
 
+	it('reports a cool-down change the server answered but did not apply', async () => {
+		const fetchMock = vi.mocked(fetch);
+		fetchMock.mockResolvedValueOnce(jsonResponse(detail({ has_cooldown: true })));
+		const store = new SessionDetailStore();
+		store.load(42);
+		await vi.waitFor(() => expect(store.detail).not.toBeNull());
+
+		// 200, but the cool-down is still on. The endpoint shape is inferred, so
+		// a silent no-op is possible here and must not read as success.
+		fetchMock.mockResolvedValueOnce(jsonResponse(detail({ has_cooldown: true })));
+		const ok = await store.setCooldown(false);
+
+		expect(ok).toBe(false);
+		expect(store.error).toMatch(/did not remove the cool-down/i);
+	});
+
+	it('says nothing when the cool-down change lands', async () => {
+		const fetchMock = vi.mocked(fetch);
+		fetchMock.mockResolvedValueOnce(jsonResponse(detail({ has_cooldown: true })));
+		const store = new SessionDetailStore();
+		store.load(42);
+		await vi.waitFor(() => expect(store.detail).not.toBeNull());
+
+		fetchMock.mockResolvedValueOnce(jsonResponse(detail({ has_cooldown: false })));
+		expect(await store.setCooldown(false)).toBe(true);
+		expect(store.error).toBeNull();
+	});
+
 	it('drops the cached alternatives once the workout is replaced', async () => {
 		const fetchMock = vi.mocked(fetch);
 		fetchMock.mockResolvedValueOnce(jsonResponse(detail()));
