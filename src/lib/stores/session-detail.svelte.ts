@@ -110,8 +110,23 @@ export class SessionDetailStore {
 		}
 	}
 
-	setTerrain(surface: TrainingSurface, heightDifference: TrainingHeightDifference) {
-		return this.#mutate('terrain', 'condition', 'POST', { surface, heightDifference });
+	/**
+	 * Set the terrain.
+	 *
+	 * All three go up together: the endpoint rejects a partial condition rather
+	 * than merging one, so the climb travels even when the runner only touched
+	 * the surface.
+	 */
+	setTerrain(
+		surface: TrainingSurface,
+		heightDifference: TrainingHeightDifference,
+		heightValue = 0
+	) {
+		return this.#mutate('terrain', 'condition', 'POST', {
+			surface,
+			heightDifference,
+			heightValue
+		});
 	}
 
 	setEffort(intensityValue: number) {

@@ -145,6 +145,17 @@ function packageSetting(
 	return { value: step?.text ?? null, changed: !!step && step.value !== 0, chip: 'changed' };
 }
 
+/**
+ * Metres of climb on a training's condition, 0 when none is set.
+ *
+ * Reads carry it as both `height_value` and `height`; the former matches the
+ * name the write side uses, so it wins where the two disagree.
+ */
+export function conditionClimb(training: ScheduledTraining): number {
+	const condition = training.training_condition;
+	return condition?.height_value ?? condition?.height ?? 0;
+}
+
 /** True when the training is a run rather than a cross-trained session. */
 export function isRun(training: ScheduledTraining): boolean {
 	return !training.cross_type;
@@ -162,12 +173,18 @@ export function sessionSettings(training: ScheduledTraining): Setting[] {
 	const run = isRun(training);
 
 	if (run) {
-		const surface = surfaceLabel(training.training_condition?.surface);
-		const height = heightLabel(training.training_condition?.height_difference);
+		const condition = training.training_condition;
+		const surface = surfaceLabel(condition?.surface);
+		const height = heightLabel(condition?.height_difference);
+		const climb = conditionClimb(training);
 		settings.push({
 			key: 'terrain',
 			label: 'Terrain',
-			value: surface ? [surface, height ?? 'Flat'].join(' · ') : null,
+			// The climb joins the label only once it is set: on the sessions that
+			// have none it would be a "0 m" nobody asked about.
+			value: surface
+				? [surface, height ?? 'Flat', climb > 0 ? `${climb} m` : null].filter(Boolean).join(' · ')
+				: null,
 			changed: false,
 			chip: 'always'
 		});

@@ -206,3 +206,35 @@ describe('setCooldownSchema', () => {
 		expect(setCooldownSchema.safeParse({}).success).toBe(false);
 	});
 });
+
+describe('trainingConditionSchema climb', () => {
+	it('takes metres of ascent', () => {
+		const result = trainingConditionSchema.safeParse({
+			surface: 'single_track',
+			heightDifference: 'strong',
+			heightValue: 450
+		});
+		expect(result.success && result.data.heightValue).toBe(450);
+	});
+
+	it('rejects a negative climb', () => {
+		expect(
+			trainingConditionSchema.safeParse({
+				surface: 'road',
+				heightDifference: 'flat',
+				heightValue: -10
+			}).success
+		).toBe(false);
+	});
+
+	it('rejects a climb no session could have', () => {
+		// A mistyped number should not reach Trenara.
+		expect(
+			trainingConditionSchema.safeParse({
+				surface: 'road',
+				heightDifference: 'mountain',
+				heightValue: 99999999
+			}).success
+		).toBe(false);
+	});
+});

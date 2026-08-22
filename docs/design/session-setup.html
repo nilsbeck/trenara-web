@@ -2104,8 +2104,8 @@
 				<tr>
 					<td class="f">training_condition<br><small>run only</small></td>
 					<td class="f">POST .../training_condition</td>
-					<td>Terrain chip → surface + elevation tiles</td>
-					<td>Dashed “Terrain” chip; both values post together in one call</td>
+					<td>Terrain chip → surface and elevation tiles, plus the climb in metres</td>
+					<td>Dashed “Terrain” chip; all four fields post together in one call</td>
 				</tr>
 				<tr>
 					<td class="f">can_change_intensity<br>change_intensity_package</td>
@@ -2329,6 +2329,11 @@
 					invalid”</em>, which is why the terrain editor stages a known value rather than
 					passing an unfamiliar one through — a session carrying an elevation the app does not
 					know would otherwise fail on a field the runner never touched.
+				</p>
+				<p>
+					The climb is a field in the terrain editor, under the two tile rows: a number of
+					metres, optional, 0 by default. It joins the terrain chip only once it is set — every
+					session without one would otherwise carry a “0 m” nobody asked about.
 				</p>
 			</div>
 		</div>

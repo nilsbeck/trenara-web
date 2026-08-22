@@ -6,6 +6,7 @@ import {
 	heightLabel,
 	selectedStep,
 	sessionSettings,
+	conditionClimb,
 	cooldownBlockIndex,
 	hasNeutralStep,
 	shapeSegments,
@@ -459,5 +460,60 @@ describe('packages without an "as planned" step', () => {
 			}
 		});
 		expect(chipSettings(training).map((c) => c.key)).not.toContain('volume');
+	});
+});
+
+describe('climb on a condition', () => {
+	it('reads the metres the write side names', () => {
+		const training = tempoRun();
+		training.training_condition = {
+			id: 1,
+			height_difference: 'strong',
+			surface: 'single_track',
+			updated_at: 0,
+			height: null,
+			height_value: 450,
+			height_unit: 'm'
+		};
+		expect(conditionClimb(training)).toBe(450);
+	});
+
+	it('falls back to the other field reads carry it in', () => {
+		const training = tempoRun();
+		training.training_condition = {
+			id: 1,
+			height_difference: 'strong',
+			surface: 'road',
+			updated_at: 0,
+			height: 300,
+			height_unit: 'm'
+		};
+		expect(conditionClimb(training)).toBe(300);
+	});
+
+	it('is 0 when nothing is set, so the label has nothing to show', () => {
+		expect(conditionClimb(tempoRun({ training_condition: null }))).toBe(0);
+	});
+
+	it('joins the terrain label once there is a climb to report', () => {
+		const training = tempoRun();
+		training.training_condition = {
+			id: 1,
+			height_difference: 'strong',
+			surface: 'single_track',
+			updated_at: 0,
+			height: null,
+			height_value: 450,
+			height_unit: 'm'
+		};
+		const terrain = sessionSettings(training).find((s) => s.key === 'terrain');
+		expect(terrain?.value).toBe('Trail · Hilly · 450 m');
+	});
+
+	it('leaves a zero climb out of the label', () => {
+		// Every session without a climb would otherwise carry a "0 m" nobody
+		// asked about, on the chip as well as the row.
+		const terrain = sessionSettings(tempoRun()).find((s) => s.key === 'terrain');
+		expect(terrain?.value).toBe('Treadmill · Flat');
 	});
 });

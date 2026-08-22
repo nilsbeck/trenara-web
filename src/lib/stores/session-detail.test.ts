@@ -136,7 +136,7 @@ describe('SessionDetailStore', () => {
 		);
 	});
 
-	it('posts surface and elevation together', async () => {
+	it('posts the whole condition to one endpoint', async () => {
 		const fetchMock = vi.mocked(fetch);
 		fetchMock.mockResolvedValueOnce(jsonResponse(detail()));
 		const store = new SessionDetailStore();
@@ -150,7 +150,43 @@ describe('SessionDetailStore', () => {
 			'/api/v1/training/42/condition',
 			expect.objectContaining({
 				method: 'POST',
-				body: JSON.stringify({ surface: 'single_track', heightDifference: 'strong' })
+				body: JSON.stringify({
+					surface: 'single_track',
+					heightDifference: 'strong',
+					heightValue: 0
+				})
+			})
+		);
+	});
+
+	it('sends the climb with the terrain, defaulting to zero', async () => {
+		const fetchMock = vi.mocked(fetch);
+		fetchMock.mockResolvedValueOnce(jsonResponse(detail()));
+		const store = new SessionDetailStore();
+		store.load(42);
+		await vi.waitFor(() => expect(store.detail).not.toBeNull());
+
+		fetchMock.mockResolvedValueOnce(jsonResponse(detail()));
+		await store.setTerrain('single_track', 'strong', 450);
+		expect(fetchMock).toHaveBeenLastCalledWith(
+			'/api/v1/training/42/condition',
+			expect.objectContaining({
+				body: JSON.stringify({
+					surface: 'single_track',
+					heightDifference: 'strong',
+					heightValue: 450
+				})
+			})
+		);
+
+		// The endpoint rejects a partial condition rather than merging one, so
+		// the climb travels even when the caller never mentions it.
+		fetchMock.mockResolvedValueOnce(jsonResponse(detail()));
+		await store.setTerrain('road', 'flat');
+		expect(fetchMock).toHaveBeenLastCalledWith(
+			'/api/v1/training/42/condition',
+			expect.objectContaining({
+				body: JSON.stringify({ surface: 'road', heightDifference: 'flat', heightValue: 0 })
 			})
 		);
 	});

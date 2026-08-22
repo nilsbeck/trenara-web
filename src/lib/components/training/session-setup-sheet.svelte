@@ -21,6 +21,7 @@
 		HEIGHT_DIFFERENCES,
 		SURFACES,
 		activityLabel,
+		conditionClimb,
 		selectedStep,
 		sessionSettings,
 		shoeName,
@@ -43,10 +44,23 @@
 
 	let dialogEl: HTMLDialogElement | undefined = $state();
 
-	// Terrain posts surface and elevation in one call, so both are staged until
-	// Apply rather than committing a half-set condition on the first tap.
+	// Terrain posts surface, elevation and climb in one call, so all three are
+	// staged until Apply rather than committing a half-set condition on the
+	// first tap.
 	let stagedSurface = $state<TrainingSurface>('road');
 	let stagedHeight = $state<TrainingHeightDifference>('flat');
+	/**
+	 * Bound to a number input, which Svelte coerces for us — so an emptied field
+	 * arrives as null rather than an empty string, and that is a field mid-edit
+	 * rather than a mistake.
+	 */
+	let stagedClimb = $state<number | null>(0);
+
+	const climbMetres = $derived(stagedClimb ?? 0);
+	const climbValid = $derived(
+		stagedClimb === null ||
+			(Number.isFinite(stagedClimb) && stagedClimb >= 0 && stagedClimb <= 30000)
+	);
 
 	const settings = $derived(sessionSettings(training));
 	const tuneSettings = $derived(settings.filter((s) => !s.replace && !s.inline));
@@ -121,6 +135,7 @@
 		stagedHeight = HEIGHT_DIFFERENCES.some((h) => h.value === condition?.height_difference)
 			? (condition!.height_difference as TrainingHeightDifference)
 			: 'flat';
+		stagedClimb = conditionClimb(training);
 	});
 
 	$effect(() => {
@@ -274,8 +289,8 @@
 			{/if}
 		{:else if section === 'terrain'}
 			<p class="mb-3 text-xs leading-relaxed text-muted-foreground">
-				Where you are running today. Both settings go up in one call, so the sheet stays open until
-				you apply them.
+				Where you are running today. All of it goes up in one call, so the sheet stays open until
+				you apply it.
 			</p>
 
 			<p class="mb-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
@@ -316,11 +331,40 @@
 				{/each}
 			</div>
 
+			<label class="mt-4 block">
+				<span
+					class="mb-2 block text-[10px] font-semibold uppercase tracking-wider text-muted-foreground"
+				>
+					Climb
+				</span>
+				<span class="flex items-center gap-2 rounded-lg border border-border bg-muted px-3 py-2">
+					<input
+						type="number"
+						inputmode="numeric"
+						min="0"
+						max="30000"
+						step="10"
+						bind:value={stagedClimb}
+						placeholder="0"
+						class="w-full min-w-0 bg-transparent text-sm text-foreground outline-none [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none"
+					/>
+					<span class="shrink-0 text-xs text-muted-foreground">m</span>
+				</span>
+				<span class="mt-1.5 block text-[11px] text-muted-foreground">
+					{#if !climbValid}
+						<span class="text-destructive">Enter the climb in metres, 0 or more.</span>
+					{:else}
+						Total ascent, if you know it. Leave at 0 if you don’t.
+					{/if}
+				</span>
+			</label>
+
 			<div class="mt-4 flex justify-end">
 				<button
 					type="button"
-					disabled={store.pending === 'terrain'}
-					onclick={() => commitAndClose(() => store.setTerrain(stagedSurface, stagedHeight))}
+					disabled={store.pending === 'terrain' || !climbValid}
+					onclick={() =>
+						commitAndClose(() => store.setTerrain(stagedSurface, stagedHeight, climbMetres))}
 					class="inline-flex items-center gap-2 rounded-lg bg-primary px-3 py-2 text-xs font-semibold text-primary-foreground transition-opacity disabled:opacity-60"
 				>
 					{#if store.pending === 'terrain'}

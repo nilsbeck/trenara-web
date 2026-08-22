@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, afterEach } from 'vitest';
+import { describe, it, expect, vi, beforeAll, afterEach } from 'vitest';
 import { render, screen, waitFor, cleanup, fireEvent } from '@testing-library/svelte';
 import TrainingDetails from '$lib/components/calendar/training-details.svelte';
 import type { ScheduledTraining } from '$lib/server/trenara/types';
@@ -67,6 +67,24 @@ const detail: ScheduledTraining = {
 	},
 	suggested_shoe: null
 };
+
+// jsdom ships <dialog> without showModal/close, so a component that opens one
+// cannot be driven at all without this. It mirrors only what these tests lean
+// on: the `open` property flipping, and the close event the element fires.
+beforeAll(() => {
+	const proto = window.HTMLDialogElement.prototype;
+	if (!proto.showModal) {
+		proto.showModal = function (this: HTMLDialogElement) {
+			this.open = true;
+		};
+	}
+	if (!proto.close) {
+		proto.close = function (this: HTMLDialogElement) {
+			this.open = false;
+			this.dispatchEvent(new Event('close'));
+		};
+	}
+});
 
 afterEach(cleanup);
 
@@ -278,6 +296,99 @@ describe('setup errors outside the sheet', () => {
 		await fireEvent.click(screen.getByText('Remove'));
 
 		await waitFor(() => expect(screen.getByText(/did not remove the cool-down/i)).toBeTruthy());
+		vi.unstubAllGlobals();
+	});
+});
+
+describe('terrain climb', () => {
+	const withCondition: ScheduledTraining = {
+		...detail,
+		training_condition: {
+			id: 1,
+			height_difference: 'strong',
+			surface: 'single_track',
+			updated_at: 0,
+			height: null,
+			height_value: 450,
+			height_unit: 'm'
+		}
+	};
+
+	it('shows the climb on the terrain chip once it is set', async () => {
+		vi.stubGlobal(
+			'fetch',
+			vi.fn().mockResolvedValue({ ok: true, status: 200, json: async () => withCondition })
+		);
+
+		render(TrainingDetails, {
+			props: { selectedDate: '2026-08-22', training: base, entry: null, isLoading: false }
+		});
+
+		await waitFor(() =>
+			expect(screen.getAllByText('Trail · Hilly · 450 m').length).toBeGreaterThan(0)
+		);
+		vi.unstubAllGlobals();
+	});
+
+	it('opens the editor with the stored climb and sends an edited one', async () => {
+		const fetchMock = vi
+			.fn()
+			.mockResolvedValueOnce({ ok: true, status: 200, json: async () => withCondition })
+			.mockResolvedValueOnce({ ok: true, status: 200, json: async () => withCondition });
+		vi.stubGlobal('fetch', fetchMock);
+
+		render(TrainingDetails, {
+			props: { selectedDate: '2026-08-22', training: base, entry: null, isLoading: false }
+		});
+
+		await waitFor(() =>
+			expect(screen.getAllByText('Trail · Hilly · 450 m').length).toBeGreaterThan(0)
+		);
+		await fireEvent.click(screen.getAllByText('Trail · Hilly · 450 m')[0]);
+
+		const climb = await waitFor(() => screen.getByRole('spinbutton'));
+		expect((climb as HTMLInputElement).value).toBe('450');
+
+		await fireEvent.input(climb, { target: { value: '620' } });
+		await fireEvent.click(screen.getByText('Apply'));
+
+		// Surface and elevation ride along untouched: the endpoint refuses a
+		// partial condition rather than merging one.
+		await waitFor(() =>
+			expect(fetchMock).toHaveBeenLastCalledWith(
+				'/api/v1/training/42/condition',
+				expect.objectContaining({
+					body: JSON.stringify({
+						surface: 'single_track',
+						heightDifference: 'strong',
+						heightValue: 620
+					})
+				})
+			)
+		);
+		vi.unstubAllGlobals();
+	});
+
+	it('refuses to apply a climb that is not a sane number', async () => {
+		vi.stubGlobal(
+			'fetch',
+			vi.fn().mockResolvedValue({ ok: true, status: 200, json: async () => withCondition })
+		);
+
+		render(TrainingDetails, {
+			props: { selectedDate: '2026-08-22', training: base, entry: null, isLoading: false }
+		});
+
+		await waitFor(() =>
+			expect(screen.getAllByText('Trail · Hilly · 450 m').length).toBeGreaterThan(0)
+		);
+		await fireEvent.click(screen.getAllByText('Trail · Hilly · 450 m')[0]);
+
+		const climb = await waitFor(() => screen.getByRole('spinbutton'));
+		await fireEvent.input(climb, { target: { value: '-5' } });
+
+		expect(screen.getByText(/climb in metres/i)).toBeTruthy();
+		expect((screen.getByText('Apply') as HTMLButtonElement).disabled).toBe(true);
 		vi.unstubAllGlobals();
 	});
 });

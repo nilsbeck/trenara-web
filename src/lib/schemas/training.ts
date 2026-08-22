@@ -29,7 +29,9 @@ export const changeDateSchema = z.object({
 export const trainingConditionSchema = z.object({
 	surface: z.enum(TRAINING_SURFACES),
 	heightDifference: z.enum(TRAINING_HEIGHT_DIFFERENCES),
-	heightValue: z.number().nonnegative().default(0),
+	// Metres of climb. Capped well above any real session — the point is to stop
+	// a mistyped 99999999 reaching Trenara, not to judge anyone's route.
+	heightValue: z.number().nonnegative().finite().max(30000).default(0),
 	heightUnit: z.string().min(1).max(8).default('m')
 });
 
