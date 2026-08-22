@@ -290,10 +290,14 @@ describe('chipSettings', () => {
 		expect(chipSettings(bikeRide()).map((c) => c.key)).not.toContain('session');
 	});
 
-	it('chips a removed cool-down, because that deviates from the plan', () => {
+	it('never chips the cool-down — the block list already shows it is gone', () => {
+		// A chip would spend a row of the rail repeating what the plan says in
+		// the place the block is missing from.
 		const removed = tempoRun({ can_toggle_cooldown: true, has_cooldown: false });
-		const chip = chipSettings(removed).find((c) => c.key === 'cooldown');
-		expect(chip?.chipLabel).toBe('No cool-down');
+		expect(chipSettings(removed).map((c) => c.key)).not.toContain('cooldown');
+		// It is still a setting, still marked as differing from the plan.
+		const setting = sessionSettings(removed).find((s) => s.key === 'cooldown');
+		expect(setting?.changed).toBe(true);
 	});
 
 	it('never disagrees with the sheet about a setting it shows', () => {

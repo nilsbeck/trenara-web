@@ -202,7 +202,7 @@ describe('cool-down', () => {
 		vi.unstubAllGlobals();
 	});
 
-	it('chips a removed cool-down so the deviation is visible without scrolling', async () => {
+	it('shows a removed cool-down in the plan rather than on a chip', async () => {
 		const dropped = { ...withCooldown, has_cooldown: false };
 		vi.stubGlobal(
 			'fetch',
@@ -213,7 +213,35 @@ describe('cool-down', () => {
 			props: { selectedDate: '2026-08-22', training: base, entry: null, isLoading: false }
 		});
 
-		await waitFor(() => expect(screen.getAllByText('No cool-down').length).toBeGreaterThan(0));
+		// The ghost row says it, in the place the block is missing from; a chip
+		// would spend a row of the rail saying it twice.
+		await waitFor(() => expect(screen.getByText('Cool-down removed')).toBeTruthy());
+		expect(screen.queryByText('No cool-down')).toBeNull();
+		vi.unstubAllGlobals();
+	});
+
+	it('makes the whole cool-down row the control, not a button parked in it', async () => {
+		const fetchMock = vi
+			.fn()
+			.mockResolvedValueOnce({ ok: true, status: 200, json: async () => withCooldown })
+			.mockResolvedValueOnce({ ok: true, status: 200, json: async () => withCooldown });
+		vi.stubGlobal('fetch', fetchMock);
+
+		render(TrainingDetails, {
+			props: { selectedDate: '2026-08-22', training: base, entry: null, isLoading: false }
+		});
+
+		// Clicking the block's own text works, which a trailing pill would not
+		// have allowed — the row is the target.
+		const row = await waitFor(() => screen.getByRole('button', { name: /Cool-down: 2km easy/ }));
+		await fireEvent.click(row);
+
+		await waitFor(() =>
+			expect(fetchMock).toHaveBeenLastCalledWith(
+				'/api/v1/training/42/cooldown',
+				expect.objectContaining({ body: JSON.stringify({ hasCooldown: false }) })
+			)
+		);
 		vi.unstubAllGlobals();
 	});
 

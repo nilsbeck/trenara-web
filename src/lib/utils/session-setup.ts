@@ -305,9 +305,11 @@ export function sessionSettings(training: ScheduledTraining): Setting[] {
 			key: 'cooldown',
 			label: 'Cool-down',
 			value: training.has_cooldown ? 'On' : 'Removed',
-			chipLabel: 'No cool-down',
 			changed: !training.has_cooldown,
-			chip: 'changed',
+			// No chip. The block list already says the cool-down is gone, in the
+			// place it is missing from, and a chip repeating that costs a whole
+			// row of the rail to say it a second time.
+			chip: 'never',
 			inline: true
 		});
 	}

@@ -21,7 +21,7 @@
 	import SetupRail from '$lib/components/training/setup-rail.svelte';
 	import SessionSetupSheet from '$lib/components/training/session-setup-sheet.svelte';
 	import { SessionDetailStore } from '$lib/stores/session-detail.svelte';
-	import CooldownToggle from '$lib/components/training/cooldown-toggle.svelte';
+	import CooldownBlock from '$lib/components/training/cooldown-block.svelte';
 	import {
 		cooldownBlockIndex,
 		isRun,
@@ -127,8 +127,7 @@
 	);
 
 	function openSetup(key: SettingKey | null) {
-		// The cool-down has no editor of its own — its control is on the block.
-		setupSection = key === 'cooldown' ? null : key;
+		setupSection = key;
 		setupOpen = true;
 	}
 
@@ -407,6 +406,14 @@
 									{/each}
 								</div>
 							</div>
+						{:else if blockIndex === cooldownIndex}
+							<CooldownBlock
+								hasCooldown={true}
+								text={block.text ?? 'Cool-down'}
+								color={blockTypeColor(block.type)}
+								pending={detailStore.pending === 'cooldown'}
+								onchange={setCooldown}
+							/>
 						{:else}
 							<!-- Simple block: solid circle + text -->
 							<div class="flex items-center gap-2.5 text-sm">
@@ -415,13 +422,6 @@
 									style="background-color: {blockTypeColor(block.type)}"
 								></div>
 								<span class="text-foreground">{block.text}</span>
-								{#if blockIndex === cooldownIndex}
-									<CooldownToggle
-										hasCooldown={true}
-										pending={detailStore.pending === 'cooldown'}
-										onchange={setCooldown}
-									/>
-								{/if}
 							</div>
 						{/if}
 					{/each}
@@ -430,32 +430,25 @@
 						<!-- The session has a cool-down but did not name its block in a
 						     way we recognise, so the control gets a row of its own rather
 						     than being attached to whichever block happens to be last. -->
-						<div class="flex items-center gap-2.5 text-sm">
-							<div
-								class="h-4 w-4 shrink-0 rounded-full"
-								style="background-color: {blockTypeColor('cooldown')}"
-							></div>
-							<span class="text-foreground">Cool-down</span>
-							<CooldownToggle
-								hasCooldown={true}
-								pending={detailStore.pending === 'cooldown'}
-								onchange={setCooldown}
-							/>
-						</div>
+						<CooldownBlock
+							hasCooldown={true}
+							text="Cool-down"
+							color={blockTypeColor('cooldown')}
+							pending={detailStore.pending === 'cooldown'}
+							onchange={setCooldown}
+						/>
 					{/if}
 
 					{#if cooldownRemoved}
 						<!-- Removed, the cool-down stays in place as a ghost: the plan shows
 						     what is missing and offers it straight back. -->
-						<div class="flex items-center gap-2.5 text-sm">
-							<div class="h-4 w-4 shrink-0 rounded-full border border-dashed border-border"></div>
-							<span class="text-muted-foreground">Cool-down removed</span>
-							<CooldownToggle
-								hasCooldown={false}
-								pending={detailStore.pending === 'cooldown'}
-								onchange={setCooldown}
-							/>
-						</div>
+						<CooldownBlock
+							hasCooldown={false}
+							text="Cool-down removed"
+							color={blockTypeColor('cooldown')}
+							pending={detailStore.pending === 'cooldown'}
+							onchange={setCooldown}
+						/>
 					{/if}
 				</div>
 			{/if}

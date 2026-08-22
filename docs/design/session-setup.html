@@ -464,24 +464,34 @@
 	.blk.ghost span { color: var(--app-dim); }
 	.blk.lit { background: color-mix(in srgb, var(--accent) 14%, transparent); }
 
-	.blk-act {
-		margin-left: auto;
+	.blk-btn {
+		width: 100%;
 		font: inherit;
-		font-size: 11.5px;
-		font-weight: 500;
+		font-size: 13px;
+		text-align: left;
 		background: transparent;
-		border: 1px solid var(--app-border);
-		border-radius: 999px;
-		padding: 3px 9px;
-		color: var(--app-dim);
+		border: 0;
 		cursor: pointer;
-		flex: 0 0 auto;
-		transition: color 0.15s, border-color 0.15s;
+		color: var(--app-fg);
 	}
 
-	.blk-act:hover { color: var(--app-fg); border-color: #4a5464; }
-	.blk-act:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-	.blk-act:disabled { opacity: 0.6; cursor: default; }
+	.blk-btn:hover { background: rgba(255, 255, 255, 0.03); }
+	.blk-btn.ghost:hover { background: color-mix(in srgb, var(--accent) 10%, transparent); }
+	.blk-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+	.blk-btn:disabled { opacity: 0.6; cursor: default; }
+
+	.blk-act {
+		margin-left: auto;
+		font-size: 11.5px;
+		font-weight: 500;
+		color: var(--app-dim);
+		flex: 0 0 auto;
+		white-space: nowrap;
+	}
+
+	/* Removed is a deviation from the plan, and that is pink everywhere else. */
+	.blk.ghost span { color: var(--accent); }
+	.blk.ghost .bullet.ring { border-color: color-mix(in srgb, var(--accent) 60%, transparent); }
 
 	/* ── Bottom sheet ────────────────────────────────────────────── */
 	.scrim {
@@ -1358,10 +1368,16 @@
 				<p>
 					Flipping it moves everything at once — the block, the shape bar’s trailing segment,
 					and the totals. Seeing the plan change <em>is</em> the confirmation, so there is no
-					dialog. Removed, it also earns a “No cool-down” chip, and that chip is the one with
-					no editor behind it: tapping it scrolls back to the ghost row and lights it up. The
-					sheet index still lists it, because the index is the full inventory of what this
-					session allows — but nobody has to go there for it.
+					dialog. The sheet index still lists it, because the index is the full inventory of
+					what this session allows, but nobody has to go there for it.
+				</p>
+				<p>
+					The whole row is the control, not a button parked at the end of one — a bigger target,
+					and obviously interactive. Removed, the row goes accent-coloured: that is the same
+					pink the chips use for anything differing from the coach’s plan, carried here, where
+					the information already is. It used to sit on a “No cool-down” chip as well, which
+					spent a row of the rail repeating what the plan says in the very place the block is
+					missing from.
 				</p>
 			</div>
 		</div>
@@ -1657,8 +1673,9 @@
 				value: s.has_cooldown
 					? (s.cooldown ? s.cooldown.t.replace('Cool-down: ', '') : 'On')
 					: 'Removed',
-				chipLabel: 'No cool-down',
-				changed: !s.has_cooldown, chip: 'changed', toggle: true
+				// No chip: the block list already says it is gone, where it is
+				// missing from, and the accent moves onto that row instead.
+				changed: !s.has_cooldown, chip: 'never', toggle: true
 			});
 		}
 
@@ -1735,14 +1752,14 @@
 			var busy = pending === 'cooldown';
 			var lit = highlight === 'cooldown' ? ' lit' : '';
 			blocksHtml += s.has_cooldown
-				? '<div class="blk' + lit + '"><span class="bullet" style="background:' + s.cooldown.c +
+				? '<button type="button" class="blk blk-btn' + lit + '" data-toggle="cooldown"' +
+					(busy ? ' disabled' : '') + '><span class="bullet" style="background:' + s.cooldown.c +
 					'"></span><span>' + esc(s.cooldown.t) + '</span>' +
-					'<button type="button" class="blk-act" data-toggle="cooldown"' +
-					(busy ? ' disabled' : '') + '>' + (busy ? 'Saving…' : 'Remove') + '</button></div>'
-				: '<div class="blk ghost' + lit + '"><span class="bullet ring"></span>' +
+					'<span class="blk-act">' + (busy ? 'Saving…' : '✕ Remove') + '</span></button>'
+				: '<button type="button" class="blk blk-btn ghost' + lit + '" data-toggle="cooldown"' +
+					(busy ? ' disabled' : '') + '><span class="bullet ring"></span>' +
 					'<span>Cool-down removed</span>' +
-					'<button type="button" class="blk-act" data-toggle="cooldown"' +
-					(busy ? ' disabled' : '') + '>' + (busy ? 'Saving…' : 'Add back') + '</button></div>';
+					'<span class="blk-act">' + (busy ? 'Saving…' : '＋ Add back') + '</span></button>';
 		}
 
 		return '' +
@@ -2229,8 +2246,8 @@
 					<td class="f">PUT .../cooldown<br><small>body: cooldown_toggle</small></td>
 					<td>A <em>Remove</em> / <em>Add back</em> control on the cool-down block itself; the
 						row persists as a ghost when off. Also listed as a switch in the index. Flipping
-						it moves the block, its shape segment and its share of the totals. Off earns a
-						“No cool-down” chip that points back at the row</td>
+						it moves the block, its shape segment and its share of the totals. No chip: the
+						plan already shows it, in the place it is missing from</td>
 					<td>Row absent — this session simply has no cool-down to drop</td>
 				</tr>
 				<tr>
