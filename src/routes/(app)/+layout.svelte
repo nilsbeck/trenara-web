@@ -46,25 +46,22 @@
 			<div class="flex items-center gap-4">
 				<a href="/dashboard" class="flex items-center gap-2.5">
 					<img src="/logo.svg" alt="" width="32" height="32" class="h-8 w-8" />
-					<span class="flex flex-col leading-tight">
+					<span
+						class="flex flex-col leading-tight"
+						title="This is an unofficial, unaffiliated third-party client. It is not developed, endorsed or supported by Trenara."
+					>
 						<span class="text-xl font-bold tracking-tight text-foreground">Trainara</span>
-						<span
-							class="text-xs text-muted-foreground"
-							title="This is an unofficial, unaffiliated third-party client. It is not developed, endorsed or supported by Trenara."
-						>
-							Unofficial client
+						<span class="text-xs text-muted-foreground">
+							{#await data.userData}
+								<Loader2 class="h-3 w-3 animate-spin text-muted-foreground" />
+							{:then resolvedUser}
+								Hi, {(resolvedUser as User).first_name}!
+							{:catch}
+								<span class="text-destructive">Could not load user data</span>
+							{/await}
 						</span>
 					</span>
 				</a>
-				{#await data.userData}
-					<Loader2 class="h-4 w-4 animate-spin text-muted-foreground" />
-				{:then resolvedUser}
-					<span class="text-sm text-muted-foreground">
-						Hi, {(resolvedUser as User).first_name}!
-					</span>
-				{:catch}
-					<span class="text-sm text-destructive">Could not load user data</span>
-				{/await}
 			</div>
 
 			<div class="flex items-center gap-2">
