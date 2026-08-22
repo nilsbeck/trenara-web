@@ -64,17 +64,20 @@ export function buildTreadmillInstructions(training: ScheduledTraining): Treadmi
  *
  * Prefers the pre-computed `calc_distance_in_km`, falling back to the
  * block's own distance value/unit. Time-only blocks (e.g. "run for 5 min")
- * contribute 0 since there's no fixed distance.
+ * contribute 0 since there's no fixed distance — as do cross-trained
+ * sessions, where every distance field comes back null.
  */
 function blockDistanceKm(block: TrainingBlock): number {
 	if (typeof block.calc_distance_in_km === 'number' && block.calc_distance_in_km > 0) {
 		return block.calc_distance_in_km;
 	}
-	if (block.distance_value > 0) {
+	const value = block.distance_value;
+	if (typeof value === 'number' && value > 0) {
+		// "km" is tested before "m" so the shorter prefix doesn't swallow it.
 		const unit = (block.distance_unit ?? '').toLowerCase();
-		if (unit.startsWith('km')) return block.distance_value;
-		if (unit.startsWith('mi')) return block.distance_value * 1.60934;
-		if (unit.startsWith('m')) return block.distance_value / 1000;
+		if (unit.startsWith('km')) return value;
+		if (unit.startsWith('mi')) return value * 1.60934;
+		if (unit.startsWith('m')) return value / 1000;
 	}
 	return 0;
 }
@@ -87,11 +90,13 @@ function toInstruction(
 	groupLabel?: string
 ): TreadmillInstruction {
 	// Prefer the precise decimal pace_value; fall back to the "MM:SS" string.
+	// Both are null on a cross-trained session, which simply has no pace.
+	const paceUnit = block.pace_unit ?? undefined;
 	const speedKmh =
-		block.pace_value > 0
-			? paceToKmh(block.pace_value, block.pace_unit)
+		typeof block.pace_value === 'number' && block.pace_value > 0
+			? paceToKmh(block.pace_value, paceUnit)
 			: block.pace
-				? paceToKmh(block.pace, block.pace_unit)
+				? paceToKmh(block.pace, paceUnit)
 				: null;
 
 	return {

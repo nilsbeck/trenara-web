@@ -1,5 +1,5 @@
 import type { Cookies } from '@sveltejs/kit';
-import type { User, UserStats } from './types';
+import type { User, UserStats, Shoe } from './types';
 import { fetchClient } from './client';
 import { TokenType } from '$lib/server/auth/types';
 
@@ -24,6 +24,20 @@ export const userApi = {
 
 	async updateProfile(cookies: Cookies, data: Partial<User>): Promise<User> {
 		return fetchClient.put<User>('/api/me', data, {
+			headers: bearerHeader(cookies),
+			cookies
+		});
+	},
+
+	/**
+	 * The user's shoe locker.
+	 *
+	 * Returns a bare array rather than a paginated envelope. Whether retired
+	 * shoes are included is unknown — every shoe seen so far has
+	 * `retired_at: null`, so filter on it if you need only active pairs.
+	 */
+	async getShoes(cookies: Cookies): Promise<Shoe[]> {
+		return fetchClient.get<Shoe[]>('/api/me/shoes', {
 			headers: bearerHeader(cookies),
 			cookies
 		});

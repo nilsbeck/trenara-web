@@ -55,15 +55,20 @@
 		}
 	}
 
+	// Accounts Trenara posts replies from: the coach bot ("Walter") authors as
+	// user id 3, and automated replies have been seen on id 0. Used only as a
+	// fallback — a real user id is always the better signal.
+	const RESPONDER_USER_IDS = [0, 3];
+
 	// A message is ours only when it carries our own user id. Everything else
-	// (the coach, automated replies with user_id 0, ...) is a response.
+	// (the coach, automated replies, ...) is a response.
 	function isOwnMessage(message: ChatMessage): boolean {
 		if (currentUserId != null) {
 			return message.user_id === currentUserId;
 		}
-		// Without a known user id, fall back to the API convention that
-		// responses are authored by user_id 0.
-		return message.user_id !== 0;
+		// Without a known user id we can only guess, so treat the known
+		// responder accounts as replies and everything else as ours.
+		return !RESPONDER_USER_IDS.includes(message.user_id);
 	}
 
 	function responderName(): string {
