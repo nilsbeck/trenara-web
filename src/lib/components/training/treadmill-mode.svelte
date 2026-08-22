@@ -49,10 +49,10 @@
 <button
 	type="button"
 	onclick={open}
-	class="md:hidden shrink-0 rounded-md p-1 text-muted-foreground hover:bg-muted hover:text-primary transition-colors"
+	class="md:hidden shrink-0 rounded-md p-2.5 text-muted-foreground hover:bg-muted hover:text-primary transition-colors"
 	aria-label="Start treadmill mode"
 >
-	<TreadmillIcon class="h-4 w-4" />
+	<TreadmillIcon class="h-5 w-5" />
 </button>
 
 <dialog
