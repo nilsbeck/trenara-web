@@ -36,8 +36,14 @@
 		return new Date(y, m - 1, d) >= today;
 	});
 
-	// Show delete only for scheduled (unexecuted) trainings on today or future dates
-	const canDelete = $derived(training !== null && entry === null && isTodayOrFuture);
+	// Show delete only for scheduled (unexecuted) trainings on today or future
+	// dates that the plan actually allows editing. `can_be_edited` is false on
+	// sessions Trenara pins — the goal race, for one — and offering delete there
+	// only produces a rejected call. The move-date control beside it already
+	// checks the same flag.
+	const canDelete = $derived(
+		training !== null && training.can_be_edited && entry === null && isTodayOrFuture
+	);
 
 	// Treadmill mode is only meaningful for a training that hasn't been completed yet
 	const canUseTreadmillMode = $derived(training !== null && entry === null);
