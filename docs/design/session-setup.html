@@ -1280,6 +1280,24 @@
 			</div>
 			<div class="note">
 				<span class="k">Sheet</span>
+				<h3>One question, however many endpoints answer it</h3>
+				<p>
+					“Make this session something else” is one thing a runner wants. The API splits it in
+					two: <code>cross_train</code> takes an activity, <code>exchange</code> takes a
+					candidate id, and they overlap at the edges — exchange candidates can themselves be
+					cross-trained, and reverting a ride is a cross-train with no type. Offering that as
+					two rows makes the runner guess which list holds the answer, to no benefit: the split
+					is ours to absorb.
+				</p>
+				<p>
+					So it is one row, and one list grouped by what each option <em>is</em> — another
+					session, or a different sport — rather than by which call serves it. Which endpoint
+					fires is decided per option, at the moment of tapping. When only one of the two flags
+					is set only that group renders, and the row reads the same either way.
+				</p>
+			</div>
+			<div class="note">
+				<span class="k">Sheet</span>
 				<h3>Reversible means no confirm dialog</h3>
 				<p>
 					Swapping the workout or the activity rewrites every block, but you can swap straight
@@ -1473,7 +1491,7 @@
 
 	// ── State ────────────────────────────────────────────────────────
 	var s = clone(SESSIONS.tempo);
-	var view = null;      // null | 'index' | 'terrain' | 'effort' | 'volume' | 'shoe' | 'activity' | 'workout'
+	var view = null;      // null | 'index' | 'terrain' | 'effort' | 'volume' | 'shoe' | 'session'
 	var pending = null;   // chip key currently syncing
 	var flashKey = null;
 
@@ -1624,18 +1642,13 @@
 			});
 		}
 
-		if (s.can_cross_train) {
+		// One row, two endpoints. The API splits "make this session something
+		// else" across cross_train and exchange; a runner has one question and
+		// should not have to guess which list holds the answer.
+		if (s.can_cross_train || s.can_be_exchanged) {
 			out.push({
-				key: 'activity', view: 'activity', label: 'Activity', icon: s.activity,
-				value: activityLabel(s.cross_type),
-				changed: !!s.cross_type, chip: 'never', replace: true
-			});
-		}
-
-		if (s.can_be_exchanged) {
-			out.push({
-				key: 'workout', view: 'workout', label: 'Workout', icon: 'i-swap',
-				value: s.title, changed: false, chip: 'never', replace: true
+				key: 'session', view: 'session', label: 'Session', icon: 'i-swap',
+				value: s.title, changed: !!s.cross_type, chip: 'never', replace: true
 			});
 		}
 
@@ -1872,14 +1885,25 @@
 				(a.v === null ? '' : a.v) + '" aria-pressed="' + on + '"' + (more ? ' disabled' : '') + '>' +
 				ic(a.icon, 20) + esc(a.label) + '</button>';
 		}
-		return '<p class="sheet-text">Swapping the activity keeps the training load and drops the ' +
-			'running detail: a ride has a duration, no distance and no pace. Terrain and shoe come ' +
-			'back when you switch to running, and so does the workout you started from.</p>' +
-			'<div class="tiles" style="grid-template-columns:repeat(2,1fr)">' + html + '</div>' +
+		return '<div class="tiles" style="grid-template-columns:repeat(2,1fr)">' + html + '</div>' +
 			'<p class="sheet-text" style="margin:13px 0 0">MTB, swimming, cross trainer, elliptical ' +
 			'bike and indoor cycling are offered too. Their wire values have not been captured, and ' +
 			'two of them are near enough synonyms that guessing would be a coin toss — so they wait ' +
 			'rather than shipping a value the API would refuse.</p>';
+	}
+
+	function viewSession() {
+		var html = '';
+		if (s.can_be_exchanged) {
+			html += '<p class="grp-label" style="margin-top:0">Another session</p>' + viewWorkout();
+		}
+		if (s.can_cross_train) {
+			html += '<p class="grp-label">' +
+				(s.cross_type ? 'Or go back to running' : 'Cross-train instead') + '</p>' +
+				viewActivity();
+		}
+		return '<p class="sheet-text">Anything else your coach accepts today. All of it rewrites ' +
+			'every block, and you can come back — nothing here is a one-way door.</p>' + html;
 	}
 
 	function viewWorkout() {
@@ -1892,9 +1916,7 @@
 				'<span class="ps">' + esc(c.dist) + ' · ' + esc(c.time) + '</span></span>' +
 				'<span class="rc">' + ic('i-next', 15) + '</span></button>';
 		}
-		return '<p class="sheet-text">Alternatives Coach Christophe accepts for today. Picking one ' +
-			'rewrites every block — and you can swap straight back, so nothing here is a one-way ' +
-			'door.</p>' + html;
+		return html;
 	}
 
 	var VIEWS = {
@@ -1903,8 +1925,7 @@
 		effort: { title: 'Fine-tune intensity', body: function () { return viewSteps('effort'); } },
 		volume: { title: 'Fine-tune distance', body: function () { return viewSteps('volume'); } },
 		shoe: { title: 'Shoe', body: viewShoe },
-		activity: { title: 'Activity', body: viewActivity },
-		workout: { title: 'Swap workout', body: viewWorkout }
+		session: { title: 'Change this session', body: viewSession }
 	};
 
 	// ── Wiring ───────────────────────────────────────────────────────
@@ -2150,15 +2171,14 @@
 				<tr>
 					<td class="f">can_cross_train</td>
 					<td class="f">PUT .../cross_train</td>
-					<td>Activity, under “Replace this session”</td>
-					<td>Row absent; the session stays a run</td>
+					<td>The “Cross-train instead” group inside <em>Change this session</em></td>
+					<td>Group absent; the session stays a run</td>
 				</tr>
 				<tr>
 					<td class="f">can_be_exchanged</td>
 					<td class="f">GET + PUT .../exchange</td>
-					<td>Workout, under “Replace this session”. Commits on tap with a six-second Undo,
-						since the swap is reversible</td>
-					<td>Row absent</td>
+					<td>The “Another session” group inside <em>Change this session</em></td>
+					<td>Group absent. With neither flag set the row does not appear at all</td>
 				</tr>
 				<tr>
 					<td class="f">can_change_pacing_plan<br>change_pacing_plan_package</td>

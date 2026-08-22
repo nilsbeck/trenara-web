@@ -218,14 +218,14 @@ describe('sessionSettings', () => {
 	it('offers only what the training says it allows', () => {
 		const keys = sessionSettings(tempoRun()).map((s) => s.key);
 		// No volume: can_change_distance is false. No activity: can_cross_train is.
-		expect(keys).toEqual(['terrain', 'shoe', 'effort', 'workout']);
+		expect(keys).toEqual(['terrain', 'shoe', 'effort', 'session']);
 	});
 
 	it('drops the running-only settings on a cross-trained session', () => {
 		const keys = sessionSettings(bikeRide()).map((s) => s.key);
 		expect(keys).not.toContain('terrain');
 		expect(keys).not.toContain('shoe');
-		expect(keys).toContain('activity');
+		expect(keys).toContain('session');
 	});
 
 	it('labels terrain with both halves of the condition', () => {
@@ -285,10 +285,8 @@ describe('chipSettings', () => {
 		expect(chipSettings(training).map((c) => c.key)).toEqual(['terrain', 'shoe']);
 	});
 
-	it('never chips the activity or the workout — the identity strip shows those', () => {
-		const chips = chipSettings(bikeRide()).map((c) => c.key);
-		expect(chips).not.toContain('activity');
-		expect(chips).not.toContain('workout');
+	it('never chips the session itself — the identity strip shows it', () => {
+		expect(chipSettings(bikeRide()).map((c) => c.key)).not.toContain('session');
 	});
 
 	it('chips a removed cool-down, because that deviates from the plan', () => {
@@ -593,5 +591,35 @@ describe('activities', () => {
 		for (const pending of UNMAPPED_ACTIVITIES) {
 			expect(known).not.toContain(pending);
 		}
+	});
+});
+
+describe('replacing the session', () => {
+	it('offers one entry however many endpoints answer it', () => {
+		// cross_train and exchange are two mechanisms for one question, and a
+		// runner should not have to know which list holds the answer.
+		const both = sessionSettings(tempoRun({ can_cross_train: true, can_be_exchanged: true }));
+		expect(both.filter((s) => s.replace).map((s) => s.key)).toEqual(['session']);
+	});
+
+	it('still offers it when only one of the two is allowed', () => {
+		const exchangeOnly = sessionSettings(
+			tempoRun({ can_cross_train: false, can_be_exchanged: true })
+		);
+		expect(exchangeOnly.map((s) => s.key)).toContain('session');
+
+		const crossOnly = sessionSettings(tempoRun({ can_cross_train: true, can_be_exchanged: false }));
+		expect(crossOnly.map((s) => s.key)).toContain('session');
+	});
+
+	it('offers nothing when neither is allowed', () => {
+		const locked = sessionSettings(tempoRun({ can_cross_train: false, can_be_exchanged: false }));
+		expect(locked.map((s) => s.key)).not.toContain('session');
+	});
+
+	it('names the row for what the session currently is', () => {
+		const session = sessionSettings(bikeRide()).find((s) => s.key === 'session');
+		expect(session?.value).toBe('Cycling');
+		expect(session?.changed).toBe(true);
 	});
 });

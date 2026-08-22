@@ -2,7 +2,6 @@
 	import type { ScheduledTraining, Shoe } from '$lib/server/trenara/types';
 	import type { TrainingHeightDifference, TrainingSurface } from '$lib/server/trenara/types';
 	import {
-		Bike,
 		Check,
 		ChevronLeft,
 		ChevronRight,
@@ -20,10 +19,11 @@
 		ACTIVITIES,
 		HEIGHT_DIFFERENCES,
 		SURFACES,
+		UNMAPPED_ACTIVITIES,
 		activityLabel,
 		conditionClimb,
 		elevationBand,
-		UNMAPPED_ACTIVITIES,
+		isRun,
 		metresPerKm,
 		selectedStep,
 		sessionSettings,
@@ -89,8 +89,7 @@
 		effort: 'Fine-tune intensity',
 		volume: 'Fine-tune distance',
 		cooldown: 'Cool-down',
-		activity: 'Activity',
-		workout: 'Swap workout'
+		session: 'Change this session'
 	};
 
 	const title = $derived.by(() => {
@@ -109,8 +108,7 @@
 		effort: Gauge,
 		volume: MoveHorizontal,
 		cooldown: Gauge,
-		activity: Bike,
-		workout: Repeat
+		session: Repeat
 	} as const;
 
 	/** The shoe Trenara recommended, pinned to the top of the picker. */
@@ -153,7 +151,7 @@
 
 	$effect(() => {
 		if (section === 'shoe') void store.loadShoes();
-		if (section === 'workout') void store.loadCandidates();
+		if (section === 'session') void store.loadCandidates();
 	});
 
 	function close() {
@@ -505,71 +503,87 @@
 					</button>
 				{/each}
 			{/if}
-		{:else if section === 'activity'}
+		{:else if section === 'session'}
 			<p class="mb-3 text-xs leading-relaxed text-muted-foreground">
-				Swapping the activity keeps the training load and drops the running detail: a ride has a
-				duration, no distance and no pace, and the terrain and shoe go with it. Picking Run puts all
-				of that back.
-			</p>
-			<div class="grid grid-cols-2 gap-1.5">
-				{#each ACTIVITIES as activity (activity.label)}
-					{@const active = (training.cross_type ?? null) === activity.crossType}
-					<button
-						type="button"
-						disabled={store.pending === 'activity' || active}
-						onclick={() => commitAndClose(() => store.crossTrain(activity.crossType))}
-						aria-pressed={active}
-						class="rounded-lg border px-2 py-3 text-xs transition-colors disabled:opacity-60 {active
-							? 'border-primary bg-primary/10 text-foreground'
-							: 'border-border bg-muted text-muted-foreground hover:text-foreground'}"
-					>
-						{activity.label}
-					</button>
-				{/each}
-			</div>
-			<p class="mt-3 text-[11px] leading-relaxed text-muted-foreground">
-				Trenara also offers {UNMAPPED_ACTIVITIES.join(', ')}. They are missing here until we know
-				what to send for each — a value the API does not recognise is refused, and two of them are
-				near enough synonyms that a guess would be a coin toss.
-			</p>
-		{:else if section === 'workout'}
-			<p class="mb-3 text-xs leading-relaxed text-muted-foreground">
-				Alternatives your coach accepts for today. Picking one rewrites every block, and you can
-				swap straight back.
+				Anything else your coach accepts today. All of it rewrites every block, and you can come
+				back — nothing here is a one-way door.
 			</p>
 
-			{#if store.candidates === null}
-				<p class="py-4 text-center text-xs text-muted-foreground">Loading alternatives…</p>
-			{:else if store.candidates.length === 0}
-				<p class="py-4 text-center text-xs text-muted-foreground">
-					No alternatives offered for this session.
+			{#if training.can_be_exchanged}
+				<p
+					class="mb-1 mt-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground"
+				>
+					Another session
 				</p>
-			{:else}
-				{#each store.candidates as candidate (candidate.id)}
-					<button
-						type="button"
-						disabled={store.pending === 'workout'}
-						onclick={() => commitAndClose(() => store.exchange(candidate.id))}
-						class="flex w-full items-center gap-2.5 rounded-lg border border-transparent p-2 text-left transition-colors hover:bg-foreground/5 disabled:opacity-60"
-					>
-						<span
-							class="h-8 w-1 shrink-0 rounded-full"
-							style="background-color: {candidate.hex_training}"
-						></span>
-						<span class="min-w-0 flex-1">
-							<span class="block text-sm">{candidate.title}</span>
-							<span class="block text-[11px] text-muted-foreground">
-								{candidate.training.total_distance ?? activityLabel(candidate.cross_type)} · {candidate
-									.training.total_time}
+				{#if store.candidates === null}
+					<p class="py-3 text-center text-xs text-muted-foreground">Loading alternatives…</p>
+				{:else if store.candidates.length === 0}
+					<p class="py-3 text-center text-xs text-muted-foreground">
+						No alternatives offered for this session.
+					</p>
+				{:else}
+					{#each store.candidates as candidate (candidate.id)}
+						<button
+							type="button"
+							disabled={store.pending === 'session'}
+							onclick={() => commitAndClose(() => store.exchange(candidate.id))}
+							class="flex w-full items-center gap-2.5 rounded-lg border border-transparent p-2 text-left transition-colors hover:bg-foreground/5 disabled:opacity-60"
+						>
+							<span
+								class="h-8 w-1 shrink-0 rounded-full"
+								style="background-color: {candidate.hex_training}"
+							></span>
+							<span class="min-w-0 flex-1">
+								<span class="block text-sm">{candidate.title}</span>
+								<span class="block text-[11px] text-muted-foreground">
+									{candidate.training.total_distance ?? activityLabel(candidate.cross_type)} · {candidate
+										.training.total_time}
+								</span>
 							</span>
-						</span>
-						{#if store.pending === 'workout'}
-							<Loader2 class="h-4 w-4 shrink-0 animate-spin text-muted-foreground" />
-						{:else}
 							<ChevronRight class="h-4 w-4 shrink-0 text-border" />
-						{/if}
-					</button>
-				{/each}
+						</button>
+					{/each}
+				{/if}
+			{/if}
+
+			{#if training.can_cross_train}
+				<!--
+					A different sport rather than a different session: same training
+					load, no distance or pace. Grouped by what it is to a runner, not
+					by which endpoint answers it — that part is ours to hide.
+				-->
+				<p
+					class="mb-2 mt-3 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground"
+				>
+					{isRun(training) ? 'Cross-train instead' : 'Or go back to running'}
+				</p>
+				<div class="grid grid-cols-2 gap-1.5">
+					{#each ACTIVITIES as activity (activity.label)}
+						{@const active = (training.cross_type ?? null) === activity.crossType}
+						<button
+							type="button"
+							disabled={store.pending === 'session' || active}
+							onclick={() => commitAndClose(() => store.crossTrain(activity.crossType))}
+							aria-pressed={active}
+							class="rounded-lg border px-2 py-3 text-xs transition-colors disabled:opacity-60 {active
+								? 'border-primary bg-primary/10 text-foreground'
+								: 'border-border bg-muted text-muted-foreground hover:text-foreground'}"
+						>
+							{activity.label}
+						</button>
+					{/each}
+				</div>
+				<p class="mt-2 text-[11px] leading-relaxed text-muted-foreground">
+					A ride has a duration, no distance and no pace, so the terrain and shoe go with it —
+					picking Run puts them back. Trenara also offers {UNMAPPED_ACTIVITIES.join(', ')}, which
+					are missing here until we know what to send for each.
+				</p>
+			{/if}
+
+			{#if store.pending === 'session'}
+				<p class="mt-3 flex items-center gap-2 text-xs text-muted-foreground">
+					<Loader2 class="h-3 w-3 animate-spin" /> Saving…
+				</p>
 			{/if}
 		{/if}
 	</div>

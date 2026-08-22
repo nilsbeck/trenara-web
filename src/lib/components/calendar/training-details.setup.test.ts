@@ -415,7 +415,7 @@ describe('switching back to a run', () => {
 
 		await waitFor(() => expect(screen.getAllByText('Cycling').length).toBeGreaterThan(0));
 		await fireEvent.click(screen.getByLabelText('Session setup'));
-		await fireEvent.click(await waitFor(() => screen.getByText('Activity')));
+		await fireEvent.click(await waitFor(() => screen.getByText('Session')));
 
 		// The tile was disabled back when reverting was thought to be an
 		// exchange, which left it visible and dead.
@@ -444,7 +444,7 @@ describe('switching back to a run', () => {
 
 		await waitFor(() => expect(screen.getAllByText('Cycling').length).toBeGreaterThan(0));
 		await fireEvent.click(screen.getByLabelText('Session setup'));
-		await fireEvent.click(await waitFor(() => screen.getByText('Activity')));
+		await fireEvent.click(await waitFor(() => screen.getByText('Session')));
 
 		const cycling = await waitFor(() => screen.getByRole('button', { name: 'Cycling' }));
 		expect((cycling as HTMLButtonElement).disabled).toBe(true);

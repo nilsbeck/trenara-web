@@ -167,11 +167,11 @@ export class SessionDetailStore {
 
 	/** Swap the activity. `null` turns the session back into a run. */
 	crossTrain(crossType: string | null) {
-		return this.#mutate('activity', 'cross-train', 'PUT', { crossType });
+		return this.#mutate('session', 'cross-train', 'PUT', { crossType });
 	}
 
 	exchange(candidateId: number) {
-		return this.#mutate('workout', 'exchange', 'PUT', { candidateId });
+		return this.#mutate('session', 'exchange', 'PUT', { candidateId });
 	}
 
 	/**
@@ -216,9 +216,9 @@ export class SessionDetailStore {
 			if (this.#trainingId !== trainingId) return false;
 
 			this.detail = detail;
-			// Exchanging or cross-training replaces the session, so the old
-			// alternatives no longer describe it.
-			if (key === 'workout' || key === 'activity') this.candidates = null;
+			// Replacing the session — by either route — leaves the cached
+			// alternatives describing a training that is no longer there.
+			if (key === 'session') this.candidates = null;
 			return true;
 		} catch (e) {
 			if (this.#trainingId === trainingId) {

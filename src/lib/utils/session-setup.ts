@@ -18,8 +18,7 @@ import type {
  * tempo run. Titles are localised, so nothing may key off them either.
  */
 
-export type SettingKey =
-	'terrain' | 'shoe' | 'effort' | 'volume' | 'cooldown' | 'activity' | 'workout';
+export type SettingKey = 'terrain' | 'shoe' | 'effort' | 'volume' | 'cooldown' | 'session';
 
 /** When a setting earns a place on the chip rail. */
 export type ChipRule =
@@ -299,23 +298,21 @@ export function sessionSettings(training: ScheduledTraining): Setting[] {
 		});
 	}
 
-	if (training.can_cross_train) {
+	// One row, not two.
+	//
+	// The API splits "make this session something else" across two endpoints
+	// with different id spaces: cross_train takes an activity, exchange takes a
+	// candidate workout. That split is real for us and meaningless to a runner,
+	// who has one question and would otherwise have to guess which list holds
+	// the answer — and they overlap at the edges, since exchange candidates can
+	// themselves be cross-trained. So both are offered from a single entry, and
+	// which endpoint answers is decided per option rather than up front.
+	if (training.can_cross_train || training.can_be_exchanged) {
 		settings.push({
-			key: 'activity',
-			label: 'Activity',
-			value: activityLabel(training.cross_type),
-			changed: !run,
-			chip: 'never',
-			replace: true
-		});
-	}
-
-	if (training.can_be_exchanged) {
-		settings.push({
-			key: 'workout',
-			label: 'Workout',
+			key: 'session',
+			label: 'Session',
 			value: training.title,
-			changed: false,
+			changed: !run,
 			chip: 'never',
 			replace: true
 		});
