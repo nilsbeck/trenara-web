@@ -212,6 +212,25 @@ describe('SessionDetailStore', () => {
 		expect(store.detail?.has_cooldown).toBe(false);
 	});
 
+	it('names the cool-down field the way the API does', async () => {
+		const fetchMock = vi.mocked(fetch);
+		fetchMock.mockResolvedValueOnce(jsonResponse(detail({ has_cooldown: true })));
+		const store = new SessionDetailStore();
+		store.load(42);
+		await vi.waitFor(() => expect(store.detail).not.toBeNull());
+
+		fetchMock.mockResolvedValueOnce(jsonResponse(detail({ has_cooldown: false })));
+		await store.setCooldown(false);
+
+		// The client route takes hasCooldown; the server layer renames it to
+		// cooldown_toggle, which is what Trenara actually reads. Sending
+		// has_cooldown upstream is answered 200 and ignored.
+		expect(fetchMock).toHaveBeenLastCalledWith(
+			'/api/v1/training/42/cooldown',
+			expect.objectContaining({ body: JSON.stringify({ hasCooldown: false }) })
+		);
+	});
+
 	it('reports a cool-down change the server answered but did not apply', async () => {
 		const fetchMock = vi.mocked(fetch);
 		fetchMock.mockResolvedValueOnce(jsonResponse(detail({ has_cooldown: true })));

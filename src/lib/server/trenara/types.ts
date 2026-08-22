@@ -373,9 +373,15 @@ export interface ScheduledTrainingCondition {
 export interface ChangeStep {
 	/** 1-based position in `steps`. Not what you send — send `value`. */
 	step: number;
-	/** Percentage delta. This is the number the corresponding PUT expects. */
+	/**
+	 * The number the corresponding PUT expects. What it *means* varies by
+	 * package and by session: a percentage delta on a distance package for a
+	 * steady run (`-30` for "-30%"), but a repetition count on the same package
+	 * for an interval session (`2` for "2x"). Never do arithmetic on it — pass
+	 * it back and render `text`.
+	 */
 	value: number;
-	/** Render as-is: "-30%" for distance, "A bit slower" for intensity. */
+	/** Render as-is: "-30%", "2x", "A bit slower". */
 	text: string;
 	selected: boolean;
 }
@@ -546,10 +552,13 @@ export interface SetIntensityRequest {
 /** Body of `PUT /schedule/trainings/{id}/distance`. */
 export interface SetDistanceRequest {
 	/**
-	 * A `change_distance_package` step's `value` — a percentage delta.
+	 * A `change_distance_package` step's `value`, whatever that package means by
+	 * it — a percentage delta on a steady run (`-10` for "10% shorter"), a
+	 * repetition count on an interval session (`2` for "2x", where the package
+	 * calls itself "Fine-tune intervals").
 	 *
-	 * NOT a distance, despite sharing a name with `TrainingBlock.distance_value`:
-	 * `-10` means "10% shorter", not "10 km".
+	 * Either way it is NOT a distance, despite sharing a name with
+	 * `TrainingBlock.distance_value`. Send a step's `value` verbatim.
 	 */
 	distance_value: number;
 }
@@ -568,16 +577,14 @@ export interface ExchangeTrainingRequest {
 /**
  * Body of `PUT /schedule/trainings/{id}/cooldown`.
  *
- * The one request shape here that has NOT been observed on the wire. The flags
- * that drive it — `can_toggle_cooldown` and `has_cooldown` — are real and do
- * come back true, but no capture of the request itself exists yet, so both the
- * path and this body are inferred from the six siblings, which are uniformly
- * `PUT .../{field}` carrying the field's new value. Confirm against a capture
- * before trusting it; if it is wrong, `trainingApi.setCooldown` is the only
- * place that needs changing.
+ * The key is `cooldown_toggle`, not `has_cooldown` — this is the only mutation
+ * whose request field is named differently from the field it sets. Sending
+ * `has_cooldown` is accepted with a 200 and silently ignored, which is worse
+ * than a rejection: the response comes back with the cool-down untouched.
  */
 export interface ToggleCooldownRequest {
-	has_cooldown: boolean;
+	/** The state the cool-down should end in, despite reading like a verb. */
+	cooldown_toggle: boolean;
 }
 
 /** Body of `PUT /schedule/trainings/{id}/cross_train`. */

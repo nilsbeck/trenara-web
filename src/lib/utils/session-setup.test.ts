@@ -7,6 +7,7 @@ import {
 	selectedStep,
 	sessionSettings,
 	cooldownBlockIndex,
+	hasNeutralStep,
 	shapeSegments,
 	shoeName,
 	shoeTypeLabel,
@@ -387,5 +388,76 @@ describe('cooldownBlockIndex', () => {
 
 	it('takes the last match, since a cool-down closes the session', () => {
 		expect(cooldownBlockIndex(withBlocks(['cooldown', 'core', 'cooldown']))).toBe(2);
+	});
+});
+
+describe('packages without an "as planned" step', () => {
+	/** An interval session: the distance package counts reps, not percentages. */
+	function intervals() {
+		return tempoRun({
+			title: 'Intervals',
+			can_change_distance: true,
+			change_distance_package: {
+				title: 'Fine-tune intervals',
+				text: 'Adjust the number of repetitions.',
+				steps: [
+					{ step: 1, value: 1, text: '1x', selected: false },
+					{ step: 2, value: 2, text: '2x', selected: true },
+					{ step: 3, value: 3, text: '3x', selected: false }
+				]
+			}
+		});
+	}
+
+	it('recognises which packages carry a neutral step', () => {
+		expect(hasNeutralStep(tempoRun().change_intensity_package)).toBe(true);
+		expect(hasNeutralStep(intervals().change_distance_package)).toBe(false);
+		expect(hasNeutralStep(null)).toBe(false);
+	});
+
+	it('does not call a repetition count changed', () => {
+		// 2x is selected, and 2 !== 0 — but there is no 0 step, so nothing says
+		// the coach planned anything other than 2x. Marking it changed would put
+		// a deviation badge on a session nobody has touched.
+		const volume = sessionSettings(intervals()).find((s) => s.key === 'volume');
+		expect(volume?.value).toBe('2x');
+		expect(volume?.changed).toBe(false);
+	});
+
+	it('shows it on the rail anyway, since it cannot be hidden as "unchanged"', () => {
+		// A "changed"-gated chip would never appear, and 2x is worth seeing.
+		const chips = chipSettings(intervals()).map((c) => c.key);
+		expect(chips).toContain('volume');
+	});
+
+	it('still flags a percentage package that has left the plan', () => {
+		const training = tempoRun({
+			can_change_distance: true,
+			change_distance_package: {
+				title: 'Fine-tune distance',
+				text: '',
+				steps: [
+					{ step: 1, value: -30, text: '-30%', selected: true },
+					{ step: 2, value: 0, text: '0%', selected: false }
+				]
+			}
+		});
+		const volume = sessionSettings(training).find((s) => s.key === 'volume');
+		expect(volume?.changed).toBe(true);
+	});
+
+	it('keeps the chip off a percentage package sitting at the plan', () => {
+		const training = tempoRun({
+			can_change_distance: true,
+			change_distance_package: {
+				title: 'Fine-tune distance',
+				text: '',
+				steps: [
+					{ step: 1, value: -30, text: '-30%', selected: false },
+					{ step: 2, value: 0, text: '0%', selected: true }
+				]
+			}
+		});
+		expect(chipSettings(training).map((c) => c.key)).not.toContain('volume');
 	});
 });

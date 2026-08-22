@@ -203,10 +203,10 @@ export const trainingApi = {
 	 * The response carries the rebuilt training: dropping the cool-down removes
 	 * its block and subtracts its distance and time from the totals.
 	 *
-	 * Unlike its siblings this endpoint has not been observed. See
-	 * {@link ToggleCooldownRequest} — the path and body are inferred from the
-	 * uniform shape of the other six, and this method is the single place to
-	 * correct if a capture shows otherwise.
+	 * The body key is `cooldown_toggle`, not `has_cooldown` — the only mutation
+	 * whose request field is named differently from the field it sets, and
+	 * sending the wrong one is answered 200 and ignored. See
+	 * {@link ToggleCooldownRequest}.
 	 */
 	async setCooldown(
 		cookies: Cookies,
@@ -215,7 +215,7 @@ export const trainingApi = {
 	): Promise<ScheduledTrainingDetail> {
 		return fetchClient.put<ScheduledTrainingDetail>(
 			`/api/schedule/trainings/${trainingId}/cooldown`,
-			{ has_cooldown: hasCooldown },
+			{ cooldown_toggle: hasCooldown },
 			{ headers: bearerHeader(cookies), cookies }
 		);
 	},

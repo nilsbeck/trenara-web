@@ -117,6 +117,34 @@ export function selectedStep(pkg: ChangePackage | null | undefined): ChangeStep 
 	return pkg?.steps.find((s) => s.selected) ?? null;
 }
 
+/**
+ * Whether a package has a step meaning "as the coach planned it".
+ *
+ * A percentage package has one — 0% on distance, "As planned" on intensity —
+ * and anything else is a deviation. A package counting repetitions does not:
+ * an interval session offers 1x, 2x, 3x, and `selected` tells us which is
+ * applied but never which was planned. So without a zero step there is nothing
+ * to call a deviation from, and claiming one would put a "changed" mark on a
+ * session nobody has touched.
+ */
+export function hasNeutralStep(pkg: ChangePackage | null | undefined): boolean {
+	return !!pkg?.steps.some((s) => s.value === 0);
+}
+
+/**
+ * How a package's setting should behave: flagged as changed once it leaves the
+ * coach's value, or shown plainly because we cannot tell what that value was.
+ */
+function packageSetting(
+	pkg: ChangePackage,
+	step: ChangeStep | null
+): Pick<Setting, 'value' | 'changed' | 'chip'> {
+	if (!hasNeutralStep(pkg)) {
+		return { value: step?.text ?? null, changed: false, chip: 'always' };
+	}
+	return { value: step?.text ?? null, changed: !!step && step.value !== 0, chip: 'changed' };
+}
+
 /** True when the training is a run rather than a cross-trained session. */
 export function isRun(training: ScheduledTraining): boolean {
 	return !training.cross_type;
@@ -154,24 +182,22 @@ export function sessionSettings(training: ScheduledTraining): Setting[] {
 	}
 
 	if (training.can_change_intensity && training.change_intensity_package) {
-		const step = selectedStep(training.change_intensity_package);
+		const pkg = training.change_intensity_package;
 		settings.push({
 			key: 'effort',
 			label: 'Effort',
-			value: step?.text ?? null,
-			changed: !!step && step.value !== 0,
-			chip: 'changed'
+			...packageSetting(pkg, selectedStep(pkg))
 		});
 	}
 
 	if (training.can_change_distance && training.change_distance_package) {
-		const step = selectedStep(training.change_distance_package);
+		const pkg = training.change_distance_package;
 		settings.push({
+			// "Volume" covers both shapes this package takes: a percentage of the
+			// planned distance, or a number of repetitions.
 			key: 'volume',
 			label: 'Volume',
-			value: step?.text ?? null,
-			changed: !!step && step.value !== 0,
-			chip: 'changed'
+			...packageSetting(pkg, selectedStep(pkg))
 		});
 	}
 

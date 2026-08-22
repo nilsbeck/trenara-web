@@ -66,7 +66,15 @@
 		workout: 'Swap workout'
 	};
 
-	const title = $derived(section ? TITLES[section] : 'Session setup');
+	const title = $derived.by(() => {
+		if (!section) return 'Session setup';
+		// The package carries the coach's own wording, which differs per session:
+		// a distance package calls itself "Fine-tune intervals" on an interval
+		// session. Prefer it over anything we would hardcode.
+		if (section === 'effort' && intensityPackage?.title) return intensityPackage.title;
+		if (section === 'volume' && distancePackage?.title) return distancePackage.title;
+		return TITLES[section];
+	});
 
 	const ICONS = {
 		terrain: Mountain,
