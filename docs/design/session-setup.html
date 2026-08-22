@@ -671,6 +671,36 @@
 
 	.badge.fav { background: color-mix(in srgb, var(--accent) 20%, transparent); color: #f7a3ca; }
 
+	.row.switch-row { cursor: pointer; }
+
+	.sw {
+		width: 36px;
+		height: 21px;
+		border-radius: 999px;
+		background: var(--app-muted);
+		border: 1px solid var(--app-border);
+		position: relative;
+		flex: 0 0 auto;
+		transition: background 0.18s, border-color 0.18s;
+	}
+
+	.sw i {
+		position: absolute;
+		top: 2px; left: 2px;
+		width: 15px; height: 15px;
+		border-radius: 999px;
+		background: var(--app-dim);
+		transition: transform 0.18s, background 0.18s;
+	}
+
+	.sw.on { background: color-mix(in srgb, var(--accent) 30%, var(--app-muted)); border-color: var(--accent); }
+	.sw.on i { transform: translateX(15px); background: var(--accent); }
+
+	.tile.unknown {
+		border-style: dashed;
+		background: transparent;
+	}
+
 	.danger-zone {
 		margin-top: 18px;
 		padding-top: 14px;
@@ -720,8 +750,25 @@
 		transition: opacity 0.2s, transform 0.2s;
 	}
 
-	.toast.on { opacity: 1; transform: translateY(0); }
+	.toast.on { opacity: 1; transform: translateY(0); pointer-events: auto; }
 	.toast .x { color: #f87171; display: grid; place-items: center; flex: 0 0 auto; }
+	.toast.ok .x { color: var(--ok); }
+	.toast span#toastMsg { flex: 1; }
+
+	.toast button {
+		font: inherit;
+		font-size: 12px;
+		font-weight: 600;
+		background: transparent;
+		border: 1px solid var(--app-border);
+		border-radius: 7px;
+		padding: 5px 10px;
+		color: var(--app-fg);
+		cursor: pointer;
+		flex: 0 0 auto;
+	}
+
+	.toast button:hover { background: var(--app-muted); }
 
 	/* ── Spec furniture ─────────────────────────────────────────── */
 	.notes { display: flex; flex-direction: column; gap: 26px; }
@@ -893,6 +940,20 @@
 		<g id="i-hilly" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
 			<path d="M2 19h20"/><path d="m4.5 19 5.5-8 3 4 2-2.6L20 19"/>
 		</g>
+		<g id="i-elliptical" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+			<ellipse cx="11" cy="18" rx="8" ry="2.8"/>
+			<path d="M6.5 18 12 9.5l3.5-3"/>
+			<circle cx="17" cy="4.6" r="1.5"/>
+		</g>
+		<g id="i-cross" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+			<path d="M3 12h3l2.5-6 4 12 2.5-6h6"/>
+		</g>
+		<g id="i-undo" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+			<path d="M3 7v6h6"/><path d="M3.5 13a9 9 0 1 0 2.6-6.4L3 9.5"/>
+		</g>
+		<g id="i-cooldown" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+			<path d="M3 6.5h5.5V12H14v5.5h7"/>
+		</g>
 		<g id="i-check" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
 			<path d="M20 6 9 17l-5-5"/>
 		</g>
@@ -940,7 +1001,8 @@
 		Three real sessions from the API fixtures. Switch between them and watch the chip rail
 		rebuild itself: the cycling session drops terrain and shoe because
 		<code>cross_type</code> is set; the tempo run hides volume because
-		<code>can_change_distance</code> is <code>false</code>. Tap any chip to open its editor.
+		<code>can_change_distance</code> is <code>false</code>. Tap any chip to open its editor —
+		and try the cool-down switch under the sliders chip to watch the plan lose a block.
 	</p>
 
 	<div class="stage">
@@ -981,8 +1043,9 @@
 					<div class="sheet-body" id="sheetBody"></div>
 				</div>
 				<div class="toast" id="toast">
-					<span class="x"><svg width="15" height="15" viewBox="0 0 24 24"><use href="#i-alert"/></svg></span>
+					<span class="x"><svg width="15" height="15" viewBox="0 0 24 24"><use href="#i-alert" id="toastIcon"/></svg></span>
 					<span id="toastMsg"></span>
+					<button type="button" id="toastAction" hidden></button>
 				</div>
 			</div>
 			<p class="stage-note">Mutations are simulated with a 500&nbsp;ms round trip. Change effort twice quickly to see the failure path.</p>
@@ -1034,10 +1097,31 @@
 				<h3>Two levels, one screen deep</h3>
 				<p>
 					A chip opens the sheet directly on its editor; the sliders chip opens the index and
-					you drill in once. A pick commits and closes — shoe, activity. A dial commits and
-					stays, because the whole point of moving the effort step is watching the total time
-					move with it. Replacing the session sits below a rule and asks once, since it
-					rewrites every block.
+					you drill in once. A pick commits and closes — shoe, activity, workout. A dial
+					commits and stays, because the whole point of moving the effort step is watching the
+					total time move with it. A switch commits in place.
+				</p>
+			</div>
+			<div class="note">
+				<span class="k">Sheet</span>
+				<h3>Reversible means no confirm dialog</h3>
+				<p>
+					Swapping the workout or the activity rewrites every block, but you can swap straight
+					back — so it doesn’t deserve an “are you sure”. Tap the alternative, it commits, and
+					a toast holds an Undo for six seconds. One tap to change, one tap to change back,
+					no modal in between.
+				</p>
+			</div>
+			<div class="note">
+				<span class="k">Cool-down</span>
+				<h3>The switch has to move the plan</h3>
+				<p>
+					Not every run has a cool-down; the ones that do can drop it. So it is a switch in the
+					index, not a chip and not a drill-in — and when it flips, the block disappears from
+					the list, the shape bar loses its trailing segment and the totals fall by that
+					distance and time. Seeing the plan change <em>is</em> the confirmation. Turned off it
+					earns a “No cool-down” chip, because that is now a deviation from what the coach
+					wrote.
 				</p>
 			</div>
 		</div>
@@ -1073,15 +1157,46 @@
 		{ v: 'mountain', label: 'Mountain', icon: 'i-mountain' }
 	];
 
+	/**
+	 * Activity registry. `road_bike` is the one value confirmed on the wire;
+	 * elliptical and others exist but we have not enumerated them yet, so the
+	 * picker keeps a slot for whatever comes back that it doesn't recognise.
+	 */
 	var ACTIVITIES = [
-		{ v: null, label: 'Run', icon: 'i-run' },
-		{ v: 'road_bike', label: 'Cycling', icon: 'i-bike' }
+		{ v: null, label: 'Run', icon: 'i-run', known: true },
+		{ v: 'road_bike', label: 'Cycling', icon: 'i-bike', known: true },
+		{ v: 'elliptical', label: 'Elliptical', icon: 'i-elliptical', known: false },
+		{ v: '__more', label: 'and more', icon: 'i-cross', known: false }
 	];
 
 	var CANDIDATES = [
-		{ id: 20112, title: 'Easy run + strides', hex: '#7B3294', dist: '12.09 km', time: '1:05:29' },
-		{ id: 20118, title: 'Interval 8 × 400 m', hex: '#D55E00', dist: '11 km', time: '1:02:10' },
-		{ id: 20124, title: 'Easy run', hex: '#009E73', dist: '10 km', time: '55:00' }
+		{
+			id: 20112, title: 'Easy run + strides', hex: '#7B3294', dist: '12.09 km', time: '1:05:29',
+			km: 10.09, sec: 3229, desc: 'A standard endurance run. The strides at the end keep your legs sharp.',
+			cooldown: { w: 2, c: '#90CFF1', km: 2, sec: 700, t: 'Cool-down: 2 km easy' },
+			shape: [{ w: 2.5, c: '#90CFF1' }].concat(stride(8)),
+			blocks: [
+				{ c: '#90CFF1', t: 'Warm-up: 2.5 km easy' },
+				{ c: '#D55E00', t: '8 × 20 s strides, 3:00 rest' }
+			]
+		},
+		{
+			id: 20118, title: 'Interval 8 × 400 m', hex: '#D55E00', dist: '11 km', time: '1:02:10',
+			km: 9, sec: 3030, desc: 'Eight hard 400s. Jog the recoveries — the rest is what makes the next rep count.',
+			cooldown: { w: 2, c: '#90CFF1', km: 2, sec: 700, t: 'Cool-down: 2 km easy' },
+			shape: [{ w: 3, c: '#90CFF1' }].concat(stride(8)),
+			blocks: [
+				{ c: '#90CFF1', t: 'Warm-up: 3 km easy' },
+				{ c: '#D55E00', t: '8 × 400 m at 4:12 min/km, 2:00 jog' }
+			]
+		},
+		{
+			id: 20124, title: 'Easy run', hex: '#009E73', dist: '10 km', time: '55:00',
+			km: 10, sec: 3300, desc: 'Nothing clever today. Keep it conversational the whole way.',
+			cooldown: null,
+			shape: [{ w: 10, c: '#009E73' }],
+			blocks: [{ c: '#009E73', t: 'Run 10 km at 5:30 min/km' }]
+		}
 	];
 
 	var INTENSITY_TEXT = 'Change today’s session intensity within limits set by Coach Christophe.';
@@ -1109,12 +1224,13 @@
 			distanceSteps: null,
 			intensity: -2, distance: 0,
 			surface: 'treadmill', height: 'flat', shoeId: 6404,
-			base: { km: 12, sec: 4068 },
-			shape: [{ w: 2, c: '#90CFF1' }, { w: 8, c: '#E69F00' }, { w: 2, c: '#90CFF1' }],
+			can_toggle_cooldown: true, has_cooldown: true,
+			base: { km: 10, sec: 3368 },
+			cooldown: { w: 2, c: '#90CFF1', km: 2, sec: 700, t: 'Cool-down: 2 km easy' },
+			shape: [{ w: 2, c: '#90CFF1' }, { w: 8, c: '#E69F00' }],
 			blocks: [
 				{ c: '#90CFF1', t: 'Warm-up: 2 km in 13:03' },
-				{ c: '#E69F00', t: 'Run 8 km at 5:33–5:59 min/km' },
-				{ c: '#90CFF1', t: 'Cool-down: 2 km easy' }
+				{ c: '#E69F00', t: 'Run 8 km at 5:33–5:59 min/km' }
 			]
 		},
 		easy: {
@@ -1132,12 +1248,13 @@
 			],
 			intensity: 0, distance: 0,
 			surface: null, height: null, shoeId: null,
-			base: { km: 12.09, sec: 3929 },
-			shape: [{ w: 2.5, c: '#90CFF1' }].concat(stride(8)).concat([{ w: 2, c: '#90CFF1' }]),
+			can_toggle_cooldown: true, has_cooldown: true,
+			base: { km: 10.09, sec: 3229 },
+			cooldown: { w: 2, c: '#90CFF1', km: 2, sec: 700, t: 'Cool-down: 2 km easy' },
+			shape: [{ w: 2.5, c: '#90CFF1' }].concat(stride(8)),
 			blocks: [
 				{ c: '#90CFF1', t: 'Warm-up: 2.5 km easy' },
-				{ c: '#D55E00', t: '8 × 20 s strides, 3:00 rest' },
-				{ c: '#90CFF1', t: 'Cool-down: 2 km easy' }
+				{ c: '#D55E00', t: '8 × 20 s strides, 3:00 rest' }
 			]
 		},
 		bike: {
@@ -1149,7 +1266,9 @@
 			distanceSteps: null,
 			intensity: 0, distance: 0,
 			surface: null, height: null, shoeId: null,
+			can_toggle_cooldown: false, has_cooldown: false,
 			base: { km: null, sec: 6224 },
+			cooldown: null,
 			shape: [{ w: 1, c: '#1BB9AA' }],
 			blocks: [{ c: '#1BB9AA', t: 'Ride 1:43:43' }]
 		}
@@ -1160,7 +1279,6 @@
 	var view = null;      // null | 'index' | 'terrain' | 'effort' | 'volume' | 'shoe' | 'activity' | 'workout'
 	var pending = null;   // chip key currently syncing
 	var flashKey = null;
-	var confirming = null;
 
 	function clone(o) { return JSON.parse(JSON.stringify(o)); }
 
@@ -1172,9 +1290,30 @@
 		return h > 0 ? h + ':' + p(m) + ':' + p(x) : p(m) + ':' + p(x);
 	}
 
+	function cooling() { return s.has_cooldown && s.cooldown ? s.cooldown : null; }
+
 	function distFactor() { return 1 + s.distance / 100; }
-	function shownKm() { return s.base.km == null ? null : s.base.km * distFactor(); }
-	function shownSec() { return s.base.sec * distFactor() * (100 / (100 + s.intensity)); }
+
+	function shownKm() {
+		if (s.base.km == null) return null;
+		var cd = cooling();
+		return (s.base.km + (cd ? cd.km : 0)) * distFactor();
+	}
+
+	function shownSec() {
+		var cd = cooling();
+		return (s.base.sec + (cd ? cd.sec : 0)) * distFactor() * (100 / (100 + s.intensity));
+	}
+
+	function shownShape() {
+		var cd = cooling();
+		return cd ? s.shape.concat([{ w: cd.w, c: cd.c }]) : s.shape;
+	}
+
+	function shownBlocks() {
+		var cd = cooling();
+		return cd ? s.blocks.concat([{ c: cd.c, t: cd.t }]) : s.blocks;
+	}
 
 	function metaText() {
 		var km = shownKm();
@@ -1238,6 +1377,12 @@
 				label: stepText(s.distanceSteps, s.distance), ghost: false, changed: true
 			});
 		}
+		if (s.can_toggle_cooldown && !s.has_cooldown) {
+			out.push({
+				key: 'cooldown', view: 'index', icon: 'i-cooldown',
+				label: 'No cool-down', ghost: false, changed: true
+			});
+		}
 		return out;
 	}
 
@@ -1263,15 +1408,16 @@
 
 	// ── Card ─────────────────────────────────────────────────────────
 	function renderCard() {
+		var shape = shownShape(), blocks = shownBlocks();
 		var shapeHtml = '';
-		for (var i = 0; i < s.shape.length; i++) {
-			shapeHtml += '<i style="flex:' + s.shape[i].w + ';background:' + s.shape[i].c + '"></i>';
+		for (var i = 0; i < shape.length; i++) {
+			shapeHtml += '<i style="flex:' + shape[i].w + ';background:' + shape[i].c + '"></i>';
 		}
 
 		var blocksHtml = '';
-		for (var j = 0; j < s.blocks.length; j++) {
-			blocksHtml += '<div class="blk"><span class="bullet" style="background:' + s.blocks[j].c +
-				'"></span><span>' + esc(s.blocks[j].t) + '</span></div>';
+		for (var j = 0; j < blocks.length; j++) {
+			blocksHtml += '<div class="blk"><span class="bullet" style="background:' + blocks[j].c +
+				'"></span><span>' + esc(blocks[j].t) + '</span></div>';
 		}
 
 		return '' +
@@ -1321,6 +1467,18 @@
 		if (!s.cross_type) {
 			var sh = shoe();
 			tune += rowHtml('shoe', 'i-shoe', 'Shoe', sh ? sh.name : 'Not set', false);
+		}
+		if (s.can_toggle_cooldown) {
+			tune += '<button type="button" class="row switch-row" data-toggle="cooldown">' +
+				'<span class="ri">' + ic('i-cooldown', 17) + '</span>' +
+				'<span class="rl">Cool-down' +
+				(s.cooldown ? '<span class="ps" style="display:block;font-size:11.5px;color:var(--app-dim)">' +
+					esc(s.cooldown.t.replace('Cool-down: ', '')) + '</span>' : '') +
+				'</span>' +
+				(pending === 'cooldown'
+					? '<span class="spin" style="width:13px;height:13px;border:1.5px solid var(--app-border);border-top-color:var(--accent);border-radius:999px"></span>'
+					: '<span class="sw' + (s.has_cooldown ? ' on' : '') + '"><i></i></span>') +
+				'</button>';
 		}
 		if (s.can_change_pacing_plan) {
 			tune += rowHtml('pacing', 'i-gauge', 'Pacing plan', 'Even', false);
@@ -1411,34 +1569,34 @@
 		for (var i = 0; i < ACTIVITIES.length; i++) {
 			var a = ACTIVITIES[i];
 			var on = (s.cross_type || null) === a.v;
-			html += '<button type="button" class="tile" style="padding:14px 4px 11px" data-set="activity" data-value="' +
-				(a.v === null ? '' : a.v) + '" aria-pressed="' + on + '">' + ic(a.icon, 21) + esc(a.label) + '</button>';
+			var more = a.v === '__more';
+			html += '<button type="button" class="tile' + (more ? ' unknown' : '') +
+				'" style="padding:13px 4px 10px" data-set="activity" data-value="' +
+				(a.v === null ? '' : a.v) + '" aria-pressed="' + on + '"' + (more ? ' disabled' : '') + '>' +
+				ic(a.icon, 20) + esc(a.label) + '</button>';
 		}
 		return '<p class="sheet-text">Swapping the activity keeps the training load and drops the ' +
 			'running detail: a ride has a duration, no distance and no pace. Terrain and shoe come ' +
-			'back when you switch to running.</p>' +
-			'<div class="tiles" style="grid-template-columns:repeat(2,1fr)">' + html + '</div>';
+			'back when you switch to running, and so does the workout you started from.</p>' +
+			'<div class="tiles" style="grid-template-columns:repeat(2,1fr)">' + html + '</div>' +
+			'<p class="sheet-text" style="margin:13px 0 0">The full list is longer than this. ' +
+			'Until we can enumerate what the coach accepts, unrecognised types render with a ' +
+			'generic icon and their own name rather than being hidden.</p>';
 	}
 
 	function viewWorkout() {
 		var html = '';
 		for (var i = 0; i < CANDIDATES.length; i++) {
 			var c = CANDIDATES[i];
-			html += '<button type="button" class="pick" data-set="workout" data-value="' + c.id +
-				'" aria-pressed="' + (!!confirming && confirming.id === c.id) + '">' +
+			html += '<button type="button" class="pick" data-set="workout" data-value="' + c.id + '">' +
 				'<span class="pi" style="background:' + c.hex + '22;color:' + c.hex + '">' + ic('i-run', 17) + '</span>' +
 				'<span class="pm"><span class="pn">' + esc(c.title) + '</span>' +
 				'<span class="ps">' + esc(c.dist) + ' · ' + esc(c.time) + '</span></span>' +
 				'<span class="rc">' + ic('i-next', 15) + '</span></button>';
 		}
-		var confirmHtml = '';
-		if (confirming) {
-			confirmHtml = '<div class="confirm"><span>Replace ' + esc(s.title) + ' with ' +
-				esc(confirming.title) + '?</span><button type="button" class="btn" data-cancel="1">Keep</button>' +
-				'<button type="button" class="btn primary" data-commit="workout">Replace</button></div>';
-		}
-		return '<p class="sheet-text">Alternatives Coach Christophe accepts for today. Replacing ' +
-			'rewrites every block of the session.</p>' + html + confirmHtml;
+		return '<p class="sheet-text">Alternatives Coach Christophe accepts for today. Picking one ' +
+			'rewrites every block — and you can swap straight back, so nothing here is a one-way ' +
+			'door.</p>' + html;
 	}
 
 	var VIEWS = {
@@ -1480,30 +1638,49 @@
 	function open(v) {
 		if (v === 'pacing') v = 'effort';
 		view = v;
-		confirming = null;
 		staged = v === 'terrain' ? { surface: s.surface || 'road', height: s.height || 'flat' } : null;
 		render();
 	}
 
-	function close() { view = null; confirming = null; render(); }
+	function close() { view = null; render(); }
 
-	function showToast(msg) {
+	var toastAction = document.getElementById('toastAction');
+	var toastIcon = document.getElementById('toastIcon');
+	var undoFn = null;
+
+	function showToast(msg, kind, actionLabel, fn) {
 		toastMsg.textContent = msg;
+		toast.classList.toggle('ok', kind === 'ok');
+		toastIcon.setAttribute('href', kind === 'ok' ? '#i-check' : '#i-alert');
+		undoFn = fn || null;
+		toastAction.hidden = !actionLabel;
+		if (actionLabel) toastAction.textContent = actionLabel;
 		toast.classList.add('on');
 		clearTimeout(toastTimer);
-		toastTimer = setTimeout(function () { toast.classList.remove('on'); }, 2600);
+		toastTimer = setTimeout(function () {
+			toast.classList.remove('on');
+			undoFn = null;
+		}, actionLabel ? 6000 : 2800);
 	}
+
+	toastAction.addEventListener('click', function () {
+		var fn = undoFn;
+		undoFn = null;
+		toast.classList.remove('on');
+		if (fn) fn();
+	});
 
 	/**
 	 * Every mutation returns the full ScheduledTrainingDetail, so the real
 	 * implementation replaces the training outright with the response. Here the
 	 * patch stands in for that response.
 	 */
-	function commit(chipKey, patch, closeAfter) {
+	function commit(chipKey, patch, closeAfter, undo) {
 		if (pending) {
 			showToast('Still saving the last change. Give it a second and try again.');
 			return;
 		}
+		var before = undo ? clone(s) : null;
 		pending = chipKey;
 		if (closeAfter) close(); else render();
 		setTimeout(function () {
@@ -1512,11 +1689,19 @@
 			flashKey = chipKey;
 			render();
 			setTimeout(function () { flashKey = null; render(); }, 950);
+			if (undo) {
+				showToast(undo, 'ok', 'Undo', function () {
+					s = before;
+					flashKey = 'meta';
+					render();
+					setTimeout(function () { flashKey = null; render(); }, 950);
+				});
+			}
 		}, 500);
 	}
 
 	document.addEventListener('click', function (e) {
-		var t = e.target.closest ? e.target.closest('[data-open],[data-set],[data-commit],[data-cancel],[data-session]') : null;
+		var t = e.target.closest ? e.target.closest('[data-open],[data-set],[data-commit],[data-toggle],[data-session]') : null;
 		if (!t) return;
 
 		if (t.hasAttribute('data-session')) {
@@ -1533,19 +1718,14 @@
 
 		if (t.hasAttribute('data-open')) { open(t.getAttribute('data-open')); return; }
 
-		if (t.hasAttribute('data-cancel')) { confirming = null; render(); return; }
+		if (t.getAttribute('data-toggle') === 'cooldown') {
+			commit('cooldown', { has_cooldown: !s.has_cooldown }, false);
+			return;
+		}
 
 		if (t.hasAttribute('data-commit')) {
-			var what = t.getAttribute('data-commit');
-			if (what === 'terrain') {
+			if (t.getAttribute('data-commit') === 'terrain') {
 				commit('terrain', { surface: staged.surface, height: staged.height }, true);
-			} else if (what === 'workout' && confirming) {
-				var c = confirming;
-				commit('meta', {
-					title: c.title, hex: c.hex, shape: [{ w: 1, c: c.hex }],
-					blocks: [{ c: c.hex, t: 'Blocks are replaced by the server response' }],
-					intensity: 0, distance: 0
-				}, true);
 			}
 			return;
 		}
@@ -1566,19 +1746,28 @@
 					cross_type: 'road_bike', title: 'Cycling', hex: '#1BB9AA', activity: 'i-bike',
 					surface: null, height: null, shoeId: null, intensity: 0, distance: 0,
 					can_change_distance: false, intensitySteps: [{ value: 0, text: 'As planned' }],
-					base: { km: null, sec: s.base.sec }, shape: [{ w: 1, c: '#1BB9AA' }],
-					blocks: [{ c: '#1BB9AA', t: 'Ride ' + fmtTime(s.base.sec) }]
+					can_toggle_cooldown: false, has_cooldown: false, cooldown: null,
+					base: { km: null, sec: shownSec() }, shape: [{ w: 1, c: '#1BB9AA' }],
+					blocks: [{ c: '#1BB9AA', t: 'Ride ' + fmtTime(shownSec()) }]
 				}
 				: clone(SESSIONS.easy);
-			commit('meta', patch, true);
+			commit('meta', patch, true, ct ? 'Swapped to cycling.' : 'Back to running.');
 			return;
 		}
 
 		if (set === 'workout') {
 			for (var j = 0; j < CANDIDATES.length; j++) {
-				if (CANDIDATES[j].id === Number(val)) confirming = CANDIDATES[j];
+				if (CANDIDATES[j].id !== Number(val)) continue;
+				var c = CANDIDATES[j];
+				commit('meta', {
+					title: c.title, hex: c.hex, cross_type: null, activity: 'i-run',
+					description: c.desc, shape: c.shape, blocks: c.blocks,
+					base: { km: c.km, sec: c.sec },
+					cooldown: c.cooldown,
+					can_toggle_cooldown: !!c.cooldown, has_cooldown: !!c.cooldown,
+					intensity: 0, distance: 0
+				}, true, 'Swapped to ' + c.title + '.');
 			}
-			render();
 		}
 	});
 
@@ -1646,7 +1835,8 @@
 				<tr>
 					<td class="f">can_be_exchanged</td>
 					<td class="f">GET + PUT .../exchange</td>
-					<td>Workout, under “Replace this session”</td>
+					<td>Workout, under “Replace this session”. Commits on tap with a six-second Undo,
+						since the swap is reversible</td>
 					<td>Row absent</td>
 				</tr>
 				<tr>
@@ -1657,15 +1847,16 @@
 				</tr>
 				<tr>
 					<td class="f">can_toggle_cooldown<br>has_cooldown</td>
-					<td class="f">no setter yet</td>
-					<td>A switch in the index, no chip</td>
-					<td>Row absent. False on every payload seen so far</td>
+					<td class="f">setter unknown</td>
+					<td>Switch in the index. Flipping it adds or removes the cool-down block, its shape
+						segment and its share of the totals. Off earns a “No cool-down” chip</td>
+					<td>Row absent — this session simply has no cool-down to drop</td>
 				</tr>
 				<tr>
 					<td class="f">cross_type</td>
 					<td class="f">—</td>
-					<td>Sets the activity icon; <em>hides</em> shoe and terrain</td>
-					<td>Null means running: shoe and terrain return</td>
+					<td>Sets the activity icon; <em>hides</em> shoe, terrain and cool-down</td>
+					<td>Null means running: shoe, terrain and cool-down return</td>
 				</tr>
 			</tbody>
 		</table>
@@ -1750,26 +1941,41 @@
 		<div class="gap">
 			<span class="m">!</span>
 			<div>
-				<h4>Two capabilities arrive with no way to act on them</h4>
+				<h4>The cool-down switch has no endpoint yet</h4>
 				<p>
-					<code>can_change_pacing_plan</code> ships a full <code>change_pacing_plan_package</code>,
-					and <code>can_toggle_cooldown</code> / <code>has_cooldown</code> ship as a pair — but
-					<code>training.ts</code> has no setter for either, and neither endpoint has been
-					observed. Both are <code>false</code> on every payload captured so far, so the design
-					reserves a row for each and ships neither until we can watch the app send one.
+					<code>can_toggle_cooldown</code> and <code>has_cooldown</code> tell us a session has a
+					cool-down and whether it is currently in the plan, but nothing in
+					<code>training.ts</code> can flip it and no request has been observed. The UI is
+					designed and the visual consequence is specified — block, shape segment and totals
+					all move — so this is one captured request away from shipping. Best guess:
+					<code>PUT /schedule/trainings/{id}/cooldown</code> returning the usual full detail,
+					which is all the front end needs to redraw.
 				</p>
 			</div>
 		</div>
 		<div class="gap">
 			<span class="m">!</span>
 			<div>
-				<h4>Nothing tells us which activities a session can become</h4>
+				<h4>The activity list needs enumerating</h4>
 				<p>
-					<code>CROSS_TYPES</code> holds exactly one value, <code>road_bike</code>, and there is
-					no endpoint listing what <code>can_cross_train</code> would accept. The activity
-					picker can therefore only offer Run and Cycling. If the mobile app shows more —
-					swim, elliptical, hike — the list comes from somewhere we haven’t found. Worth a
-					capture session before this row ships.
+					There are more than <code>road_bike</code> — elliptical among them — but nothing we
+					have found lists what a given session accepts, and <code>CROSS_TYPES</code> holds one
+					value. So the picker reads from a local registry of <code>cross_type</code> → label +
+					icon, and anything that comes back unregistered renders with a generic icon and its
+					own name rather than being dropped. Two things would close this: the enumeration
+					itself, and whether the accepted set varies per session or is global.
+				</p>
+			</div>
+		</div>
+		<div class="gap">
+			<span class="m">!</span>
+			<div>
+				<h4>Pacing plan still has no setter</h4>
+				<p>
+					<code>can_change_pacing_plan</code> ships a full
+					<code>change_pacing_plan_package</code> and is <code>false</code> on every payload
+					captured so far, with no observed endpoint. The design reserves a row using the same
+					step control as effort; it ships when we see one true.
 				</p>
 			</div>
 		</div>
@@ -1790,12 +1996,14 @@
 		<div class="gap">
 			<span class="m q">?</span>
 			<div>
-				<h4>Is an exchange reversible?</h4>
+				<h4>Does swapping back restore the tuning?</h4>
 				<p>
-					Cross-training is documented as revertible by exchanging the training. Whether the
-					<em>original</em> workout stays in the candidate list after an exchange is unknown. It
-					decides the confirm copy: “Replace” if it can be undone, “This can’t be undone” if
-					not. Cheap to answer — exchange once and re-read the candidates.
+					The exchange itself is reversible, which is why the confirm dialog is gone and the
+					Undo toast took its place. What the toast promises is still worth checking: swapping
+					away and back rebuilds the blocks from the coach’s plan, so an effort or distance
+					step set beforehand is probably lost. If it is, Undo should re-apply those two calls
+					after the exchange rather than pretending one call undoes everything — and the
+					toast should say “Swapped back” rather than implying nothing happened.
 				</p>
 			</div>
 		</div>
@@ -1851,6 +2059,7 @@
 				<li><code>POST /api/v1/training/[id]/condition</code></li>
 				<li><code>PUT /api/v1/training/[id]/intensity</code>, <code>/distance</code>, <code>/shoe</code>, <code>/cross-train</code></li>
 				<li><code>GET</code> + <code>PUT /api/v1/training/[id]/exchange</code></li>
+				<li><code>PUT /api/v1/training/[id]/cooldown</code> — once we know the upstream path</li>
 				<li><code>GET /api/v1/shoes</code> — lazy, cached for the session.</li>
 			</ul>
 			<p style="margin-top:12px">
@@ -1863,7 +2072,8 @@
 			<ul class="clean">
 				<li><strong>1 · Read.</strong> Detail fetch, identity strip, shape bar, chips rendering current values. No editing. Ships value on its own — right now the runner can’t see the shoe or terrain at all.</li>
 				<li><strong>2 · Tune.</strong> Effort, volume, terrain, shoe. All four are the same commit path, so they land together.</li>
-				<li><strong>3 · Replace.</strong> Activity and workout swap, behind the confirm. Last because it needs the open questions answered.</li>
+				<li><strong>3 · Replace.</strong> Activity and workout swap with the Undo toast. Workout can ship as soon as the candidate list is wired; activity waits on the <code>cross_type</code> enumeration.</li>
+				<li><strong>4 · Cool-down.</strong> One switch, blocked only on the endpoint. Small, but it is the one control that visibly rewrites the plan, so it wants the shape bar from step 1 already in place.</li>
 			</ul>
 		</div>
 		<div class="panel">
