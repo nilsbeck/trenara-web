@@ -2315,6 +2315,20 @@
 		<div class="gap">
 			<span class="m q">?</span>
 			<div>
+				<h4>The applied setting lives in the package, not in the condition</h4>
+				<p>
+					<code>training_condition</code> comes back <code>null</code> on a training whose
+					terrain has never been set — even when a distance step is applied and an intensity
+					step is selected. So <code>training_condition.intensity</code> is not where the
+					current effort lives; the <code>selected</code> flag on the package's steps is. A
+					card reading the condition would show nothing on exactly the sessions a runner has
+					been adjusting.
+				</p>
+			</div>
+		</div>
+		<div class="gap">
+			<span class="m q">?</span>
+			<div>
 				<h4>Which block is the cool-down?</h4>
 				<p>
 					Nothing in the payload flags it, so the control finds it by matching a block

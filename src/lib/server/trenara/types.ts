@@ -360,6 +360,11 @@ export interface ScheduledTrainingCondition {
 	/**
 	 * Percentage of the planned speed, i.e. `100 + intensityStep.value`.
 	 * At 98 every pace is scaled by `100 / 98`, about 2% slower.
+	 *
+	 * Do not read the applied intensity from here. The whole
+	 * `training_condition` is null on a training whose terrain has never been
+	 * set, even when an intensity step *is* applied — the step's `selected` flag
+	 * in `change_intensity_package` is the only reliable source.
 	 */
 	intensity?: number;
 	updated_at: number;

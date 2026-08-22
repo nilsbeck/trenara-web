@@ -489,6 +489,154 @@ const intervalDetail = {
 	}
 } satisfies ScheduledTrainingDetail;
 
+// A steady long run, from the responses to PUT .../distance and .../intensity.
+// The session both endpoints were captured against, and the only detail where
+// `training_condition` is null while a change package still reports an applied
+// step.
+const steadyRunDetail = {
+	id: 127477834,
+	day: 1787868000,
+	day_long: '2026-08-28',
+	title: 'LSD',
+	description: 'Tip: No need to take LSD for this LSD.',
+	show_description_from: 1787263200,
+	type: 'training',
+	icon_url: 'https://backend-prod.trenara.com/icons/icon__step.svg',
+	hex_training: '#44A6D3',
+	hex_completed: null,
+	last_garmin_sync: '2026-08-21 16:31:26',
+	can_be_edited: true,
+	can_cross_train: true,
+	cross_type: null,
+	can_toggle_cooldown: false,
+	has_cooldown: false,
+	can_change_distance: true,
+	change_distance_package: {
+		title: 'Fine-tune distance',
+		text: 'You can adjust today’s volume here.',
+		steps: [
+			{ step: 1, value: -10, text: '-10%', selected: false },
+			{ step: 2, value: -5, text: '-5%', selected: true },
+			{ step: 3, value: 0, text: '0%', selected: false },
+			{ step: 4, value: 5, text: '5%', selected: false },
+			{ step: 5, value: 10, text: '10%', selected: false }
+		]
+	},
+	can_change_intensity: true,
+	change_intensity_package: {
+		title: 'Fine-tune intensity',
+		text: 'You can always ease off; increases are capped.',
+		steps: [
+			{ step: 1, value: -4, text: 'Slower', selected: false },
+			{ step: 2, value: -2, text: 'A bit slower', selected: false },
+			{ step: 3, value: 0, text: 'As planned', selected: true },
+			{ step: 4, value: 2, text: 'A bit faster', selected: false },
+			{ step: 5, value: 4, text: 'Faster', selected: false }
+		]
+	},
+	can_change_pacing_plan: false,
+	change_pacing_plan_package: null,
+	can_be_exchanged: true,
+	team_data: {
+		team_id: 470,
+		name: 'Valencia 42k',
+		picture: null,
+		nr_same_day_participants: 0,
+		nr_other_day_participants: 0,
+		matches_captain_day: true,
+		captain_pace: true,
+		can_toggle_pace: false,
+		can_show_participant_overview: true
+	},
+	training: {
+		blocks: [
+			{
+				order: 1,
+				repeat: 1,
+				type: 'core',
+				blocks: [
+					{
+						order: 1,
+						type: 'run',
+						prior: 'distance',
+						hex_graph: '#44A6D3',
+						hex_text: '#FFFFFF',
+						time: '01:03:15',
+						time_in_sec: 3795,
+						time_value: 3795,
+						time_unit: 'sec',
+						distance: '11.4km',
+						distance_value: 11.4,
+						distance_unit: 'km',
+						distance_unit_text: 'km',
+						pace: '05:33 min/km',
+						pace_value: 333,
+						pace_unit: 'min/km',
+						pace_per_hour: '10.81 km/h',
+						pace_per_hour_value: 333,
+						pace_per_hour_unit: 'km/h',
+						prefer_pph: false,
+						pace_range: '05:21-05:46 min/km',
+						pace_range_value_min: 346,
+						pace_range_value_max: 321,
+						pace_per_hour_range: '10.40-11.22 km/h',
+						pace_per_hour_range_value_min: 346,
+						pace_per_hour_range_value_max: 321,
+						text: 'Run 11.4km in 01:03:15 (05:21-05:46 min/km)',
+						text_pph: 'Run 11.4km in 01:03:15 (10.40-11.22 km/h)'
+					}
+				]
+			}
+		],
+		total_time_in_sec: 3795,
+		total_distance_in_km: 11.399,
+		core_time_in_sec: 3795,
+		pre_advice: null,
+		post_advice: null,
+		core_distance: '11.4km',
+		core_distance_value: 11.4,
+		core_distance_unit: 'km',
+		core_distance_unit_text: 'km',
+		core_time: '01:03:15',
+		core_time_value: 3795,
+		core_time_unit: 'sec',
+		total_distance: '11.4km',
+		total_distance_value: 11.4,
+		total_distance_unit: 'km',
+		total_distance_unit_text: 'km',
+		total_time: '01:03:15',
+		total_time_value: 3795,
+		total_time_unit: 'sec'
+	},
+	// Null even though a distance step is applied and an intensity step is
+	// selected. The applied settings live in the packages, not in here.
+	training_condition: null,
+	suggested_shoe: {
+		id: 4141,
+		brand: 'Nike',
+		name: 'Invincible Run 3',
+		type: 'long_run',
+		preferred: false,
+		buy_date: '2025-10-19',
+		lifetime_percentage: 44.37500000000001,
+		created_at: '2025-10-20T13:22:07+02:00',
+		updated_at: '2025-10-20T13:22:07+02:00',
+		retired_at: null,
+		expected_lifetime_distance: '800km',
+		expected_lifetime_distance_value: 800,
+		expected_lifetime_distance_unit: 'km',
+		expected_lifetime_distance_unit_text: 'km',
+		distance_done: '355km',
+		distance_done_value: 355,
+		distance_done_unit: 'km',
+		distance_done_unit_text: 'km',
+		avg_pace: '05:15 min/km',
+		avg_pace_value: 315,
+		avg_pace_unit: 'min/km',
+		picture: null
+	}
+} satisfies ScheduledTrainingDetail;
+
 // An exchange candidate: no conditions, team or shoe, and a distance package.
 const exchangeCandidate = {
 	id: 20112,
@@ -809,6 +957,23 @@ describe('captured payloads', () => {
 		const applied = runDetail.change_intensity_package.steps.find((s) => s.selected);
 		expect(applied?.value).toBe(-2);
 		expect(runDetail.training_condition.intensity).toBe(100 + applied!.value);
+	});
+
+	it('reports the applied step in the package, not in training_condition', () => {
+		// This session has a distance step applied and an intensity step
+		// selected, and no training_condition at all. Reading either setting
+		// from the condition would show nothing here — `selected` is the source.
+		expect(steadyRunDetail.training_condition).toBeNull();
+		expect(steadyRunDetail.change_distance_package.steps.find((s) => s.selected)?.value).toBe(-5);
+		expect(steadyRunDetail.change_intensity_package.steps.find((s) => s.selected)?.value).toBe(0);
+	});
+
+	it('varies the step count per session, so nothing may assume one', () => {
+		// Four steps on the tempo run, five here — the coach caps the range per
+		// training, which is why the package is rendered rather than generated.
+		expect(runDetail.change_intensity_package.steps).toHaveLength(4);
+		expect(steadyRunDetail.change_intensity_package.steps).toHaveLength(5);
+		expect(intervalDetail.change_intensity_package.steps).toHaveLength(5);
 	});
 
 	it('reports pace ranges with min slower than max', () => {
