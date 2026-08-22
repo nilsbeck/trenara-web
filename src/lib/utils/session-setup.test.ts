@@ -14,6 +14,7 @@ import {
 	metresPerKm,
 	hasNeutralStep,
 	HEIGHT_DIFFERENCES,
+	sessionSummary,
 	shapeSegments,
 	shoeName,
 	shoeTypeLabel,
@@ -621,5 +622,24 @@ describe('replacing the session', () => {
 		const session = sessionSettings(bikeRide()).find((s) => s.key === 'session');
 		expect(session?.value).toBe('Cycling');
 		expect(session?.changed).toBe(true);
+	});
+});
+
+describe('sessionSummary', () => {
+	it('reads distance then duration', () => {
+		expect(sessionSummary(tempoRun())).toBe('12km · 01:07:48');
+	});
+
+	it('is duration alone on a session with no distance', () => {
+		// A ride has a duration and nothing else to report.
+		expect(sessionSummary(bikeRide())).toBe('01:43:44');
+	});
+
+	it('uses the server\u2019s own formatting rather than reformatting it', () => {
+		// The rounding and the unit are its call: a session measured in metres
+		// or miles arrives already saying so.
+		const training = tempoRun();
+		training.training.total_distance = '12.09km';
+		expect(sessionSummary(training)).toContain('12.09km');
 	});
 });

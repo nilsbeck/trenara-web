@@ -22,7 +22,12 @@
 	import SessionSetupSheet from '$lib/components/training/session-setup-sheet.svelte';
 	import { SessionDetailStore } from '$lib/stores/session-detail.svelte';
 	import CooldownToggle from '$lib/components/training/cooldown-toggle.svelte';
-	import { cooldownBlockIndex, isRun, type SettingKey } from '$lib/utils/session-setup';
+	import {
+		cooldownBlockIndex,
+		isRun,
+		sessionSummary,
+		type SettingKey
+	} from '$lib/utils/session-setup';
 	import { blockTypeColor } from '$lib/utils/block-color';
 
 	let {
@@ -218,15 +223,16 @@
 								{/if}
 							</h3>
 						{/if}
-						{#if shownTraining}
-							<span class="whitespace-nowrap text-[10px] text-muted-foreground">
-								[{shownTraining.training.total_distance ??
-									shownTraining.training.total_time}{shownTraining.training.total_distance
-									? ', ' + shownTraining.training.total_time
-									: ''}{shownTraining.training.total_time.split(':').length === 2 ? 'min' : 'h'}]
-							</span>
-						{/if}
 					</div>
+					{#if shownTraining}
+						<!--
+							On its own line rather than crammed into the title at 10px in
+							brackets. It is the first thing a runner checks about a session.
+						-->
+						<p class="mt-0.5 text-xs tabular-nums text-muted-foreground">
+							{sessionSummary(shownTraining)}
+						</p>
+					{/if}
 					{#if shownTraining && !entry}
 						<SessionShapeBar training={shownTraining} />
 					{/if}

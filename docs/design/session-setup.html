@@ -310,7 +310,8 @@
 	.title-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 4px; }
 
 	.ident-meta {
-		font-size: 11.5px;
+		margin: 2px 0 0;
+		font-size: 12px;
 		color: var(--app-dim);
 		font-variant-numeric: tabular-nums;
 		white-space: nowrap;
@@ -1758,8 +1759,11 @@
 							? '<button type="button" class="title-btn" data-open="session">' +
 								esc(s.title) + ic('i-swap', 12) + '</button>'
 							: esc(s.title)) +
-						'<span class="ident-meta' + (flashKey === 'meta' ? ' flash' : '') + '">' + esc(metaText()) + '</span>' +
 					'</div>' +
+					// Its own line: it is the first thing a runner checks, and it was
+					// set at 10px in brackets purely to fit beside the title.
+					'<p class="ident-meta' + (flashKey === 'meta' ? ' flash' : '') + '">' +
+						esc(metaText()) + '</p>' +
 					'<div class="shape">' + shapeHtml + '</div>' +
 				'</div>' +
 				'<div class="ident-actions">' +

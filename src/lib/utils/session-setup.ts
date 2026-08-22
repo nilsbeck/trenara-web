@@ -221,6 +221,20 @@ export function conditionClimb(training: ScheduledTraining): number {
 	return condition?.height_value ?? condition?.height ?? 0;
 }
 
+/**
+ * The session's headline numbers: distance and duration, or just duration on a
+ * cross-trained session, which has no distance at all.
+ *
+ * Both come from the server pre-formatted ("12km", "01:07:48") and are used
+ * verbatim — the rounding and the unit are its call, and a session measured in
+ * metres or miles arrives already saying so.
+ */
+export function sessionSummary(training: ScheduledTraining): string {
+	return [training.training?.total_distance, training.training?.total_time]
+		.filter(Boolean)
+		.join(' · ');
+}
+
 /** True when the training is a run rather than a cross-trained session. */
 export function isRun(training: ScheduledTraining): boolean {
 	return !training.cross_type;
