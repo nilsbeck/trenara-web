@@ -577,6 +577,31 @@
 		gap: 6px;
 	}
 
+	.tiles-2 { grid-template-columns: repeat(2, 1fr); }
+
+	.climb {
+		display: flex;
+		align-items: center;
+		gap: 8px;
+		border: 1px solid var(--app-border);
+		background: var(--app-muted);
+		border-radius: 10px;
+		padding: 8px 11px;
+	}
+
+	.climb input {
+		flex: 1;
+		min-width: 0;
+		background: transparent;
+		border: 0;
+		outline: none;
+		color: var(--app-fg);
+		font: inherit;
+		font-size: 13px;
+	}
+
+	.climb span { font-size: 11.5px; color: var(--app-dim); }
+
 	.tile {
 		display: flex;
 		flex-direction: column;
@@ -1317,16 +1342,16 @@
 
 	var SURFACES = [
 		{ v: 'road', label: 'Road', icon: 'i-road' },
+		{ v: 'athletics_track', label: 'Athletics track', icon: 'i-track' },
 		{ v: 'treadmill', label: 'Treadmill', icon: 'i-treadmill' },
-		{ v: 'single_track', label: 'Trail', icon: 'i-trail' },
-		{ v: 'athletics_track', label: 'Track', icon: 'i-track' }
+		{ v: 'single_track', label: 'Single track', icon: 'i-trail' }
 	];
 
 	var HEIGHTS = [
 		{ v: 'flat', label: 'Flat', icon: 'i-flat' },
-		{ v: 'lights', label: 'Rolling', icon: 'i-rolling' },
-		{ v: 'strong', label: 'Hilly', icon: 'i-hilly' },
-		{ v: 'mountain', label: 'Mountain', icon: 'i-mountain' }
+		{ v: 'lights', label: 'Slightly hilly', icon: 'i-rolling' },
+		{ v: 'strong', label: 'Very hilly', icon: 'i-hilly' },
+		{ v: 'mountain', label: 'Mountainous', icon: 'i-mountain' }
 	];
 
 	/**
@@ -1752,10 +1777,12 @@
 			b += '<button type="button" class="tile" data-set="height" data-value="' + h.v +
 				'" aria-pressed="' + (s.height === h.v) + '">' + ic(h.icon, 19) + esc(h.label) + '</button>';
 		}
-		return '<p class="sheet-text">Where you are running today. Both settings go up in one ' +
+		return '<p class="sheet-text">Where you are running today. All of it goes up in one ' +
 			'call, so the sheet stays open until you tap Apply.</p>' +
-			'<p class="grp-label">Surface</p><div class="tiles">' + a + '</div>' +
-			'<p class="grp-label">Elevation</p><div class="tiles">' + b + '</div>' +
+			'<p class="grp-label">Surface</p><div class="tiles tiles-2">' + a + '</div>' +
+			'<p class="grp-label">Elevation</p><div class="tiles tiles-2">' + b + '</div>' +
+			'<p class="grp-label">Altitude</p>' +
+			'<div class="climb"><input type="number" value="0" min="0" step="10" readonly><span>m</span></div>' +
 			'<div class="confirm" style="justify-content:flex-end">' +
 			'<button type="button" class="btn primary" data-commit="terrain">Apply</button></div>';
 	}
@@ -2331,9 +2358,31 @@
 					know would otherwise fail on a field the runner never touched.
 				</p>
 				<p>
-					The climb is a field in the terrain editor, under the two tile rows: a number of
-					metres, optional, 0 by default. It joins the terrain chip only once it is set — every
-					session without one would otherwise carry a “0 m” nobody asked about.
+					Altitude is a field under the two tile rows: metres of ascent, optional, 0 by default.
+					It joins the terrain chip only once it is set — every session without one would
+					otherwise carry a “0 m” nobody asked about.
+				</p>
+				<p>
+					The labels are the app’s own words rather than the API’s: <em>flat</em>,
+					<em>slightly hilly</em>, <em>very hilly</em>, <em>mountainous</em> for a scale whose
+					values read <code>flat</code>, <code>lights</code>, <code>strong</code>,
+					<code>mountain</code>. And <code>single_track</code> is labelled “Single track”, not
+					“Trail”: it is a trail, but a narrow one, and the app also offers a wide unpaved road
+					— the difference between those two is the whole point of asking.
+				</p>
+			</div>
+		</div>
+		<div class="gap">
+			<span class="m">!</span>
+			<div>
+				<h4>One surface we cannot offer</h4>
+				<p>
+					The app’s surface list has five entries — road, athletics track, treadmill, unpaved
+					road, single track — and we have only ever seen four values on the wire. The unpaved
+					road is missing, and its API value is not something to guess: a wrong one is refused
+					the same way a wrong elevation is. A session already set to it still <em>reads</em>
+					correctly, since an unregistered surface renders under its own humanised name; it
+					just cannot be chosen here until one capture names it.
 				</p>
 			</div>
 		</div>

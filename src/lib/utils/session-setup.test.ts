@@ -169,9 +169,9 @@ function bikeRide(): ScheduledTraining {
 
 describe('labels', () => {
 	it('maps the API spellings to words a runner recognises', () => {
-		expect(surfaceLabel('single_track')).toBe('Trail');
+		expect(surfaceLabel('single_track')).toBe('Single track');
 		// "lights" is the API's own spelling, not a typo on our side.
-		expect(heightLabel('lights')).toBe('Rolling');
+		expect(heightLabel('lights')).toBe('Slightly hilly');
 		expect(activityLabel(null)).toBe('Run');
 		expect(activityLabel('road_bike')).toBe('Cycling');
 		expect(shoeTypeLabel('supershoe')).toBe('Race shoe');
@@ -507,7 +507,7 @@ describe('climb on a condition', () => {
 			height_unit: 'm'
 		};
 		const terrain = sessionSettings(training).find((s) => s.key === 'terrain');
-		expect(terrain?.value).toBe('Trail · Hilly · 450 m');
+		expect(terrain?.value).toBe('Single track · Very hilly · 450 m');
 	});
 
 	it('leaves a zero climb out of the label', () => {

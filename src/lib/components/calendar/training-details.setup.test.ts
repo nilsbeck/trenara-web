@@ -325,7 +325,7 @@ describe('terrain climb', () => {
 		});
 
 		await waitFor(() =>
-			expect(screen.getAllByText('Trail · Hilly · 450 m').length).toBeGreaterThan(0)
+			expect(screen.getAllByText('Single track · Very hilly · 450 m').length).toBeGreaterThan(0)
 		);
 		vi.unstubAllGlobals();
 	});
@@ -342,9 +342,9 @@ describe('terrain climb', () => {
 		});
 
 		await waitFor(() =>
-			expect(screen.getAllByText('Trail · Hilly · 450 m').length).toBeGreaterThan(0)
+			expect(screen.getAllByText('Single track · Very hilly · 450 m').length).toBeGreaterThan(0)
 		);
-		await fireEvent.click(screen.getAllByText('Trail · Hilly · 450 m')[0]);
+		await fireEvent.click(screen.getAllByText('Single track · Very hilly · 450 m')[0]);
 
 		const climb = await waitFor(() => screen.getByRole('spinbutton'));
 		expect((climb as HTMLInputElement).value).toBe('450');
@@ -380,14 +380,14 @@ describe('terrain climb', () => {
 		});
 
 		await waitFor(() =>
-			expect(screen.getAllByText('Trail · Hilly · 450 m').length).toBeGreaterThan(0)
+			expect(screen.getAllByText('Single track · Very hilly · 450 m').length).toBeGreaterThan(0)
 		);
-		await fireEvent.click(screen.getAllByText('Trail · Hilly · 450 m')[0]);
+		await fireEvent.click(screen.getAllByText('Single track · Very hilly · 450 m')[0]);
 
 		const climb = await waitFor(() => screen.getByRole('spinbutton'));
 		await fireEvent.input(climb, { target: { value: '-5' } });
 
-		expect(screen.getByText(/climb in metres/i)).toBeTruthy();
+		expect(screen.getByText(/altitude in metres/i)).toBeTruthy();
 		expect((screen.getByText('Apply') as HTMLButtonElement).disabled).toBe(true);
 		vi.unstubAllGlobals();
 	});

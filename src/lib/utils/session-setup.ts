@@ -45,22 +45,39 @@ export interface Setting {
 	inline?: boolean;
 }
 
+/**
+ * Surfaces, in the order the app offers them.
+ *
+ * `single_track` is a trail, but a narrow one — wide enough for a single
+ * runner. It is labelled for what it is rather than as "Trail", because the
+ * app also offers an unpaved road, and the difference between a technical
+ * single track and a wide dirt road is the whole point of asking.
+ *
+ * That unpaved-road option is missing here: we have not seen the value the API
+ * uses for it. An unrecognised surface still renders under its own name (see
+ * `surfaceLabel`), so a session set to it elsewhere reads correctly — it just
+ * cannot be chosen from this app yet.
+ */
 export const SURFACES = [
 	{ value: 'road', label: 'Road' },
+	{ value: 'athletics_track', label: 'Athletics track' },
 	{ value: 'treadmill', label: 'Treadmill' },
-	{ value: 'single_track', label: 'Trail' },
-	{ value: 'athletics_track', label: 'Track' }
+	{ value: 'single_track', label: 'Single track' }
 ] as const;
 
 /**
- * `lights` is spelled the way the API spells it — it reads like an upstream
- * typo for "light", but "light" is not a value we have seen accepted.
+ * Elevation, as a four-step scale.
+ *
+ * The values are spelled the way the API spells them — `lights` reads like an
+ * upstream typo for "light", but "light" is not a value we have seen accepted.
+ * The labels are the app's own words, which say what the scale means far
+ * better than the values do.
  */
 export const HEIGHT_DIFFERENCES = [
 	{ value: 'flat', label: 'Flat' },
-	{ value: 'lights', label: 'Rolling' },
-	{ value: 'strong', label: 'Hilly' },
-	{ value: 'mountain', label: 'Mountain' }
+	{ value: 'lights', label: 'Slightly hilly' },
+	{ value: 'strong', label: 'Very hilly' },
+	{ value: 'mountain', label: 'Mountainous' }
 ] as const;
 
 /**

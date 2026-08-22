@@ -296,7 +296,7 @@
 			<p class="mb-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
 				Surface
 			</p>
-			<div class="grid grid-cols-4 gap-1.5">
+			<div class="grid grid-cols-2 gap-1.5">
 				{#each SURFACES as surface (surface.value)}
 					<button
 						type="button"
@@ -315,7 +315,7 @@
 			<p class="mb-2 mt-4 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
 				Elevation
 			</p>
-			<div class="grid grid-cols-4 gap-1.5">
+			<div class="grid grid-cols-2 gap-1.5">
 				{#each HEIGHT_DIFFERENCES as height (height.value)}
 					<button
 						type="button"
@@ -335,7 +335,7 @@
 				<span
 					class="mb-2 block text-[10px] font-semibold uppercase tracking-wider text-muted-foreground"
 				>
-					Climb
+					Altitude
 				</span>
 				<span class="flex items-center gap-2 rounded-lg border border-border bg-muted px-3 py-2">
 					<input
@@ -352,9 +352,9 @@
 				</span>
 				<span class="mt-1.5 block text-[11px] text-muted-foreground">
 					{#if !climbValid}
-						<span class="text-destructive">Enter the climb in metres, 0 or more.</span>
+						<span class="text-destructive">Enter the altitude in metres, 0 or more.</span>
 					{:else}
-						Total ascent, if you know it. Leave at 0 if you don’t.
+						Metres of ascent, if you know it. Leave at 0 if you don’t.
 					{/if}
 				</span>
 			</label>
