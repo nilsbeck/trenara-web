@@ -15,6 +15,34 @@ export function parseTrainingId(raw: string | undefined): number {
 	return id;
 }
 
+/** The validation envelope a rejected write comes back in. */
+interface ValidationBody {
+	message?: string;
+	/** Field name to the messages that failed for it. */
+	errors?: Record<string, string[]>;
+}
+
+/**
+ * Describe an upstream failure using every field it named.
+ *
+ * A rejected write summarises itself as "The height field must be a string.
+ * (and 1 more error)" and puts the rest in an `errors` map. Against a
+ * documented API the summary would be enough; against this one the hidden half
+ * is the useful half — it is how a wrong field name or a wrong type gets
+ * identified at all — so the map is flattened into the message rather than
+ * dropped with the response body.
+ */
+export function describeUpstreamError(e: HttpError): string {
+	const fields = (e.data as ValidationBody | null | undefined)?.errors;
+	if (!fields) return e.message;
+
+	const detail = Object.entries(fields)
+		.map(([field, messages]) => `${field}: ${messages.join(' ')}`)
+		.join(' · ');
+
+	return detail || e.message;
+}
+
 /**
  * Run an upstream call, translating its HTTP failures into SvelteKit errors.
  *
@@ -28,7 +56,7 @@ export async function passthrough<T>(fn: () => Promise<T>): Promise<T> {
 		return await fn();
 	} catch (e) {
 		if (e instanceof HttpError) {
-			error(e.status, e.message);
+			error(e.status, describeUpstreamError(e));
 		}
 		throw e;
 	}
