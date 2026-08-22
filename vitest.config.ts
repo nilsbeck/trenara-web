@@ -3,6 +3,9 @@ import { sveltekit } from '@sveltejs/kit/vite';
 
 export default defineConfig({
 	plugins: [sveltekit()],
+	// Component tests mount into jsdom, so Svelte has to resolve to its client
+	// build rather than the SSR one it picks by default under Node.
+	resolve: { conditions: ['browser'] },
 	test: {
 		include: ['src/**/*.{test,spec}.{js,ts}'],
 		environment: 'jsdom',

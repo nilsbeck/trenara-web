@@ -129,6 +129,11 @@ export const trainingApi = {
 	/**
 	 * Set the terrain the training will be run on.
 	 *
+	 * Every field goes up on every call. Unlike its siblings this endpoint does
+	 * not merge a partial body: leaving one out is answered "The … field is
+	 * required" rather than keeping the stored value, so the two the caller
+	 * rarely cares about fall back to the defaults the app itself sends.
+	 *
 	 * Unlike its siblings the response shape here is inferred rather than
 	 * observed; it is assumed to match them.
 	 */
@@ -195,6 +200,31 @@ export const trainingApi = {
 		);
 	},
 
+	/**
+	 * Add or remove the training's cool-down.
+	 *
+	 * Gated by `can_toggle_cooldown`, which is only true on sessions that have a
+	 * cool-down to drop — plenty of runs have none, and those cannot gain one.
+	 * The response carries the rebuilt training: dropping the cool-down removes
+	 * its block and subtracts its distance and time from the totals.
+	 *
+	 * The body key is `cooldown_toggle`, not `has_cooldown` — the only mutation
+	 * whose request field is named differently from the field it sets, and
+	 * sending the wrong one is answered 200 and ignored. See
+	 * {@link ToggleCooldownRequest}.
+	 */
+	async setCooldown(
+		cookies: Cookies,
+		trainingId: number,
+		hasCooldown: boolean
+	): Promise<ScheduledTrainingDetail> {
+		return fetchClient.put<ScheduledTrainingDetail>(
+			`/api/schedule/trainings/${trainingId}/cooldown`,
+			{ cooldown_toggle: hasCooldown },
+			{ headers: bearerHeader(cookies), cookies }
+		);
+	},
+
 	/** Assign one of the user's shoes (see `userApi.getShoes`) to this training. */
 	async setSuggestedShoe(
 		cookies: Cookies,
@@ -216,12 +246,13 @@ export const trainingApi = {
 	 * and `suggested_shoe` are dropped. Exchanging the training reverts it.
 	 *
 	 * `crossType` is a plain string on purpose — `CROSS_TYPES` lists only the
-	 * one value observed so far and is certainly incomplete.
+	 * one value observed so far and is certainly incomplete. `null` reverts the
+	 * session to a run, which the app offers from this same picker.
 	 */
 	async crossTrain(
 		cookies: Cookies,
 		trainingId: number,
-		crossType: string
+		crossType: string | null
 	): Promise<ScheduledTrainingDetail> {
 		return fetchClient.put<ScheduledTrainingDetail>(
 			`/api/schedule/trainings/${trainingId}/cross_train`,

@@ -1,0 +1,2691 @@
+<title>Trenara Session Setup</title>
+<!--
+  UX design for the training-session settings.
+  Source of the published Artifact — the file is a body fragment: the
+  publisher wraps it in <!doctype html><head></head><body>.
+-->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700&family=Source+Sans+3:ital,wght@0,400;0,600;1,400&family=IBM+Plex+Mono:wght@400;500&display=swap">
+
+<style>
+	/* ── Tokens ──────────────────────────────────────────────────────
+	   The app is dark-only ("there is no light palette", src/app.css),
+	   so this page commits to one visual world and paints every ground
+	   explicitly. App tokens are mirrored exactly so the mockups are
+	   the real thing, not an approximation. */
+	:root {
+		--ink: #12151b;
+		--panel: #1a1e26;
+		--rule: #262c37;
+		--rule-soft: #1f242d;
+		--text: #e2e4e9;
+		--dim: #8d95a5;
+		--dimmer: #667085;
+		--accent: #ec4699;
+
+		/* mirrored from src/app.css */
+		--app-bg: #191d24;
+		--app-card: #242933;
+		--app-muted: #2a303c;
+		--app-border: #373f4e;
+		--app-fg: #e2e4e9;
+		--app-dim: #8d95a5;
+
+		/* hex_training values the API actually sends */
+		--t-tempo: #e69f00;
+		--t-easy: #7b3294;
+		--t-bike: #1bb9aa;
+
+		--warn: #f5b73d;
+		--ok: #4ade80;
+
+		--display: 'Archivo', 'Helvetica Neue', sans-serif;
+		--body: 'Source Sans 3', system-ui, sans-serif;
+		--mono: 'IBM Plex Mono', ui-monospace, monospace;
+	}
+
+	* { box-sizing: border-box; }
+
+	body {
+		margin: 0;
+		background: var(--ink);
+		color: var(--text);
+		font-family: var(--body);
+		font-size: 16.5px;
+		line-height: 1.6;
+		-webkit-font-smoothing: antialiased;
+	}
+
+	.wrap {
+		max-width: 1060px;
+		margin: 0 auto;
+		padding: 0 24px 120px;
+	}
+
+	.prose { max-width: 66ch; }
+
+	h1, h2, h3, h4 {
+		font-family: var(--display);
+		font-weight: 600;
+		letter-spacing: -0.02em;
+		text-wrap: balance;
+		margin: 0;
+	}
+
+	h1 { font-size: clamp(2.1rem, 5vw, 3.1rem); line-height: 1.05; font-weight: 700; }
+	h2 { font-size: 1.55rem; line-height: 1.15; }
+	h3 { font-size: 1.08rem; line-height: 1.3; }
+
+	p { margin: 0 0 1em; }
+	p:last-child { margin-bottom: 0; }
+
+	a { color: var(--accent); }
+
+	code, .mono {
+		font-family: var(--mono);
+		font-size: 0.85em;
+		letter-spacing: -0.01em;
+	}
+
+	code {
+		background: #1e232c;
+		border: 1px solid var(--rule-soft);
+		border-radius: 4px;
+		padding: 0.1em 0.36em;
+		color: #cbd3e0;
+	}
+
+	.eyebrow {
+		font-family: var(--mono);
+		font-size: 0.7rem;
+		letter-spacing: 0.14em;
+		text-transform: uppercase;
+		color: var(--dimmer);
+		margin: 0 0 14px;
+	}
+
+	.lede { font-size: 1.16rem; color: #b9c0cc; }
+
+	/* ── Page rhythm ────────────────────────────────────────────── */
+	header.hero {
+		padding: 88px 0 56px;
+		border-bottom: 1px solid var(--rule);
+	}
+
+	section {
+		padding: 64px 0 0;
+	}
+
+	.sec-head {
+		display: flex;
+		align-items: baseline;
+		gap: 14px;
+		margin-bottom: 22px;
+		flex-wrap: wrap;
+	}
+
+	.sec-head .tag {
+		font-family: var(--mono);
+		font-size: 0.68rem;
+		letter-spacing: 0.1em;
+		text-transform: uppercase;
+		color: var(--dimmer);
+		border: 1px solid var(--rule);
+		border-radius: 999px;
+		padding: 3px 9px;
+	}
+
+	/* ── The phone stage ────────────────────────────────────────── */
+	.stage {
+		display: grid;
+		grid-template-columns: minmax(0, 392px) minmax(0, 1fr);
+		gap: 44px;
+		align-items: start;
+	}
+
+	@media (max-width: 900px) {
+		.stage { grid-template-columns: minmax(0, 1fr); }
+		/* Stacked, sticky only pins the phone over the notes below it. */
+		.phone-col { position: static; }
+	}
+
+	.phone-col { position: sticky; top: 28px; }
+
+	.switcher {
+		display: flex;
+		gap: 6px;
+		overflow-x: auto;
+		scrollbar-width: none;
+		-ms-overflow-style: none;
+		margin-bottom: 14px;
+		background: var(--panel);
+		border: 1px solid var(--rule);
+		border-radius: 10px;
+		padding: 5px;
+	}
+
+	.switcher::-webkit-scrollbar { display: none; }
+
+	.switcher button {
+		flex: 1 0 auto;
+		font: inherit;
+		font-size: 0.76rem;
+		white-space: nowrap;
+		font-weight: 600;
+		color: var(--dim);
+		background: transparent;
+		border: 0;
+		border-radius: 7px;
+		padding: 7px 4px;
+		cursor: pointer;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		gap: 6px;
+		transition: background 0.15s, color 0.15s;
+	}
+
+	.switcher button .swatch {
+		width: 8px; height: 8px; border-radius: 999px;
+	}
+
+	.switcher button:hover { color: var(--text); }
+	.switcher button[aria-pressed="true"] {
+		background: #262c37;
+		color: var(--text);
+	}
+
+	.phone {
+		position: relative;
+		width: 100%;
+		height: 585px;
+		background: var(--app-bg);
+		border: 1px solid var(--app-border);
+		border-radius: 22px;
+		overflow: hidden;
+		font-family: system-ui, -apple-system, sans-serif;
+		font-size: 14px;
+		line-height: 1.5;
+		color: var(--app-fg);
+		box-shadow: 0 30px 60px -20px rgba(0,0,0,0.7);
+	}
+
+	.phone-scroll {
+		height: 100%;
+		overflow-y: auto;
+		padding: 16px;
+	}
+
+	.stage-note {
+		font-size: 0.82rem;
+		color: var(--dimmer);
+		margin-top: 12px;
+		text-align: center;
+	}
+
+	/* ── Mock app chrome ─────────────────────────────────────────── */
+	.card {
+		background: var(--app-card);
+		border: 1px solid var(--app-border);
+		border-radius: 12px;
+		overflow: hidden;
+	}
+
+	.card-tabs {
+		display: flex;
+		border-bottom: 1px solid var(--app-border);
+	}
+
+	.card-tabs span {
+		flex: 1;
+		text-align: center;
+		padding: 10px 4px;
+		font-size: 13px;
+		font-weight: 500;
+		color: var(--app-dim);
+	}
+
+	.card-tabs span.on {
+		color: var(--app-fg);
+		box-shadow: inset 0 -2px 0 var(--accent);
+	}
+
+	.card-body { padding: 14px; }
+
+	/* Identity strip */
+	.ident {
+		display: flex;
+		gap: 11px;
+		align-items: flex-start;
+	}
+
+	.ident-rail {
+		width: 3px;
+		align-self: stretch;
+		border-radius: 999px;
+		background: var(--sess);
+		flex: 0 0 auto;
+	}
+
+	.ident-icon {
+		width: 34px; height: 34px;
+		flex: 0 0 auto;
+		border-radius: 9px;
+		display: grid;
+		place-items: center;
+		background: color-mix(in srgb, var(--sess) 18%, transparent);
+		color: var(--sess);
+	}
+
+	.ident-main { min-width: 0; flex: 1; }
+
+	.ident-title {
+		font-size: 15px;
+		font-weight: 600;
+		letter-spacing: -0.01em;
+		display: flex;
+		align-items: baseline;
+		gap: 7px;
+		flex-wrap: wrap;
+	}
+
+	.title-btn {
+		display: inline-flex;
+		align-items: center;
+		gap: 5px;
+		background: transparent;
+		border: 0;
+		padding: 0;
+		font: inherit;
+		font-size: 15px;
+		font-weight: 600;
+		letter-spacing: -0.01em;
+		color: var(--app-fg);
+		cursor: pointer;
+	}
+
+	.title-btn svg { color: var(--app-dim); transition: color 0.15s; }
+	.title-btn:hover svg { color: var(--app-fg); }
+	.title-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 4px; }
+
+	.ident-meta {
+		margin: 2px 0 0;
+		font-size: 12px;
+		color: var(--app-dim);
+		font-variant-numeric: tabular-nums;
+		white-space: nowrap;
+	}
+
+	.ident-actions {
+		display: flex;
+		gap: 2px;
+		flex: 0 0 auto;
+		color: var(--app-dim);
+	}
+
+	.ident-actions button {
+		background: transparent; border: 0; color: inherit;
+		padding: 6px; border-radius: 7px; cursor: default;
+		display: grid; place-items: center;
+	}
+
+	/* Shape bar */
+	.shape {
+		display: flex;
+		gap: 1.5px;
+		height: 6px;
+		margin-top: 9px;
+		border-radius: 999px;
+		overflow: hidden;
+	}
+
+	.shape i { display: block; height: 100%; border-radius: 1px; }
+
+	/* Chip rail */
+	.rail {
+		display: flex;
+		align-items: center;
+		gap: 6px;
+		margin-top: 12px;
+	}
+
+	.rail-scroll {
+		flex: 1 1 auto;
+		min-width: 0;
+		display: flex;
+		gap: 6px;
+		overflow-x: auto;
+		scrollbar-width: none;
+		-ms-overflow-style: none;
+		padding-right: 2px;
+		mask-image: linear-gradient(to right, #000 calc(100% - 14px), transparent);
+	}
+
+	.rail-scroll::-webkit-scrollbar { display: none; }
+
+	.chip {
+		display: inline-flex;
+		align-items: center;
+		gap: 5px;
+		font: inherit;
+		font-size: 12px;
+		line-height: 1;
+		font-weight: 500;
+		padding: 6px 9px 6px 7px;
+		border-radius: 999px;
+		border: 1px solid var(--app-border);
+		background: var(--app-muted);
+		color: var(--app-dim);
+		cursor: pointer;
+		white-space: nowrap;
+		transition: border-color 0.15s, color 0.15s, background 0.15s, transform 0.12s;
+	}
+
+	.chip:hover { color: var(--app-fg); border-color: #4a5464; }
+	.chip:active { transform: scale(0.97); }
+	.chip:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+	.chip svg { flex: 0 0 auto; }
+
+	/* a chip whose value differs from the coach's plan */
+	.chip.changed {
+		color: var(--app-fg);
+		border-color: color-mix(in srgb, var(--accent) 55%, var(--app-border));
+		background: color-mix(in srgb, var(--accent) 13%, var(--app-muted));
+	}
+
+	.chip.changed .dot {
+		width: 5px; height: 5px; border-radius: 999px;
+		background: var(--accent);
+	}
+
+	.chip.ghost { border-style: dashed; background: transparent; }
+
+	.chip.more { padding: 6px 8px; flex: 0 0 auto; }
+
+	.chip.syncing { color: var(--app-dim); }
+	.chip.syncing .spin {
+		width: 11px; height: 11px;
+		border: 1.5px solid var(--app-border);
+		border-top-color: var(--accent);
+		border-radius: 999px;
+		animation: spin 0.6s linear infinite;
+	}
+
+	@keyframes spin { to { transform: rotate(360deg); } }
+
+	.flash { animation: flash 0.9s ease-out; }
+	@keyframes flash {
+		0% { color: var(--accent); }
+		100% { color: inherit; }
+	}
+
+	@media (prefers-reduced-motion: reduce) {
+		* { animation-duration: 0.001s !important; transition-duration: 0.001s !important; }
+	}
+
+	.coach {
+		display: flex;
+		gap: 8px;
+		margin-top: 14px;
+		color: var(--accent);
+	}
+
+	.coach svg { flex: 0 0 auto; margin-top: 2px; }
+
+	.coach p {
+		margin: 0;
+		background: var(--app-muted);
+		border-radius: 11px 11px 11px 3px;
+		padding: 8px 10px;
+		font-size: 12.5px;
+		line-height: 1.45;
+		color: var(--app-fg);
+	}
+
+	/* Block list (below the rail, unchanged from today's UI) */
+	.blocks { margin-top: 16px; display: flex; flex-direction: column; gap: 9px; }
+	.blocks h4 { font-family: system-ui, sans-serif; font-size: 13px; font-weight: 500; }
+	.blk {
+		display: flex;
+		align-items: center;
+		gap: 9px;
+		font-size: 13px;
+		border-radius: 7px;
+		margin: 0 -5px;
+		padding: 2px 5px;
+		transition: background 0.2s;
+	}
+
+	.blk .bullet { width: 13px; height: 13px; border-radius: 999px; flex: 0 0 auto; }
+	.blk .bullet.ring { border: 1.5px dashed var(--app-border); background: transparent; }
+	.blk span { color: var(--app-fg); }
+	.blk.ghost span { color: var(--app-dim); }
+	.blk.lit { background: color-mix(in srgb, var(--accent) 14%, transparent); }
+
+	.blk-btn {
+		width: 100%;
+		font: inherit;
+		font-size: 13px;
+		text-align: left;
+		background: transparent;
+		border: 0;
+		cursor: pointer;
+		color: var(--app-fg);
+	}
+
+	.blk-btn:hover { background: rgba(255, 255, 255, 0.03); }
+	.blk-btn.ghost:hover { background: color-mix(in srgb, var(--accent) 10%, transparent); }
+	.blk-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+	.blk-btn:disabled { opacity: 0.6; cursor: default; }
+
+	.blk-act {
+		margin-left: auto;
+		font-size: 11.5px;
+		font-weight: 500;
+		color: var(--app-dim);
+		flex: 0 0 auto;
+		white-space: nowrap;
+	}
+
+	/* Removed is a deviation from the plan, and that is pink everywhere else. */
+	.blk.ghost span { color: var(--accent); }
+	.blk.ghost .bullet.ring { border-color: color-mix(in srgb, var(--accent) 60%, transparent); }
+
+	/* ── Bottom sheet ────────────────────────────────────────────── */
+	.scrim {
+		position: absolute; inset: 0;
+		background: rgba(8,10,14,0.6);
+		opacity: 0;
+		pointer-events: none;
+		transition: opacity 0.2s;
+	}
+
+	.scrim.open { opacity: 1; pointer-events: auto; }
+
+	.sheet {
+		position: absolute;
+		left: 0; right: 0; bottom: 0;
+		background: var(--app-card);
+		border-top: 1px solid var(--app-border);
+		border-radius: 16px 16px 0 0;
+		transform: translateY(102%);
+		transition: transform 0.26s cubic-bezier(0.32, 0.72, 0, 1);
+		max-height: 78%;
+		display: flex;
+		flex-direction: column;
+		font-family: system-ui, sans-serif;
+	}
+
+	.sheet.open { transform: translateY(0); }
+
+	.grabber {
+		width: 34px; height: 4px; border-radius: 999px;
+		background: var(--app-border);
+		margin: 9px auto 0;
+		flex: 0 0 auto;
+	}
+
+	.sheet-head {
+		display: flex;
+		align-items: center;
+		gap: 8px;
+		padding: 10px 14px 8px;
+		flex: 0 0 auto;
+	}
+
+	.sheet-head h3 {
+		font-family: system-ui, sans-serif;
+		font-size: 15px;
+		font-weight: 600;
+		flex: 1;
+		letter-spacing: -0.01em;
+	}
+
+	.icon-btn {
+		background: transparent; border: 0; color: var(--app-dim);
+		padding: 5px; border-radius: 7px; cursor: pointer;
+		display: grid; place-items: center;
+	}
+
+	.icon-btn:hover { background: var(--app-muted); color: var(--app-fg); }
+	.icon-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+
+	.sheet-body { overflow-y: auto; padding: 0 14px 18px; }
+
+	.sheet-text {
+		font-size: 12.5px;
+		color: var(--app-dim);
+		margin: 0 0 13px;
+		line-height: 1.45;
+	}
+
+	.grp-label {
+		font-size: 10.5px;
+		letter-spacing: 0.09em;
+		text-transform: uppercase;
+		color: var(--app-dim);
+		margin: 15px 0 7px;
+		font-weight: 600;
+	}
+
+	.grp-label:first-child { margin-top: 0; }
+
+	/* index rows */
+	.rows { display: flex; flex-direction: column; }
+
+	.row {
+		display: flex;
+		align-items: center;
+		gap: 11px;
+		width: 100%;
+		text-align: left;
+		font: inherit;
+		font-size: 14px;
+		background: transparent;
+		border: 0;
+		border-bottom: 1px solid var(--app-border);
+		color: var(--app-fg);
+		padding: 12px 2px;
+		cursor: pointer;
+	}
+
+	.row:last-child { border-bottom: 0; }
+	.row:hover { background: rgba(255,255,255,0.025); }
+	.row:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+	.row .ri { color: var(--app-dim); display: grid; place-items: center; flex: 0 0 auto; }
+	.row .rl { flex: 1; }
+	.row .rv { color: var(--app-dim); font-size: 13px; }
+	.row .rv.changed { color: var(--accent); }
+	.row .rc { color: var(--app-border); }
+
+	/* option tiles */
+	.tiles {
+		display: grid;
+		grid-template-columns: repeat(4, 1fr);
+		gap: 6px;
+	}
+
+	.tiles-2 { grid-template-columns: repeat(2, 1fr); }
+
+	.climb {
+		display: flex;
+		align-items: center;
+		gap: 8px;
+		border: 1px solid var(--app-border);
+		background: var(--app-muted);
+		border-radius: 10px;
+		padding: 8px 11px;
+	}
+
+	.climb input {
+		flex: 1;
+		min-width: 0;
+		background: transparent;
+		border: 0;
+		outline: none;
+		color: var(--app-fg);
+		font: inherit;
+		font-size: 13px;
+	}
+
+	.climb span { font-size: 11.5px; color: var(--app-dim); }
+
+	.tile {
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		gap: 5px;
+		font: inherit;
+		font-size: 11px;
+		padding: 10px 3px 8px;
+		border-radius: 10px;
+		border: 1px solid var(--app-border);
+		background: var(--app-muted);
+		color: var(--app-dim);
+		cursor: pointer;
+		transition: border-color 0.15s, color 0.15s, background 0.15s;
+	}
+
+	.tile:hover { color: var(--app-fg); }
+	.tile:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+	.tile[aria-pressed="true"] {
+		border-color: var(--accent);
+		color: var(--app-fg);
+		background: color-mix(in srgb, var(--accent) 14%, var(--app-muted));
+	}
+
+	/* step scale (intensity / distance) */
+	.steps { display: flex; gap: 5px; }
+
+	.step {
+		flex: 1;
+		font: inherit;
+		font-size: 11.5px;
+		font-weight: 500;
+		padding: 9px 2px;
+		border-radius: 9px;
+		border: 1px solid var(--app-border);
+		background: var(--app-muted);
+		color: var(--app-dim);
+		cursor: pointer;
+		position: relative;
+		transition: border-color 0.15s, color 0.15s, background 0.15s;
+	}
+
+	.step:hover { color: var(--app-fg); }
+	.step:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+	.step[aria-pressed="true"] {
+		border-color: var(--accent);
+		color: var(--app-fg);
+		background: color-mix(in srgb, var(--accent) 14%, var(--app-muted));
+	}
+
+	.step.plan::after {
+		content: '';
+		position: absolute;
+		top: -1px; left: 50%;
+		width: 12px; height: 2px;
+		transform: translateX(-50%);
+		border-radius: 999px;
+		background: var(--app-dim);
+	}
+
+	.effect {
+		margin-top: 11px;
+		font-size: 12px;
+		color: var(--app-dim);
+		font-variant-numeric: tabular-nums;
+		display: flex;
+		gap: 6px;
+		align-items: center;
+	}
+
+	.effect b { color: var(--app-fg); font-weight: 600; }
+
+	/* shoe / candidate lists */
+	.pick {
+		display: flex;
+		align-items: center;
+		gap: 10px;
+		width: 100%;
+		text-align: left;
+		font: inherit;
+		font-size: 13.5px;
+		background: transparent;
+		border: 1px solid transparent;
+		border-radius: 10px;
+		color: var(--app-fg);
+		padding: 9px 8px;
+		cursor: pointer;
+	}
+
+	.pick:hover { background: rgba(255,255,255,0.03); }
+	.pick:focus-visible { outline: 2px solid var(--accent); outline-offset: 0; }
+	.pick[aria-pressed="true"] {
+		border-color: color-mix(in srgb, var(--accent) 50%, transparent);
+		background: color-mix(in srgb, var(--accent) 10%, transparent);
+	}
+
+	.pick .pi {
+		width: 32px; height: 32px; border-radius: 8px;
+		background: var(--app-muted);
+		display: grid; place-items: center;
+		color: var(--app-dim);
+		flex: 0 0 auto;
+	}
+
+	.pick .pm { flex: 1; min-width: 0; display: block; }
+	.pick .pn { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+	.pick .ps { display: block; font-size: 11.5px; color: var(--app-dim); font-variant-numeric: tabular-nums; }
+
+	.wear {
+		display: block;
+		height: 3px;
+		border-radius: 999px;
+		background: var(--app-muted);
+		margin-top: 5px;
+		overflow: hidden;
+	}
+
+	.wear i { display: block; height: 100%; background: var(--app-dim); }
+	.wear i.hot { background: var(--warn); }
+
+	.badge {
+		font-size: 9.5px;
+		letter-spacing: 0.05em;
+		text-transform: uppercase;
+		font-weight: 600;
+		padding: 2px 5px;
+		border-radius: 4px;
+		background: var(--app-muted);
+		color: var(--app-dim);
+	}
+
+	.badge.rec {
+		background: color-mix(in srgb, var(--accent) 20%, transparent);
+		color: #f7a3ca;
+	}
+
+	.pick .ps.warn { color: var(--warn); }
+
+	.row.switch-row { cursor: pointer; }
+
+	.row .rsub {
+		display: block;
+		font-size: 11.5px;
+		color: var(--app-dim);
+		margin-top: 1px;
+	}
+
+	.row.lit {
+		background: color-mix(in srgb, var(--accent) 12%, transparent);
+		border-radius: 8px;
+	}
+
+	.row .spin {
+		width: 14px; height: 14px;
+		border: 1.5px solid var(--app-border);
+		border-top-color: var(--accent);
+		border-radius: 999px;
+		flex: 0 0 auto;
+		animation: spin 0.6s linear infinite;
+	}
+
+	.sw {
+		width: 36px;
+		height: 21px;
+		border-radius: 999px;
+		background: var(--app-muted);
+		border: 1px solid var(--app-border);
+		position: relative;
+		flex: 0 0 auto;
+		transition: background 0.18s, border-color 0.18s;
+	}
+
+	.sw i {
+		position: absolute;
+		top: 2px; left: 2px;
+		width: 15px; height: 15px;
+		border-radius: 999px;
+		background: var(--app-dim);
+		transition: transform 0.18s, background 0.18s;
+	}
+
+	.sw.on { background: color-mix(in srgb, var(--accent) 30%, var(--app-muted)); border-color: var(--accent); }
+	.sw.on i { transform: translateX(15px); background: var(--accent); }
+
+	.tile.unknown {
+		border-style: dashed;
+		background: transparent;
+	}
+
+	.danger-zone {
+		margin-top: 18px;
+		padding-top: 14px;
+		border-top: 1px solid var(--app-border);
+	}
+
+	.confirm {
+		margin-top: 10px;
+		display: flex;
+		gap: 7px;
+		align-items: center;
+		font-size: 12.5px;
+		color: var(--app-dim);
+	}
+
+	.btn {
+		font: inherit;
+		font-size: 12.5px;
+		font-weight: 600;
+		border-radius: 8px;
+		padding: 7px 12px;
+		border: 1px solid var(--app-border);
+		background: var(--app-muted);
+		color: var(--app-fg);
+		cursor: pointer;
+	}
+
+	.btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+	.btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+	.toast {
+		position: absolute;
+		left: 14px; right: 14px; bottom: 14px;
+		background: #10131a;
+		border: 1px solid var(--app-border);
+		border-radius: 10px;
+		padding: 10px 12px;
+		font-size: 12.5px;
+		font-family: system-ui, sans-serif;
+		color: var(--app-fg);
+		display: flex;
+		gap: 9px;
+		align-items: center;
+		opacity: 0;
+		transform: translateY(8px);
+		pointer-events: none;
+		transition: opacity 0.2s, transform 0.2s;
+	}
+
+	.toast.on { opacity: 1; transform: translateY(0); pointer-events: auto; }
+	.toast .x { color: #f87171; display: grid; place-items: center; flex: 0 0 auto; }
+	.toast.ok .x { color: var(--ok); }
+	.toast span#toastMsg { flex: 1; }
+
+	.toast button {
+		font: inherit;
+		font-size: 12px;
+		font-weight: 600;
+		background: transparent;
+		border: 1px solid var(--app-border);
+		border-radius: 7px;
+		padding: 5px 10px;
+		color: var(--app-fg);
+		cursor: pointer;
+		flex: 0 0 auto;
+	}
+
+	.toast button:hover { background: var(--app-muted); }
+
+	/* ── Spec furniture ─────────────────────────────────────────── */
+	.cal-demo {
+		display: grid;
+		grid-template-columns: repeat(auto-fit, minmax(min(300px, 100%), 1fr));
+		gap: 22px;
+		margin-top: 26px;
+	}
+
+	.cal-demo > div {
+		background: var(--panel);
+		border: 1px solid var(--rule);
+		border-radius: 12px;
+		padding: 18px 20px;
+	}
+
+	.cal-demo .grp-label { color: var(--dimmer); }
+
+	.cal-row { display: flex; gap: 8px; }
+
+	.cal-day {
+		width: 40px; height: 42px;
+		border-radius: 9px;
+		background: var(--app-bg);
+		border: 1px solid var(--rule);
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		justify-content: center;
+		gap: 3px;
+		font-size: 0.82rem;
+		color: var(--text);
+		font-variant-numeric: tabular-nums;
+		position: relative;
+	}
+
+	.cal-dots { display: flex; align-items: center; gap: 3px; height: 5px; }
+	.cal-dots i { width: 5px; height: 5px; border-radius: 999px; display: block; }
+	.cal-dots i.cb { width: 9px; height: 3px; border-radius: 2px; }
+
+	.cal-note {
+		font-size: 0.85rem;
+		color: var(--dimmer);
+		margin: 12px 0 0;
+		line-height: 1.45;
+	}
+
+	.legend {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 10px 24px;
+		margin-top: 22px;
+		font-size: 0.88rem;
+		color: #aeb6c3;
+	}
+
+	.legend span { display: flex; align-items: center; gap: 8px; }
+	.legend i { width: 9px; height: 9px; border-radius: 999px; flex: 0 0 auto; }
+	.legend code { font-size: 0.72rem; }
+
+	.notes { display: flex; flex-direction: column; gap: 26px; }
+
+	.note {
+		border-left: 2px solid var(--rule);
+		padding-left: 18px;
+	}
+
+	.note h3 { margin-bottom: 7px; }
+	.note p { font-size: 0.95rem; color: #aeb6c3; }
+
+	.note .k {
+		font-family: var(--mono);
+		font-size: 0.68rem;
+		letter-spacing: 0.1em;
+		text-transform: uppercase;
+		color: var(--dimmer);
+		display: block;
+		margin-bottom: 5px;
+	}
+
+	.grid2 {
+		display: grid;
+		grid-template-columns: repeat(auto-fit, minmax(min(400px, 100%), 1fr));
+		gap: 22px;
+	}
+
+	.panel {
+		background: var(--panel);
+		border: 1px solid var(--rule);
+		border-radius: 12px;
+		padding: 20px 22px;
+	}
+
+	.panel h3 { margin-bottom: 9px; }
+	.panel p { font-size: 0.94rem; color: #aeb6c3; }
+
+	.tbl-wrap { overflow-x: auto; border: 1px solid var(--rule); border-radius: 12px; }
+
+	table { border-collapse: collapse; width: 100%; font-size: 0.9rem; min-width: 760px; }
+
+	th, td {
+		text-align: left;
+		padding: 11px 14px;
+		border-bottom: 1px solid var(--rule-soft);
+		vertical-align: top;
+	}
+
+	thead th {
+		background: #171b22;
+		font-family: var(--mono);
+		font-size: 0.68rem;
+		letter-spacing: 0.1em;
+		text-transform: uppercase;
+		color: var(--dimmer);
+		font-weight: 500;
+		white-space: nowrap;
+	}
+
+	tbody tr:last-child td { border-bottom: 0; }
+	td.f { font-family: var(--mono); font-size: 0.8rem; color: #cbd3e0; white-space: nowrap; }
+	td small { color: var(--dimmer); }
+
+	ul.clean { margin: 0; padding-left: 1.15em; }
+	ul.clean li { margin-bottom: 0.5em; color: #aeb6c3; font-size: 0.95rem; }
+	ul.clean li:last-child { margin-bottom: 0; }
+	ul.clean li strong { color: var(--text); font-weight: 600; }
+
+	.gap {
+		display: grid;
+		grid-template-columns: 26px 1fr;
+		gap: 14px;
+		padding: 16px 0;
+		border-bottom: 1px solid var(--rule-soft);
+	}
+
+	.gap:last-child { border-bottom: 0; }
+
+	.gap .m {
+		font-family: var(--mono);
+		font-size: 0.72rem;
+		color: var(--ink);
+		background: var(--warn);
+		border-radius: 5px;
+		width: 24px; height: 22px;
+		display: grid; place-items: center;
+		font-weight: 500;
+	}
+
+	.gap .m.q { background: #6b7688; color: #f2f4f8; }
+	.gap h4 { font-family: var(--display); font-size: 1rem; margin-bottom: 4px; }
+	.gap p { font-size: 0.93rem; color: #aeb6c3; }
+
+	footer {
+		margin-top: 84px;
+		padding-top: 26px;
+		border-top: 1px solid var(--rule);
+		color: var(--dimmer);
+		font-size: 0.85rem;
+	}
+</style>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+	<defs>
+		<g id="i-run" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+			<circle cx="13.5" cy="4" r="1.6"/>
+			<path d="M4 17.5 9 18.5l1-1.8"/>
+			<path d="M15.5 21.5v-4.2l-4-3 1-6"/>
+			<path d="M7 12.5V9.2l5.5-1.4 3 3.2 3.2 1"/>
+		</g>
+		<g id="i-bike" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+			<circle cx="18.5" cy="17.5" r="3.5"/><circle cx="5.5" cy="17.5" r="3.5"/><circle cx="15" cy="5" r="1"/>
+			<path d="M12 17.5V14l-3-3 4-3 2 3h2"/>
+		</g>
+		<g id="i-shoe" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+			<path d="M2 17.5v-3a2 2 0 0 1 2-2h4.2c.6 0 1.2-.3 1.6-.8l1.7-2.2 2.4 3.4c.3.4.7.7 1.2.8l4.6 1.1c1.3.3 2.3 1.5 2.3 2.9v.8"/>
+			<path d="M2 17.5h20v1.6a1.4 1.4 0 0 1-1.4 1.4H3.4A1.4 1.4 0 0 1 2 19.1v-1.6Z"/>
+			<path d="m11.5 9.5 1.6 2.3"/>
+		</g>
+		<g id="i-mountain" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+			<path d="M2 20h20"/><path d="m4 20 6-13 4 7 2-3 4 9"/><path d="m8 12 3.4-1.3"/>
+		</g>
+		<g id="i-gauge" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+			<path d="m12 14 4-4"/><path d="M3.34 19a10 10 0 1 1 17.32 0"/>
+		</g>
+		<g id="i-volume" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+			<path d="m18 8 4 4-4 4"/><path d="M2 12h20"/><path d="m6 8-4 4 4 4"/>
+		</g>
+		<g id="i-sliders" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+			<path d="M21 4h-7M10 4H3M21 12h-9M8 12H3M21 20h-9M8 20H3"/>
+			<path d="M14 2v4M8 10v4M12 18v4"/>
+		</g>
+		<g id="i-swap" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+			<path d="m17 2 4 4-4 4"/><path d="M3 11v-1a4 4 0 0 1 4-4h14"/>
+			<path d="m7 22-4-4 4-4"/><path d="M21 13v1a4 4 0 0 1-4 4H3"/>
+		</g>
+		<g id="i-back" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+			<path d="m15 18-6-6 6-6"/>
+		</g>
+		<g id="i-next" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+			<path d="m9 18 6-6-6-6"/>
+		</g>
+		<g id="i-x" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+			<path d="M18 6 6 18M6 6l12 12"/>
+		</g>
+		<g id="i-alert" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+			<path d="m21.7 18-8-14a2 2 0 0 0-3.4 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.7-3Z"/>
+			<path d="M12 9v4M12 17h.01"/>
+		</g>
+		<g id="i-road" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+			<path d="M5 21 8 3M19 21 16 3"/><path d="M12 5v3M12 12v3M12 19v1"/>
+		</g>
+		<g id="i-treadmill" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+			<rect x="2" y="14" width="17" height="6" rx="3"/><path d="M19 17V5h-4"/><path d="M6 17h8"/>
+		</g>
+		<g id="i-trail" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+			<path d="m12 3 4.5 7h-2.5l3.5 6h-11l3.5-6H7.5L12 3Z"/><path d="M12 16v5"/>
+		</g>
+		<g id="i-track" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+			<rect x="2" y="7" width="20" height="10" rx="5"/><rect x="6.5" y="10.5" width="11" height="3" rx="1.5"/>
+		</g>
+		<g id="i-flat" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+			<path d="M3 16h18"/>
+		</g>
+		<g id="i-rolling" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+			<path d="M2 18h20"/><path d="M4 18c2-3.6 4.4-3.6 6.4 0"/><path d="M13.4 18c1.8-2.8 4-2.8 5.8 0"/>
+		</g>
+		<g id="i-hilly" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+			<path d="M2 19h20"/><path d="m4.5 19 5.5-8 3 4 2-2.6L20 19"/>
+		</g>
+		<g id="i-elliptical" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+			<ellipse cx="11" cy="18" rx="8" ry="2.8"/>
+			<path d="M6.5 18 12 9.5l3.5-3"/>
+			<circle cx="17" cy="4.6" r="1.5"/>
+		</g>
+		<g id="i-cross" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+			<path d="M3 12h3l2.5-6 4 12 2.5-6h6"/>
+		</g>
+		<g id="i-undo" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+			<path d="M3 7v6h6"/><path d="M3.5 13a9 9 0 1 0 2.6-6.4L3 9.5"/>
+		</g>
+		<g id="i-cooldown" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+			<path d="M3 6.5h5.5V12H14v5.5h7"/>
+		</g>
+		<g id="i-treadmill-mode" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+			<g transform="translate(12 12) scale(1.15) translate(-11.15 -11.05)" stroke-width="1.74">
+				<circle cx="10" cy="4.2" r="1.6"/>
+				<path d="M10 6.4v3.1l-1.8 2.3"/>
+				<path d="M10 8.3l2.7 1.5"/>
+				<path d="M8.2 11.8l-1.3 3.5"/>
+				<path d="M12.7 9.8l0.9 3.4"/>
+				<path d="M2.5 19.5h16"/>
+				<path d="M4.5 19.5l1.6-5.2"/>
+				<path d="M19.5 19.5l-1.4-7.6"/>
+				<path d="M17.5 9.8l2.3-2"/>
+			</g>
+		</g>
+		<g id="i-check" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+			<path d="M20 6 9 17l-5-5"/>
+		</g>
+		<g id="i-chat" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+			<path d="M21 11.5a8.4 8.4 0 0 1-9 8.4 8.5 8.5 0 0 1-3.8-.9L3 20.5l1.5-4.7A8.4 8.4 0 0 1 12 3.1a8.4 8.4 0 0 1 9 8.4Z"/>
+		</g>
+		<g id="i-move" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+			<rect x="3" y="4" width="18" height="17" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/>
+		</g>
+		<g id="i-trash" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+			<path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6"/>
+		</g>
+	</defs>
+</svg>
+
+<div class="wrap">
+
+<header class="hero">
+	<p class="eyebrow">UX design · training session settings</p>
+	<div class="prose">
+		<h1>The session card reads its own permissions.</h1>
+		<p class="lede" style="margin-top:20px">
+			Five new endpoints let a runner reshape a planned session: terrain, effort, volume,
+			shoe, and the session itself. This design puts all of it behind one row of chips that
+			doubles as the status display — what is applied is what you tap to change.
+		</p>
+		<p style="color:#8d95a5;font-size:0.95rem;margin-top:18px">
+			The hard question was “which change is allowed on which workout?” It turns out we never
+			have to answer it. <code>GET /schedule/trainings/{id}</code> ships
+			<code>can_change_distance</code>, <code>can_change_intensity</code>,
+			<code>can_cross_train</code>, <code>can_be_exchanged</code> and the matching
+			<code>change_*_package</code> objects — steps, labels and coach copy included. The UI is a
+			projection of that response. A tempo run that refuses a distance change simply arrives
+			without the chip.
+		</p>
+	</div>
+</header>
+
+<section>
+	<div class="sec-head">
+		<h2>Prototype</h2>
+		<span class="tag">clickable · real payload shapes</span>
+	</div>
+	<p class="prose" style="color:#aeb6c3;margin-bottom:26px">
+		Three real sessions from the API fixtures. Switch between them and watch the chip rail
+		rebuild itself: the cycling session drops terrain and shoe because
+		<code>cross_type</code> is set; the tempo run hides volume because
+		<code>can_change_distance</code> is <code>false</code>. Tap any chip to open its editor, and
+		use <em>Remove</em> on the cool-down block to watch the plan lose it.
+	</p>
+
+	<div class="stage">
+		<div class="phone-col">
+			<div class="switcher" role="group" aria-label="Example session">
+				<button type="button" data-session="tempo" aria-pressed="true">
+					<span class="swatch" style="background:var(--t-tempo)"></span>Tempo run
+				</button>
+				<button type="button" data-session="easy" aria-pressed="false">
+					<span class="swatch" style="background:var(--t-easy)"></span>Easy + strides
+				</button>
+				<button type="button" data-session="bike" aria-pressed="false">
+					<span class="swatch" style="background:var(--t-bike)"></span>Cycling
+				</button>
+			</div>
+
+			<div class="phone">
+				<div class="phone-scroll">
+					<div class="card">
+						<div class="card-tabs">
+							<span class="on">Training</span><span>Strength</span><span>Nutrition</span>
+						</div>
+						<div class="card-body" id="cardBody"></div>
+					</div>
+				</div>
+				<div class="scrim" id="scrim"></div>
+				<div class="sheet" id="sheet" role="dialog" aria-modal="true" aria-labelledby="sheetTitle">
+					<div class="grabber"></div>
+					<div class="sheet-head">
+						<button type="button" class="icon-btn" id="sheetBack" hidden aria-label="Back">
+							<svg width="17" height="17" viewBox="0 0 24 24"><use href="#i-back"/></svg>
+						</button>
+						<h3 id="sheetTitle"></h3>
+						<button type="button" class="icon-btn" id="sheetClose" aria-label="Close">
+							<svg width="17" height="17" viewBox="0 0 24 24"><use href="#i-x"/></svg>
+						</button>
+					</div>
+					<div class="sheet-body" id="sheetBody"></div>
+				</div>
+				<div class="toast" id="toast">
+					<span class="x"><svg width="15" height="15" viewBox="0 0 24 24"><use href="#i-alert" id="toastIcon"/></svg></span>
+					<span id="toastMsg"></span>
+					<button type="button" id="toastAction" hidden></button>
+				</div>
+			</div>
+			<p class="stage-note">Mutations are simulated with a 500&nbsp;ms round trip. Change effort twice quickly to see the failure path.</p>
+		</div>
+
+		<div class="notes">
+			<div class="note">
+				<span class="k">Identity strip</span>
+				<h3>Colour comes from the server, not from us</h3>
+				<p>
+					<code>hex_training</code> is already per-workout-type — #E69F00 for tempo, #7B3294
+					for easy&nbsp;+&nbsp;strides, #1BB9AA for cycling — and it is the same value the mobile
+					app paints. We use it for the 3&nbsp;px rail and an 18% tint behind the activity icon,
+					never as text colour: several of those hues fail contrast on the charcoal ground.
+				</p>
+			</div>
+			<div class="note">
+				<span class="k">Identity strip</span>
+				<h3>The icon says the activity, the bar says the shape</h3>
+				<p>
+					One icon per activity (run, bike) is safe to derive from <code>cross_type</code>. A
+					second icon set for workout <em>type</em> would not be: titles are localised and the
+					list is open-ended. Instead the 6&nbsp;px shape bar draws the blocks — a solid slab is
+					a tempo, a comb of thin marks is intervals or strides. It costs one line and reads
+					before the title does.
+				</p>
+			</div>
+			<div class="note">
+				<span class="k">Chip rail</span>
+				<h3>The badge is the button</h3>
+				<p>
+					Every chip is both the applied value and the way in. Chips that still match the
+					coach’s plan sit muted; anything you changed picks up a pink dot and a tinted border,
+					so “what did I touch on this session” is one glance.
+				</p>
+			</div>
+			<div class="note">
+				<span class="k">Chip rail</span>
+				<h3>The rail and the index are one list</h3>
+				<p>
+					Both render from the same array of settings, so a setting cannot carry a different
+					name, icon, value or position in one than it has in the other — “Adidas Boston 13”
+					on the chip is “Adidas Boston 13” in the row. What differs is only which ones show:
+					terrain and shoe always, because they are the session’s standing setup; effort,
+					volume and cool-down only once they differ from plan, since at “as planned” they
+					are noise. Activity and workout never get a chip — the identity strip is already
+					showing them, the icon for one and the title for the other.
+				</p>
+			</div>
+			<div class="note">
+				<span class="k">Chip rail</span>
+				<h3>One trailing control, not a toolbar</h3>
+				<p>
+					The sliders chip is the only always-present affordance and the only way to reach a
+					setting that has no chip yet. The header keeps the icons it already has — treadmill
+					mode, move date, delete — because those act on the session as a whole rather than on
+					its setup. Treadmill mode stays mobile-only as it is today, and now also drops off a
+					cross-trained session: a ride has no pace to hold, so it goes with the rest of the
+					running detail.
+				</p>
+			</div>
+			<div class="note">
+				<span class="k">Sheet</span>
+				<h3>Two levels, one screen deep</h3>
+				<p>
+					A chip opens the sheet directly on its editor; the sliders chip opens the index and
+					you drill in once. A pick commits and closes — shoe, activity, workout. A dial
+					commits and stays, because the whole point of moving the effort step is watching the
+					total time move with it. A switch commits in place.
+				</p>
+			</div>
+			<div class="note">
+				<span class="k">Sheet</span>
+				<h3>One question, however many endpoints answer it</h3>
+				<p>
+					“Make this session something else” is one thing a runner wants. The API splits it in
+					two: <code>cross_train</code> takes an activity, <code>exchange</code> takes a
+					candidate id, and they overlap at the edges — exchange candidates can themselves be
+					cross-trained, and reverting a ride is a cross-train with no type. Offering that as
+					two rows makes the runner guess which list holds the answer, to no benefit: the split
+					is ours to absorb.
+				</p>
+				<p>
+					So it is one list, grouped by what each option <em>is</em> — another session, or a
+					different sport — rather than by which call serves it. Which endpoint fires is decided
+					per option, at the moment of tapping. When only one of the two flags is set only that
+					group renders.
+				</p>
+				<p>
+					And it opens from the title. The chips put terrain and shoe on the card while the
+					biggest change of all sat two taps deep behind the sliders button, which is exactly
+					backwards. The title is the session’s badge, so by the same rule the chips follow it
+					is also the way to change it — a small swap glyph beside it, no new chrome. The title
+					stays a plain heading on a session that cannot be replaced.
+				</p>
+			</div>
+			<div class="note">
+				<span class="k">Sheet</span>
+				<h3>Reversible means no confirm dialog</h3>
+				<p>
+					Swapping the workout or the activity rewrites every block, but it can be swapped
+					back — so it doesn’t deserve an “are you sure”. Tap the alternative, it commits, and
+					the card holds an Undo for eight seconds. One tap to change, one tap to change back,
+					no modal in between.
+				</p>
+				<p>
+					The two halves undo differently, and the offer is honest about it. A cross-train’s
+					inverse is exactly a cross-train, so that one is precise. An exchange has to exchange
+					<em>back</em>, which needs the old session to still be among the candidates — so the
+					list is refetched first and the Undo appears only once that candidate is in hand.
+					Promising one that would fail on the tap would be worse than not offering it.
+				</p>
+			</div>
+			<div class="note">
+				<span class="k">Shoe</span>
+				<h3>One label, then the server’s order</h3>
+				<p>
+					The recommendation is the server’s, so it is labelled <em>Recommended</em> and pinned
+					to the top. Below it the shoes stay in the order the API sent them — stable, and
+					never re-sorted by anything we invented. Each row carries its
+					<code>type</code> and its wear, so a pair at 79% is visible before you pick it, and
+					retired pairs are filtered out because they are not a choice. That keeps the rule
+					that holds everywhere else in this design intact: the server decides, we render.
+				</p>
+			</div>
+			<div class="note">
+				<span class="k">Cool-down</span>
+				<h3>The control sits on the block, not in a settings list</h3>
+				<p>
+					Every other setting is session-wide, so it belongs in the sheet. The cool-down is not
+					— it acts on one block, and that block is already on screen. So the control is a
+					<em>Remove</em> on the cool-down row itself, and once removed the row stays as a
+					dashed ghost: the plan shows what is missing and offers it straight back. Nothing is
+					buried a tap deeper than the thing it changes.
+				</p>
+				<p>
+					Flipping it moves everything at once — the block, the shape bar’s trailing segment,
+					and the totals. Seeing the plan change <em>is</em> the confirmation, so there is no
+					dialog. The sheet index still lists it, because the index is the full inventory of
+					what this session allows, but nobody has to go there for it.
+				</p>
+				<p>
+					The whole row is the control, not a button parked at the end of one — a bigger target,
+					and obviously interactive. Both states carry the same bordered action, so neither
+					hides; the accent sits on that action alone when the cool-down is gone. Enough to
+					find, without a whole pink row shouting about a block the runner removed on purpose.
+					It used to have a “No cool-down” chip as well, which spent a row of the rail
+					repeating what the plan says in the very place the block is missing from.
+				</p>
+			</div>
+		</div>
+	</div>
+</section>
+
+<script>
+(function () {
+	'use strict';
+
+	// ── Fixture data, transcribed from src/lib/server/trenara/payloads.test.ts ──
+	var SHOES = [
+		{ id: 6404, brand: 'Adidas', name: 'Boston 13', type: 'supertrainer', preferred: false, pct: 30.26, done: '242.08 km', life: '800 km', retired_at: null },
+		{ id: 7781, brand: 'Nike', name: 'Vomero 18', type: 'long_run', preferred: true, pct: 78.5, done: '628 km', life: '800 km', retired_at: null },
+		{ id: 2446, brand: 'Other', name: 'La Sportiva', type: 'trail', preferred: false, pct: 12.41, done: '99.31 km', life: '800 km', retired_at: null },
+		{ id: 8120, brand: 'Nike', name: 'Vaporfly 3', type: 'supershoe', preferred: false, pct: 41.5, done: '166 km', life: '400 km', retired_at: null },
+		{ id: 3011, brand: 'Asics', name: 'Novablast 4', type: 'supertrainer', preferred: false, pct: 100, done: '812 km', life: '800 km', retired_at: '2026-06-02' }
+	];
+
+	var SHOE_TYPE_TEXT = {
+		supertrainer: 'Supertrainer', supershoe: 'Race shoe', long_run: 'Long run', trail: 'Trail'
+	};
+
+	var SURFACES = [
+		{ v: 'road', label: 'Road', icon: 'i-road' },
+		{ v: 'athletics_track', label: 'Athletics track', icon: 'i-track' },
+		{ v: 'treadmill', label: 'Treadmill', icon: 'i-treadmill' },
+		{ v: 'single_track', label: 'Single track', icon: 'i-trail' }
+	];
+
+	var HEIGHTS = [
+		{ v: 'flat', label: 'Flat', icon: 'i-flat' },
+		{ v: 'lights', label: 'Slightly hilly', icon: 'i-rolling' },
+		{ v: 'strong', label: 'Very hilly', icon: 'i-hilly' },
+		{ v: 'mountain', label: 'Mountainous', icon: 'i-mountain' }
+	];
+
+	/**
+	 * Activity registry. The app offers seven choices — keep as a run, cycling,
+	 * MTB, swimming, cross trainer, elliptical bike, indoor cycling — and
+	 * `road_bike` is the one whose wire value has been captured. The rest are a
+	 * single dashed slot rather than five guesses.
+	 */
+	var ACTIVITIES = [
+		{ v: null, label: 'Run', icon: 'i-run', known: true },
+		{ v: 'road_bike', label: 'Cycling', icon: 'i-bike', known: true },
+		{ v: '__more', label: 'five more', icon: 'i-cross', known: false }
+	];
+
+	var CANDIDATES = [
+		{
+			id: 20112, title: 'Easy run + strides', hex: '#7B3294', dist: '12.09 km', time: '1:05:29',
+			km: 10.09, sec: 3229, desc: 'A standard endurance run. The strides at the end keep your legs sharp.',
+			cooldown: { w: 2, c: '#90CFF1', km: 2, sec: 700, t: 'Cool-down: 2 km easy' },
+			shape: [{ w: 2.5, c: '#90CFF1' }].concat(stride(8)),
+			blocks: [
+				{ c: '#90CFF1', t: 'Warm-up: 2.5 km easy' },
+				{ c: '#D55E00', t: '8 × 20 s strides, 3:00 rest' }
+			]
+		},
+		{
+			id: 20118, title: 'Interval 8 × 400 m', hex: '#D55E00', dist: '11 km', time: '1:02:10',
+			km: 9, sec: 3030, desc: 'Eight hard 400s. Jog the recoveries — the rest is what makes the next rep count.',
+			cooldown: { w: 2, c: '#90CFF1', km: 2, sec: 700, t: 'Cool-down: 2 km easy' },
+			shape: [{ w: 3, c: '#90CFF1' }].concat(stride(8)),
+			blocks: [
+				{ c: '#90CFF1', t: 'Warm-up: 3 km easy' },
+				{ c: '#D55E00', t: '8 × 400 m at 4:12 min/km, 2:00 jog' }
+			]
+		},
+		{
+			id: 20124, title: 'Easy run', hex: '#009E73', dist: '10 km', time: '55:00',
+			km: 10, sec: 3300, desc: 'Nothing clever today. Keep it conversational the whole way.',
+			cooldown: null,
+			shape: [{ w: 10, c: '#009E73' }],
+			blocks: [{ c: '#009E73', t: 'Run 10 km at 5:30 min/km' }]
+		}
+	];
+
+	var INTENSITY_TEXT = 'Change today’s session intensity within limits set by Coach Christophe.';
+	var DISTANCE_TEXT = 'When you have limited time, time to spare, heavy legs, or a niggle.';
+
+	function stride(n) {
+		var out = [];
+		for (var i = 0; i < n; i++) {
+			out.push({ w: 0.5, c: '#D55E00' });
+			out.push({ w: 1.6, c: '#5b6472' });
+		}
+		return out;
+	}
+
+	var SESSIONS = {
+		tempo: {
+			key: 'tempo', title: 'Tempo run', hex: '#E69F00', activity: 'i-run', cross_type: null,
+			description: 'Tough interval session this week, so the tempo run stays fully aerobic.',
+			can_cross_train: false, can_be_exchanged: true,
+			can_change_distance: false, can_change_intensity: true, can_change_pacing_plan: false,
+			intensitySteps: [
+				{ value: -4, text: 'Slower' }, { value: -2, text: 'A bit slower' },
+				{ value: 0, text: 'As planned' }, { value: 2, text: 'A bit faster' }
+			],
+			distanceSteps: null,
+			intensity: -2, distance: 0,
+			surface: 'treadmill', height: 'flat', shoeId: 6404, suggestedShoeId: 6404,
+			can_toggle_cooldown: true, has_cooldown: true,
+			base: { km: 10, sec: 3368 },
+			cooldown: { w: 2, c: '#90CFF1', km: 2, sec: 700, t: 'Cool-down: 2 km easy' },
+			shape: [{ w: 2, c: '#90CFF1' }, { w: 8, c: '#E69F00' }],
+			blocks: [
+				{ c: '#90CFF1', t: 'Warm-up: 2 km in 13:03' },
+				{ c: '#E69F00', t: 'Run 8 km at 5:33–5:59 min/km' }
+			]
+		},
+		easy: {
+			key: 'easy', title: 'Easy run + strides', hex: '#7B3294', activity: 'i-run', cross_type: null,
+			description: 'A standard endurance run. The strides at the end keep your legs sharp.',
+			can_cross_train: true, can_be_exchanged: true,
+			can_change_distance: true, can_change_intensity: true, can_change_pacing_plan: false,
+			intensitySteps: [
+				{ value: -4, text: 'Slower' }, { value: -2, text: 'A bit slower' },
+				{ value: 0, text: 'As planned' }, { value: 2, text: 'A bit faster' }
+			],
+			distanceSteps: [
+				{ value: -30, text: '−30%' }, { value: -20, text: '−20%' },
+				{ value: -10, text: '−10%' }, { value: 0, text: '0%' }
+			],
+			intensity: 0, distance: 0,
+			surface: null, height: null, shoeId: null, suggestedShoeId: null,
+			can_toggle_cooldown: true, has_cooldown: true,
+			base: { km: 10.09, sec: 3229 },
+			cooldown: { w: 2, c: '#90CFF1', km: 2, sec: 700, t: 'Cool-down: 2 km easy' },
+			shape: [{ w: 2.5, c: '#90CFF1' }].concat(stride(8)),
+			blocks: [
+				{ c: '#90CFF1', t: 'Warm-up: 2.5 km easy' },
+				{ c: '#D55E00', t: '8 × 20 s strides, 3:00 rest' }
+			]
+		},
+		bike: {
+			key: 'bike', title: 'Cycling', hex: '#1BB9AA', activity: 'i-bike', cross_type: 'road_bike',
+			description: 'A great alternative — cycling eliminates the impact stress from running.',
+			can_cross_train: true, can_be_exchanged: true,
+			can_change_distance: false, can_change_intensity: true, can_change_pacing_plan: false,
+			intensitySteps: [{ value: 0, text: 'As planned' }],
+			distanceSteps: null,
+			intensity: 0, distance: 0,
+			surface: null, height: null, shoeId: null, suggestedShoeId: null,
+			can_toggle_cooldown: false, has_cooldown: false,
+			base: { km: null, sec: 6224 },
+			cooldown: null,
+			shape: [{ w: 1, c: '#1BB9AA' }],
+			blocks: [{ c: '#1BB9AA', t: 'Ride 1:43:43' }]
+		}
+	};
+
+	// ── State ────────────────────────────────────────────────────────
+	var s = clone(SESSIONS.tempo);
+	var view = null;      // null | 'index' | 'terrain' | 'effort' | 'volume' | 'shoe' | 'session'
+	var pending = null;   // chip key currently syncing
+	var flashKey = null;
+
+	function clone(o) { return JSON.parse(JSON.stringify(o)); }
+
+	// ── Formatting ───────────────────────────────────────────────────
+	function fmtTime(sec) {
+		sec = Math.round(sec);
+		var h = Math.floor(sec / 3600), m = Math.floor((sec % 3600) / 60), x = sec % 60;
+		var p = function (n) { return (n < 10 ? '0' : '') + n; };
+		return h > 0 ? h + ':' + p(m) + ':' + p(x) : p(m) + ':' + p(x);
+	}
+
+	function cooling() { return s.has_cooldown && s.cooldown ? s.cooldown : null; }
+
+	function distFactor() { return 1 + s.distance / 100; }
+
+	function shownKm() {
+		if (s.base.km == null) return null;
+		var cd = cooling();
+		return (s.base.km + (cd ? cd.km : 0)) * distFactor();
+	}
+
+	function shownSec() {
+		var cd = cooling();
+		return (s.base.sec + (cd ? cd.sec : 0)) * distFactor() * (100 / (100 + s.intensity));
+	}
+
+	function shownShape() {
+		var cd = cooling();
+		return cd ? s.shape.concat([{ w: cd.w, c: cd.c }]) : s.shape;
+	}
+
+	function shownBlocks() {
+		var cd = cooling();
+		return cd ? s.blocks.concat([{ c: cd.c, t: cd.t }]) : s.blocks;
+	}
+
+	function metaText() {
+		var km = shownKm();
+		return (km == null ? '' : (Math.round(km * 100) / 100) + ' km · ') + fmtTime(shownSec());
+	}
+
+	function shoe() {
+		for (var i = 0; i < SHOES.length; i++) if (SHOES[i].id === s.shoeId) return SHOES[i];
+		return null;
+	}
+
+	function shoeName(sh) {
+		if (!sh) return null;
+		return sh.brand === 'Other' ? sh.name : sh.brand + ' ' + sh.name;
+	}
+
+	/** Label for a cross_type. Unregistered types fall back to their own name. */
+	function activityLabel(ct) {
+		for (var i = 0; i < ACTIVITIES.length; i++) {
+			if (ACTIVITIES[i].v === (ct || null)) return ACTIVITIES[i].label;
+		}
+		return String(ct).replace(/_/g, ' ').replace(/^./, function (c) { return c.toUpperCase(); });
+	}
+
+	function surfaceOpt() {
+		for (var i = 0; i < SURFACES.length; i++) if (SURFACES[i].v === s.surface) return SURFACES[i];
+		return null;
+	}
+
+	function heightOpt() {
+		for (var i = 0; i < HEIGHTS.length; i++) if (HEIGHTS[i].v === s.height) return HEIGHTS[i];
+		return null;
+	}
+
+	function stepText(steps, value) {
+		for (var i = 0; i < steps.length; i++) if (steps[i].value === value) return steps[i].text;
+		return String(value) + '%';
+	}
+
+	function esc(t) {
+		return String(t).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+	}
+
+	function ic(id, size) {
+		return '<svg width="' + size + '" height="' + size + '" viewBox="0 0 24 24" aria-hidden="true">' +
+			'<use href="#' + id + '"/></svg>';
+	}
+
+	// ── Settings ─────────────────────────────────────────────────────
+	//
+	// One list, two views. The chip rail and the sheet index both render
+	// from this, so a setting cannot appear in one with a different name,
+	// icon, value or position than it has in the other.
+	//
+	// `chip` says when the setting earns a place on the rail:
+	//   'always'  — part of the session's standing setup (running only)
+	//   'changed' — only once it differs from what the coach planned
+	//   'never'   — already shown by the identity strip, so a chip would
+	//               repeat it: the activity is the icon, the workout is
+	//               the title
+	function settings() {
+		var out = [];
+
+		if (!s.cross_type) {
+			var su = surfaceOpt(), he = heightOpt();
+			out.push({
+				key: 'terrain', view: 'terrain', label: 'Terrain',
+				icon: su ? su.icon : 'i-mountain',
+				value: su ? su.label + ' · ' + (he ? he.label : 'Flat') : null,
+				changed: false, chip: 'always'
+			});
+			var sh = shoe();
+			out.push({
+				key: 'shoe', view: 'shoe', label: 'Shoe', icon: 'i-shoe',
+				value: shoeName(sh),
+				changed: false, chip: 'always'
+			});
+		}
+
+		if (s.can_change_intensity) {
+			out.push({
+				key: 'effort', view: 'effort', label: 'Effort', icon: 'i-gauge',
+				value: stepText(s.intensitySteps, s.intensity),
+				changed: s.intensity !== 0, chip: 'changed'
+			});
+		}
+
+		if (s.can_change_distance) {
+			out.push({
+				key: 'volume', view: 'volume', label: 'Volume', icon: 'i-volume',
+				value: stepText(s.distanceSteps, s.distance),
+				changed: s.distance !== 0, chip: 'changed'
+			});
+		}
+
+		if (s.can_toggle_cooldown) {
+			out.push({
+				key: 'cooldown', view: null, label: 'Cool-down', icon: 'i-cooldown',
+				value: s.has_cooldown
+					? (s.cooldown ? s.cooldown.t.replace('Cool-down: ', '') : 'On')
+					: 'Removed',
+				// No chip: the block list already says it is gone, where it is
+				// missing from, and the accent moves onto that row instead.
+				changed: !s.has_cooldown, chip: 'never', toggle: true
+			});
+		}
+
+		if (s.can_change_pacing_plan) {
+			out.push({
+				key: 'pacing', view: 'pacing', label: 'Pacing plan', icon: 'i-gauge',
+				value: 'Even', changed: false, chip: 'changed'
+			});
+		}
+
+		// One row, two endpoints. The API splits "make this session something
+		// else" across cross_train and exchange; a runner has one question and
+		// should not have to guess which list holds the answer.
+		if (s.can_cross_train || s.can_be_exchanged) {
+			out.push({
+				key: 'session', view: 'session', label: 'Session', icon: 'i-swap',
+				value: s.title, changed: !!s.cross_type, chip: 'never', replace: true
+			});
+		}
+
+		return out;
+	}
+
+	// ── Chip rail ────────────────────────────────────────────────────
+	function chipDefs() {
+		var all = settings(), out = [];
+		for (var i = 0; i < all.length; i++) {
+			var d = all[i];
+			if (d.chip === 'always' || (d.chip === 'changed' && d.changed)) out.push(d);
+		}
+		return out;
+	}
+
+	function renderRail() {
+		var defs = chipDefs(), html = '';
+		for (var i = 0; i < defs.length; i++) {
+			var d = defs[i];
+			var ghost = d.value == null;
+			var cls = 'chip' + (ghost ? ' ghost' : '') + (d.changed ? ' changed' : '') +
+				(pending === d.key ? ' syncing' : '') + (flashKey === d.key ? ' flash' : '');
+			html += '<button type="button" class="' + cls + '" data-open="' + d.view +
+				'" data-focus="' + d.key + '">' +
+				(pending === d.key ? '<span class="spin"></span>' : ic(d.icon, 13)) +
+				(d.changed ? '<span class="dot"></span>' : '') +
+				esc(d.chipLabel || d.value || d.label) + '</button>';
+		}
+		if (defs.length === 0) {
+			return '<button type="button" class="chip" data-open="index">' +
+				ic('i-sliders', 13) + 'Session setup</button>';
+		}
+		return '<div class="rail-scroll">' + html + '</div>' +
+			'<button type="button" class="chip more" data-open="index" aria-label="Session setup">' +
+			ic('i-sliders', 14) + '</button>';
+	}
+
+	// ── Card ─────────────────────────────────────────────────────────
+	function renderCard() {
+		var shape = shownShape();
+		var shapeHtml = '';
+		for (var i = 0; i < shape.length; i++) {
+			shapeHtml += '<i style="flex:' + shape[i].w + ';background:' + shape[i].c + '"></i>';
+		}
+
+		var blocksHtml = '';
+		for (var j = 0; j < s.blocks.length; j++) {
+			blocksHtml += '<div class="blk"><span class="bullet" style="background:' + s.blocks[j].c +
+				'"></span><span>' + esc(s.blocks[j].t) + '</span></div>';
+		}
+
+		// The cool-down is the one block the runner can drop, so its control lives
+		// on the block rather than in a settings list. Removed, it stays in place as
+		// a ghost row: the plan shows what is missing and offers it straight back.
+		if (s.cooldown && s.can_toggle_cooldown) {
+			var busy = pending === 'cooldown';
+			var lit = highlight === 'cooldown' ? ' lit' : '';
+			blocksHtml += s.has_cooldown
+				? '<button type="button" class="blk blk-btn' + lit + '" data-toggle="cooldown"' +
+					(busy ? ' disabled' : '') + '><span class="bullet" style="background:' + s.cooldown.c +
+					'"></span><span>' + esc(s.cooldown.t) + '</span>' +
+					'<span class="blk-act">' + (busy ? 'Saving…' : '✕ Remove') + '</span></button>'
+				: '<button type="button" class="blk blk-btn ghost' + lit + '" data-toggle="cooldown"' +
+					(busy ? ' disabled' : '') + '><span class="bullet ring"></span>' +
+					'<span>Cool-down removed</span>' +
+					'<span class="blk-act">' + (busy ? 'Saving…' : '＋ Add back') + '</span></button>';
+		}
+
+		return '' +
+			'<div class="ident" style="--sess:' + s.hex + '">' +
+				'<span class="ident-rail"></span>' +
+				'<span class="ident-icon">' + ic(s.activity, 19) + '</span>' +
+				'<div class="ident-main">' +
+					'<div class="ident-title">' +
+						// The title is the session's badge, so it is also the way to change
+						// it — the same rule the chips follow. Leaving the biggest change
+						// two taps deep while the small tweaks sat on the card had it
+						// backwards.
+						(s.can_cross_train || s.can_be_exchanged
+							? '<button type="button" class="title-btn" data-open="session">' +
+								esc(s.title) + ic('i-swap', 12) + '</button>'
+							: esc(s.title)) +
+					'</div>' +
+					// Its own line: it is the first thing a runner checks, and it was
+					// set at 10px in brackets purely to fit beside the title.
+					'<p class="ident-meta' + (flashKey === 'meta' ? ' flash' : '') + '">' +
+						esc(metaText()) + '</p>' +
+					'<div class="shape">' + shapeHtml + '</div>' +
+				'</div>' +
+				'<div class="ident-actions">' +
+					// Treadmill mode is a running thing. A cycling session has no pace
+					// to hold, so the button goes with the rest of the running detail.
+					(s.cross_type ? '' :
+						'<button type="button" tabindex="-1" aria-hidden="true">' + ic('i-treadmill-mode', 17) + '</button>') +
+					'<button type="button" tabindex="-1" aria-hidden="true">' + ic('i-move', 17) + '</button>' +
+					'<button type="button" tabindex="-1" aria-hidden="true">' + ic('i-trash', 17) + '</button>' +
+				'</div>' +
+			'</div>' +
+			'<div class="rail">' + renderRail() + '</div>' +
+			'<div class="coach">' + ic('i-chat', 15) + '<p>' + esc(s.description) + '</p></div>' +
+			'<div class="blocks"><h4>Training details</h4>' + blocksHtml + '</div>';
+	}
+
+	// ── Sheet views ──────────────────────────────────────────────────
+	function rowHtml(d) {
+		if (d.toggle) {
+			return '<button type="button" class="row switch-row' +
+				(highlight === d.key ? ' lit' : '') + '" data-toggle="' + d.key + '">' +
+				'<span class="ri">' + ic(d.icon, 17) + '</span>' +
+				'<span class="rl">' + esc(d.label) +
+				'<span class="rsub">' + esc(d.value) + '</span></span>' +
+				(pending === d.key
+					? '<span class="spin"></span>'
+					: '<span class="sw' + (s.has_cooldown ? ' on' : '') + '"><i></i></span>') +
+				'</button>';
+		}
+		return '<button type="button" class="row' + (highlight === d.key ? ' lit' : '') +
+			'" data-open="' + d.view + '" data-focus="' + d.key + '">' +
+			'<span class="ri">' + ic(d.icon, 17) + '</span>' +
+			'<span class="rl">' + esc(d.label) + '</span>' +
+			'<span class="rv' + (d.changed ? ' changed' : '') + '">' +
+			esc(d.value == null ? 'Not set' : d.value) + '</span>' +
+			'<span class="rc">' + ic('i-next', 15) + '</span></button>';
+	}
+
+	function viewIndex() {
+		var all = settings(), tune = '', replace = '';
+		for (var i = 0; i < all.length; i++) {
+			if (all[i].replace) replace += rowHtml(all[i]);
+			else tune += rowHtml(all[i]);
+		}
+
+		return '<p class="sheet-text">Everything Coach Christophe allows on this session. ' +
+			'Options the coach has locked are not listed.</p>' +
+			'<div class="rows">' + tune + '</div>' +
+			(replace ? '<div class="danger-zone"><p class="grp-label">Replace this session</p>' +
+				'<div class="rows">' + replace + '</div></div>' : '');
+	}
+
+	function viewTerrain() {
+		var a = '', b = '';
+		for (var i = 0; i < SURFACES.length; i++) {
+			var o = SURFACES[i];
+			a += '<button type="button" class="tile" data-set="surface" data-value="' + o.v +
+				'" aria-pressed="' + (s.surface === o.v) + '">' + ic(o.icon, 19) + esc(o.label) + '</button>';
+		}
+		for (var j = 0; j < HEIGHTS.length; j++) {
+			var h = HEIGHTS[j];
+			b += '<button type="button" class="tile" data-set="height" data-value="' + h.v +
+				'" aria-pressed="' + (s.height === h.v) + '">' + ic(h.icon, 19) + esc(h.label) + '</button>';
+		}
+		return '<p class="sheet-text">Where you are running today. All of it goes up in one ' +
+			'call, so the sheet stays open until you tap Apply.</p>' +
+			'<p class="grp-label">Surface</p><div class="tiles tiles-2">' + a + '</div>' +
+			'<p class="grp-label">Elevation</p><div class="tiles tiles-2">' + b + '</div>' +
+			'<p class="grp-label">Altitude</p>' +
+			'<div class="climb"><input type="number" value="0" min="0" step="10" readonly><span>m</span></div>' +
+			'<div class="confirm" style="justify-content:flex-end">' +
+			'<button type="button" class="btn primary" data-commit="terrain">Apply</button></div>';
+	}
+
+	function viewSteps(kind) {
+		var steps = kind === 'effort' ? s.intensitySteps : s.distanceSteps;
+		var cur = kind === 'effort' ? s.intensity : s.distance;
+		var html = '';
+		for (var i = 0; i < steps.length; i++) {
+			var st = steps[i];
+			html += '<button type="button" class="step' + (st.value === 0 ? ' plan' : '') +
+				'" data-set="' + kind + '" data-value="' + st.value + '" aria-pressed="' +
+				(cur === st.value) + '">' + esc(st.text) + '</button>';
+		}
+		var km = shownKm();
+		if (pending === kind) {
+			return '<p class="sheet-text">' + (kind === 'effort' ? INTENSITY_TEXT : DISTANCE_TEXT) + '</p>' +
+				'<div class="steps">' + html + '</div>' +
+				'<p class="effect"><span class="spin" style="width:11px;height:11px;border:1.5px solid var(--app-border);border-top-color:var(--accent);border-radius:999px;display:inline-block"></span> Saving…</p>';
+		}
+		var effect = kind === 'effort'
+			? 'Every pace and time in the session is rescaled. Now <b>' + fmtTime(shownSec()) + '</b> total.'
+			: (km == null ? '' : 'Now <b>' + (Math.round(km * 100) / 100) + ' km</b> · <b>' + fmtTime(shownSec()) + '</b>.');
+		return '<p class="sheet-text">' + (kind === 'effort' ? INTENSITY_TEXT : DISTANCE_TEXT) + '</p>' +
+			'<div class="steps">' + html + '</div>' +
+			'<p class="effect">' + effect + '</p>' +
+			(steps.length === 1
+				? '<p class="sheet-text" style="margin-top:12px">The coach has left one step on this ' +
+					'session, so there is nothing to change here today.</p>' : '');
+	}
+
+	function viewShoe() {
+		// The server's recommendation is pinned; everything else keeps the order
+		// the server sent, untouched. No client-side notion of which shoe suits
+		// which session — nothing in the payload supports one, and inventing it
+		// would put our guess above the coach's.
+		var recommended = null, rest = [];
+		for (var i = 0; i < SHOES.length; i++) {
+			// A retired pair is not a choice. Every shoe seen so far has
+			// retired_at null, so this filter is untested against real data.
+			if (SHOES[i].retired_at) continue;
+			if (SHOES[i].id === s.suggestedShoeId) recommended = SHOES[i];
+			else rest.push(SHOES[i]);
+		}
+
+		var list = recommended ? [recommended].concat(rest) : rest;
+		var html = '';
+
+		for (var j = 0; j < list.length; j++) {
+			var sh = list[j], pct = Math.round(sh.pct);
+			var picked = s.shoeId === sh.id;
+			var spent = sh.pct >= 85;
+
+			html += '<button type="button" class="pick" data-set="shoe" data-value="' + sh.id +
+				'" aria-pressed="' + picked + '">' +
+				'<span class="pi">' + ic('i-shoe', 17) + '</span>' +
+				'<span class="pm">' +
+					'<span class="pn">' + esc(shoeName(sh)) +
+						'<span class="badge">' + esc(SHOE_TYPE_TEXT[sh.type] || sh.type) + '</span>' +
+						(sh === recommended ? '<span class="badge rec">Recommended</span>' : '') +
+					'</span>' +
+					'<span class="ps' + (spent ? ' warn' : '') + '">' + esc(sh.done) + ' of ' +
+						esc(sh.life) + ' · ' + pct + '%' + (spent ? ' · past its distance' : '') + '</span>' +
+					'<span class="wear"><i class="' + (sh.pct >= 70 ? 'hot' : '') + '" style="width:' +
+						Math.min(pct, 100) + '%"></i></span>' +
+				'</span>' +
+				(picked ? '<span style="color:var(--accent)">' + ic('i-check', 16) + '</span>' : '') +
+				'</button>';
+		}
+
+		return '<p class="sheet-text">' +
+			(recommended
+				? 'Trenara’s recommendation for this session sits at the top. '
+				: 'No recommendation on this session. ') +
+			'Wear is under each pair, so a shoe near the end of its life is visible before you ' +
+			'pick it.</p>' + html;
+	}
+
+	function viewActivity() {
+		var html = '';
+		for (var i = 0; i < ACTIVITIES.length; i++) {
+			var a = ACTIVITIES[i];
+			var on = (s.cross_type || null) === a.v;
+			var more = a.v === '__more';
+			html += '<button type="button" class="tile' + (more ? ' unknown' : '') +
+				'" style="padding:13px 4px 10px" data-set="activity" data-value="' +
+				(a.v === null ? '' : a.v) + '" aria-pressed="' + on + '"' + (more ? ' disabled' : '') + '>' +
+				ic(a.icon, 20) + esc(a.label) + '</button>';
+		}
+		return '<div class="tiles" style="grid-template-columns:repeat(2,1fr)">' + html + '</div>' +
+			'<p class="sheet-text" style="margin:13px 0 0">MTB, swimming, cross trainer, elliptical ' +
+			'bike and indoor cycling are offered too. Their wire values have not been captured, and ' +
+			'two of them are near enough synonyms that guessing would be a coin toss — so they wait ' +
+			'rather than shipping a value the API would refuse.</p>';
+	}
+
+	function viewSession() {
+		var html = '';
+		if (s.can_be_exchanged) {
+			html += '<p class="grp-label" style="margin-top:0">Another session</p>' + viewWorkout();
+		}
+		if (s.can_cross_train) {
+			html += '<p class="grp-label">' +
+				(s.cross_type ? 'Or go back to running' : 'Cross-train instead') + '</p>' +
+				viewActivity();
+		}
+		return '<p class="sheet-text">Anything else your coach accepts today. All of it rewrites ' +
+			'every block, and you can come back — nothing here is a one-way door.</p>' + html;
+	}
+
+	function viewWorkout() {
+		var html = '';
+		for (var i = 0; i < CANDIDATES.length; i++) {
+			var c = CANDIDATES[i];
+			html += '<button type="button" class="pick" data-set="workout" data-value="' + c.id + '">' +
+				'<span class="pi" style="background:' + c.hex + '22;color:' + c.hex + '">' + ic('i-run', 17) + '</span>' +
+				'<span class="pm"><span class="pn">' + esc(c.title) + '</span>' +
+				'<span class="ps">' + esc(c.dist) + ' · ' + esc(c.time) + '</span></span>' +
+				'<span class="rc">' + ic('i-next', 15) + '</span></button>';
+		}
+		return html;
+	}
+
+	var VIEWS = {
+		index: { title: 'Session setup', body: viewIndex },
+		terrain: { title: 'Terrain', body: viewTerrain },
+		effort: { title: 'Fine-tune intensity', body: function () { return viewSteps('effort'); } },
+		volume: { title: 'Fine-tune distance', body: function () { return viewSteps('volume'); } },
+		shoe: { title: 'Shoe', body: viewShoe },
+		session: { title: 'Change this session', body: viewSession }
+	};
+
+	// ── Wiring ───────────────────────────────────────────────────────
+	var cardBody = document.getElementById('cardBody');
+	var sheet = document.getElementById('sheet');
+	var sheetBody = document.getElementById('sheetBody');
+	var sheetTitle = document.getElementById('sheetTitle');
+	var sheetBack = document.getElementById('sheetBack');
+	var scrim = document.getElementById('scrim');
+	var toast = document.getElementById('toast');
+	var toastMsg = document.getElementById('toastMsg');
+	var staged = null;
+	var toastTimer = null;
+	var highlight = null;
+
+	function render() {
+		cardBody.innerHTML = renderCard();
+		if (view) {
+			sheetTitle.textContent = VIEWS[view].title;
+			sheetBody.innerHTML = VIEWS[view].body();
+			sheetBack.hidden = view === 'index';
+			sheet.classList.add('open');
+			scrim.classList.add('open');
+		} else {
+			sheet.classList.remove('open');
+			scrim.classList.remove('open');
+		}
+	}
+
+	function open(v, focus) {
+		if (v === 'pacing') v = 'effort';
+		view = v;
+		staged = v === 'terrain' ? { surface: s.surface || 'road', height: s.height || 'flat' } : null;
+		// A chip whose setting has no editor of its own — the cool-down switch —
+		// opens the index and lights up its row rather than landing you nowhere.
+		highlight = v === 'index' && focus ? focus : null;
+		render();
+		if (highlight) {
+			setTimeout(function () { highlight = null; if (view === 'index') render(); }, 1400);
+		}
+	}
+
+	function close() { view = null; render(); }
+
+	function flashBlock(key) {
+		if (view) close();
+		highlight = key;
+		render();
+		setTimeout(function () { highlight = null; render(); }, 1400);
+	}
+
+	var toastAction = document.getElementById('toastAction');
+	var toastIcon = document.getElementById('toastIcon');
+	var undoFn = null;
+
+	function showToast(msg, kind, actionLabel, fn) {
+		toastMsg.textContent = msg;
+		toast.classList.toggle('ok', kind === 'ok');
+		toastIcon.setAttribute('href', kind === 'ok' ? '#i-check' : '#i-alert');
+		undoFn = fn || null;
+		toastAction.hidden = !actionLabel;
+		if (actionLabel) toastAction.textContent = actionLabel;
+		toast.classList.add('on');
+		clearTimeout(toastTimer);
+		toastTimer = setTimeout(function () {
+			toast.classList.remove('on');
+			undoFn = null;
+		}, actionLabel ? 6000 : 2800);
+	}
+
+	toastAction.addEventListener('click', function () {
+		var fn = undoFn;
+		undoFn = null;
+		toast.classList.remove('on');
+		if (fn) fn();
+	});
+
+	/**
+	 * Every mutation returns the full ScheduledTrainingDetail, so the real
+	 * implementation replaces the training outright with the response. Here the
+	 * patch stands in for that response.
+	 */
+	function commit(chipKey, patch, closeAfter, undo) {
+		if (pending) {
+			showToast('Still saving the last change. Give it a second and try again.');
+			return;
+		}
+		var before = undo ? clone(s) : null;
+		pending = chipKey;
+		if (closeAfter) close(); else render();
+		setTimeout(function () {
+			for (var k in patch) if (Object.prototype.hasOwnProperty.call(patch, k)) s[k] = patch[k];
+			pending = null;
+			flashKey = chipKey;
+			render();
+			setTimeout(function () { flashKey = null; render(); }, 950);
+			if (undo) {
+				showToast(undo, 'ok', 'Undo', function () {
+					s = before;
+					flashKey = 'meta';
+					render();
+					setTimeout(function () { flashKey = null; render(); }, 950);
+				});
+			}
+		}, 500);
+	}
+
+	document.addEventListener('click', function (e) {
+		var t = e.target.closest ? e.target.closest('[data-open],[data-set],[data-commit],[data-toggle],[data-session]') : null;
+		if (!t) return;
+
+		if (t.hasAttribute('data-session')) {
+			var key = t.getAttribute('data-session');
+			s = clone(SESSIONS[key]);
+			pending = null; flashKey = null;
+			var btns = document.querySelectorAll('[data-session]');
+			for (var i = 0; i < btns.length; i++) {
+				btns[i].setAttribute('aria-pressed', String(btns[i] === t));
+			}
+			close();
+			return;
+		}
+
+		if (t.hasAttribute('data-open')) {
+			var target = t.getAttribute('data-open');
+			// The cool-down chip has no editor — it points back at its own block.
+			if (target === 'null' || target === '') {
+				flashBlock(t.getAttribute('data-focus'));
+				return;
+			}
+			open(target, t.getAttribute('data-focus'));
+			return;
+		}
+
+		if (t.getAttribute('data-toggle') === 'cooldown') {
+			commit('cooldown', { has_cooldown: !s.has_cooldown }, false);
+			return;
+		}
+
+		if (t.hasAttribute('data-commit')) {
+			if (t.getAttribute('data-commit') === 'terrain') {
+				commit('terrain', { surface: staged.surface, height: staged.height }, true);
+			}
+			return;
+		}
+
+		var set = t.getAttribute('data-set');
+		var val = t.getAttribute('data-value');
+
+		if (set === 'surface' || set === 'height') { staged[set] = val; render(); return; }
+		if (set === 'effort') { commit('effort', { intensity: Number(val) }, false); return; }
+		if (set === 'volume') { commit('volume', { distance: Number(val) }, false); return; }
+		if (set === 'shoe') { commit('shoe', { shoeId: Number(val) }, true); return; }
+
+		if (set === 'activity') {
+			var ct = val === '' ? null : val;
+			if (ct === (s.cross_type || null)) { close(); return; }
+			var patch = ct
+				? {
+					cross_type: 'road_bike', title: 'Cycling', hex: '#1BB9AA', activity: 'i-bike',
+					surface: null, height: null, shoeId: null, intensity: 0, distance: 0,
+					can_change_distance: false, intensitySteps: [{ value: 0, text: 'As planned' }],
+					can_toggle_cooldown: false, has_cooldown: false, cooldown: null,
+					base: { km: null, sec: shownSec() }, shape: [{ w: 1, c: '#1BB9AA' }],
+					blocks: [{ c: '#1BB9AA', t: 'Ride ' + fmtTime(shownSec()) }]
+				}
+				: clone(SESSIONS.easy);
+			commit('meta', patch, true, ct ? 'Swapped to cycling.' : 'Back to running.');
+			return;
+		}
+
+		if (set === 'workout') {
+			for (var j = 0; j < CANDIDATES.length; j++) {
+				if (CANDIDATES[j].id !== Number(val)) continue;
+				var c = CANDIDATES[j];
+				commit('meta', {
+					title: c.title, hex: c.hex, cross_type: null, activity: 'i-run',
+					description: c.desc, shape: c.shape, blocks: c.blocks,
+					base: { km: c.km, sec: c.sec },
+					cooldown: c.cooldown,
+					can_toggle_cooldown: !!c.cooldown, has_cooldown: !!c.cooldown,
+					intensity: 0, distance: 0
+				}, true, 'Swapped to ' + c.title + '.');
+			}
+		}
+	});
+
+	scrim.addEventListener('click', close);
+	document.getElementById('sheetClose').addEventListener('click', close);
+	sheetBack.addEventListener('click', function () { open('index'); });
+	document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && view) close(); });
+
+	render();
+})();
+</script>
+
+<section>
+	<div class="sec-head">
+		<h2>What the server permits, and where it shows up</h2>
+		<span class="tag">one row per capability</span>
+	</div>
+	<p class="prose" style="color:#aeb6c3;margin-bottom:22px">
+		No client-side rules about workout types. Each row below is rendered if and only if its
+		field arrives truthy on the detail response, and the copy inside the editor comes from the
+		package’s own <code>title</code> and <code>text</code> so it stays in sync with the coach.
+	</p>
+
+	<div class="tbl-wrap">
+		<table>
+			<thead>
+				<tr>
+					<th>Gate</th>
+					<th>Endpoint</th>
+					<th>Where it appears</th>
+					<th>When the gate is false</th>
+				</tr>
+			</thead>
+			<tbody>
+				<tr>
+					<td class="f">suggested_shoe<br><small>run only</small></td>
+					<td class="f">PUT .../suggested_shoe</td>
+					<td>Shoe chip → shoe list</td>
+					<td>Chip shows as a dashed “Shoe” invitation when nothing is assigned</td>
+				</tr>
+				<tr>
+					<td class="f">training_condition<br><small>run only</small></td>
+					<td class="f">POST .../training_condition</td>
+					<td>Terrain chip → surface and elevation tiles, plus the climb in metres</td>
+					<td>Dashed “Terrain” chip; all four fields post together in one call</td>
+				</tr>
+				<tr>
+					<td class="f">can_change_intensity<br>change_intensity_package</td>
+					<td class="f">PUT .../intensity</td>
+					<td>Effort row; chip appears once the step ≠ 0</td>
+					<td>Row and chip both absent</td>
+				</tr>
+				<tr>
+					<td class="f">can_change_distance<br>change_distance_package</td>
+					<td class="f">PUT .../distance</td>
+					<td>Volume row; chip appears once the step ≠ 0</td>
+					<td>Row and chip both absent — this is the tempo run’s case</td>
+				</tr>
+				<tr>
+					<td class="f">can_cross_train</td>
+					<td class="f">PUT .../cross_train</td>
+					<td>The “Cross-train instead” group inside <em>Change this session</em></td>
+					<td>Group absent; the session stays a run</td>
+				</tr>
+				<tr>
+					<td class="f">can_be_exchanged</td>
+					<td class="f">GET + PUT .../exchange</td>
+					<td>The “Another session” group inside <em>Change this session</em></td>
+					<td>Group absent. With neither flag set the row does not appear at all</td>
+				</tr>
+				<tr>
+					<td class="f">can_change_pacing_plan<br>change_pacing_plan_package</td>
+					<td class="f">setter unknown</td>
+					<td>Race day only. A picker between three named strategies, not a step scale</td>
+					<td>Row absent — every session that is not the goal race</td>
+				</tr>
+				<tr>
+					<td class="f">can_toggle_cooldown<br>has_cooldown</td>
+					<td class="f">PUT .../cooldown<br><small>body: cooldown_toggle</small></td>
+					<td>A <em>Remove</em> / <em>Add back</em> control on the cool-down block itself; the
+						row persists as a ghost when off. Also listed as a switch in the index. Flipping
+						it moves the block, its shape segment and its share of the totals. No chip: the
+						plan already shows it, in the place it is missing from</td>
+					<td>Row absent — this session simply has no cool-down to drop</td>
+				</tr>
+				<tr>
+					<td class="f">cross_type</td>
+					<td class="f">—</td>
+					<td>Sets the activity icon; <em>hides</em> shoe, terrain, cool-down and the header’s
+						treadmill-mode button</td>
+					<td>Null means running: all four return</td>
+				</tr>
+			</tbody>
+		</table>
+	</div>
+</section>
+
+<section>
+	<div class="sec-head"><h2>Behaviour</h2></div>
+	<div class="grid2">
+		<div class="panel">
+			<h3>The chips arrive late, and that is fine</h3>
+			<p>
+				The week payload has none of these fields — they only exist on
+				<code>GET /schedule/trainings/{id}</code>. So the card paints title, blocks and shape
+				bar from the week data immediately, and the rail fades in when the detail lands.
+				Reserve its height (one chip row, 26&nbsp;px) so nothing below jumps. The shoe list is
+				lazier still: <code>GET /me/shoes</code> fires the first time the shoe editor opens.
+			</p>
+		</div>
+		<div class="panel">
+			<h3>Responses replace state, they don’t patch it</h3>
+			<p>
+				All seven mutations hand back the complete <code>ScheduledTrainingDetail</code>. So a
+				commit swaps the whole training object — never merge a field by hand. It matters:
+				changing intensity rewrites every block’s pace, its <code>hex_graph</code>, and the
+				totals, and it can flip other capability flags. The rail is a pure projection of the
+				last response.
+			</p>
+			<p>
+				And it goes further than the card. The week the calendar holds is a separate copy of the
+				same training, so a change that stops at the detail leaves the card right and everything
+				around it a version behind — the old distance in the grid, the old colour on the dot.
+				Each response is handed back to the calendar store, which swaps that one training and
+				updates its month cache alongside, since the cache holds the very object it serves. No
+				refetch: the response already is the new week’s worth of that session.
+			</p>
+		</div>
+		<div class="panel">
+			<h3>Pending on the chip, not over the card</h3>
+			<p>
+				A commit swaps the chip’s icon for a spinner and leaves everything else usable. No
+				overlay, no disabled card. A second commit while one is in flight is refused with a
+				short message rather than queued — these calls all rewrite the same object, so
+				overlapping them races the response.
+			</p>
+		</div>
+		<div class="panel">
+			<h3>Failure keeps the old value visible</h3>
+			<p>
+				Nothing is applied optimistically. The chip shows the last server truth until a
+				response arrives, so a failed call needs no rollback — just a toast that names what
+				didn’t happen: “Couldn’t change the shoe. Tap to retry.” The one exception is the
+				numbers in the identity strip, which flash once when they change so a rescale is
+				not silent.
+			</p>
+		</div>
+	</div>
+</section>
+
+<section>
+	<div class="sec-head">
+		<h2>Spilling the colour into the month grid</h2>
+		<span class="tag">revised — strength needs shape, not colour</span>
+	</div>
+	<div class="prose">
+		<p style="color:#aeb6c3">
+			Today the grid has exactly three dot colours, and running and strength share all three:
+			<code>calendar-cell.svelte</code> paints both dots from
+			<code>--color-dot-scheduled</code>, <code>--color-dot-completed</code> and
+			<code>--color-dot-missed</code>. Strength has no colour of its own. The only thing
+			separating the two is that the strength dot sits second in the pair — which works on a
+			day that has both, and tells you nothing on a day that has only strength.
+		</p>
+		<p style="color:#aeb6c3">
+			That breaks the idea of painting the run dot with <code>hex_training</code>: the moment
+			one dot carries workout type, the two stop being parallel and the pair reads as one
+			coloured thing next to one blue thing. So the rule has to split — <strong>shape says what
+			it is, colour says how it is going</strong>. A run stays a filled dot, strength becomes a
+			small bar. Then the run dot is free to carry its training colour while scheduled, and
+			completed green and missed red still override it, because status beats type.
+		</p>
+	</div>
+
+	<div class="cal-demo">
+		<div class="cal-now">
+			<p class="grp-label" style="margin-top:0">Today</p>
+			<div class="cal-row">
+				<span class="cal-day">12<span class="cal-dots"><i class="cd" style="background:#66B3FF"></i></span></span>
+				<span class="cal-day">13<span class="cal-dots"><i class="cd" style="background:#21C45D"></i></span></span>
+				<span class="cal-day">14<span class="cal-dots"><i class="cd" style="background:#EF4343"></i></span></span>
+				<span class="cal-day">15<span class="cal-dots"><i class="cd" style="background:#66B3FF"></i><i class="cd" style="background:#66B3FF"></i></span></span>
+			</div>
+			<p class="cal-note">Run and strength are the same blue. Day 15 has both — you have to
+				know the second dot means strength.</p>
+		</div>
+		<div class="cal-next">
+			<p class="grp-label" style="margin-top:0">Proposed</p>
+			<div class="cal-row">
+				<span class="cal-day">12<span class="cal-dots"><i class="cd" style="background:#E69F00"></i></span></span>
+				<span class="cal-day">13<span class="cal-dots"><i class="cd" style="background:#21C45D"></i></span></span>
+				<span class="cal-day">14<span class="cal-dots"><i class="cd" style="background:#EF4343"></i></span></span>
+				<span class="cal-day">15<span class="cal-dots"><i class="cd" style="background:#7B3294"></i><i class="cb" style="background:#66B3FF"></i></span></span>
+			</div>
+			<p class="cal-note">Tempo, done, missed, then an easy run plus strength. The bar is
+				strength at any status; the dot carries the session’s own colour until it is done.</p>
+		</div>
+	</div>
+
+	<div class="legend">
+		<span><i style="background:#E69F00"></i>Tempo <code>#E69F00</code></span>
+		<span><i style="background:#7B3294"></i>Easy + strides <code>#7B3294</code></span>
+		<span><i style="background:#D55E00"></i>Interval <code>#D55E00</code></span>
+		<span><i style="background:#1BB9AA"></i>Cross-training <code>#1BB9AA</code></span>
+		<span><i style="background:#21C45D"></i>Completed <code>--color-dot-completed</code></span>
+		<span><i style="background:#EF4343"></i>Missed <code>--color-dot-missed</code></span>
+		<span><i style="background:#66B3FF;border-radius:2px;width:11px;height:4px"></i>Strength <code>--color-dot-scheduled</code></span>
+	</div>
+
+	<p class="prose" style="color:#8d95a5;font-size:0.92rem;margin-top:20px">
+		One caveat before this ships: colour must never be the only carrier. It is not here — the
+		day’s session name is one tap away in the detail card, and shape already separates the two
+		disciplines — but a legend belongs somewhere the first time a runner sees a coloured grid.
+	</p>
+</section>
+
+<section>
+	<div class="sec-head">
+		<h2>Open questions</h2>
+		<span class="tag">blocks marked ! need an answer before build</span>
+	</div>
+	<div style="max-width:78ch">
+		<div class="gap">
+			<span class="m q">?</span>
+			<div>
+				<h4>Resolved: the cool-down request names its field differently</h4>
+				<p>
+					The path was right — <code>PUT /schedule/trainings/{id}/cooldown</code> — but the body
+					key is <code>cooldown_toggle</code>, not <code>has_cooldown</code>. It is the only
+					mutation whose request field is named differently from the field it sets, and the
+					wrong key is not rejected: the call is answered <code>200</code> with the training
+					unchanged. That failure mode is why the toggle is checked against the response rather
+					than trusted, and why setup errors now surface on the card instead of only inside the
+					sheet.
+				</p>
+			</div>
+		</div>
+		<div class="gap">
+			<span class="m">!</span>
+			<div>
+				<h4>A change package's value means different things on different sessions</h4>
+				<p>
+					<code>change_distance_package</code> sends percentage deltas on a steady run —
+					<code>-5</code> for “-5%”, with a <code>0</code> step meaning “as planned”. On an
+					interval session the same package counts repetitions: <code>1</code>,
+					<code>2</code>, <code>3</code> for “1x”, “2x”, “3x”, titled “Fine-tune intervals”, and
+					with no zero step at all.
+				</p>
+				<p>
+					That breaks the obvious test for “has the runner changed this”. Comparing against
+					<code>0</code> marks an untouched interval session as changed, because 2x is not
+					zero. So the rule is: a package with a zero step can say what deviates from the plan
+					and its chip appears only when it does; a package without one cannot, so its value is
+					shown plainly and always. Nothing may do arithmetic on a step's
+					<code>value</code> either — pass it back, render its <code>text</code>.
+				</p>
+			</div>
+		</div>
+		<div class="gap">
+			<span class="m q">?</span>
+			<div>
+				<h4>Resolved: terrain writes the whole condition, in labels</h4>
+				<p>
+					Both enums travel as the labels the read side returns —
+					<code>height_difference: "flat"</code>, <code>surface: "treadmill"</code> — and all
+					four fields go up on every call. This is the one write that does not merge a partial
+					body: a field left out is answered <em>“The height difference field is required”</em>
+					rather than kept at its stored value, so a runner changing only the surface still
+					carries the height, which defaults to <code>0</code> metres.
+				</p>
+				<p>
+					An unrecognised label is refused with <em>“The selected height difference is
+					invalid”</em>, which is why the terrain editor stages a known value rather than
+					passing an unfamiliar one through — a session carrying an elevation the app does not
+					know would otherwise fail on a field the runner never touched.
+				</p>
+				<p>
+					Altitude is a field under the two tile rows: metres of ascent, optional, 0 by default.
+					It joins the terrain chip only once it is set — every session without one would
+					otherwise carry a “0 m” nobody asked about.
+				</p>
+				<p>
+					The labels are the app’s own words rather than the API’s: <em>flat</em>,
+					<em>slightly hilly</em>, <em>very hilly</em>, <em>mountainous</em> for a scale whose
+					values read <code>flat</code>, <code>lights</code>, <code>strong</code>,
+					<code>mountain</code>. Each carries the threshold it stands for — under 3, 3–10,
+					11–20, over 20 metres of ascent per kilometre — which is what turns four vague words
+					into something a runner can check a route against. Enter an altitude and the field
+					says what it works out to per kilometre, and which band that reads as. It never
+					changes the selection: a session can average 4 m/km and still be one brutal climb. And <code>single_track</code> is labelled “Single track”, not
+					“Trail”: it is a trail, but a narrow one, and the app also offers a wide unpaved road
+					— the difference between those two is the whole point of asking.
+				</p>
+			</div>
+		</div>
+		<div class="gap">
+			<span class="m">!</span>
+			<div>
+				<h4>One surface we cannot offer</h4>
+				<p>
+					The app’s surface list has five entries — road, athletics track, treadmill, unpaved
+					road, single track — and we have only ever seen four values on the wire. The unpaved
+					road is missing, and its API value is not something to guess: a wrong one is refused
+					the same way a wrong elevation is. A session already set to it still <em>reads</em>
+					correctly, since an unregistered surface renders under its own humanised name; it
+					just cannot be chosen here until one capture names it.
+				</p>
+			</div>
+		</div>
+		<div class="gap">
+			<span class="m q">?</span>
+			<div>
+				<h4>The applied setting lives in the package, not in the condition</h4>
+				<p>
+					<code>training_condition</code> comes back <code>null</code> on a training whose
+					terrain has never been set — even when a distance step is applied and an intensity
+					step is selected. So <code>training_condition.intensity</code> is not where the
+					current effort lives; the <code>selected</code> flag on the package's steps is. A
+					card reading the condition would show nothing on exactly the sessions a runner has
+					been adjusting.
+				</p>
+			</div>
+		</div>
+		<div class="gap">
+			<span class="m q">?</span>
+			<div>
+				<h4>Which block is the cool-down?</h4>
+				<p>
+					Nothing in the payload flags it, so the control finds it by matching a block
+					<code>type</code> containing “cool” — the same assumption
+					<code>blockTypeColor</code> already makes. A session can report
+					<code>has_cooldown</code> while naming its block something else, and attaching the
+					control to the wrong block would be worse than not finding one, so the fallback is a
+					row of its own rather than a guess. A block-level flag upstream would remove the
+					guesswork entirely.
+				</p>
+			</div>
+		</div>
+		<div class="gap">
+			<span class="m">!</span>
+			<div>
+				<h4>Five of the seven activities have no captured value</h4>
+				<p>
+					The app offers <em>keep as a run, cycling, MTB, swimming, cross trainer, elliptical
+					bike, indoor cycling</em>. Exactly one wire value is known: <code>road_bike</code>,
+					which the app calls Cycling. The other five are absent from the picker rather than
+					guessed — a <code>cross_type</code> the API does not recognise is refused, and cross
+					trainer and elliptical bike are near enough synonyms in English that a plausible guess
+					would be as likely to pick the wrong one as the right one.
+				</p>
+				<p>
+					Two things this also shows. “Keep as a run” sits in the same picker, so reverting a
+					cross-train is this endpoint rather than an exchange — Run is a choice on the picker
+					now, sending a null cross type, which is the conventional way to say “none” and the
+					one part of this still unconfirmed. And a session already cross-trained to an
+					unregistered type still reads correctly, since the label falls back to the humanised
+					value.
+				</p>
+			</div>
+		</div>
+		<div class="gap">
+			<span class="m q">?</span>
+			<div>
+				<h4>The pacing plan is race day, and it is not a dial</h4>
+				<p>
+					It appears on one session in the whole plan: the goal race, on the last day. That is
+					why <code>can_change_pacing_plan</code> is <code>false</code> on every payload captured
+					so far — a midweek tempo, an easy run and a bike ride are not races.
+				</p>
+				<p>
+					It also breaks the pattern the other two packages set. Effort and volume are
+					continuous dials whose steps are percentage deltas; the pacing plan is a choice
+					between three named strategies — <em>no plan</em>, <em>plan A</em>, <em>plan B</em> —
+					and picking one rewrites the session into a schedule of when to run how fast for how
+					far. So its <code>ChangeStep.value</code> is an identifier, not a percentage, and its
+					editor is a picker like the workout swap rather than a step scale like effort. The
+					shape bar earns its place here more than anywhere else: a pacing plan is literally a
+					shape.
+				</p>
+				<p>
+					One capture of that session settles the rest — the endpoint, the step values, and the
+					coach's own copy for the three options.
+				</p>
+			</div>
+		</div>
+		<div class="gap">
+			<span class="m">!</span>
+			<div>
+				<h4>The race-day session is locked, and delete does not know it</h4>
+				<p>
+					On that session nothing else can be changed and it cannot be deleted at all — the
+					pacing plan is the only thing on offer. The capability flags carry that, and the
+					setup rail already respects them: everything gated by a <code>can_*</code> simply
+					would not render. The delete button does not. It is gated on
+					<code>training !== null &amp;&amp; entry === null</code> and the date being today or
+					later, never on <code>can_be_edited</code> — unlike the move-date control right
+					beside it, which does check. So the one session that must not offer delete is exactly
+					the one that would, and the server would refuse the call. Pre-existing, but this is
+					where it bites.
+				</p>
+			</div>
+		</div>
+		<div class="gap">
+			<span class="m">!</span>
+			<div>
+				<h4>The recommendation is destroyed the first time you change it</h4>
+				<p>
+					<code>suggested_shoe</code> is one field doing two jobs — it is the recommendation
+					<em>and</em> it is the assignment — so the moment the runner picks something else,
+					what was recommended is gone. The whole shoe list now rests on that label, and there
+					is no fallback: without the original id there is simply no Recommended row after the
+					first change, and the list is an unordered locker. This is the one open question that
+					blocks the shoe editor rather than merely limiting it. A second field, or a flag on
+					the shoe, closes it; the prototype models it as <code>suggestedShoeId</code>.
+				</p>
+			</div>
+		</div>
+		<div class="gap">
+			<span class="m q">?</span>
+			<div>
+				<h4>Does swapping back restore the tuning?</h4>
+				<p>
+					The exchange itself is reversible, which is why the confirm dialog is gone and the
+					Undo toast took its place. What the toast promises is still worth checking: swapping
+					away and back rebuilds the blocks from the coach’s plan, so an effort or distance
+					step set beforehand is probably lost. If it is, Undo should re-apply those two calls
+					after the exchange rather than pretending one call undoes everything — and the
+					toast should say “Swapped back” rather than implying nothing happened.
+				</p>
+			</div>
+		</div>
+		<div class="gap">
+			<span class="m q">?</span>
+			<div>
+				<h4>Elevation as a number</h4>
+				<p>
+					<code>training_condition</code> accepts <code>height_value</code> and
+					<code>height_unit</code> alongside the four presets. The prototype posts the presets
+					only, with <code>height_value: 0</code>. If the presets turn out to be derived from the
+					number server-side, the tiles are lying and we need a metres field instead. Until
+					then, four tiles beat a numeric input on a phone.
+				</p>
+			</div>
+		</div>
+		<div class="gap">
+			<span class="m q">?</span>
+			<div>
+				<h4>Titles are localised, colours are not</h4>
+				<p>
+					<code>title</code> comes back in the user’s language, so nothing may key off it —
+					no “if the title contains tempo” icon mapping. <code>hex_training</code> is stable and
+					shared with the mobile app, which is why it carries the type coding here. The
+					unresolved half: whether those hues are a fixed palette per workout type or per
+					training plan. If they drift, the calendar legend can’t be static.
+				</p>
+			</div>
+		</div>
+	</div>
+</section>
+
+<section>
+	<div class="sec-head">
+		<h2>Build order</h2>
+		<span class="tag">svelte 5 runes, matching the existing calendar components</span>
+	</div>
+	<div class="grid2">
+		<div class="panel">
+			<h3>New pieces</h3>
+			<ul class="clean">
+				<li><strong>session-identity.svelte</strong> — accent rail, activity icon, title, live totals, shape bar.</li>
+				<li><strong>session-shape-bar.svelte</strong> — flattens <code>training.blocks</code> (group blocks × <code>repeat</code>) into weighted segments coloured by <code>hex_graph</code>.</li>
+				<li><strong>setup-rail.svelte</strong> — the chips; pure function of the detail object.</li>
+				<li><strong>session-setup-sheet.svelte</strong> — the two-level <code>&lt;dialog&gt;</code>, matching <code>change-date-modal.svelte</code>’s pattern.</li>
+				<li><strong>session-detail.svelte.ts</strong> — one store per selected training: fetch on select, mutate, replace wholesale, expose <code>pending</code>.</li>
+			</ul>
+		</div>
+		<div class="panel">
+			<h3>Endpoints to add</h3>
+			<ul class="clean">
+				<li><code>GET /api/v1/training/[id]</code> — the detail, and the only source of the flags.</li>
+				<li><code>POST /api/v1/training/[id]/condition</code></li>
+				<li><code>PUT /api/v1/training/[id]/intensity</code>, <code>/distance</code>, <code>/shoe</code>, <code>/cross-train</code></li>
+				<li><code>GET</code> + <code>PUT /api/v1/training/[id]/exchange</code></li>
+				<li><code>PUT /api/v1/training/[id]/cooldown</code> — once we know the upstream path</li>
+				<li><code>GET /api/v1/shoes</code> — lazy, cached for the session.</li>
+			</ul>
+			<p style="margin-top:12px">
+				Every one is a thin pass-through to the already-written <code>trainingApi</code>, guarded
+				the same way <code>training/delete</code> is.
+			</p>
+		</div>
+		<div class="panel">
+			<h3>Order</h3>
+			<ul class="clean">
+				<li><strong>1 · Read.</strong> Detail fetch, identity strip, shape bar, chips rendering current values. No editing. Ships value on its own — right now the runner can’t see the shoe or terrain at all.</li>
+				<li><strong>2 · Tune.</strong> Effort, volume, terrain, shoe. All four are the same commit path, so they land together.</li>
+				<li><strong>3 · Replace.</strong> Activity and workout swap with the Undo toast. Workout can ship as soon as the candidate list is wired; activity waits on the <code>cross_type</code> enumeration.</li>
+				<li><strong>4 · Cool-down.</strong> A control on the block plus a switch in the index. Small, but it is the one change that visibly rewrites the plan, so it wants the block list and shape bar from step 1 already in place.</li>
+			</ul>
+		</div>
+		<div class="panel">
+			<h3>Deliberately not in this design</h3>
+			<ul class="clean">
+				<li><strong>Per-block editing.</strong> The API only takes whole-session percentage steps; a block-level editor would imply a precision the endpoint doesn’t have.</li>
+				<li><strong>A free distance field.</strong> <code>distance_value</code> is a percentage delta capped by the coach, not a distance. Only the server’s steps are offerable.</li>
+				<li><strong>A workout-type icon set.</strong> Localised titles and an open-ended type list make it guesswork; colour and shape bar carry it instead.</li>
+				<li><strong>Settings in the month grid.</strong> Editing stays in the detail card — the grid gets colour only.</li>
+			</ul>
+		</div>
+	</div>
+</section>
+
+<footer>
+	Design draft for iteration · trenara-web · the prototype above is a mock, no calls leave the page.
+</footer>
+
+</div>

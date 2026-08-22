@@ -217,6 +217,33 @@ export function createCalendarStore(initialDate: Date) {
 		schedule = newSchedule;
 	}
 
+	/**
+	 * Swap one training for a newer copy of itself.
+	 *
+	 * Every session mutation hands back the complete training, so changing the
+	 * terrain or swapping the workout does not need the week refetching — but it
+	 * does need the week updating, or the calendar goes on showing the distance,
+	 * title and colour the session had before.
+	 *
+	 * The month cache is updated alongside, since it holds the very object the
+	 * store is serving: without that, leaving the month and coming back would
+	 * resurrect the stale copy from cache.
+	 */
+	function replaceTraining(updated: ScheduledTraining) {
+		if (!schedule) return;
+
+		const trainings = schedule.trainings ?? [];
+		if (!trainings.some((training) => training.id === updated.id)) return;
+
+		const next: Schedule = {
+			...schedule,
+			trainings: trainings.map((training) => (training.id === updated.id ? updated : training))
+		};
+
+		schedule = next;
+		scheduleCache.set(monthKey(currentDate), next);
+	}
+
 	async function loadMonthData(date: Date) {
 		isLoading = true;
 		error = null;
@@ -326,6 +353,7 @@ export function createCalendarStore(initialDate: Date) {
 
 		setSelectedDate,
 		setSchedule,
+		replaceTraining,
 		loadMonthData,
 		refresh,
 

@@ -207,6 +207,18 @@ describe('trainingApi.crossTrain', () => {
 		expect(req.method).toBe('PUT');
 		expect(req.body).toEqual({ cross_type: 'road_bike' });
 	});
+
+	it('sends a null cross type rather than omitting the field', async () => {
+		// Reverting to a run lives in the same picker as the activities, so it
+		// goes through this endpoint — and the field has to be there to say so.
+		fetchMock().mockResolvedValue(mockResponse({ id: 1 }));
+		await trainingApi.crossTrain(cookies, 1, null);
+
+		const req = lastRequest();
+		expect(req.method).toBe('PUT');
+		expect(req.body).toEqual({ cross_type: null });
+		expect('cross_type' in req.body).toBe(true);
+	});
 });
 
 describe('trainingApi.setTrainingCondition', () => {
@@ -245,6 +257,39 @@ describe('trainingApi.setTrainingCondition', () => {
 			height_value: 450,
 			height_unit: 'm'
 		});
+	});
+
+	it('sends all four fields even when the caller names only two', async () => {
+		// This endpoint does not merge a partial body: a field left out is
+		// answered "The … field is required" rather than kept at its stored
+		// value, so a caller setting only the terrain still carries the height.
+		fetchMock().mockResolvedValue(mockResponse({ id: 1 }));
+		await trainingApi.setTrainingCondition(cookies, 1, {
+			surface: 'single_track',
+			heightDifference: 'strong'
+		});
+
+		expect(Object.keys(lastRequest().body).sort()).toEqual([
+			'height_difference',
+			'height_unit',
+			'height_value',
+			'surface'
+		]);
+	});
+
+	it('sends both enums as the labels the read side returns', async () => {
+		// They travel as "flat" and "treadmill", not as indices — an
+		// unrecognised value is refused with "The selected height difference is
+		// invalid", which is why the editor stages a known label.
+		fetchMock().mockResolvedValue(mockResponse({ id: 1 }));
+		await trainingApi.setTrainingCondition(cookies, 1, {
+			surface: 'athletics_track',
+			heightDifference: 'lights'
+		});
+
+		const body = lastRequest().body;
+		expect(body.height_difference).toBe('lights');
+		expect(body.surface).toBe('athletics_track');
 	});
 });
 

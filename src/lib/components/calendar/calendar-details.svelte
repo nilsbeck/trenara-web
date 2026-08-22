@@ -144,6 +144,7 @@
 						store.refresh();
 						invalidateAll();
 					}}
+					onTrainingChanged={(updated) => store.replaceTraining(updated)}
 				/>
 			{:else if activeTab === Tab.Strength}
 				<StrengthDetails

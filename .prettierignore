@@ -5,3 +5,7 @@ yarn.lock
 
 # Generated output
 coverage
+
+# Hand-authored source of a published design Artifact, not app code. Prettier's
+# HTML formatting reflows the whole document and fights the inline prototype.
+docs/design/*.html

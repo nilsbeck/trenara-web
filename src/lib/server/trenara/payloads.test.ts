@@ -288,6 +288,355 @@ const crossTrainDetail = {
 	suggested_shoe: null
 } satisfies ScheduledTrainingDetail;
 
+// An interval session, from the response to a cool-down toggle. Two things here
+// appear nowhere else: `can_toggle_cooldown` is true (with the cool-down already
+// dropped), and the distance package counts repetitions instead of percentages.
+const intervalDetail = {
+	id: 127477832,
+	day: 1787695200,
+	day_long: '2026-08-26',
+	title: 'Intervals',
+	description: 'Only two reps, but that has everything to do with the intensity.',
+	show_description_from: 1787090400,
+	type: 'training',
+	icon_url: 'https://backend-prod.trenara.com/icons/icon__step.svg',
+	hex_training: '#CC3311',
+	hex_completed: null,
+	last_garmin_sync: '2026-08-22 10:54:12',
+	can_be_edited: true,
+	can_cross_train: false,
+	cross_type: null,
+	can_toggle_cooldown: true,
+	has_cooldown: false,
+	can_change_distance: true,
+	change_distance_package: {
+		title: 'Fine-tune intervals',
+		text: 'You can adjust the number of repetitions here.',
+		steps: [
+			// Repetition counts, not percentage deltas — and with no 0 step there
+			// is nothing here that means "as the coach planned it".
+			{ step: 1, value: 1, text: '1x', selected: false },
+			{ step: 2, value: 2, text: '2x', selected: true },
+			{ step: 3, value: 3, text: '3x', selected: false }
+		]
+	},
+	can_change_intensity: true,
+	change_intensity_package: {
+		title: 'Fine-tune intensity',
+		text: 'You can always ease off; increases are capped.',
+		steps: [
+			{ step: 1, value: -4, text: 'Slower', selected: false },
+			{ step: 2, value: -2, text: 'A bit slower', selected: false },
+			{ step: 3, value: 0, text: 'As planned', selected: true },
+			{ step: 4, value: 2, text: 'A bit faster', selected: false },
+			{ step: 5, value: 4, text: 'Faster', selected: false }
+		]
+	},
+	can_change_pacing_plan: false,
+	change_pacing_plan_package: null,
+	can_be_exchanged: true,
+	team_data: {
+		team_id: 470,
+		name: 'Valencia 42k',
+		picture: null,
+		nr_same_day_participants: 0,
+		nr_other_day_participants: 0,
+		matches_captain_day: true,
+		captain_pace: true,
+		can_toggle_pace: false,
+		can_show_participant_overview: true
+	},
+	training: {
+		blocks: [
+			{
+				order: 1,
+				type: 'warmup',
+				prior: 'time',
+				hex_graph: '#44A6D3',
+				calc_time_in_sec: 900,
+				hex_text: '#FFFFFF',
+				time: '15:00',
+				time_in_sec: 900,
+				time_value: 900,
+				time_unit: 'sec',
+				distance: '2.69km',
+				distance_value: 2.69,
+				distance_unit: 'km',
+				distance_unit_text: 'km',
+				pace: '05:34 min/km',
+				pace_value: 334,
+				pace_unit: 'min/km',
+				pace_per_hour: '10.78 km/h',
+				pace_per_hour_value: 334,
+				pace_per_hour_unit: 'km/h',
+				prefer_pph: false,
+				pace_range: '05:22-05:47 min/km',
+				pace_range_value_min: 347,
+				pace_range_value_max: 322,
+				pace_per_hour_range: '10.37-11.18 km/h',
+				pace_per_hour_range_value_min: 347,
+				pace_per_hour_range_value_max: 322,
+				text: 'Warm-up: 15:00 at 05:22-05:47 min/km (2.69km)',
+				text_pph: 'Warm-up: 15:00 at 10.37-11.18 km/h (2.69km)'
+			},
+			{
+				order: 2,
+				repeat: 2,
+				type: 'core',
+				blocks: [
+					{
+						order: 1,
+						type: 'run',
+						prior: 'distance',
+						hex_graph: '#7B3294',
+						hex_text: '#FFFFFF',
+						time: '05:39',
+						time_in_sec: 339,
+						time_value: 339,
+						time_unit: 'sec',
+						distance: '1.5km',
+						distance_value: 1.5,
+						distance_unit: 'km',
+						distance_unit_text: 'km',
+						pace: '03:46 min/km',
+						pace_value: 226,
+						pace_unit: 'min/km',
+						pace_per_hour: '15.93 km/h',
+						pace_per_hour_value: 226,
+						pace_per_hour_unit: 'km/h',
+						prefer_pph: false,
+						text: 'Run 1.5km in 05:39 (03:46 min/km)',
+						text_pph: 'Run 1.5km in 05:39 (15.93 km/h)'
+					},
+					{
+						order: 2,
+						type: 'rest',
+						prior: 'time',
+						hex_graph: '#D6EAF8',
+						hex_text: '#FFFFFF',
+						time: '04:00',
+						time_in_sec: 240,
+						time_value: 240,
+						time_unit: 'sec',
+						distance: '528m',
+						distance_value: 528,
+						distance_unit: 'm',
+						distance_unit_text: 'm',
+						pace: '07:34 min/km',
+						pace_value: 454,
+						pace_unit: 'min/km',
+						pace_per_hour: '7.93 km/h',
+						pace_per_hour_value: 454,
+						pace_per_hour_unit: 'km/h',
+						prefer_pph: false,
+						pace_range: '06:56-08:12 min/km',
+						pace_range_value_min: 492,
+						pace_range_value_max: 416,
+						pace_per_hour_range: '7.32-8.65 km/h',
+						pace_per_hour_range_value_min: 492,
+						pace_per_hour_range_value_max: 416,
+						text: 'Rest 04:00 at 06:56-08:12 min/km (528m)',
+						text_pph: 'Rest 04:00 at 7.32-8.65 km/h (528m)'
+					}
+				]
+			}
+		],
+		total_time_in_sec: 2058,
+		total_distance_in_km: 6.7518666666666665,
+		core_time_in_sec: 678,
+		pre_advice: null,
+		post_advice: null,
+		core_distance: '3km',
+		core_distance_value: 3,
+		core_distance_unit: 'km',
+		core_distance_unit_text: 'km',
+		core_time: '11:18',
+		core_time_value: 678,
+		core_time_unit: 'sec',
+		total_distance: '6.75km',
+		total_distance_value: 6.75,
+		total_distance_unit: 'km',
+		total_distance_unit_text: 'km',
+		total_time: '34:18',
+		total_time_value: 2058,
+		total_time_unit: 'sec'
+	},
+	// Conditions unset while a shoe is assigned — the two are independent.
+	training_condition: null,
+	suggested_shoe: {
+		id: 6404,
+		brand: 'Adidas',
+		name: 'Boston 13',
+		type: 'supertrainer',
+		preferred: false,
+		buy_date: '2026-01-11',
+		lifetime_percentage: 31.759999999999998,
+		created_at: '2026-01-14T09:05:28+01:00',
+		updated_at: '2026-01-14T09:05:28+01:00',
+		retired_at: null,
+		expected_lifetime_distance: '800km',
+		expected_lifetime_distance_value: 800,
+		expected_lifetime_distance_unit: 'km',
+		expected_lifetime_distance_unit_text: 'km',
+		distance_done: '254.08km',
+		distance_done_value: 254.08,
+		distance_done_unit: 'km',
+		distance_done_unit_text: 'km',
+		avg_pace: '05:06 min/km',
+		avg_pace_value: 306,
+		avg_pace_unit: 'min/km',
+		picture: null
+	}
+} satisfies ScheduledTrainingDetail;
+
+// A steady long run, from the responses to PUT .../distance and .../intensity.
+// The session both endpoints were captured against, and the only detail where
+// `training_condition` is null while a change package still reports an applied
+// step.
+const steadyRunDetail = {
+	id: 127477834,
+	day: 1787868000,
+	day_long: '2026-08-28',
+	title: 'LSD',
+	description: 'Tip: No need to take LSD for this LSD.',
+	show_description_from: 1787263200,
+	type: 'training',
+	icon_url: 'https://backend-prod.trenara.com/icons/icon__step.svg',
+	hex_training: '#44A6D3',
+	hex_completed: null,
+	last_garmin_sync: '2026-08-21 16:31:26',
+	can_be_edited: true,
+	can_cross_train: true,
+	cross_type: null,
+	can_toggle_cooldown: false,
+	has_cooldown: false,
+	can_change_distance: true,
+	change_distance_package: {
+		title: 'Fine-tune distance',
+		text: 'You can adjust today’s volume here.',
+		steps: [
+			{ step: 1, value: -10, text: '-10%', selected: false },
+			{ step: 2, value: -5, text: '-5%', selected: true },
+			{ step: 3, value: 0, text: '0%', selected: false },
+			{ step: 4, value: 5, text: '5%', selected: false },
+			{ step: 5, value: 10, text: '10%', selected: false }
+		]
+	},
+	can_change_intensity: true,
+	change_intensity_package: {
+		title: 'Fine-tune intensity',
+		text: 'You can always ease off; increases are capped.',
+		steps: [
+			{ step: 1, value: -4, text: 'Slower', selected: false },
+			{ step: 2, value: -2, text: 'A bit slower', selected: false },
+			{ step: 3, value: 0, text: 'As planned', selected: true },
+			{ step: 4, value: 2, text: 'A bit faster', selected: false },
+			{ step: 5, value: 4, text: 'Faster', selected: false }
+		]
+	},
+	can_change_pacing_plan: false,
+	change_pacing_plan_package: null,
+	can_be_exchanged: true,
+	team_data: {
+		team_id: 470,
+		name: 'Valencia 42k',
+		picture: null,
+		nr_same_day_participants: 0,
+		nr_other_day_participants: 0,
+		matches_captain_day: true,
+		captain_pace: true,
+		can_toggle_pace: false,
+		can_show_participant_overview: true
+	},
+	training: {
+		blocks: [
+			{
+				order: 1,
+				repeat: 1,
+				type: 'core',
+				blocks: [
+					{
+						order: 1,
+						type: 'run',
+						prior: 'distance',
+						hex_graph: '#44A6D3',
+						hex_text: '#FFFFFF',
+						time: '01:03:15',
+						time_in_sec: 3795,
+						time_value: 3795,
+						time_unit: 'sec',
+						distance: '11.4km',
+						distance_value: 11.4,
+						distance_unit: 'km',
+						distance_unit_text: 'km',
+						pace: '05:33 min/km',
+						pace_value: 333,
+						pace_unit: 'min/km',
+						pace_per_hour: '10.81 km/h',
+						pace_per_hour_value: 333,
+						pace_per_hour_unit: 'km/h',
+						prefer_pph: false,
+						pace_range: '05:21-05:46 min/km',
+						pace_range_value_min: 346,
+						pace_range_value_max: 321,
+						pace_per_hour_range: '10.40-11.22 km/h',
+						pace_per_hour_range_value_min: 346,
+						pace_per_hour_range_value_max: 321,
+						text: 'Run 11.4km in 01:03:15 (05:21-05:46 min/km)',
+						text_pph: 'Run 11.4km in 01:03:15 (10.40-11.22 km/h)'
+					}
+				]
+			}
+		],
+		total_time_in_sec: 3795,
+		total_distance_in_km: 11.399,
+		core_time_in_sec: 3795,
+		pre_advice: null,
+		post_advice: null,
+		core_distance: '11.4km',
+		core_distance_value: 11.4,
+		core_distance_unit: 'km',
+		core_distance_unit_text: 'km',
+		core_time: '01:03:15',
+		core_time_value: 3795,
+		core_time_unit: 'sec',
+		total_distance: '11.4km',
+		total_distance_value: 11.4,
+		total_distance_unit: 'km',
+		total_distance_unit_text: 'km',
+		total_time: '01:03:15',
+		total_time_value: 3795,
+		total_time_unit: 'sec'
+	},
+	// Null even though a distance step is applied and an intensity step is
+	// selected. The applied settings live in the packages, not in here.
+	training_condition: null,
+	suggested_shoe: {
+		id: 4141,
+		brand: 'Nike',
+		name: 'Invincible Run 3',
+		type: 'long_run',
+		preferred: false,
+		buy_date: '2025-10-19',
+		lifetime_percentage: 44.37500000000001,
+		created_at: '2025-10-20T13:22:07+02:00',
+		updated_at: '2025-10-20T13:22:07+02:00',
+		retired_at: null,
+		expected_lifetime_distance: '800km',
+		expected_lifetime_distance_value: 800,
+		expected_lifetime_distance_unit: 'km',
+		expected_lifetime_distance_unit_text: 'km',
+		distance_done: '355km',
+		distance_done_value: 355,
+		distance_done_unit: 'km',
+		distance_done_unit_text: 'km',
+		avg_pace: '05:15 min/km',
+		avg_pace_value: 315,
+		avg_pace_unit: 'min/km',
+		picture: null
+	}
+} satisfies ScheduledTrainingDetail;
+
 // An exchange candidate: no conditions, team or shoe, and a distance package.
 const exchangeCandidate = {
 	id: 20112,
@@ -566,10 +915,65 @@ describe('captured payloads', () => {
 		expect(crossTrainDetail.suggested_shoe).toBeNull();
 	});
 
+	it('counts repetitions, not percentages, on an interval distance package', () => {
+		// The same field carries two different meanings depending on the session:
+		// -30 for "-30%" on a steady run, 2 for "2x" here. Never do arithmetic on
+		// it — hand a step's value back and render its text.
+		const steps = intervalDetail.change_distance_package.steps;
+		expect(steps.map((s) => s.value)).toEqual([1, 2, 3]);
+		expect(steps.map((s) => s.text)).toEqual(['1x', '2x', '3x']);
+		expect(intervalDetail.change_distance_package.title).toBe('Fine-tune intervals');
+	});
+
+	it('carries two different meanings in one distance package field', () => {
+		// Captured from the same endpoint, PUT .../distance, on two sessions:
+		// { distance_value: -5 } shifts a steady run by 5%, { distance_value: 2 }
+		// asks an interval session for two reps. Nothing in the payload marks
+		// which kind you have except the steps themselves.
+		const percentages = exchangeCandidate.change_distance_package.steps;
+		const repetitions = intervalDetail.change_distance_package.steps;
+		expect(percentages.every((s) => s.text.endsWith('%'))).toBe(true);
+		expect(repetitions.every((s) => s.text.endsWith('x'))).toBe(true);
+	});
+
+	it('offers no "as planned" step on a repetition package', () => {
+		// The intensity package has one, so a step other than 0 is a deviation.
+		// The repetition package does not, so `selected` says which is applied
+		// but nothing says which was planned.
+		const reps = intervalDetail.change_distance_package.steps;
+		const intensity = intervalDetail.change_intensity_package.steps;
+		expect(reps.some((s) => s.value === 0)).toBe(false);
+		expect(intensity.some((s) => s.value === 0)).toBe(true);
+	});
+
+	it('drops the cool-down block when the cool-down is off', () => {
+		expect(intervalDetail.can_toggle_cooldown).toBe(true);
+		expect(intervalDetail.has_cooldown).toBe(false);
+		const types = intervalDetail.training.blocks.map((b) => b.type);
+		expect(types).not.toContain('cooldown');
+	});
+
 	it('stores intensity as 100 plus the applied step value', () => {
 		const applied = runDetail.change_intensity_package.steps.find((s) => s.selected);
 		expect(applied?.value).toBe(-2);
 		expect(runDetail.training_condition.intensity).toBe(100 + applied!.value);
+	});
+
+	it('reports the applied step in the package, not in training_condition', () => {
+		// This session has a distance step applied and an intensity step
+		// selected, and no training_condition at all. Reading either setting
+		// from the condition would show nothing here — `selected` is the source.
+		expect(steadyRunDetail.training_condition).toBeNull();
+		expect(steadyRunDetail.change_distance_package.steps.find((s) => s.selected)?.value).toBe(-5);
+		expect(steadyRunDetail.change_intensity_package.steps.find((s) => s.selected)?.value).toBe(0);
+	});
+
+	it('varies the step count per session, so nothing may assume one', () => {
+		// Four steps on the tempo run, five here — the coach caps the range per
+		// training, which is why the package is rendered rather than generated.
+		expect(runDetail.change_intensity_package.steps).toHaveLength(4);
+		expect(steadyRunDetail.change_intensity_package.steps).toHaveLength(5);
+		expect(intervalDetail.change_intensity_package.steps).toHaveLength(5);
 	});
 
 	it('reports pace ranges with min slower than max', () => {

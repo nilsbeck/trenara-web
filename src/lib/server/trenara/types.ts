@@ -360,6 +360,11 @@ export interface ScheduledTrainingCondition {
 	/**
 	 * Percentage of the planned speed, i.e. `100 + intensityStep.value`.
 	 * At 98 every pace is scaled by `100 / 98`, about 2% slower.
+	 *
+	 * Do not read the applied intensity from here. The whole
+	 * `training_condition` is null on a training whose terrain has never been
+	 * set, even when an intensity step *is* applied — the step's `selected` flag
+	 * in `change_intensity_package` is the only reliable source.
 	 */
 	intensity?: number;
 	updated_at: number;
@@ -373,9 +378,15 @@ export interface ScheduledTrainingCondition {
 export interface ChangeStep {
 	/** 1-based position in `steps`. Not what you send — send `value`. */
 	step: number;
-	/** Percentage delta. This is the number the corresponding PUT expects. */
+	/**
+	 * The number the corresponding PUT expects. What it *means* varies by
+	 * package and by session: a percentage delta on a distance package for a
+	 * steady run (`-30` for "-30%"), but a repetition count on the same package
+	 * for an interval session (`2` for "2x"). Never do arithmetic on it — pass
+	 * it back and render `text`.
+	 */
 	value: number;
-	/** Render as-is: "-30%" for distance, "A bit slower" for intensity. */
+	/** Render as-is: "-30%", "2x", "A bit slower". */
 	text: string;
 	selected: boolean;
 }
@@ -529,10 +540,24 @@ export type ExchangeCandidate = Omit<
 	'training_condition' | 'team_data' | 'suggested_shoe'
 >;
 
-/** Body of `POST /schedule/trainings/{id}/training_condition`. */
+/**
+ * Body of `POST /schedule/trainings/{id}/training_condition`.
+ *
+ * All four fields go up on every call, including the two the caller usually
+ * has no opinion about. This is the one write here that does not accept a
+ * partial body: omitting a field is answered "The height difference field is
+ * required" rather than left at its current value, so the request carries the
+ * whole condition and `height_value` falls back to its default of 0.
+ *
+ * Both enums travel as the labels the read side returns — `"flat"`,
+ * `"treadmill"`. An unrecognised one is refused with "The selected height
+ * difference is invalid", so the terrain editor stages a known label rather
+ * than passing an unfamiliar one through.
+ */
 export interface SetTrainingConditionRequest {
 	height_difference: TrainingHeightDifference;
 	surface: TrainingSurface;
+	/** Metres of climb. 0 is the default, and what the app sends unless asked otherwise. */
 	height_value: number;
 	height_unit: string;
 }
@@ -546,10 +571,13 @@ export interface SetIntensityRequest {
 /** Body of `PUT /schedule/trainings/{id}/distance`. */
 export interface SetDistanceRequest {
 	/**
-	 * A `change_distance_package` step's `value` — a percentage delta.
+	 * A `change_distance_package` step's `value`, whatever that package means by
+	 * it — a percentage delta on a steady run (`-10` for "10% shorter"), a
+	 * repetition count on an interval session (`2` for "2x", where the package
+	 * calls itself "Fine-tune intervals").
 	 *
-	 * NOT a distance, despite sharing a name with `TrainingBlock.distance_value`:
-	 * `-10` means "10% shorter", not "10 km".
+	 * Either way it is NOT a distance, despite sharing a name with
+	 * `TrainingBlock.distance_value`. Send a step's `value` verbatim.
 	 */
 	distance_value: number;
 }
@@ -565,10 +593,30 @@ export interface ExchangeTrainingRequest {
 	training_id: number;
 }
 
+/**
+ * Body of `PUT /schedule/trainings/{id}/cooldown`.
+ *
+ * The key is `cooldown_toggle`, not `has_cooldown` — this is the only mutation
+ * whose request field is named differently from the field it sets. Sending
+ * `has_cooldown` is accepted with a 200 and silently ignored, which is worse
+ * than a rejection: the response comes back with the cool-down untouched.
+ */
+export interface ToggleCooldownRequest {
+	/** The state the cool-down should end in, despite reading like a verb. */
+	cooldown_toggle: boolean;
+}
+
 /** Body of `PUT /schedule/trainings/{id}/cross_train`. */
 export interface CrossTrainRequest {
-	/** See `CROSS_TYPES`; typed loosely because that list is incomplete. */
-	cross_type: string;
+	/**
+	 * See `CROSS_TYPES`; typed loosely because that list is incomplete.
+	 *
+	 * `null` turns the session back into a run. The app offers that as "Keep as
+	 * a run" inside the same picker as the activities, so reverting goes through
+	 * this endpoint rather than an exchange — but the value it sends for it has
+	 * not been captured, and null is the conventional way to say "none".
+	 */
+	cross_type: string | null;
 }
 
 export interface Schedule {
