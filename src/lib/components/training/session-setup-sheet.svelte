@@ -22,6 +22,9 @@
 		SURFACES,
 		activityLabel,
 		conditionClimb,
+		elevationBand,
+		UNMAPPED_ACTIVITIES,
+		metresPerKm,
 		selectedStep,
 		sessionSettings,
 		shoeName,
@@ -57,6 +60,16 @@
 	let stagedClimb = $state<number | null>(0);
 
 	const climbMetres = $derived(stagedClimb ?? 0);
+
+	// What the entered ascent works out to against this session's distance, and
+	// which of the four bands that lands in. Shown, never applied: the runner
+	// knows their route, and a session can be flat overall with one steep climb.
+	const climbPerKm = $derived(metresPerKm(training, climbMetres));
+	const climbBandLabel = $derived(
+		climbPerKm == null
+			? null
+			: (HEIGHT_DIFFERENCES.find((h) => h.value === elevationBand(climbPerKm))?.label ?? null)
+	);
 	const climbValid = $derived(
 		stagedClimb === null ||
 			(Number.isFinite(stagedClimb) && stagedClimb >= 0 && stagedClimb <= 30000)
@@ -321,12 +334,15 @@
 						type="button"
 						onclick={() => (stagedHeight = height.value)}
 						aria-pressed={stagedHeight === height.value}
-						class="rounded-lg border px-1 py-2.5 text-[11px] transition-colors {stagedHeight ===
+						class="rounded-lg border px-2 py-2 text-[11px] transition-colors {stagedHeight ===
 						height.value
 							? 'border-primary bg-primary/10 text-foreground'
 							: 'border-border bg-muted text-muted-foreground hover:text-foreground'}"
 					>
 						{height.label}
+						<!-- The scale is only useful if it says what it measures. These are
+						     the thresholds the app publishes beside these same options. -->
+						<span class="mt-0.5 block text-[10px] opacity-70">{height.detail}</span>
 					</button>
 				{/each}
 			</div>
@@ -353,6 +369,9 @@
 				<span class="mt-1.5 block text-[11px] text-muted-foreground">
 					{#if !climbValid}
 						<span class="text-destructive">Enter the altitude in metres, 0 or more.</span>
+					{:else if climbPerKm != null}
+						{Math.round(climbPerKm)} m D+ per km over this session{#if climbBandLabel && elevationBand(climbPerKm) !== stagedHeight}
+							&nbsp;— that reads as <span class="text-foreground">{climbBandLabel}</span>{/if}.
 					{:else}
 						Metres of ascent, if you know it. Leave at 0 if you don’t.
 					{/if}
@@ -489,8 +508,7 @@
 		{:else if section === 'activity'}
 			<p class="mb-3 text-xs leading-relaxed text-muted-foreground">
 				Swapping the activity keeps the training load and drops the running detail: a ride has a
-				duration, no distance and no pace. Terrain, shoe and the workout you started from all come
-				back when you switch to running.
+				duration, no distance and no pace, and the terrain and shoe go with it.
 			</p>
 			<div class="grid grid-cols-2 gap-1.5">
 				{#each ACTIVITIES as activity (activity.label)}
@@ -510,8 +528,9 @@
 				{/each}
 			</div>
 			<p class="mt-3 text-[11px] leading-relaxed text-muted-foreground">
-				Switching back to running is an exchange, not a cross-train — pick the workout under “Swap
-				workout”.
+				Trenara also offers {UNMAPPED_ACTIVITIES.join(', ')}. They are missing here until we know
+				what to send for each — a value the API does not recognise is refused, and two of them are
+				near enough synonyms that a guess would be a coin toss.
 			</p>
 		{:else if section === 'workout'}
 			<p class="mb-3 text-xs leading-relaxed text-muted-foreground">

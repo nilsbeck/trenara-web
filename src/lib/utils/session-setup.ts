@@ -3,7 +3,8 @@ import type {
 	ChangeStep,
 	ScheduledTraining,
 	Shoe,
-	TrainingBlock
+	TrainingBlock,
+	TrainingHeightDifference
 } from '$lib/server/trenara/types';
 
 /**
@@ -74,23 +75,71 @@ export const SURFACES = [
  * better than the values do.
  */
 export const HEIGHT_DIFFERENCES = [
-	{ value: 'flat', label: 'Flat' },
-	{ value: 'lights', label: 'Slightly hilly' },
-	{ value: 'strong', label: 'Very hilly' },
-	{ value: 'mountain', label: 'Mountainous' }
+	{ value: 'flat', label: 'Flat', detail: 'Under 3 m D+ per km' },
+	{ value: 'lights', label: 'Slightly hilly', detail: '3–10 m D+ per km' },
+	{ value: 'strong', label: 'Very hilly', detail: '11–20 m D+ per km' },
+	{ value: 'mountain', label: 'Mountainous', detail: 'Over 20 m D+ per km' }
 ] as const;
 
 /**
- * Known activities, keyed by `cross_type` (null being a run).
+ * Ascent per kilometre, or null when the session has no distance to divide by.
  *
- * The real list is longer — elliptical among others — and nothing we have found
- * enumerates what a given session accepts. So this is a display registry, not a
- * whitelist: an unregistered type still renders, under its own name.
+ * Cross-trained sessions have none, and terrain is a running-only setting
+ * anyway — but a training whose distance has not loaded yet lands here too.
+ */
+export function metresPerKm(training: ScheduledTraining, climbMetres: number): number | null {
+	const km = training.training?.total_distance_in_km ?? training.training?.total_distance_value;
+	if (km == null || km <= 0 || climbMetres <= 0) return null;
+	return climbMetres / km;
+}
+
+/**
+ * Which elevation band an ascent per kilometre falls in.
+ *
+ * The thresholds are the ones the app itself publishes next to these options:
+ * under 3, between 3 and 10, between 11 and 20, over 20. Those are written for
+ * whole numbers and leave 10-to-11 unclaimed, so a real route at 10.5 m/km
+ * belongs to neither. It is banded as slightly hilly here — the lower of the
+ * two, and the reading a runner is less likely to be talked out of.
+ */
+export function elevationBand(metresPerKilometre: number): TrainingHeightDifference {
+	if (metresPerKilometre < 3) return 'flat';
+	if (metresPerKilometre < 11) return 'lights';
+	if (metresPerKilometre <= 20) return 'strong';
+	return 'mountain';
+}
+
+/**
+ * Activities we can name, keyed by `cross_type` (null being a run).
+ *
+ * The app offers seven choices — keep as a run, cycling, MTB, swimming, cross
+ * trainer, elliptical bike, indoor cycling — and exactly one of their wire
+ * values has been observed: `road_bike`, which the app calls Cycling. The rest
+ * are deliberately absent rather than guessed. Two of them are near-synonyms in
+ * English (cross trainer, elliptical bike), so a plausible-looking guess would
+ * be as likely to pick the wrong one as the right one, and a `cross_type` the
+ * API does not know is refused the same way a bad surface is.
+ *
+ * This is a display registry, not a whitelist: a session already cross-trained
+ * to an unregistered type still renders, under its own humanised name.
  */
 export const ACTIVITIES = [
 	{ crossType: null, label: 'Run' },
-	{ crossType: 'road_bike', label: 'Cycling' },
-	{ crossType: 'elliptical', label: 'Elliptical' }
+	{ crossType: 'road_bike', label: 'Cycling' }
+] as const;
+
+/**
+ * The activities the app lists, for the ones whose value we have not captured.
+ *
+ * Kept next to `ACTIVITIES` so the gap is visible rather than forgotten: when a
+ * capture names a value, it moves up.
+ */
+export const UNMAPPED_ACTIVITIES = [
+	'MTB',
+	'Swimming',
+	'Cross trainer',
+	'Elliptical bike',
+	'Indoor cycling'
 ] as const;
 
 const SHOE_TYPE_LABELS: Record<string, string> = {

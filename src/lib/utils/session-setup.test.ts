@@ -1,6 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import type { ScheduledTraining, Shoe } from '$lib/server/trenara/types';
 import {
+	ACTIVITIES,
+	UNMAPPED_ACTIVITIES,
 	activityLabel,
 	chipSettings,
 	heightLabel,
@@ -8,7 +10,10 @@ import {
 	sessionSettings,
 	conditionClimb,
 	cooldownBlockIndex,
+	elevationBand,
+	metresPerKm,
 	hasNeutralStep,
+	HEIGHT_DIFFERENCES,
 	shapeSegments,
 	shoeName,
 	shoeTypeLabel,
@@ -178,9 +183,10 @@ describe('labels', () => {
 	});
 
 	it('renders values it has never seen rather than dropping them', () => {
-		// The cross_type list is known to be incomplete, so an unregistered value
-		// has to survive as something readable.
+		// Five of the app's seven activities have no captured wire value, so an
+		// unregistered one has to survive as something readable.
 		expect(activityLabel('open_water')).toBe('Open water');
+		expect(activityLabel('indoor_cycling')).toBe('Indoor cycling');
 		expect(surfaceLabel('gravel_path')).toBe('Gravel path');
 		expect(shoeTypeLabel('carbon_plate')).toBe('Carbon plate');
 	});
@@ -515,5 +521,77 @@ describe('climb on a condition', () => {
 		// asked about, on the chip as well as the row.
 		const terrain = sessionSettings(tempoRun()).find((s) => s.key === 'terrain');
 		expect(terrain?.value).toBe('Treadmill · Flat');
+	});
+});
+
+describe('elevation bands', () => {
+	it('uses the thresholds the app publishes', () => {
+		expect(elevationBand(0)).toBe('flat');
+		expect(elevationBand(2.9)).toBe('flat');
+		expect(elevationBand(3)).toBe('lights');
+		expect(elevationBand(10)).toBe('lights');
+		expect(elevationBand(11)).toBe('strong');
+		expect(elevationBand(20)).toBe('strong');
+		expect(elevationBand(20.1)).toBe('mountain');
+	});
+
+	it('leaves no gap between "up to 10" and "from 11"', () => {
+		// The published bands skip the range between them; a real route does not.
+		expect(elevationBand(10.5)).toBe('lights');
+	});
+
+	it('divides the ascent by the session distance', () => {
+		const training = tempoRun();
+		// 12 km at full precision on this fixture.
+		expect(metresPerKm(training, 120)).toBeCloseTo(10);
+		expect(metresPerKm(training, 360)).toBeCloseTo(30);
+	});
+
+	it('has nothing to report without an ascent or a distance', () => {
+		expect(metresPerKm(tempoRun(), 0)).toBeNull();
+
+		const noDistance = tempoRun();
+		noDistance.training.total_distance_in_km = undefined;
+		noDistance.training.total_distance_value = null;
+		expect(metresPerKm(noDistance, 400)).toBeNull();
+	});
+
+	it('describes every band it can return', () => {
+		// The sheet looks the band up by value to label it; a band with no entry
+		// would render as nothing at all.
+		for (const metres of [0, 5, 15, 40]) {
+			const band = elevationBand(metres);
+			expect(HEIGHT_DIFFERENCES.some((h) => h.value === band)).toBe(true);
+		}
+	});
+
+	it('gives every option the threshold it stands for', () => {
+		for (const height of HEIGHT_DIFFERENCES) {
+			expect(height.detail).toMatch(/D\+ per km/);
+		}
+	});
+});
+
+describe('activities', () => {
+	it('registers only the cross type that has been captured', () => {
+		// road_bike is the one value seen on the wire. Guessing the others risks
+		// picking between near-synonyms — cross trainer and elliptical bike —
+		// and a cross_type the API does not know is refused.
+		expect(ACTIVITIES.map((a) => a.crossType)).toEqual([null, 'road_bike']);
+	});
+
+	it('keeps the unmapped ones named, so the gap stays visible', () => {
+		expect(UNMAPPED_ACTIVITIES).toContain('MTB');
+		expect(UNMAPPED_ACTIVITIES).toContain('Swimming');
+		expect(UNMAPPED_ACTIVITIES).toContain('Cross trainer');
+		expect(UNMAPPED_ACTIVITIES).toContain('Elliptical bike');
+		expect(UNMAPPED_ACTIVITIES).toContain('Indoor cycling');
+	});
+
+	it('does not list an activity as both known and unmapped', () => {
+		const known = ACTIVITIES.map((a) => a.label);
+		for (const pending of UNMAPPED_ACTIVITIES) {
+			expect(known).not.toContain(pending);
+		}
 	});
 });

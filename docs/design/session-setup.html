@@ -1355,15 +1355,15 @@
 	];
 
 	/**
-	 * Activity registry. `road_bike` is the one value confirmed on the wire;
-	 * elliptical and others exist but we have not enumerated them yet, so the
-	 * picker keeps a slot for whatever comes back that it doesn't recognise.
+	 * Activity registry. The app offers seven choices — keep as a run, cycling,
+	 * MTB, swimming, cross trainer, elliptical bike, indoor cycling — and
+	 * `road_bike` is the one whose wire value has been captured. The rest are a
+	 * single dashed slot rather than five guesses.
 	 */
 	var ACTIVITIES = [
 		{ v: null, label: 'Run', icon: 'i-run', known: true },
 		{ v: 'road_bike', label: 'Cycling', icon: 'i-bike', known: true },
-		{ v: 'elliptical', label: 'Elliptical', icon: 'i-elliptical', known: false },
-		{ v: '__more', label: 'and more', icon: 'i-cross', known: false }
+		{ v: '__more', label: 'five more', icon: 'i-cross', known: false }
 	];
 
 	var CANDIDATES = [
@@ -1876,9 +1876,10 @@
 			'running detail: a ride has a duration, no distance and no pace. Terrain and shoe come ' +
 			'back when you switch to running, and so does the workout you started from.</p>' +
 			'<div class="tiles" style="grid-template-columns:repeat(2,1fr)">' + html + '</div>' +
-			'<p class="sheet-text" style="margin:13px 0 0">The full list is longer than this. ' +
-			'Until we can enumerate what the coach accepts, unrecognised types render with a ' +
-			'generic icon and their own name rather than being hidden.</p>';
+			'<p class="sheet-text" style="margin:13px 0 0">MTB, swimming, cross trainer, elliptical ' +
+			'bike and indoor cycling are offered too. Their wire values have not been captured, and ' +
+			'two of them are near enough synonyms that guessing would be a coin toss — so they wait ' +
+			'rather than shipping a value the API would refuse.</p>';
 	}
 
 	function viewWorkout() {
@@ -2366,7 +2367,11 @@
 					The labels are the app’s own words rather than the API’s: <em>flat</em>,
 					<em>slightly hilly</em>, <em>very hilly</em>, <em>mountainous</em> for a scale whose
 					values read <code>flat</code>, <code>lights</code>, <code>strong</code>,
-					<code>mountain</code>. And <code>single_track</code> is labelled “Single track”, not
+					<code>mountain</code>. Each carries the threshold it stands for — under 3, 3–10,
+					11–20, over 20 metres of ascent per kilometre — which is what turns four vague words
+					into something a runner can check a route against. Enter an altitude and the field
+					says what it works out to per kilometre, and which band that reads as. It never
+					changes the selection: a session can average 4 m/km and still be one brutal climb. And <code>single_track</code> is labelled “Single track”, not
 					“Trail”: it is a trail, but a narrow one, and the app also offers a wide unpaved road
 					— the difference between those two is the whole point of asking.
 				</p>
@@ -2418,14 +2423,20 @@
 		<div class="gap">
 			<span class="m">!</span>
 			<div>
-				<h4>The activity list needs enumerating</h4>
+				<h4>Five of the seven activities have no captured value</h4>
 				<p>
-					There are more than <code>road_bike</code> — elliptical among them — but nothing we
-					have found lists what a given session accepts, and <code>CROSS_TYPES</code> holds one
-					value. So the picker reads from a local registry of <code>cross_type</code> → label +
-					icon, and anything that comes back unregistered renders with a generic icon and its
-					own name rather than being dropped. Two things would close this: the enumeration
-					itself, and whether the accepted set varies per session or is global.
+					The app offers <em>keep as a run, cycling, MTB, swimming, cross trainer, elliptical
+					bike, indoor cycling</em>. Exactly one wire value is known: <code>road_bike</code>,
+					which the app calls Cycling. The other five are absent from the picker rather than
+					guessed — a <code>cross_type</code> the API does not recognise is refused, and cross
+					trainer and elliptical bike are near enough synonyms in English that a plausible guess
+					would be as likely to pick the wrong one as the right one.
+				</p>
+				<p>
+					Two things this also shows. “Keep as a run” sits in the same picker, so reverting a
+					cross-train is probably this endpoint rather than an exchange — the sheet no longer
+					claims otherwise. And a session already cross-trained to an unregistered type still
+					reads correctly, since the label falls back to the humanised value.
 				</p>
 			</div>
 		</div>
