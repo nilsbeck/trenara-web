@@ -10,6 +10,7 @@
 		removeMessage,
 		replaceMessage,
 		serverIds,
+		toOldestFirst,
 		withMessage
 	} from './message-list';
 
@@ -64,11 +65,13 @@
 		}
 	}
 
+	// A page holds the ten most recent messages, newest first; the list below
+	// reads oldest-first.
 	async function fetchMessages(threadId: number): Promise<ChatMessage[]> {
 		const res = await fetch(`/api/v1/chat/threads/${threadId}/messages`);
 		if (!res.ok) throw new Error('Failed to load messages');
 		const data = await res.json();
-		return data.data ?? [];
+		return toOldestFirst(data.data ?? []);
 	}
 
 	async function selectThread(thread: ChatThread) {

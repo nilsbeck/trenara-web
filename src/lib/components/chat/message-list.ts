@@ -1,15 +1,15 @@
 import type { ChatMessage } from '$lib/server/trenara/types';
 
 /**
- * Helpers for keeping the rendered message list consistent while a message is
- * in flight.
+ * Helpers for keeping the rendered message list consistent.
  *
  * Two things make this less trivial than pushing onto an array:
  *
- * 1. Trenara paginates messages and the captured payloads are newest-first,
- *    while the rendered list reads oldest-first. Rather than assume an order,
- *    these helpers detect it from the list itself and insert at the matching
- *    end.
+ * 1. Trenara returns messages newest-first — page 1 is the ten most recent,
+ *    and `pagination.links.next` pages backwards through history. The bubble
+ *    reads oldest-first and scrolls to the bottom, so rendering the response
+ *    as it arrives puts the newest message off-screen at the top and leaves
+ *    the oldest of the page in view. Normalise on the way in.
  * 2. A message the user just sent has to show up immediately, but the next
  *    poll re-fetches the thread from the server. Until the server list
  *    contains it, the local copy has to survive the merge.
@@ -35,15 +35,18 @@ export function createPendingMessage(body: string, userId: number | null): ChatM
 	};
 }
 
-/** True when the list runs oldest-first. An empty or single-item list counts as ascending. */
-export function isAscending(messages: ChatMessage[]): boolean {
-	if (messages.length < 2) return true;
-	return messages[0].created_at <= messages[messages.length - 1].created_at;
+/**
+ * Puts a server response in the order the bubble renders: oldest first, newest
+ * at the bottom. Sorting rather than reversing keeps this correct even if a
+ * page comes back in another order; `id` breaks ties within the same second.
+ */
+export function toOldestFirst(messages: ChatMessage[]): ChatMessage[] {
+	return [...messages].sort((a, b) => a.created_at - b.created_at || a.id - b.id);
 }
 
-/** Inserts a message at whichever end of the list holds the newest entries. */
+/** Adds a message to the newest end of an oldest-first list. */
 export function withMessage(messages: ChatMessage[], message: ChatMessage): ChatMessage[] {
-	return isAscending(messages) ? [...messages, message] : [message, ...messages];
+	return [...messages, message];
 }
 
 /** Swaps a placeholder for the message the server confirmed, keeping its position. */
@@ -71,7 +74,7 @@ export function mergeFetched(fetched: ChatMessage[], current: ChatMessage[]): Ch
 			!fetched.some((f) => f.body === message.body && f.user_id === message.user_id)
 	);
 
-	return pending.reduce(withMessage, fetched);
+	return [...fetched, ...pending];
 }
 
 /** True once the server list holds a message we had not seen that is not ours. */

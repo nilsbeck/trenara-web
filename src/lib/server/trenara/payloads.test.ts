@@ -546,6 +546,15 @@ const chatMessages = {
 // real test.
 // ─────────────────────────────────────────────────────────────
 describe('captured payloads', () => {
+	// Page 1 is the most recent messages, and `links.next` pages backwards
+	// through history. Rendering the response as it arrives puts the newest
+	// message at the top of the thread, which is not how a chat reads.
+	it('returns chat messages newest first', () => {
+		const [newest, older] = chatMessages.data;
+		expect(newest.created_at).toBeGreaterThan(older.created_at);
+		expect(chatMessages.pagination.links.next).toContain('page=2');
+	});
+
 	it('models a cross-trained session as duration-only', () => {
 		const ride = crossTrainDetail.training.blocks[0].blocks[0];
 		expect(ride.distance_value).toBeNull();
