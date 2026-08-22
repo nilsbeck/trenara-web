@@ -59,10 +59,14 @@ export const setCooldownSchema = z.object({ hasCooldown: z.boolean() });
 
 /**
  * `cross_type` is a plain string on purpose. CROSS_TYPES lists only the values
- * we have observed and the real list is longer (elliptical among them), so
+ * we have observed and the real list is longer — the app offers seven — so
  * refusing an unseen value would break a feature the backend already supports.
+ *
+ * `null` means "back to a run", which the app offers from the same picker.
  */
-export const crossTrainSchema = z.object({ crossType: z.string().min(1).max(64) });
+export const crossTrainSchema = z.object({
+	crossType: z.string().min(1).max(64).nullable()
+});
 
 /** A candidate id from `GET .../exchange` — a different id space to the training. */
 export const exchangeTrainingSchema = z.object({ candidateId: z.number().int().positive() });

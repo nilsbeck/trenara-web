@@ -508,16 +508,16 @@
 		{:else if section === 'activity'}
 			<p class="mb-3 text-xs leading-relaxed text-muted-foreground">
 				Swapping the activity keeps the training load and drops the running detail: a ride has a
-				duration, no distance and no pace, and the terrain and shoe go with it.
+				duration, no distance and no pace, and the terrain and shoe go with it. Picking Run puts all
+				of that back.
 			</p>
 			<div class="grid grid-cols-2 gap-1.5">
 				{#each ACTIVITIES as activity (activity.label)}
 					{@const active = (training.cross_type ?? null) === activity.crossType}
 					<button
 						type="button"
-						disabled={store.pending === 'activity' || active || activity.crossType === null}
-						onclick={() =>
-							activity.crossType && commitAndClose(() => store.crossTrain(activity.crossType!))}
+						disabled={store.pending === 'activity' || active}
+						onclick={() => commitAndClose(() => store.crossTrain(activity.crossType))}
 						aria-pressed={active}
 						class="rounded-lg border px-2 py-3 text-xs transition-colors disabled:opacity-60 {active
 							? 'border-primary bg-primary/10 text-foreground'

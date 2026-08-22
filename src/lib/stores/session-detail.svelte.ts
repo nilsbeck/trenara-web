@@ -165,7 +165,8 @@ export class SessionDetailStore {
 		return true;
 	}
 
-	crossTrain(crossType: string) {
+	/** Swap the activity. `null` turns the session back into a run. */
+	crossTrain(crossType: string | null) {
 		return this.#mutate('activity', 'cross-train', 'PUT', { crossType });
 	}
 

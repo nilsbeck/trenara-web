@@ -178,8 +178,17 @@ describe('crossTrainSchema', () => {
 		expect(crossTrainSchema.safeParse({ crossType: 'elliptical' }).success).toBe(true);
 	});
 
-	it('still rejects an empty string', () => {
+	it('accepts null, which is how the session goes back to being a run', () => {
+		expect(crossTrainSchema.safeParse({ crossType: null }).success).toBe(true);
+	});
+
+	it('still rejects an empty string, which means nothing', () => {
+		// Null says "no cross type"; "" is a value that failed to be one.
 		expect(crossTrainSchema.safeParse({ crossType: '' }).success).toBe(false);
+	});
+
+	it('still requires the field to be present', () => {
+		expect(crossTrainSchema.safeParse({}).success).toBe(false);
 	});
 });
 

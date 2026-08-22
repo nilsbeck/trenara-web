@@ -608,8 +608,15 @@ export interface ToggleCooldownRequest {
 
 /** Body of `PUT /schedule/trainings/{id}/cross_train`. */
 export interface CrossTrainRequest {
-	/** See `CROSS_TYPES`; typed loosely because that list is incomplete. */
-	cross_type: string;
+	/**
+	 * See `CROSS_TYPES`; typed loosely because that list is incomplete.
+	 *
+	 * `null` turns the session back into a run. The app offers that as "Keep as
+	 * a run" inside the same picker as the activities, so reverting goes through
+	 * this endpoint rather than an exchange — but the value it sends for it has
+	 * not been captured, and null is the conventional way to say "none".
+	 */
+	cross_type: string | null;
 }
 
 export interface Schedule {

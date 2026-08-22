@@ -392,3 +392,62 @@ describe('terrain climb', () => {
 		vi.unstubAllGlobals();
 	});
 });
+
+describe('switching back to a run', () => {
+	const bike: ScheduledTraining = {
+		...detail,
+		title: 'Cycling',
+		cross_type: 'road_bike',
+		training_condition: null,
+		suggested_shoe: null
+	};
+
+	it('offers Run as a choice on a cross-trained session', async () => {
+		const fetchMock = vi
+			.fn()
+			.mockResolvedValueOnce({ ok: true, status: 200, json: async () => bike })
+			.mockResolvedValueOnce({ ok: true, status: 200, json: async () => detail });
+		vi.stubGlobal('fetch', fetchMock);
+
+		render(TrainingDetails, {
+			props: { selectedDate: '2026-08-22', training: base, entry: null, isLoading: false }
+		});
+
+		await waitFor(() => expect(screen.getAllByText('Cycling').length).toBeGreaterThan(0));
+		await fireEvent.click(screen.getByLabelText('Session setup'));
+		await fireEvent.click(await waitFor(() => screen.getByText('Activity')));
+
+		// The tile was disabled back when reverting was thought to be an
+		// exchange, which left it visible and dead.
+		const run = await waitFor(() => screen.getByRole('button', { name: 'Run' }));
+		expect((run as HTMLButtonElement).disabled).toBe(false);
+
+		await fireEvent.click(run);
+		await waitFor(() =>
+			expect(fetchMock).toHaveBeenLastCalledWith(
+				'/api/v1/training/42/cross-train',
+				expect.objectContaining({ body: JSON.stringify({ crossType: null }) })
+			)
+		);
+		vi.unstubAllGlobals();
+	});
+
+	it('does not offer the activity the session already is', async () => {
+		vi.stubGlobal(
+			'fetch',
+			vi.fn().mockResolvedValue({ ok: true, status: 200, json: async () => bike })
+		);
+
+		render(TrainingDetails, {
+			props: { selectedDate: '2026-08-22', training: base, entry: null, isLoading: false }
+		});
+
+		await waitFor(() => expect(screen.getAllByText('Cycling').length).toBeGreaterThan(0));
+		await fireEvent.click(screen.getByLabelText('Session setup'));
+		await fireEvent.click(await waitFor(() => screen.getByText('Activity')));
+
+		const cycling = await waitFor(() => screen.getByRole('button', { name: 'Cycling' }));
+		expect((cycling as HTMLButtonElement).disabled).toBe(true);
+		vi.unstubAllGlobals();
+	});
+});

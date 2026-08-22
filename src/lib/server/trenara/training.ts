@@ -246,12 +246,13 @@ export const trainingApi = {
 	 * and `suggested_shoe` are dropped. Exchanging the training reverts it.
 	 *
 	 * `crossType` is a plain string on purpose — `CROSS_TYPES` lists only the
-	 * one value observed so far and is certainly incomplete.
+	 * one value observed so far and is certainly incomplete. `null` reverts the
+	 * session to a run, which the app offers from this same picker.
 	 */
 	async crossTrain(
 		cookies: Cookies,
 		trainingId: number,
-		crossType: string
+		crossType: string | null
 	): Promise<ScheduledTrainingDetail> {
 		return fetchClient.put<ScheduledTrainingDetail>(
 			`/api/schedule/trainings/${trainingId}/cross_train`,

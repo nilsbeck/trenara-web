@@ -207,6 +207,18 @@ describe('trainingApi.crossTrain', () => {
 		expect(req.method).toBe('PUT');
 		expect(req.body).toEqual({ cross_type: 'road_bike' });
 	});
+
+	it('sends a null cross type rather than omitting the field', async () => {
+		// Reverting to a run lives in the same picker as the activities, so it
+		// goes through this endpoint — and the field has to be there to say so.
+		fetchMock().mockResolvedValue(mockResponse({ id: 1 }));
+		await trainingApi.crossTrain(cookies, 1, null);
+
+		const req = lastRequest();
+		expect(req.method).toBe('PUT');
+		expect(req.body).toEqual({ cross_type: null });
+		expect('cross_type' in req.body).toBe(true);
+	});
 });
 
 describe('trainingApi.setTrainingCondition', () => {

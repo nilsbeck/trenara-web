@@ -229,6 +229,23 @@ describe('SessionDetailStore', () => {
 		expect(store.pending).toBeNull();
 	});
 
+	it('sends a null cross type to turn the session back into a run', async () => {
+		const fetchMock = vi.mocked(fetch);
+		fetchMock.mockResolvedValueOnce(jsonResponse(detail({ cross_type: 'road_bike' })));
+		const store = new SessionDetailStore();
+		store.load(42);
+		await vi.waitFor(() => expect(store.detail).not.toBeNull());
+
+		fetchMock.mockResolvedValueOnce(jsonResponse(detail({ cross_type: null })));
+		await store.crossTrain(null);
+
+		expect(fetchMock).toHaveBeenLastCalledWith(
+			'/api/v1/training/42/cross-train',
+			expect.objectContaining({ body: JSON.stringify({ crossType: null }) })
+		);
+		expect(store.detail?.cross_type).toBeNull();
+	});
+
 	it('sends the target cool-down state, not a flip', async () => {
 		const fetchMock = vi.mocked(fetch);
 		fetchMock.mockResolvedValueOnce(jsonResponse(detail({ has_cooldown: true })));
