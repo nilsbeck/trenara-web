@@ -39,13 +39,16 @@
 		training,
 		entry,
 		isLoading,
-		onScheduleChanged
+		onScheduleChanged,
+		onTrainingChanged
 	}: {
 		selectedDate: string | null;
 		training: ScheduledTraining | null;
 		entry: Entry | null;
 		isLoading: boolean;
 		onScheduleChanged?: () => void;
+		/** A change came back from the server; the week needs the newer copy. */
+		onTrainingChanged?: (training: ScheduledTraining) => void;
 	} = $props();
 
 	// True when the entry exists but has no RPE rating yet
@@ -71,7 +74,7 @@
 	// The week payload carries none of the capability flags, so the setup
 	// controls come from a separate detail fetch and appear a moment after the
 	// rest of the card. Until then this renders the week's copy unchanged.
-	const detailStore = new SessionDetailStore();
+	const detailStore = new SessionDetailStore((updated) => onTrainingChanged?.(updated));
 
 	let setupOpen = $state(false);
 	let setupSection = $state<SettingKey | null>(null);

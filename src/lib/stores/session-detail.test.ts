@@ -464,3 +464,65 @@ describe('undoing a session swap', () => {
 		expect(await store.undo()).toBe(false);
 	});
 });
+
+describe('telling the week about a change', () => {
+	beforeEach(() => {
+		vi.stubGlobal('fetch', vi.fn());
+	});
+
+	afterEach(() => {
+		vi.unstubAllGlobals();
+	});
+
+	it('hands every change back to whoever holds the week', async () => {
+		const changed: string[] = [];
+		vi.mocked(fetch).mockResolvedValueOnce(jsonResponse(detail({ title: 'Tempo run' })));
+		const store = new SessionDetailStore((training) => changed.push(training.title));
+		store.load(42);
+		await vi.waitFor(() => expect(store.detail).not.toBeNull());
+
+		// The detail fetch is not a change — nothing to tell anyone about.
+		expect(changed).toEqual([]);
+
+		vi.mocked(fetch).mockResolvedValueOnce(jsonResponse(detail({ title: 'Tempo run' })));
+		await store.setEffort(-2);
+		vi.mocked(fetch).mockResolvedValueOnce(jsonResponse(detail({ title: 'Tempo run' })));
+		await store.setShoe(6404);
+
+		// Otherwise the card is right and the calendar around it is a version
+		// behind: same distance, same title, same colour as before the change.
+		expect(changed).toHaveLength(2);
+	});
+
+	it('says nothing when the change was refused', async () => {
+		const changed: unknown[] = [];
+		vi.mocked(fetch).mockResolvedValueOnce(jsonResponse(detail()));
+		const store = new SessionDetailStore((training) => changed.push(training));
+		store.load(42);
+		await vi.waitFor(() => expect(store.detail).not.toBeNull());
+
+		vi.mocked(fetch).mockResolvedValueOnce(jsonResponse({ message: 'Nope' }, 422));
+		await store.setEffort(-4);
+
+		expect(changed).toEqual([]);
+	});
+
+	it('says nothing about a response that arrived after the runner moved on', async () => {
+		const changed: unknown[] = [];
+		vi.mocked(fetch).mockResolvedValueOnce(jsonResponse(detail({ id: 42 })));
+		const store = new SessionDetailStore((training) => changed.push(training));
+		store.load(42);
+		await vi.waitFor(() => expect(store.detail).not.toBeNull());
+
+		const gate = deferred<Response>();
+		vi.mocked(fetch).mockReturnValueOnce(gate.promise);
+		const inFlight = store.setEffort(-2);
+		store.load(43);
+		gate.resolve(jsonResponse(detail({ id: 42, title: 'Stale' })));
+		await inFlight;
+
+		// Writing it into the week would put a training there that the runner
+		// has already navigated away from.
+		expect(changed).toEqual([]);
+	});
+});

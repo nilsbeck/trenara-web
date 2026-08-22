@@ -25,6 +25,17 @@ import { activityLabel, type SettingKey } from '$lib/utils/session-setup';
  *    hand would leave the UI describing a training that no longer exists.
  */
 export class SessionDetailStore {
+	/**
+	 * Told about every training the server hands back after a change, so the
+	 * week the calendar is holding can be kept in step. Without it the detail
+	 * card is right and everything around it is a version behind.
+	 */
+	#onChange?: (training: ScheduledTrainingDetail) => void;
+
+	constructor(onChange?: (training: ScheduledTrainingDetail) => void) {
+		this.#onChange = onChange;
+	}
+
 	detail = $state<ScheduledTrainingDetail | null>(null);
 	shoes = $state<Shoe[] | null>(null);
 	candidates = $state<ExchangeCandidate[] | null>(null);
@@ -267,6 +278,7 @@ export class SessionDetailStore {
 			if (this.#trainingId !== trainingId) return false;
 
 			this.detail = detail;
+			this.#onChange?.(detail);
 			// Replacing the session — by either route — leaves the cached
 			// alternatives describing a training that is no longer there.
 			if (key === 'session') this.candidates = null;

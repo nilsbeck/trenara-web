@@ -1087,3 +1087,104 @@ describe('navigation', () => {
 		expect(mockFetch).toHaveBeenCalled();
 	});
 });
+
+describe('replaceTraining', () => {
+	function training(overrides: Record<string, unknown> = {}) {
+		return {
+			id: 42,
+			day: 0,
+			day_long: '2025-03-05',
+			title: 'Tempo run',
+			description: '',
+			show_description_from: 0,
+			type: 'training',
+			icon_url: '',
+			hex_training: '#E69F00',
+			hex_completed: null,
+			last_garmin_sync: null,
+			can_be_edited: true,
+			training: {
+				blocks: [],
+				total_time_in_sec: 4068,
+				core_time_in_sec: 3285,
+				core_time: '54:45',
+				core_time_value: 3285,
+				core_time_unit: 'sec',
+				total_time: '01:07:48',
+				total_time_value: 4068,
+				total_time_unit: 'sec',
+				total_distance: '12km',
+				total_distance_value: 12,
+				total_distance_unit: 'km'
+			},
+			...overrides
+		} as unknown as Schedule['trainings'][number];
+	}
+
+	beforeEach(() => {
+		mockFetch.mockReset();
+	});
+
+	it('swaps in the newer copy the server handed back', async () => {
+		const store = createCalendarStore(new Date('2025-03-05'));
+		mockFetch.mockResolvedValue({
+			ok: true,
+			json: async () => makeSchedule({ trainings: [training()] })
+		});
+		await store.loadMonthData(new Date('2025-03-05'));
+
+		// A session mutation returns the whole training, so the week is updated
+		// rather than refetched.
+		store.replaceTraining(training({ title: 'Easy run', hex_training: '#009E73' }));
+
+		expect(store.schedule?.trainings[0].title).toBe('Easy run');
+		expect(store.schedule?.trainings[0].hex_training).toBe('#009E73');
+	});
+
+	it('survives leaving the month and coming back', async () => {
+		const store = createCalendarStore(new Date('2025-03-05'));
+		mockFetch.mockResolvedValue({
+			ok: true,
+			json: async () => makeSchedule({ trainings: [training()] })
+		});
+		await store.loadMonthData(new Date('2025-03-05'));
+		store.replaceTraining(training({ title: 'Easy run' }));
+
+		// The month cache holds the very object the store serves, so without
+		// updating it too, coming back would resurrect the stale copy.
+		mockFetch.mockResolvedValue({ ok: true, json: async () => makeSchedule() });
+		await store.loadMonthData(new Date('2025-04-05'));
+		await store.loadMonthData(new Date('2025-03-05'));
+
+		expect(store.schedule?.trainings[0].title).toBe('Easy run');
+	});
+
+	it('leaves every other training alone', async () => {
+		const store = createCalendarStore(new Date('2025-03-05'));
+		mockFetch.mockResolvedValue({
+			ok: true,
+			json: async () =>
+				makeSchedule({ trainings: [training(), training({ id: 43, title: 'LSD' })] })
+		});
+		await store.loadMonthData(new Date('2025-03-05'));
+
+		store.replaceTraining(training({ title: 'Easy run' }));
+
+		expect(store.schedule?.trainings.map((t) => t.title)).toEqual(['Easy run', 'LSD']);
+	});
+
+	it('ignores a training the week does not hold', async () => {
+		const store = createCalendarStore(new Date('2025-03-05'));
+		mockFetch.mockResolvedValue({
+			ok: true,
+			json: async () => makeSchedule({ trainings: [training()] })
+		});
+		await store.loadMonthData(new Date('2025-03-05'));
+
+		// The runner moved months while a change was in flight.
+		store.replaceTraining(training({ id: 999, title: 'Somewhere else' }));
+
+		expect(store.schedule?.trainings).toHaveLength(1);
+		expect(store.schedule?.trainings[0].title).toBe('Tempo run');
+	});
+});
