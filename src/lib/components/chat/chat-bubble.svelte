@@ -1,7 +1,17 @@
 <script lang="ts">
 	import type { ChatThread, ChatMessage } from '$lib/server/trenara/types';
-	import { MessageCircle, X, Loader2, Bot } from 'lucide-svelte';
+	import { MessageCircle, X, Loader2, Bot, Send } from 'lucide-svelte';
+	import { onDestroy } from 'svelte';
 	import DOMPurify from 'dompurify';
+	import {
+		createPendingMessage,
+		hasNewReply,
+		mergeFetched,
+		removeMessage,
+		replaceMessage,
+		serverIds,
+		withMessage
+	} from './message-list';
 
 	let { currentUserId = null }: { currentUserId?: number | null } = $props();
 
@@ -13,7 +23,29 @@
 	let loadingMessages = $state(false);
 	let error = $state<string | null>(null);
 
+	let draft = $state('');
+	let sending = $state(false);
+	let sendError = $state<string | null>(null);
+	let awaitingReply = $state(false);
+
 	let messagesContainer: HTMLDivElement | undefined = $state();
+	let draftInput: HTMLTextAreaElement | undefined = $state();
+
+	// Trenara generates the coach reply asynchronously, so the POST only
+	// confirms our own message. Poll the thread for a short while afterwards so
+	// the answer lands without the user having to reopen the chat.
+	const REPLY_POLL_INTERVAL_MS = 3000;
+	const REPLY_POLL_TIMEOUT_MS = 60000;
+	let replyPollTimer: ReturnType<typeof setInterval> | null = null;
+
+	// Only hide the composer when the thread explicitly forbids posting. No
+	// captured payload pins `can_send_messages` down, so a missing field must
+	// not silently turn the chat read-only again.
+	const canSendMessages = $derived(
+		selectedThread != null &&
+			selectedThread.can_send_messages !== false &&
+			selectedThread.disabled !== true
+	);
 
 	async function fetchThreads() {
 		loadingThreads = true;
@@ -32,19 +64,110 @@
 		}
 	}
 
+	async function fetchMessages(threadId: number): Promise<ChatMessage[]> {
+		const res = await fetch(`/api/v1/chat/threads/${threadId}/messages`);
+		if (!res.ok) throw new Error('Failed to load messages');
+		const data = await res.json();
+		return data.data ?? [];
+	}
+
 	async function selectThread(thread: ChatThread) {
+		stopReplyPolling();
 		selectedThread = thread;
 		loadingMessages = true;
 		error = null;
+		sendError = null;
 		try {
-			const res = await fetch(`/api/v1/chat/threads/${thread.id}/messages`);
-			if (!res.ok) throw new Error('Failed to load messages');
-			const data = await res.json();
-			messages = data.data ?? [];
+			messages = await fetchMessages(thread.id);
 		} catch (e) {
 			error = e instanceof Error ? e.message : 'An error occurred';
 		} finally {
 			loadingMessages = false;
+		}
+	}
+
+	async function send() {
+		const text = draft.trim();
+		const thread = selectedThread;
+		if (!text || sending || !thread || !canSendMessages) return;
+
+		sending = true;
+		sendError = null;
+
+		// Show the question straight away; drop it again if the post fails.
+		const pending = createPendingMessage(text, currentUserId);
+		messages = withMessage(messages, pending);
+		draft = '';
+
+		try {
+			const res = await fetch(`/api/v1/chat/threads/${thread.id}/messages`, {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ content: text })
+			});
+			if (!res.ok) throw new Error('Failed to send message');
+
+			// Trenara returns the stored message, sometimes wrapped in a data
+			// envelope. Fall back to the placeholder if it returns neither.
+			const payload = await res.json().catch(() => null);
+			const saved = payload?.data ?? payload;
+			if (saved && typeof saved.id === 'number') {
+				messages = replaceMessage(messages, pending.id, saved as ChatMessage);
+			}
+
+			startReplyPolling(thread.id);
+		} catch (e) {
+			messages = removeMessage(messages, pending.id);
+			draft = text;
+			sendError = e instanceof Error ? e.message : 'Failed to send message';
+		} finally {
+			sending = false;
+			draftInput?.focus();
+		}
+	}
+
+	function startReplyPolling(threadId: number) {
+		stopReplyPolling();
+
+		const knownIds = serverIds(messages);
+		const deadline = Date.now() + REPLY_POLL_TIMEOUT_MS;
+		awaitingReply = true;
+
+		replyPollTimer = setInterval(async () => {
+			if (Date.now() > deadline) {
+				stopReplyPolling();
+				return;
+			}
+			try {
+				const fetched = await fetchMessages(threadId);
+				// The user may have switched threads while the request was in flight.
+				if (selectedThread?.id !== threadId) {
+					stopReplyPolling();
+					return;
+				}
+				messages = mergeFetched(fetched, messages);
+				if (hasNewReply(fetched, knownIds, isOwnMessage)) {
+					stopReplyPolling();
+				}
+			} catch {
+				// A failed poll is not worth surfacing; the next tick retries.
+			}
+		}, REPLY_POLL_INTERVAL_MS);
+	}
+
+	function stopReplyPolling() {
+		if (replyPollTimer !== null) {
+			clearInterval(replyPollTimer);
+			replyPollTimer = null;
+		}
+		awaitingReply = false;
+	}
+
+	function onDraftKeydown(event: KeyboardEvent) {
+		// Enter sends, Shift+Enter starts a new line.
+		if (event.key === 'Enter' && !event.shiftKey) {
+			event.preventDefault();
+			send();
 		}
 	}
 
@@ -53,7 +176,12 @@
 		if (isOpen && threads.length === 0) {
 			fetchThreads();
 		}
+		if (!isOpen) {
+			stopReplyPolling();
+		}
 	}
+
+	onDestroy(stopReplyPolling);
 
 	// Accounts Trenara posts replies from: the coach bot ("Walter") authors as
 	// user id 3, and automated replies have been seen on id 0. Used only as a
@@ -84,8 +212,9 @@
 		});
 	}
 
+	// Keeps the newest message — or the typing indicator — in view.
 	$effect(() => {
-		if (messagesContainer && messages.length > 0) {
+		if (messagesContainer && (messages.length > 0 || awaitingReply)) {
 			messagesContainer.scrollTop = messagesContainer.scrollHeight;
 		}
 	});
@@ -222,11 +351,63 @@
 							{/if}
 						{/each}
 					{/if}
+
+					{#if awaitingReply}
+						<!-- Waiting on the coach's reply -->
+						<div class="flex justify-start gap-2">
+							<div class="w-7 shrink-0"></div>
+							<div
+								class="flex items-center gap-1 rounded-2xl rounded-tl-sm border border-border bg-muted px-3 py-2.5"
+								aria-label="{responderName()} is typing"
+							>
+								<span class="typing-dot"></span>
+								<span class="typing-dot"></span>
+								<span class="typing-dot"></span>
+							</div>
+						</div>
+					{/if}
 				</div>
 
-				<!-- Read-only notice -->
-				<div class="border-t border-border px-4 py-2.5">
-					<p class="text-center text-xs text-muted-foreground">Read-only view</p>
+				<!-- Composer -->
+				<div class="border-t border-border px-3 py-2.5">
+					{#if canSendMessages}
+						{#if sendError}
+							<p class="mb-1.5 px-1 text-xs text-destructive">{sendError}</p>
+						{/if}
+						<form
+							class="flex items-end gap-2"
+							onsubmit={(event) => {
+								event.preventDefault();
+								send();
+							}}
+						>
+							<label class="sr-only" for="chat-draft">Ask a question</label>
+							<textarea
+								id="chat-draft"
+								bind:this={draftInput}
+								bind:value={draft}
+								onkeydown={onDraftKeydown}
+								rows="1"
+								placeholder="Ask a question..."
+								disabled={sending}
+								class="max-h-24 min-h-9 flex-1 resize-none rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring disabled:opacity-60"
+							></textarea>
+							<button
+								type="submit"
+								disabled={sending || !draft.trim()}
+								aria-label="Send message"
+								class="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-primary text-primary-foreground transition-opacity hover:opacity-90 disabled:opacity-40"
+							>
+								{#if sending}
+									<Loader2 class="h-4 w-4 animate-spin" />
+								{:else}
+									<Send class="h-4 w-4" />
+								{/if}
+							</button>
+						</form>
+					{:else}
+						<p class="text-center text-xs text-muted-foreground">This conversation is read-only.</p>
+					{/if}
 				</div>
 			{/if}
 
@@ -255,6 +436,38 @@
 </div>
 
 <style>
+	.typing-dot {
+		height: 0.375rem;
+		width: 0.375rem;
+		border-radius: 9999px;
+		background-color: currentColor;
+		opacity: 0.4;
+		animation: typing 1.2s infinite ease-in-out;
+	}
+	.typing-dot:nth-child(2) {
+		animation-delay: 0.2s;
+	}
+	.typing-dot:nth-child(3) {
+		animation-delay: 0.4s;
+	}
+	@keyframes typing {
+		0%,
+		60%,
+		100% {
+			opacity: 0.25;
+			transform: translateY(0);
+		}
+		30% {
+			opacity: 0.8;
+			transform: translateY(-2px);
+		}
+	}
+	@media (prefers-reduced-motion: reduce) {
+		.typing-dot {
+			animation: none;
+		}
+	}
+
 	/* Rendered message HTML (lists, links, paragraphs) coming from the API. */
 	.chat-content :global(p) {
 		margin: 0;
