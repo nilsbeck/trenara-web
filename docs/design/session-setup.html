@@ -2313,6 +2313,26 @@
 			</div>
 		</div>
 		<div class="gap">
+			<span class="m">!</span>
+			<div>
+				<h4>Terrain reads a label and writes a number</h4>
+				<p>
+					A training comes back carrying <code>height_difference: "flat"</code>, but posting
+					that label back is rejected — <em>“The selected height difference is invalid”</em> —
+					and omitting it is rejected too, because the field is required. The write side takes
+					an integer, with <code>0</code> as the default.
+				</p>
+				<p>
+					Only <code>flat: 0</code> is confirmed. The other three follow the ascending severity
+					order of the labels we have seen, which is an inference until a non-flat condition is
+					captured. The translation sits in <code>trainingApi.setTrainingCondition</code> alone,
+					so the rest of the app keeps speaking in labels — and the terrain editor falls back to
+					a known value rather than casting an unrecognised label through, since a write that
+					names an elevation the API does not know fails on a field the runner never touched.
+				</p>
+			</div>
+		</div>
+		<div class="gap">
 			<span class="m q">?</span>
 			<div>
 				<h4>The applied setting lives in the package, not in the condition</h4>

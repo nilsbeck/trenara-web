@@ -198,6 +198,28 @@ export const TRAINING_HEIGHT_DIFFERENCES = ['flat', 'lights', 'strong', 'mountai
 export type TrainingHeightDifference = (typeof TRAINING_HEIGHT_DIFFERENCES)[number];
 
 /**
+ * What `height_difference` looks like in a condition **request**.
+ *
+ * Reads and writes disagree: a training comes back carrying the label
+ * (`"flat"`), but posting that label back is rejected — "The selected height
+ * difference is invalid" — because the write side takes an integer. The field
+ * is also required, so it cannot simply be left out.
+ *
+ * Only `flat: 0` is confirmed, as the documented default. The other three
+ * follow the ascending order of `TRAINING_HEIGHT_DIFFERENCES`, which reads as
+ * a severity scale — flat, light hills, strong hills, mountain — but that is
+ * an inference until a capture of a non-flat condition says otherwise.
+ * Everything above this line describes what the API *sends*; this is the one
+ * place that describes what it *accepts*.
+ */
+export const HEIGHT_DIFFERENCE_CODES: Record<TrainingHeightDifference, number> = {
+	flat: 0,
+	lights: 1,
+	strong: 2,
+	mountain: 3
+};
+
+/**
  * Known `cross_type` values.
  *
  * Only `road_bike` has been observed, so this list is certainly incomplete.
@@ -542,7 +564,13 @@ export type ExchangeCandidate = Omit<
 
 /** Body of `POST /schedule/trainings/{id}/training_condition`. */
 export interface SetTrainingConditionRequest {
-	height_difference: TrainingHeightDifference;
+	/** A {@link HEIGHT_DIFFERENCE_CODES} value — an integer, not the label reads return. */
+	height_difference: number;
+	/**
+	 * Sent as the label. Unlike its neighbour this has not been rejected, and
+	 * the validation error named only the height difference — but no successful
+	 * condition write has been captured either, so treat it as unconfirmed.
+	 */
 	surface: TrainingSurface;
 	height_value: number;
 	height_unit: string;

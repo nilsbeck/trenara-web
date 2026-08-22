@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import type { Cookies } from '@sveltejs/kit';
 import { TokenType } from '$lib/server/auth/types';
 import { AuthenticationError, HttpError } from './client';
+import { HEIGHT_DIFFERENCE_CODES, TRAINING_HEIGHT_DIFFERENCES } from './types';
 import { trainingApi } from './training';
 import { userApi } from './user';
 import { chatApi } from './chat';
@@ -223,7 +224,9 @@ describe('trainingApi.setTrainingCondition', () => {
 		);
 		expect(req.method).toBe('POST');
 		expect(req.body).toEqual({
-			height_difference: 'flat',
+			// A code, not the "flat" the read side returns. Posting the label back
+			// is rejected: "The selected height difference is invalid".
+			height_difference: 0,
 			surface: 'treadmill',
 			height_value: 0,
 			height_unit: 'm'
@@ -240,11 +243,32 @@ describe('trainingApi.setTrainingCondition', () => {
 		});
 
 		expect(lastRequest().body).toEqual({
-			height_difference: 'mountain',
+			height_difference: 3,
 			surface: 'road',
 			height_value: 450,
 			height_unit: 'm'
 		});
+	});
+
+	it('sends a number for every elevation the UI can offer', async () => {
+		// The field is required and rejects labels, so a label leaking through
+		// for any one option would break that option alone — the kind of gap a
+		// single happy-path test misses.
+		for (const height of TRAINING_HEIGHT_DIFFERENCES) {
+			fetchMock().mockResolvedValue(mockResponse({ id: 1 }));
+			await trainingApi.setTrainingCondition(cookies, 1, {
+				surface: 'road',
+				heightDifference: height
+			});
+			expect(typeof lastRequest().body.height_difference).toBe('number');
+		}
+	});
+
+	it('codes the elevations in ascending order from flat', async () => {
+		// Only flat: 0 is confirmed; the rest follow the severity order of
+		// TRAINING_HEIGHT_DIFFERENCES and are an inference until captured.
+		const codes = TRAINING_HEIGHT_DIFFERENCES.map((h) => HEIGHT_DIFFERENCE_CODES[h]);
+		expect(codes).toEqual([0, 1, 2, 3]);
 	});
 });
 

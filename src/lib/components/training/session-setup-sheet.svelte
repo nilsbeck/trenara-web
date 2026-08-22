@@ -109,9 +109,18 @@
 
 	$effect(() => {
 		if (section !== 'terrain') return;
-		stagedSurface = (training.training_condition?.surface as TrainingSurface) ?? 'road';
-		stagedHeight =
-			(training.training_condition?.height_difference as TrainingHeightDifference) ?? 'flat';
+		// Reads can carry a value we do not know — the API can add one at any
+		// time — and a write is required to name a known elevation. So the
+		// staged pair falls back rather than casting an unrecognised label
+		// through and having the post rejected for a field the runner never
+		// touched.
+		const condition = training.training_condition;
+		stagedSurface = SURFACES.some((s) => s.value === condition?.surface)
+			? (condition!.surface as TrainingSurface)
+			: 'road';
+		stagedHeight = HEIGHT_DIFFERENCES.some((h) => h.value === condition?.height_difference)
+			? (condition!.height_difference as TrainingHeightDifference)
+			: 'flat';
 	});
 
 	$effect(() => {
