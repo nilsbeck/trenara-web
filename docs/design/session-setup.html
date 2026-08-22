@@ -2313,22 +2313,22 @@
 			</div>
 		</div>
 		<div class="gap">
-			<span class="m">!</span>
+			<span class="m q">?</span>
 			<div>
-				<h4>Terrain reads a label and writes a number</h4>
+				<h4>Resolved: terrain writes the whole condition, in labels</h4>
 				<p>
-					A training comes back carrying <code>height_difference: "flat"</code>, but posting
-					that label back is rejected — <em>“The selected height difference is invalid”</em> —
-					and omitting it is rejected too, because the field is required. The write side takes
-					an integer, with <code>0</code> as the default.
+					Both enums travel as the labels the read side returns —
+					<code>height_difference: "flat"</code>, <code>surface: "treadmill"</code> — and all
+					four fields go up on every call. This is the one write that does not merge a partial
+					body: a field left out is answered <em>“The height difference field is required”</em>
+					rather than kept at its stored value, so a runner changing only the surface still
+					carries the height, which defaults to <code>0</code> metres.
 				</p>
 				<p>
-					Only <code>flat: 0</code> is confirmed. The other three follow the ascending severity
-					order of the labels we have seen, which is an inference until a non-flat condition is
-					captured. The translation sits in <code>trainingApi.setTrainingCondition</code> alone,
-					so the rest of the app keeps speaking in labels — and the terrain editor falls back to
-					a known value rather than casting an unrecognised label through, since a write that
-					names an elevation the API does not know fails on a field the runner never touched.
+					An unrecognised label is refused with <em>“The selected height difference is
+					invalid”</em>, which is why the terrain editor stages a known value rather than
+					passing an unfamiliar one through — a session carrying an elevation the app does not
+					know would otherwise fail on a field the runner never touched.
 				</p>
 			</div>
 		</div>

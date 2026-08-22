@@ -198,28 +198,6 @@ export const TRAINING_HEIGHT_DIFFERENCES = ['flat', 'lights', 'strong', 'mountai
 export type TrainingHeightDifference = (typeof TRAINING_HEIGHT_DIFFERENCES)[number];
 
 /**
- * What `height_difference` looks like in a condition **request**.
- *
- * Reads and writes disagree: a training comes back carrying the label
- * (`"flat"`), but posting that label back is rejected — "The selected height
- * difference is invalid" — because the write side takes an integer. The field
- * is also required, so it cannot simply be left out.
- *
- * Only `flat: 0` is confirmed, as the documented default. The other three
- * follow the ascending order of `TRAINING_HEIGHT_DIFFERENCES`, which reads as
- * a severity scale — flat, light hills, strong hills, mountain — but that is
- * an inference until a capture of a non-flat condition says otherwise.
- * Everything above this line describes what the API *sends*; this is the one
- * place that describes what it *accepts*.
- */
-export const HEIGHT_DIFFERENCE_CODES: Record<TrainingHeightDifference, number> = {
-	flat: 0,
-	lights: 1,
-	strong: 2,
-	mountain: 3
-};
-
-/**
  * Known `cross_type` values.
  *
  * Only `road_bike` has been observed, so this list is certainly incomplete.
@@ -562,16 +540,24 @@ export type ExchangeCandidate = Omit<
 	'training_condition' | 'team_data' | 'suggested_shoe'
 >;
 
-/** Body of `POST /schedule/trainings/{id}/training_condition`. */
+/**
+ * Body of `POST /schedule/trainings/{id}/training_condition`.
+ *
+ * All four fields go up on every call, including the two the caller usually
+ * has no opinion about. This is the one write here that does not accept a
+ * partial body: omitting a field is answered "The height difference field is
+ * required" rather than left at its current value, so the request carries the
+ * whole condition and `height_value` falls back to its default of 0.
+ *
+ * Both enums travel as the labels the read side returns — `"flat"`,
+ * `"treadmill"`. An unrecognised one is refused with "The selected height
+ * difference is invalid", so the terrain editor stages a known label rather
+ * than passing an unfamiliar one through.
+ */
 export interface SetTrainingConditionRequest {
-	/** A {@link HEIGHT_DIFFERENCE_CODES} value — an integer, not the label reads return. */
-	height_difference: number;
-	/**
-	 * Sent as the label. Unlike its neighbour this has not been rejected, and
-	 * the validation error named only the height difference — but no successful
-	 * condition write has been captured either, so treat it as unconfirmed.
-	 */
+	height_difference: TrainingHeightDifference;
 	surface: TrainingSurface;
+	/** Metres of climb. 0 is the default, and what the app sends unless asked otherwise. */
 	height_value: number;
 	height_unit: string;
 }

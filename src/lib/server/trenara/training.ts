@@ -11,7 +11,6 @@ import type {
 	TrainingSurface,
 	TrainingHeightDifference
 } from './types';
-import { HEIGHT_DIFFERENCE_CODES } from './types';
 import { fetchClient } from './client';
 import { TokenType } from '$lib/server/auth/types';
 
@@ -130,9 +129,10 @@ export const trainingApi = {
 	/**
 	 * Set the terrain the training will be run on.
 	 *
-	 * `height_difference` goes up as an integer code even though it comes back
-	 * as a label — see {@link HEIGHT_DIFFERENCE_CODES}. Callers speak labels;
-	 * the translation lives here so the rest of the app never has to know.
+	 * Every field goes up on every call. Unlike its siblings this endpoint does
+	 * not merge a partial body: leaving one out is answered "The … field is
+	 * required" rather than keeping the stored value, so the two the caller
+	 * rarely cares about fall back to the defaults the app itself sends.
 	 *
 	 * Unlike its siblings the response shape here is inferred rather than
 	 * observed; it is assumed to match them.
@@ -150,7 +150,7 @@ export const trainingApi = {
 		return fetchClient.post<ScheduledTrainingDetail>(
 			`/api/schedule/trainings/${trainingId}/training_condition`,
 			{
-				height_difference: HEIGHT_DIFFERENCE_CODES[condition.heightDifference],
+				height_difference: condition.heightDifference,
 				surface: condition.surface,
 				height_value: condition.heightValue ?? 0,
 				height_unit: condition.heightUnit ?? 'm'

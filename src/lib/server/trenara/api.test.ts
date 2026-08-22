@@ -2,7 +2,6 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import type { Cookies } from '@sveltejs/kit';
 import { TokenType } from '$lib/server/auth/types';
 import { AuthenticationError, HttpError } from './client';
-import { HEIGHT_DIFFERENCE_CODES, TRAINING_HEIGHT_DIFFERENCES } from './types';
 import { trainingApi } from './training';
 import { userApi } from './user';
 import { chatApi } from './chat';
@@ -224,9 +223,7 @@ describe('trainingApi.setTrainingCondition', () => {
 		);
 		expect(req.method).toBe('POST');
 		expect(req.body).toEqual({
-			// A code, not the "flat" the read side returns. Posting the label back
-			// is rejected: "The selected height difference is invalid".
-			height_difference: 0,
+			height_difference: 'flat',
 			surface: 'treadmill',
 			height_value: 0,
 			height_unit: 'm'
@@ -243,32 +240,44 @@ describe('trainingApi.setTrainingCondition', () => {
 		});
 
 		expect(lastRequest().body).toEqual({
-			height_difference: 3,
+			height_difference: 'mountain',
 			surface: 'road',
 			height_value: 450,
 			height_unit: 'm'
 		});
 	});
 
-	it('sends a number for every elevation the UI can offer', async () => {
-		// The field is required and rejects labels, so a label leaking through
-		// for any one option would break that option alone — the kind of gap a
-		// single happy-path test misses.
-		for (const height of TRAINING_HEIGHT_DIFFERENCES) {
-			fetchMock().mockResolvedValue(mockResponse({ id: 1 }));
-			await trainingApi.setTrainingCondition(cookies, 1, {
-				surface: 'road',
-				heightDifference: height
-			});
-			expect(typeof lastRequest().body.height_difference).toBe('number');
-		}
+	it('sends all four fields even when the caller names only two', async () => {
+		// This endpoint does not merge a partial body: a field left out is
+		// answered "The … field is required" rather than kept at its stored
+		// value, so a caller setting only the terrain still carries the height.
+		fetchMock().mockResolvedValue(mockResponse({ id: 1 }));
+		await trainingApi.setTrainingCondition(cookies, 1, {
+			surface: 'single_track',
+			heightDifference: 'strong'
+		});
+
+		expect(Object.keys(lastRequest().body).sort()).toEqual([
+			'height_difference',
+			'height_unit',
+			'height_value',
+			'surface'
+		]);
 	});
 
-	it('codes the elevations in ascending order from flat', async () => {
-		// Only flat: 0 is confirmed; the rest follow the severity order of
-		// TRAINING_HEIGHT_DIFFERENCES and are an inference until captured.
-		const codes = TRAINING_HEIGHT_DIFFERENCES.map((h) => HEIGHT_DIFFERENCE_CODES[h]);
-		expect(codes).toEqual([0, 1, 2, 3]);
+	it('sends both enums as the labels the read side returns', async () => {
+		// They travel as "flat" and "treadmill", not as indices — an
+		// unrecognised value is refused with "The selected height difference is
+		// invalid", which is why the editor stages a known label.
+		fetchMock().mockResolvedValue(mockResponse({ id: 1 }));
+		await trainingApi.setTrainingCondition(cookies, 1, {
+			surface: 'athletics_track',
+			heightDifference: 'lights'
+		});
+
+		const body = lastRequest().body;
+		expect(body.height_difference).toBe('lights');
+		expect(body.surface).toBe('athletics_track');
 	});
 });
 
