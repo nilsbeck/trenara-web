@@ -23,7 +23,10 @@ function makeBlock(overrides: Partial<TrainingBlock> = {}): TrainingBlock {
 	};
 }
 
-function makeTraining(blocks: TrainingBlock[]): ScheduledTraining {
+function makeTraining(
+	blocks: TrainingBlock[],
+	trainingOverrides: Record<string, unknown> = {}
+): ScheduledTraining {
 	return {
 		id: 1,
 		day: 0,
@@ -53,7 +56,8 @@ function makeTraining(blocks: TrainingBlock[]): ScheduledTraining {
 			total_distance_unit_text: 'km',
 			total_time: '',
 			total_time_value: 0,
-			total_time_unit: 'min'
+			total_time_unit: 'min',
+			...trainingOverrides
 		},
 		last_garmin_sync: '',
 		can_be_edited: true,
@@ -247,5 +251,67 @@ describe('buildTreadmillInstructions — cross-trained sessions', () => {
 		expect(result[1].repeatIndex).toBe(2);
 		// 400 m per rep, counted in metres rather than kilometres.
 		expect(result[1].cumulativeDistanceLabel).toBe('0.8 km');
+	});
+});
+
+// ─────────────────────────────────────────────────────────────
+// Units
+//
+// Nothing here should invent a unit: the speed comes back from the API
+// already rendered, and the running total is labelled with the unit the
+// session states its own distances in.
+// ─────────────────────────────────────────────────────────────
+describe('units', () => {
+	it("takes the speed from the block's own pace_per_hour rather than the pace", () => {
+		const training = makeTraining([
+			makeBlock({
+				// A pace that would compute to 10.0 km/h — the reported speed wins.
+				pace_value: 6,
+				pace_unit: 'min/km',
+				pace_per_hour: '9.18 km/h',
+				pace_per_hour_unit: 'km/h'
+			})
+		]);
+		const result = buildTreadmillInstructions(training);
+
+		expect(result[0].speedLabel).toBe('9.2 km/h');
+	});
+
+	it('keeps the reported speed unit instead of forcing km/h', () => {
+		const training = makeTraining([
+			makeBlock({ pace_per_hour: '5.71 mph', pace_per_hour_unit: 'mph' })
+		]);
+		const result = buildTreadmillInstructions(training);
+
+		expect(result[0].speedLabel).toBe('5.7 mph');
+	});
+
+	it('computes the speed from pace when the block reports none', () => {
+		const training = makeTraining([
+			makeBlock({ pace_value: 6, pace_unit: 'min/km', pace_per_hour: null })
+		]);
+		const result = buildTreadmillInstructions(training);
+
+		expect(result[0].speedLabel).toBe('10.0 km/h');
+	});
+
+	it('labels the running total with the unit the session uses', () => {
+		const training = makeTraining(
+			[makeBlock({ distance_value: 1, distance_unit: 'mi', distance: '1mi' })],
+			{ total_distance_unit: 'mi', total_distance_unit_text: 'mi' }
+		);
+		const result = buildTreadmillInstructions(training);
+
+		expect(result[0].cumulativeDistanceLabel).toBe('1.0 mi');
+	});
+
+	it('falls back to km when the session states no unit of its own', () => {
+		const training = makeTraining([makeBlock()], {
+			total_distance_unit: null,
+			total_distance_unit_text: null
+		});
+		const result = buildTreadmillInstructions(training);
+
+		expect(result[0].cumulativeDistanceLabel).toBe('2.0 km');
 	});
 });
