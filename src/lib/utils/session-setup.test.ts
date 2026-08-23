@@ -6,6 +6,7 @@ import {
 	UNMAPPED_ACTIVITIES,
 	activityLabel,
 	chipSettings,
+	hasSetupFlags,
 	heightLabel,
 	selectedStep,
 	sessionSettings,
@@ -682,5 +683,41 @@ describe('sessionSummary', () => {
 		const training = tempoRun();
 		training.training.total_distance = '12.09km';
 		expect(sessionSummary(training)).toContain('12.09km');
+	});
+});
+
+describe('hasSetupFlags', () => {
+	it('is false for a training carrying none of the capability flags', () => {
+		// The shape the week response is believed to send: schedule fields only.
+		const week = {
+			id: 1,
+			day: 0,
+			day_long: '2026-08-22',
+			title: 'Tempo run',
+			description: '',
+			show_description_from: 0,
+			type: 'training',
+			icon_url: '',
+			hex_training: '#E69F00',
+			hex_completed: null,
+			last_garmin_sync: null,
+			can_be_edited: true,
+			training: { blocks: [] }
+		} as unknown as ScheduledTraining;
+
+		expect(hasSetupFlags(week)).toBe(false);
+	});
+
+	it('takes any one flag as the whole set', () => {
+		// They travel together in every captured payload, so one is enough to
+		// say the serializer included the block — and a copy that has it can
+		// render the rail without waiting on the detail fetch.
+		const base = { can_be_edited: true } as unknown as ScheduledTraining;
+
+		expect(hasSetupFlags({ ...base, can_cross_train: false })).toBe(true);
+		expect(hasSetupFlags({ ...base, can_be_exchanged: false })).toBe(true);
+		expect(hasSetupFlags({ ...base, can_change_intensity: false })).toBe(true);
+		expect(hasSetupFlags({ ...base, can_change_distance: false })).toBe(true);
+		expect(hasSetupFlags({ ...base, can_toggle_cooldown: false })).toBe(true);
 	});
 });

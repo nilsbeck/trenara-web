@@ -252,6 +252,29 @@ export function activityIcon(crossType: string | null | undefined): 'run' | 'bik
 	return crossType === 'road_bike' ? 'bike' : 'other';
 }
 
+/**
+ * True when this copy of a training carries the capability block at all.
+ *
+ * The week response is believed to omit it — the flags are marked "observed
+ * only on the detail endpoint" in the types — but nothing in the path would
+ * hide them if it did not: the API client casts `res.json()` with no schema to
+ * strip by, and the schedule route re-serialises each training whole. So the
+ * setup UI asks the copy it has rather than assuming, and renders straight
+ * away whenever the flags are already there.
+ *
+ * Any one of them is taken as the whole set: in every payload captured so far
+ * they travel together, the detail endpoint and the exchange list alike.
+ */
+export function hasSetupFlags(training: ScheduledTraining): boolean {
+	return (
+		training.can_cross_train !== undefined ||
+		training.can_be_exchanged !== undefined ||
+		training.can_change_intensity !== undefined ||
+		training.can_change_distance !== undefined ||
+		training.can_toggle_cooldown !== undefined
+	);
+}
+
 /** True when the training is a run rather than a cross-trained session. */
 export function isRun(training: ScheduledTraining): boolean {
 	return !training.cross_type;
