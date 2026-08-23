@@ -22,7 +22,7 @@
 	import TreadmillMode from '$lib/components/training/treadmill-mode.svelte';
 	import SessionShapeBar from '$lib/components/training/session-shape-bar.svelte';
 	import SetupRail from '$lib/components/training/setup-rail.svelte';
-	import SetupRailSkeleton from '$lib/components/training/setup-rail-skeleton.svelte';
+	import SetupRailLoading from '$lib/components/training/setup-rail-loading.svelte';
 	import SessionSetupSheet from '$lib/components/training/session-setup-sheet.svelte';
 	import { SessionDetailStore } from '$lib/stores/session-detail.svelte';
 	import CooldownBlock from '$lib/components/training/cooldown-block.svelte';
@@ -99,10 +99,10 @@
 		detailStore.detail !== null && entry === null && detailStore.detail.can_be_edited
 	);
 
-	// While that fetch is out, the rail is a row of pulsing placeholders rather
-	// than nothing at all. The week's copy already says whether the plan lets
-	// this session be edited, so a session Trenara pins — the goal race — never
-	// gets a rail promised to it that then fails to appear.
+	// While that fetch is out, the rail says so rather than being absent. The
+	// week's copy already says whether the plan lets this session be edited, so
+	// a session Trenara pins — the goal race — never gets a rail promised to it
+	// that then fails to appear.
 	const setupLoading = $derived(
 		detailStore.loading && entry === null && training !== null && training.can_be_edited
 	);
@@ -343,7 +343,7 @@
 
 		<!-- Session setup: what is applied, and the way to change it -->
 		{#if setupLoading}
-			<SetupRailSkeleton />
+			<SetupRailLoading />
 		{:else if canShowSetup && detailStore.detail}
 			<SetupRail training={detailStore.detail} pending={detailStore.pending} onopen={openSetup} />
 

@@ -144,7 +144,7 @@ describe('while the detail is still loading', () => {
 		return { promise: new Promise((resolve) => (settle = resolve)), settle };
 	}
 
-	it('holds the rail with placeholders until the chips arrive', async () => {
+	it('says the setup is loading until the chips arrive', async () => {
 		const detailResponse = deferred();
 		vi.stubGlobal('fetch', vi.fn().mockReturnValue(detailResponse.promise));
 
@@ -153,14 +153,15 @@ describe('while the detail is still loading', () => {
 		});
 
 		// The week payload carries no capability flags, so the chips cannot be
-		// drawn yet — but the row is where it will be, rather than the card
-		// jumping once the fetch lands.
-		await waitFor(() => expect(screen.getByTestId('setup-rail-skeleton')).toBeTruthy());
+		// drawn yet — but the row is where it will be, and it says what it is
+		// waiting on rather than sitting there as empty grey pills.
+		await waitFor(() => expect(screen.getByTestId('setup-rail-loading')).toBeTruthy());
+		expect(screen.getByText('Loading setup…')).toBeTruthy();
 
 		detailResponse.settle({ ok: true, status: 200, json: async () => detail });
 
 		await waitFor(() => expect(screen.getAllByText('Treadmill · Flat').length).toBeGreaterThan(0));
-		expect(screen.queryByTestId('setup-rail-skeleton')).toBeNull();
+		expect(screen.queryByTestId('setup-rail-loading')).toBeNull();
 		vi.unstubAllGlobals();
 	});
 
@@ -178,10 +179,10 @@ describe('while the detail is still loading', () => {
 		});
 
 		// can_be_edited is already known from the week, and it is false on the
-		// goal race: a rail placeholder there would advertise controls that never
+		// goal race: a loading rail there would advertise controls that never
 		// come.
 		await waitFor(() => expect(screen.getAllByText('Tempo run').length).toBeGreaterThan(0));
-		expect(screen.queryByTestId('setup-rail-skeleton')).toBeNull();
+		expect(screen.queryByTestId('setup-rail-loading')).toBeNull();
 
 		detailResponse.settle({ ok: true, status: 200, json: async () => detail });
 		vi.unstubAllGlobals();
