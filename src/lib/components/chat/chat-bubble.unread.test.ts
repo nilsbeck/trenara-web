@@ -35,6 +35,9 @@ function message(id: number, user_id = COACH): ChatMessage {
 function mockFetch(threads: () => ChatThread[], messages: Record<number, ChatMessage[]>) {
 	const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
 		const url = String(input);
+		if (/\/api\/v1\/chat\/threads\/\d+\/read$/.test(url)) {
+			return new Response(JSON.stringify({ advanced: true }), { status: 200 });
+		}
 		const messagesMatch = url.match(/\/api\/v1\/chat\/threads\/(\d+)\/messages$/);
 		if (messagesMatch) {
 			return new Response(JSON.stringify({ data: messages[Number(messagesMatch[1])] ?? [] }), {
@@ -106,6 +109,48 @@ describe('chat bubble unread badge', () => {
 		await fireEvent.click(screen.getByLabelText('Close chat'));
 		await waitFor(() => expect(screen.getByLabelText('Open chat')).toBeTruthy());
 		expect(screen.queryByText('2')).toBeNull();
+	});
+
+	// The bug this guards: read state lived only in the component, so every
+	// refresh handed the badge back Trenara's own count, which never clears.
+	it('stays clear across a reload for a thread already read', () => {
+		mockFetch(() => [], {});
+		render(ChatBubble, {
+			currentUserId: ME,
+			initialThreads: [thread(1, 2, 101)],
+			initialSeen: { 1: 101 }
+		});
+
+		expect(screen.getByLabelText('Open chat')).toBeTruthy();
+	});
+
+	it('still badges a reply that landed after the stored position', () => {
+		mockFetch(() => [], {});
+		render(ChatBubble, {
+			currentUserId: ME,
+			initialThreads: [thread(1, 2, 104)],
+			initialSeen: { 1: 101 }
+		});
+
+		expect(screen.getByLabelText('Open chat, 2 unread messages')).toBeTruthy();
+	});
+
+	it('stores the position it reached so the next page load knows', async () => {
+		const fetchMock = mockFetch(() => [thread(1, 2, 101)], { 1: [message(100), message(101)] });
+		render(ChatBubble, { currentUserId: ME, initialThreads: [thread(1, 2, 101)] });
+
+		await fireEvent.click(screen.getByLabelText('Open chat, 2 unread messages'));
+		await waitFor(() => expect(screen.getByText('m101')).toBeTruthy());
+
+		await waitFor(() =>
+			expect(fetchMock).toHaveBeenCalledWith(
+				'/api/v1/chat/threads/1/read',
+				expect.objectContaining({
+					method: 'POST',
+					body: JSON.stringify({ lastSeenMessageId: 101 })
+				})
+			)
+		);
 	});
 
 	it('counts messages that arrive while the bubble sits closed', async () => {

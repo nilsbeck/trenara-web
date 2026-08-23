@@ -1,7 +1,8 @@
 import { redirect } from '@sveltejs/kit';
 import type { LayoutServerLoad } from './$types';
-import { chatApi, userApi } from '$lib/server/trenara';
+import { userApi } from '$lib/server/trenara';
 import { loadNewsBadge } from '$lib/server/news/badge';
+import { loadChatBadge } from '$lib/server/chat/badge';
 
 export const load: LayoutServerLoad = async ({ cookies, locals, depends }) => {
 	if (!locals.user) {
@@ -18,14 +19,14 @@ export const load: LayoutServerLoad = async ({ cookies, locals, depends }) => {
 	// never hold up the page behind it.
 	const newsBadge = loadNewsBadge(cookies, locals.user.id);
 
-	// Same for the chat bubble's unread badge. A chat that cannot be reached is
-	// an empty thread list here — the bubble reports its own errors once opened,
-	// and the page behind it has nothing to do with chat.
-	const chatThreads = chatApi.getThreads(cookies).catch(() => []);
+	// Same for the chat bubble's unread badge: the thread list plus how far the
+	// reader has got in each thread. It reports its own failures as "nothing
+	// unread" — the page behind it has nothing to do with chat.
+	const chatBadge = loadChatBadge(cookies, locals.user.id);
 
 	return {
 		userData,
 		newsBadge,
-		chatThreads
+		chatBadge
 	};
 };

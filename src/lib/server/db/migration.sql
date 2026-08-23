@@ -66,3 +66,21 @@ CREATE TABLE IF NOT EXISTS news_read_state (
     last_seen_created_at BIGINT NOT NULL,
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
+
+-- Chat read state (added later)
+-- Trenara's `unread_messages` per thread does not clear when the messages are
+-- read through this app, so on its own it re-badges conversations the reader
+-- finished days ago. The newest message this app has actually shown them is
+-- recorded here instead, one row per user and thread, and a thread only counts
+-- as unread when Trenara reports unread messages *and* its newest message is
+-- past that mark. Seeded on first sight of a thread, which is what keeps a
+-- sticky count for an old conversation from raising a badge.
+
+CREATE TABLE IF NOT EXISTS chat_read_state (
+    user_id INTEGER NOT NULL,
+    thread_id INTEGER NOT NULL,
+    -- Trenara message id. 0 means "seen an empty thread".
+    last_seen_message_id BIGINT NOT NULL,
+    updated_at TIMESTAMPTZ DEFAULT NOW(),
+    PRIMARY KEY (user_id, thread_id)
+);

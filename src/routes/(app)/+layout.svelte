@@ -26,6 +26,7 @@
 
 	// Seeds the chat bubble's unread badge before the bubble is ever opened.
 	let chatThreads = $state<ChatThread[]>([]);
+	let chatSeen = $state<Record<number, number>>({});
 	const newsBadgeLabel = $derived(newsUnread ? formatUnread(newsUnread) : '');
 
 	$effect(() => {
@@ -49,12 +50,14 @@
 	});
 
 	$effect(() => {
-		data.chatThreads
-			.then((threads) => {
-				chatThreads = threads;
+		data.chatBadge
+			.then((badge) => {
+				chatThreads = badge.threads;
+				chatSeen = badge.seen;
 			})
 			.catch(() => {
 				chatThreads = [];
+				chatSeen = {};
 			});
 	});
 
@@ -222,4 +225,8 @@
 	</main>
 </div>
 
-<ChatBubble currentUserId={userData?.id ?? null} initialThreads={chatThreads} />
+<ChatBubble
+	currentUserId={userData?.id ?? null}
+	initialThreads={chatThreads}
+	initialSeen={chatSeen}
+/>

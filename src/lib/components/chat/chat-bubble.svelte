@@ -23,7 +23,8 @@
 
 	let {
 		currentUserId = null,
-		initialThreads = []
+		initialThreads = [],
+		initialSeen = {}
 	}: {
 		currentUserId?: number | null;
 		/**
@@ -31,6 +32,13 @@
 		 * the bubble has been opened. Client refreshes take over from there.
 		 */
 		initialThreads?: ChatThread[];
+		/**
+		 * The reader's stored position in each thread, keyed by thread id. Read
+		 * state has to outlive the page: Trenara's own unread count does not
+		 * clear when a conversation is read here, so without this the badge
+		 * would come back on every refresh.
+		 */
+		initialSeen?: Record<number, number>;
 	} = $props();
 
 	let isOpen = $state(false);
@@ -41,8 +49,9 @@
 	let loadingMessages = $state(false);
 	let error = $state<string | null>(null);
 
-	// Newest message id the reader has actually been shown, per thread. See
-	// ./unread for why the server's own counter is not enough on its own.
+	// Newest message id the reader has actually been shown, per thread, seeded
+	// from what the server has stored for them. See ./unread for why Trenara's
+	// own counter is not enough on its own.
 	let seenMessageIds = $state<SeenMessageIds>(new Map<number, number>());
 	const unreadCount = $derived(totalUnread(threads, seenMessageIds));
 	const unreadLabel = $derived(formatUnreadBadge(unreadCount));
@@ -226,9 +235,29 @@
 		}
 	}
 
-	/** Everything on screen in this thread has now been read. */
+	/**
+	 * Everything on screen in this thread has now been read. Stored server-side
+	 * as well as locally, or the badge would return on the next page load.
+	 */
 	function markSeen(threadId: number) {
+		const before = seenMessageIds.get(threadId);
 		seenMessageIds = withSeen(seenMessageIds, threadId, messages);
+
+		const after = seenMessageIds.get(threadId);
+		if (after === undefined || after === before) return;
+		storeMark(threadId, after);
+	}
+
+	async function storeMark(threadId: number, lastSeenMessageId: number) {
+		try {
+			await fetch(`/api/v1/chat/threads/${threadId}/read`, {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ lastSeenMessageId })
+			});
+		} catch {
+			// The badge is already right for this session; the next read retries.
+		}
 	}
 
 	// Reopening should pick up whatever arrived meanwhile, without blanking the
@@ -269,6 +298,25 @@
 		if (seedConsumed || initialThreads.length === 0) return;
 		seedConsumed = true;
 		threads = initialThreads;
+	});
+
+	// Stored read marks, folded in rather than assigned: a thread read in this
+	// session is always at least as far along as the stored position.
+	let seenSeedConsumed = false;
+	$effect(() => {
+		const stored = Object.entries(initialSeen);
+		if (seenSeedConsumed || stored.length === 0) return;
+		seenSeedConsumed = true;
+
+		const merged = new Map(seenMessageIds);
+		for (const [threadId, messageId] of stored) {
+			const id = Number(threadId);
+			const current = merged.get(id);
+			if (current === undefined || messageId > current) {
+				merged.set(id, messageId);
+			}
+		}
+		seenMessageIds = merged;
 	});
 
 	// An open bubble already polls the conversation it is showing, so the thread
