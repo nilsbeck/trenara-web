@@ -29,6 +29,7 @@
 	import {
 		activityIcon,
 		cooldownBlockIndex,
+		hasSetupFlags,
 		isRun,
 		sessionSummary,
 		type SettingKey
@@ -94,17 +95,31 @@
 	// The detail once it lands, the week's copy until then.
 	const shownTraining = $derived(detailStore.detail ?? training);
 
-	// The setup rail needs the flags, so it waits for the detail.
-	const canShowSetup = $derived(
-		detailStore.detail !== null && entry === null && detailStore.detail.can_be_edited
+	// Which copy the setup controls render from: the detail once it lands, and
+	// the week's own copy before that *if* it already carries the capability
+	// flags. Nothing in the path would strip them — the API client casts
+	// res.json() with no schema, and the schedule route re-serialises each
+	// training whole — so this asks rather than assumes. Where the week does
+	// carry them the rail is there on the first paint and the fetch only
+	// confirms it; where it does not, this is null until the detail arrives.
+	const setupTraining = $derived(
+		detailStore.detail ?? (training && hasSetupFlags(training) ? training : null)
 	);
 
-	// While that fetch is out, the rail says so rather than being absent. The
-	// week's copy already says whether the plan lets this session be edited, so
-	// a session Trenara pins — the goal race — never gets a rail promised to it
-	// that then fails to appear.
+	const canShowSetup = $derived(
+		setupTraining !== null && entry === null && setupTraining.can_be_edited
+	);
+
+	// While the fetch is out with nothing to render yet, the rail says so rather
+	// than being absent. The week's copy already says whether the plan lets this
+	// session be edited, so a session Trenara pins — the goal race — never gets
+	// a rail promised to it that then fails to appear.
 	const setupLoading = $derived(
-		detailStore.loading && entry === null && training !== null && training.can_be_edited
+		detailStore.loading &&
+			setupTraining === null &&
+			entry === null &&
+			training !== null &&
+			training.can_be_edited
 	);
 
 	// Treadmill mode is only meaningful for a running session that hasn't been
@@ -120,21 +135,27 @@
 	// Only sessions that have a cool-down can drop one, and the API does not
 	// flag which block it is, so the control attaches to the block we can
 	// identify and falls back to its own row when we cannot.
+	// `has_cooldown` decides which way the control reads, and the week's copy
+	// carries the flag without it. Without this guard a session whose cool-down
+	// is present renders the ghost row that means the runner dropped it.
 	const canToggleCooldown = $derived(
-		detailStore.detail !== null && entry === null && !!detailStore.detail.can_toggle_cooldown
+		setupTraining !== null &&
+			entry === null &&
+			!!setupTraining.can_toggle_cooldown &&
+			'has_cooldown' in setupTraining
 	);
 
 	const cooldownIndex = $derived(
-		detailStore.detail && canToggleCooldown ? cooldownBlockIndex(detailStore.detail) : -1
+		setupTraining && canToggleCooldown ? cooldownBlockIndex(setupTraining) : -1
 	);
 
 	/** True when the cool-down is on but its block could not be pointed at. */
 	const cooldownNeedsOwnRow = $derived(
-		canToggleCooldown && !!detailStore.detail?.has_cooldown && cooldownIndex === -1
+		canToggleCooldown && !!setupTraining?.has_cooldown && cooldownIndex === -1
 	);
 
 	/** True when the cool-down has been dropped, so the plan shows what is gone. */
-	const cooldownRemoved = $derived(canToggleCooldown && !detailStore.detail?.has_cooldown);
+	const cooldownRemoved = $derived(canToggleCooldown && !setupTraining?.has_cooldown);
 
 	function setCooldown(next: boolean) {
 		void detailStore.setCooldown(next);
@@ -144,8 +165,8 @@
 	// a control or just a heading.
 	const canChangeSession = $derived(
 		canShowSetup &&
-			!!detailStore.detail &&
-			(!!detailStore.detail.can_cross_train || !!detailStore.detail.can_be_exchanged)
+			!!setupTraining &&
+			(!!setupTraining.can_cross_train || !!setupTraining.can_be_exchanged)
 	);
 
 	// The offer expires: an Undo still sitting there ten minutes later is not
@@ -344,8 +365,8 @@
 		<!-- Session setup: what is applied, and the way to change it -->
 		{#if setupLoading}
 			<SetupRailLoading />
-		{:else if canShowSetup && detailStore.detail}
-			<SetupRail training={detailStore.detail} pending={detailStore.pending} onopen={openSetup} />
+		{:else if canShowSetup && setupTraining}
+			<SetupRail training={setupTraining} pending={detailStore.pending} onopen={openSetup} />
 
 			<!--
 				Setup errors are shown inside the sheet while it is open. The
@@ -399,7 +420,7 @@
 				</div>
 			{/if}
 			<SessionSetupSheet
-				training={detailStore.detail}
+				training={setupTraining}
 				store={detailStore}
 				bind:open={setupOpen}
 				bind:section={setupSection}

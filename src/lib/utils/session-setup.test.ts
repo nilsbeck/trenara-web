@@ -6,6 +6,7 @@ import {
 	UNMAPPED_ACTIVITIES,
 	activityLabel,
 	chipSettings,
+	hasSetupFlags,
 	heightLabel,
 	selectedStep,
 	sessionSettings,
@@ -255,6 +256,49 @@ describe('sessionSettings', () => {
 			}
 		});
 		expect(sessionSettings(training).find((s) => s.key === 'effort')?.changed).toBe(false);
+	});
+
+	it('keeps a flagged setting on a copy that carries no packages at all', () => {
+		// The week response sends the capability flags without the packages. The
+		// flag is enough to know the chip belongs on the rail; only its label is
+		// still coming, which is what `awaiting` says.
+		const training = tempoRun({ can_change_intensity: true });
+		delete training.change_intensity_package;
+
+		const effort = sessionSettings(training).find((s) => s.key === 'effort');
+		expect(effort).toBeDefined();
+		expect(effort?.awaiting).toBe(true);
+		expect(effort?.value).toBeNull();
+	});
+
+	it('marks terrain and shoe as awaiting when the copy omits their fields', () => {
+		// Both live only on the detail. Absent is not the same as unset: a chip
+		// claiming "no terrain" about a session that has one would be wrong,
+		// where a spinner is merely incomplete.
+		const training = tempoRun({});
+		delete training.training_condition;
+		delete training.suggested_shoe;
+
+		const settings = sessionSettings(training);
+		expect(settings.find((s) => s.key === 'terrain')?.awaiting).toBe(true);
+		expect(settings.find((s) => s.key === 'shoe')?.awaiting).toBe(true);
+	});
+
+	it('treats a field that is present and null as genuinely unset', () => {
+		const training = tempoRun({ training_condition: null, suggested_shoe: null });
+
+		const settings = sessionSettings(training);
+		expect(settings.find((s) => s.key === 'terrain')?.awaiting).toBe(false);
+		expect(settings.find((s) => s.key === 'shoe')?.awaiting).toBe(false);
+	});
+
+	it('leaves the cool-down out of a copy that does not say whether it is on', () => {
+		// can_toggle_cooldown without has_cooldown would otherwise read as a
+		// cool-down the runner had dropped.
+		const training = tempoRun({ can_toggle_cooldown: true });
+		delete training.has_cooldown;
+
+		expect(sessionSettings(training).map((s) => s.key)).not.toContain('cooldown');
 	});
 
 	it('omits a change it has a flag for but no package to drive', () => {
@@ -682,5 +726,41 @@ describe('sessionSummary', () => {
 		const training = tempoRun();
 		training.training.total_distance = '12.09km';
 		expect(sessionSummary(training)).toContain('12.09km');
+	});
+});
+
+describe('hasSetupFlags', () => {
+	it('is false for a training carrying none of the capability flags', () => {
+		// The shape the week response is believed to send: schedule fields only.
+		const week = {
+			id: 1,
+			day: 0,
+			day_long: '2026-08-22',
+			title: 'Tempo run',
+			description: '',
+			show_description_from: 0,
+			type: 'training',
+			icon_url: '',
+			hex_training: '#E69F00',
+			hex_completed: null,
+			last_garmin_sync: null,
+			can_be_edited: true,
+			training: { blocks: [] }
+		} as unknown as ScheduledTraining;
+
+		expect(hasSetupFlags(week)).toBe(false);
+	});
+
+	it('takes any one flag as the whole set', () => {
+		// They travel together in every captured payload, so one is enough to
+		// say the serializer included the block — and a copy that has it can
+		// render the rail without waiting on the detail fetch.
+		const base = { can_be_edited: true } as unknown as ScheduledTraining;
+
+		expect(hasSetupFlags({ ...base, can_cross_train: false })).toBe(true);
+		expect(hasSetupFlags({ ...base, can_be_exchanged: false })).toBe(true);
+		expect(hasSetupFlags({ ...base, can_change_intensity: false })).toBe(true);
+		expect(hasSetupFlags({ ...base, can_change_distance: false })).toBe(true);
+		expect(hasSetupFlags({ ...base, can_toggle_cooldown: false })).toBe(true);
 	});
 });

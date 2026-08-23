@@ -637,6 +637,42 @@ const steadyRunDetail = {
 	}
 } satisfies ScheduledTrainingDetail;
 
+// ─────────────────────────────────────────────────────────────
+// The week response.
+//
+// Keys only: read off `GET /api/schedule/week/` on 2026-08-23, on a running
+// session in a live account. The values are not transcribed — the key set is
+// the fact worth keeping, because it decides how much of the session-setup UI
+// can be built without a second request per day.
+// ─────────────────────────────────────────────────────────────
+const WEEK_TRAINING_KEYS = [
+	'can_be_edited',
+	'can_be_exchanged',
+	'can_change_distance',
+	'can_change_intensity',
+	'can_change_pacing_plan',
+	'can_cross_train',
+	'can_toggle_cooldown',
+	'change_distance_package',
+	'change_intensity_package',
+	'change_pacing_plan_package',
+	'cross_type',
+	'day',
+	'day_long',
+	'description',
+	'has_cooldown',
+	'hex_completed',
+	'hex_training',
+	'icon_url',
+	'id',
+	'last_garmin_sync',
+	'show_description_from',
+	'team_data',
+	'title',
+	'training',
+	'type'
+] as const;
+
 // An exchange candidate: no conditions, team or shoe, and a distance package.
 const exchangeCandidate = {
 	id: 20112,
@@ -999,6 +1035,35 @@ describe('captured payloads', () => {
 		expect(Object.keys(newsResponse.pagination).sort()).toEqual(
 			Object.keys(chatMessages.pagination).sort()
 		);
+	});
+
+	it('sends every capability flag and change package with the week', () => {
+		// The reason the chip rail can be drawn before the detail arrives. This
+		// was assumed the other way round for a long time, on no evidence.
+		for (const key of [
+			'can_cross_train',
+			'can_be_exchanged',
+			'can_change_intensity',
+			'can_change_distance',
+			'can_toggle_cooldown',
+			'change_intensity_package',
+			'change_distance_package',
+			'has_cooldown',
+			'cross_type'
+		]) {
+			expect(WEEK_TRAINING_KEYS).toContain(key);
+		}
+	});
+
+	it('leaves terrain and shoe out of the week entirely', () => {
+		// Absent, not null — the distinction the setup UI is built on: a value
+		// this copy does not carry is unknown, not unset.
+		expect(WEEK_TRAINING_KEYS).not.toContain('training_condition');
+		expect(WEEK_TRAINING_KEYS).not.toContain('suggested_shoe');
+
+		// Both are on the detail, which is what the per-day fetch is still for.
+		expect(runDetail).toHaveProperty('training_condition');
+		expect(runDetail).toHaveProperty('suggested_shoe');
 	});
 
 	it('offers exchange candidates with ids from a different space than the schedule id', () => {

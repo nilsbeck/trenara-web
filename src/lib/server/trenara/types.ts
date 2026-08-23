@@ -500,7 +500,11 @@ export interface ScheduledTraining {
 	title: string;
 	description: string;
 	show_description_from: number;
-	/** Week response only — the detail endpoint omits it. */
+	/**
+	 * Documented as week-only, but absent from the week payload captured on
+	 * 2026-08-23 and empty wherever it has been seen. Nutrition comes from
+	 * `GET /api/nutritional/advice` instead.
+	 */
 	nutritional_advice?: string;
 	type: string;
 	icon_url: string;
@@ -509,10 +513,18 @@ export interface ScheduledTraining {
 	training: Training;
 	last_garmin_sync: string | null;
 	can_be_edited: boolean;
-	/** `null` until conditions are set on this training — the usual state. */
-	training_condition?: ScheduledTrainingCondition | null;
 
-	// ── Fields observed only on the detail endpoint and the mutations ──
+	// ── Capability flags and change packages ──
+	//
+	// These were long believed to be detail-only. They are not: a week response
+	// captured on 2026-08-23 carried every field below, packages included, on
+	// each of its trainings — see `WEEK_TRAINING_KEYS` in `payloads.test.ts`.
+	// So the setup rail can be built from the week alone, and the per-day detail
+	// fetch is needed only for the two fields under it.
+	//
+	// Still optional rather than required: this API is reverse-engineered, an
+	// exchange candidate is a different serialisation again, and a missing key
+	// is meaningfully different from a null one throughout the setup UI.
 	can_cross_train?: boolean;
 	/** Set once the session is swapped to another activity. See `CROSS_TYPES`. */
 	cross_type?: string | null;
@@ -527,6 +539,15 @@ export interface ScheduledTraining {
 	change_pacing_plan_package?: ChangePackage | null;
 	can_be_exchanged?: boolean;
 	team_data?: TeamData | null;
+
+	// ── The two fields only the detail endpoint and the mutations send ──
+	//
+	// Absent from the week response entirely — not null, absent — which is why
+	// the setup UI distinguishes the two: a chip may say "no terrain set" from a
+	// copy that carries the field, never from one that omits it.
+
+	/** `null` until conditions are set on this training — the usual state. */
+	training_condition?: ScheduledTrainingCondition | null;
 	/** `null` when no shoe is assigned — the usual state. */
 	suggested_shoe?: Shoe | null;
 }
