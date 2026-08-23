@@ -13,8 +13,25 @@
 		toOldestFirst,
 		withMessage
 	} from './message-list';
+	import {
+		formatUnreadBadge,
+		threadUnread,
+		totalUnread,
+		withSeen,
+		type SeenMessageIds
+	} from './unread';
 
-	let { currentUserId = null }: { currentUserId?: number | null } = $props();
+	let {
+		currentUserId = null,
+		initialThreads = []
+	}: {
+		currentUserId?: number | null;
+		/**
+		 * Threads streamed in with the page, so the unread badge is right before
+		 * the bubble has been opened. Client refreshes take over from there.
+		 */
+		initialThreads?: ChatThread[];
+	} = $props();
 
 	let isOpen = $state(false);
 	let threads = $state<ChatThread[]>([]);
@@ -23,6 +40,19 @@
 	let loadingThreads = $state(false);
 	let loadingMessages = $state(false);
 	let error = $state<string | null>(null);
+
+	// Newest message id the reader has actually been shown, per thread. See
+	// ./unread for why the server's own counter is not enough on its own.
+	let seenMessageIds = $state<SeenMessageIds>(new Map<number, number>());
+	const unreadCount = $derived(totalUnread(threads, seenMessageIds));
+	const unreadLabel = $derived(formatUnreadBadge(unreadCount));
+	const bubbleLabel = $derived(
+		isOpen
+			? 'Close chat'
+			: unreadCount > 0
+				? `Open chat, ${unreadCount} unread ${unreadCount === 1 ? 'message' : 'messages'}`
+				: 'Open chat'
+	);
 
 	let draft = $state('');
 	let sending = $state(false);
@@ -39,6 +69,10 @@
 	const REPLY_POLL_TIMEOUT_MS = 60000;
 	let replyPollTimer: ReturnType<typeof setInterval> | null = null;
 
+	// The badge has to stay honest on a page that is left open all morning, so
+	// the thread list is refreshed on a slow tick while the bubble is closed.
+	const THREAD_POLL_INTERVAL_MS = 60000;
+
 	// Only hide the composer when the thread explicitly forbids posting. No
 	// captured payload pins `can_send_messages` down, so a missing field must
 	// not silently turn the chat read-only again.
@@ -48,13 +82,19 @@
 			selectedThread.disabled !== true
 	);
 
+	async function loadThreads(): Promise<ChatThread[]> {
+		const res = await fetch('/api/v1/chat/threads/');
+		if (!res.ok) throw new Error('Failed to load threads');
+		// Anything the bubble fetched itself is newer than the seed below.
+		seedConsumed = true;
+		return await res.json();
+	}
+
 	async function fetchThreads() {
 		loadingThreads = true;
 		error = null;
 		try {
-			const res = await fetch('/api/v1/chat/threads/');
-			if (!res.ok) throw new Error('Failed to load threads');
-			threads = await res.json();
+			threads = await loadThreads();
 			if (threads.length > 0 && !selectedThread) {
 				await selectThread(threads[0]);
 			}
@@ -62,6 +102,16 @@
 			error = e instanceof Error ? e.message : 'An error occurred';
 		} finally {
 			loadingThreads = false;
+		}
+	}
+
+	// Badge upkeep only: a failed refresh means a stale count, which is not
+	// worth an error message over the closed bubble.
+	async function refreshThreads() {
+		try {
+			threads = await loadThreads();
+		} catch {
+			// The next tick retries.
 		}
 	}
 
@@ -82,6 +132,7 @@
 		sendError = null;
 		try {
 			messages = await fetchMessages(thread.id);
+			markSeen(thread.id);
 		} catch (e) {
 			error = e instanceof Error ? e.message : 'An error occurred';
 		} finally {
@@ -149,6 +200,7 @@
 					return;
 				}
 				messages = mergeFetched(fetched, messages);
+				markSeen(threadId);
 				if (hasNewReply(fetched, knownIds, isOwnMessage)) {
 					stopReplyPolling();
 				}
@@ -174,17 +226,60 @@
 		}
 	}
 
+	/** Everything on screen in this thread has now been read. */
+	function markSeen(threadId: number) {
+		seenMessageIds = withSeen(seenMessageIds, threadId, messages);
+	}
+
+	// Reopening should pick up whatever arrived meanwhile, without blanking the
+	// conversation already on screen behind a loading spinner.
+	async function catchUp(thread: ChatThread) {
+		try {
+			const fetched = await fetchMessages(thread.id);
+			if (selectedThread?.id !== thread.id) return;
+			messages = mergeFetched(fetched, messages);
+			markSeen(thread.id);
+		} catch {
+			// Keep what is on screen; sending or reopening retries.
+		}
+	}
+
 	function toggle() {
 		isOpen = !isOpen;
-		if (isOpen && threads.length === 0) {
-			fetchThreads();
-		}
 		if (!isOpen) {
 			stopReplyPolling();
+			return;
+		}
+		if (threads.length === 0) {
+			fetchThreads();
+		} else if (!selectedThread) {
+			selectThread(threads[0]);
+		} else {
+			catchUp(selectedThread);
 		}
 	}
 
 	onDestroy(stopReplyPolling);
+
+	// The thread list streamed in with the page seeds the badge, so it is right
+	// before the bubble has ever been opened. A seed that resolves late must not
+	// overwrite a list the bubble has since fetched for itself.
+	let seedConsumed = false;
+	$effect(() => {
+		if (seedConsumed || initialThreads.length === 0) return;
+		seedConsumed = true;
+		threads = initialThreads;
+	});
+
+	// An open bubble already polls the conversation it is showing, so the thread
+	// tick only runs while it is closed.
+	$effect(() => {
+		if (isOpen) return;
+		const timer = setInterval(() => {
+			refreshThreads();
+		}, THREAD_POLL_INTERVAL_MS);
+		return () => clearInterval(timer);
+	});
 
 	// Accounts Trenara posts replies from: the coach bot ("Walter") authors as
 	// user id 3, and automated replies have been seen on id 0. Used only as a
@@ -248,6 +343,7 @@
 			{#if !selectedThread && !loadingThreads}
 				<div class="flex-1 overflow-y-auto">
 					{#each threads as thread}
+						{@const threadUnreadLabel = formatUnreadBadge(threadUnread(thread, seenMessageIds))}
 						<button
 							type="button"
 							onclick={() => selectThread(thread)}
@@ -262,11 +358,11 @@
 									</p>
 								{/if}
 							</div>
-							{#if thread.unread_messages > 0}
+							{#if threadUnreadLabel}
 								<span
 									class="mt-0.5 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1.5 text-xs font-medium text-primary-foreground"
 								>
-									{thread.unread_messages}
+									{threadUnreadLabel}
 								</span>
 							{/if}
 						</button>
@@ -427,13 +523,27 @@
 	<button
 		type="button"
 		onclick={toggle}
-		class="flex h-14 w-14 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg transition-transform hover:scale-105 active:scale-95"
-		aria-label={isOpen ? 'Close chat' : 'Open chat'}
+		class="relative flex h-14 w-14 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg transition-transform hover:scale-105 active:scale-95"
+		aria-label={bubbleLabel}
 	>
 		{#if isOpen}
 			<X class="h-6 w-6" />
 		{:else}
 			<MessageCircle class="h-6 w-6" />
+		{/if}
+
+		<!--
+			Unread count, only worth showing while the conversation is out of
+			sight. The count is already spelled out in the button's own label, so
+			the badge itself is decoration.
+		-->
+		{#if !isOpen && unreadLabel}
+			<span
+				class="absolute -right-0.5 -top-0.5 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-destructive px-1.5 text-xs font-semibold text-destructive-foreground ring-2 ring-background"
+				aria-hidden="true"
+			>
+				{unreadLabel}
+			</span>
 		{/if}
 	</button>
 </div>
