@@ -1411,7 +1411,9 @@
 
 	var SURFACES = [
 		{ v: 'road', label: 'Road', icon: 'i-road' },
+		{ v: 'track', label: 'Athletics track', icon: 'i-track' },
 		{ v: 'treadmill', label: 'Treadmill', icon: 'i-treadmill' },
+		{ v: 'dirt_road', label: 'Dirt road', icon: 'i-road' },
 		{ v: 'single_track', label: 'Single track', icon: 'i-trail' }
 	];
 
@@ -2470,18 +2472,17 @@
 		<div class="gap">
 			<span class="m">!</span>
 			<div>
-				<h4>Two surfaces we cannot offer</h4>
+				<h4>The surface values are not the surface names</h4>
 				<p>
-					The app’s surface list has five entries — road, athletics track, treadmill, unpaved
-					road, single track — and only three of them have a value we can send. The unpaved
-					road has never been seen on the wire. The athletics track was offered as
-					<code>athletics_track</code>, a value read off the app’s own list rather than captured,
-					and the API answers it “The selected surface is invalid” — so it is gone too, rather
-					than guessed at again: <code>track</code> and <code>athletic_track</code> are as
-					plausible as each other, and the terrain call carries the elevation, so a refused
-					surface also loses a change the runner did make. A session already set to either
-					still <em>reads</em> correctly, since an unregistered surface renders under its own
-					humanised name; it just cannot be chosen here until one capture names it.
+					All five surfaces are offered — road, athletics track, treadmill, dirt road, single
+					track — but two of them travel under a name the app never shows. A track posts as
+					<code>track</code>; <code>athletics_track</code>, which is what the app’s own label
+					reads like, is answered “The selected surface is invalid”. An unpaved road posts as
+					<code>dirt_road</code>. Both values were captured by setting the surface in Trenara’s
+					app and reading what came back, which is the only way to learn one: the terrain call
+					carries the elevation and climb, so a guessed surface also loses a change the runner
+					did make. A surface we have never seen still <em>reads</em> correctly, under its own
+					humanised name — which is how these two were caught.
 				</p>
 			</div>
 		</div>
