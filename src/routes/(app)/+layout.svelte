@@ -1,5 +1,5 @@
 <script lang="ts">
-	import type { User } from '$lib/server/trenara/types';
+	import type { ChatThread, User } from '$lib/server/trenara/types';
 	import type { LayoutServerData } from './$types';
 	import {
 		Loader2,
@@ -23,6 +23,10 @@
 	// Null while the badge is still streaming in, and also when it could not be
 	// computed at all. Both mean the same thing to the navbar: show nothing.
 	let newsUnread = $state<UnreadSummary | null>(null);
+
+	// Seeds the chat bubble's unread badge before the bubble is ever opened.
+	let chatThreads = $state<ChatThread[]>([]);
+	let chatSeen = $state<Record<number, number>>({});
 	const newsBadgeLabel = $derived(newsUnread ? formatUnread(newsUnread) : '');
 
 	$effect(() => {
@@ -42,6 +46,18 @@
 			})
 			.catch(() => {
 				newsUnread = null;
+			});
+	});
+
+	$effect(() => {
+		data.chatBadge
+			.then((badge) => {
+				chatThreads = badge.threads;
+				chatSeen = badge.seen;
+			})
+			.catch(() => {
+				chatThreads = [];
+				chatSeen = {};
 			});
 	});
 
@@ -209,4 +225,8 @@
 	</main>
 </div>
 
-<ChatBubble currentUserId={userData?.id ?? null} />
+<ChatBubble
+	currentUserId={userData?.id ?? null}
+	initialThreads={chatThreads}
+	initialSeen={chatSeen}
+/>
