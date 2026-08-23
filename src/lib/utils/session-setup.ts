@@ -46,22 +46,26 @@ export interface Setting {
 }
 
 /**
- * Surfaces, in the order the app offers them.
+ * Surfaces, in the order the app offers them — all five of them.
+ *
+ * The labels are the app's words; the values are the API's, and the two do not
+ * match. A track posts as `track`, not `athletics_track` — that spelling reads
+ * like the app's own label and is refused with "The selected surface is
+ * invalid" — and an unpaved road posts as `dirt_road`. Both values came from
+ * setting the surface in Trenara's app and reading what the API returned,
+ * which is the only way to learn one: a guess is refused on a call that also
+ * carries the elevation and climb the runner did set.
  *
  * `single_track` is a trail, but a narrow one — wide enough for a single
- * runner. It is labelled for what it is rather than as "Trail", because the
- * app also offers an unpaved road, and the difference between a technical
- * single track and a wide dirt road is the whole point of asking.
- *
- * That unpaved-road option is missing here: we have not seen the value the API
- * uses for it. An unrecognised surface still renders under its own name (see
- * `surfaceLabel`), so a session set to it elsewhere reads correctly — it just
- * cannot be chosen from this app yet.
+ * runner. It is labelled for what it is rather than as "Trail", because a wide
+ * dirt road is a separate option here, and the difference between the two is
+ * the whole point of asking.
  */
 export const SURFACES = [
 	{ value: 'road', label: 'Road' },
-	{ value: 'athletics_track', label: 'Athletics track' },
+	{ value: 'track', label: 'Athletics track' },
 	{ value: 'treadmill', label: 'Treadmill' },
+	{ value: 'dirt_road', label: 'Dirt road' },
 	{ value: 'single_track', label: 'Single track' }
 ] as const;
 

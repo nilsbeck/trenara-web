@@ -1,7 +1,8 @@
 import { describe, it, expect } from 'vitest';
-import type { ScheduledTraining, Shoe } from '$lib/server/trenara/types';
+import { TRAINING_SURFACES, type ScheduledTraining, type Shoe } from '$lib/server/trenara/types';
 import {
 	ACTIVITIES,
+	SURFACES,
 	UNMAPPED_ACTIVITIES,
 	activityLabel,
 	chipSettings,
@@ -572,6 +573,42 @@ describe('elevation bands', () => {
 		for (const height of HEIGHT_DIFFERENCES) {
 			expect(height.detail).toMatch(/D\+ per km/);
 		}
+	});
+});
+
+describe('surfaces', () => {
+	it("sends the API's value, not the app's label", () => {
+		// A track posts as "track": athletics_track reads like the app's own
+		// label and is answered "The selected surface is invalid". Both this and
+		// dirt_road were captured by setting the surface in Trenara's app, which
+		// is the only way to learn one — the terrain call carries the elevation
+		// too, so a refused surface loses a change the runner did make.
+		expect(SURFACES.map((s) => s.value)).toEqual([
+			'road',
+			'track',
+			'treadmill',
+			'dirt_road',
+			'single_track'
+		]);
+		expect(SURFACES.map((s) => s.value)).not.toContain('athletics_track');
+		expect(TRAINING_SURFACES).not.toContain('athletics_track' as never);
+	});
+
+	it('offers every surface the app does', () => {
+		expect(SURFACES.map((s) => s.label)).toEqual([
+			'Road',
+			'Athletics track',
+			'Treadmill',
+			'Dirt road',
+			'Single track'
+		]);
+	});
+
+	it("names a track by the app's words, not the wire spelling", () => {
+		// Humanising "track" would read "Track", which is not what the app calls
+		// it — the registered label is what a session set elsewhere shows.
+		expect(surfaceLabel('track')).toBe('Athletics track');
+		expect(surfaceLabel('dirt_road')).toBe('Dirt road');
 	});
 });
 

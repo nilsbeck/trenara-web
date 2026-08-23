@@ -307,7 +307,7 @@
 			<p class="mb-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
 				Surface
 			</p>
-			<div class="grid grid-cols-2 gap-1.5">
+			<div class="grid grid-cols-3 gap-1.5">
 				{#each SURFACES as surface (surface.value)}
 					<button
 						type="button"
