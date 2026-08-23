@@ -38,6 +38,12 @@ export interface Setting {
 	chipLabel?: string;
 	/** True when this differs from the coach's plan. */
 	changed: boolean;
+	/**
+	 * The field this value comes from is not on this copy of the training at
+	 * all, so the value is unknown rather than unset — the detail fetch will
+	 * bring it. The chip shows a spinner instead of claiming nothing is set.
+	 */
+	awaiting?: boolean;
 	chip: ChipRule;
 	/** Replacing the session rather than tuning it — grouped apart in the sheet. */
 	replace?: boolean;
@@ -281,6 +287,26 @@ export function isRun(training: ScheduledTraining): boolean {
 }
 
 /**
+ * How a package-driven setting should render on this copy of the training.
+ *
+ * Three cases, and the difference between the last two is the whole point:
+ * a package present drives the value; a package that is present and null means
+ * the control does not exist, so the setting is dropped; a package key missing
+ * altogether means this copy does not carry packages, and the setting stands
+ * with its value still coming.
+ */
+function packageOrAwaiting(
+	training: ScheduledTraining,
+	key: 'change_intensity_package' | 'change_distance_package'
+): Pick<Setting, 'value' | 'changed' | 'chip' | 'awaiting'> | null {
+	if (!(key in training)) return { value: null, changed: false, chip: 'always', awaiting: true };
+
+	const pkg = training[key];
+	if (!pkg) return null;
+	return packageSetting(pkg, selectedStep(pkg));
+}
+
+/**
  * Every setting this training allows, in one order.
  *
  * The chip rail and the setup sheet both render from this, so a setting cannot
@@ -305,7 +331,8 @@ export function sessionSettings(training: ScheduledTraining): Setting[] {
 				? [surface, height ?? 'Flat', climb > 0 ? `${climb} m` : null].filter(Boolean).join(' · ')
 				: null,
 			changed: false,
-			chip: 'always'
+			chip: 'always',
+			awaiting: !('training_condition' in training)
 		});
 
 		settings.push({
@@ -313,34 +340,37 @@ export function sessionSettings(training: ScheduledTraining): Setting[] {
 			label: 'Shoe',
 			value: training.suggested_shoe ? shoeName(training.suggested_shoe) : null,
 			changed: false,
-			chip: 'always'
+			chip: 'always',
+			awaiting: !('suggested_shoe' in training)
 		});
 	}
 
-	if (training.can_change_intensity && training.change_intensity_package) {
-		const pkg = training.change_intensity_package;
-		settings.push({
-			key: 'effort',
-			label: 'Effort',
-			...packageSetting(pkg, selectedStep(pkg))
-		});
+	// A package that arrived as null is Trenara saying there is no such control,
+	// and the setting is omitted. A package key that is *absent* is a copy that
+	// does not carry packages at all — the week response, which sends the flags
+	// without them — and there the flag is enough to say the chip belongs on the
+	// rail. It goes there awaiting its label rather than appearing late and
+	// pushing the rest of the rail along.
+	const intensity = packageOrAwaiting(training, 'change_intensity_package');
+	if (training.can_change_intensity && intensity) {
+		settings.push({ key: 'effort', label: 'Effort', ...intensity });
 	}
 
-	if (training.can_change_distance && training.change_distance_package) {
-		const pkg = training.change_distance_package;
+	const distance = packageOrAwaiting(training, 'change_distance_package');
+	if (training.can_change_distance && distance) {
 		settings.push({
 			// "Volume" covers both shapes this package takes: a percentage of the
 			// planned distance, or a number of repetitions.
 			key: 'volume',
 			label: 'Volume',
-			...packageSetting(pkg, selectedStep(pkg))
+			...distance
 		});
 	}
 
 	// Only sessions that have a cool-down can drop one — plenty of runs have
 	// none, and those cannot gain one. Its control lives on the block itself,
 	// since that is what it acts on and it is already on screen.
-	if (training.can_toggle_cooldown) {
+	if (training.can_toggle_cooldown && 'has_cooldown' in training) {
 		settings.push({
 			key: 'cooldown',
 			label: 'Cool-down',

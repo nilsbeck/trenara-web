@@ -223,11 +223,15 @@
 						<Icon class="h-4 w-4 shrink-0 text-muted-foreground" />
 						<span class="flex-1">{setting.label}</span>
 						<span
-							class="text-xs"
+							class="flex items-center gap-1.5 text-xs"
 							class:text-primary={setting.changed}
 							class:text-muted-foreground={!setting.changed}
 						>
-							{setting.value ?? 'Not set'}
+							{#if setting.awaiting}
+								<Loader2 class="h-3 w-3 animate-spin" />
+							{:else}
+								{setting.value ?? 'Not set'}
+							{/if}
 						</span>
 						<ChevronRight class="h-4 w-4 shrink-0 text-border" />
 					</button>
@@ -512,6 +516,16 @@
 					</button>
 				{/each}
 			{/if}
+		{:else if section === 'effort' || section === 'volume'}
+			<!-- The flag put this setting on the rail; its steps come with the
+			     detail, which is still on its way. -->
+			<p
+				class="flex items-center justify-center gap-2 py-6 text-xs text-muted-foreground"
+				role="status"
+			>
+				<Loader2 class="h-3.5 w-3.5 animate-spin" />
+				Loading the options…
+			</p>
 		{:else if section === 'session'}
 			<p class="mb-3 text-xs leading-relaxed text-muted-foreground">
 				Anything else your coach accepts today. All of it rewrites every block, and you can come

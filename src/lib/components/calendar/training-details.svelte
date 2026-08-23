@@ -147,7 +147,7 @@
 		if (!training) return null;
 		const present = SETUP_FIELDS.filter((field) => field in training);
 		return {
-			keys: Object.keys(training).length,
+			keys: Object.keys(training).sort().join(', '),
 			present: present.length ? present.join(', ') : 'none'
 		};
 	});
@@ -165,8 +165,14 @@
 	// Only sessions that have a cool-down can drop one, and the API does not
 	// flag which block it is, so the control attaches to the block we can
 	// identify and falls back to its own row when we cannot.
+	// `has_cooldown` decides which way the control reads, and the week's copy
+	// carries the flag without it. Without this guard a session whose cool-down
+	// is present renders the ghost row that means the runner dropped it.
 	const canToggleCooldown = $derived(
-		setupTraining !== null && entry === null && !!setupTraining.can_toggle_cooldown
+		setupTraining !== null &&
+			entry === null &&
+			!!setupTraining.can_toggle_cooldown &&
+			'has_cooldown' in setupTraining
 	);
 
 	const cooldownIndex = $derived(
@@ -392,7 +398,7 @@
 			<p
 				class="rounded-lg border border-dashed border-border px-3 py-2 font-mono text-[11px] leading-relaxed text-muted-foreground"
 			>
-				week payload · {weekProbe.keys} keys · setup fields: {weekProbe.present}
+				week payload · setup fields: {weekProbe.present}<br />keys: {weekProbe.keys}
 			</p>
 		{/if}
 

@@ -56,6 +56,7 @@
 				<button
 					type="button"
 					onclick={() => onopen(chip.key)}
+					aria-busy={chip.awaiting ? 'true' : undefined}
 					class="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border px-2.5 py-1.5 text-xs font-medium transition-colors {chip.changed
 						? 'border-primary bg-primary/10 text-foreground'
 						: 'border-border bg-muted text-muted-foreground hover:text-foreground'} {chip.value ==
@@ -63,7 +64,12 @@
 						? 'border-dashed bg-transparent'
 						: ''}"
 				>
-					{#if pending === chip.key}
+					<!--
+						A chip whose value is not on this copy of the training yet spins
+						in place of its icon: the setting is real — the flag says so — and
+						only its current value is still coming.
+					-->
+					{#if pending === chip.key || chip.awaiting}
 						<Loader2 class="h-3 w-3 animate-spin" />
 					{:else if Icon}
 						<Icon class="h-3 w-3" />

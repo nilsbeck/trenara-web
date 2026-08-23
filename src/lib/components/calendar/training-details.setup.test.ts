@@ -165,6 +165,39 @@ describe('while the detail is still loading', () => {
 		vi.unstubAllGlobals();
 	});
 
+	it('puts the rail up from the week copy and fills the values when the detail lands', async () => {
+		// What Trenara actually sends with the week: the capability flags, but
+		// no training_condition, no suggested_shoe and no change packages.
+		const week = {
+			...base,
+			can_cross_train: true,
+			can_be_exchanged: true,
+			can_change_intensity: true
+		};
+		const detailResponse = deferred();
+		vi.stubGlobal('fetch', vi.fn().mockReturnValue(detailResponse.promise));
+
+		render(TrainingDetails, {
+			props: { selectedDate: '2026-08-22', training: week, entry: null, isLoading: false }
+		});
+
+		// The chips are there on the first paint, because the flags say which
+		// settings exist. Each one whose value only the detail carries spins in
+		// place rather than claiming the setting is unset.
+		const terrain = await waitFor(() => screen.getByRole('button', { name: /Terrain/ }));
+		expect(terrain.getAttribute('aria-busy')).toBe('true');
+		expect(screen.getByRole('button', { name: /Effort/ }).getAttribute('aria-busy')).toBe('true');
+		expect(screen.queryByTestId('setup-rail-loading')).toBeNull();
+
+		detailResponse.settle({ ok: true, status: 200, json: async () => detail });
+
+		await waitFor(() => expect(screen.getAllByText('Treadmill · Flat').length).toBeGreaterThan(0));
+		expect(screen.getByRole('button', { name: /Treadmill · Flat/ }).getAttribute('aria-busy')).toBe(
+			null
+		);
+		vi.unstubAllGlobals();
+	});
+
 	it('renders the rail from the week copy when that already carries the flags', async () => {
 		// Whether Trenara sends the capability flags with the week is not
 		// something this app gets to know in advance, and nothing in the path
