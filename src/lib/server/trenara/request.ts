@@ -1,4 +1,5 @@
 import { error } from '@sveltejs/kit';
+import type { ZodType } from 'zod';
 import { HttpError } from './client';
 
 /**
@@ -60,4 +61,55 @@ export async function passthrough<T>(fn: () => Promise<T>): Promise<T> {
 		}
 		throw e;
 	}
+}
+
+/** The value at a zod issue's path, for saying what actually arrived. */
+function valueAt(raw: unknown, path: PropertyKey[]): unknown {
+	let at = raw;
+	for (const key of path) {
+		if (at === null || typeof at !== 'object') return undefined;
+		at = (at as Record<PropertyKey, unknown>)[key];
+	}
+	return at;
+}
+
+/** One-line rendering of a rejected value: `"athletics_track"`, `-1`, `an array`. */
+function describeValue(value: unknown): string {
+	if (value === undefined) return 'nothing';
+	if (value === null || typeof value === 'boolean' || typeof value === 'number') {
+		return String(value);
+	}
+	if (typeof value === 'string') {
+		return JSON.stringify(value.length > 40 ? `${value.slice(0, 40)}…` : value);
+	}
+	if (Array.isArray(value)) return 'an array';
+	return typeof value === 'object' ? 'an object' : `a ${typeof value}`;
+}
+
+/**
+ * Parse a request body, naming what failed rather than that something did.
+ *
+ * A rejected body used to answer "Invalid request body", which tells the caller
+ * nothing it can act on: a client running an older bundle than the server — an
+ * enum value renamed since that bundle shipped, say — reads exactly like a bug
+ * in the endpoint. Naming the field, what arrived and what was wanted is the
+ * same reasoning `describeUpstreamError` applies to Trenara's own rejections.
+ *
+ * The value goes into the message because these bodies carry enum values, ids
+ * and flags the app itself composes, and nothing private. A value that is not a
+ * primitive is described by its type instead of being serialised into the
+ * message.
+ */
+export function parseBody<T>(schema: ZodType<T>, raw: unknown): T {
+	const parsed = schema.safeParse(raw);
+	if (parsed.success) return parsed.data;
+
+	const detail = parsed.error.issues
+		.map((issue) => {
+			const field = issue.path.join('.') || 'body';
+			return `${field}: ${issue.message}, got ${describeValue(valueAt(raw, issue.path))}`;
+		})
+		.join(' · ');
+
+	error(400, detail || 'Invalid request body');
 }

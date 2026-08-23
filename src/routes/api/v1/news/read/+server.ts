@@ -1,5 +1,6 @@
 import { json, error } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
+import { parseBody } from '$lib/server/trenara/request';
 import { newsReadStateDAO } from '$lib/server/db/news-read-state';
 import { clearBadgeCache } from '$lib/server/news/badge';
 import { newsMarkReadSchema } from '$lib/schemas/news';
@@ -17,12 +18,11 @@ import { newsMarkReadSchema } from '$lib/schemas/news';
 export const POST: RequestHandler = async ({ request, locals }) => {
 	if (!locals.user) error(401, 'Unauthorized');
 
-	const parsed = newsMarkReadSchema.safeParse(await request.json());
-	if (!parsed.success) error(400, 'Invalid request body');
+	const body = parseBody(newsMarkReadSchema, await request.json());
 
 	const result = await newsReadStateDAO.advanceMark(locals.user.id, {
-		id: parsed.data.lastSeenId,
-		createdAt: parsed.data.lastSeenCreatedAt
+		id: body.lastSeenId,
+		createdAt: body.lastSeenCreatedAt
 	});
 
 	clearBadgeCache(locals.user.id);

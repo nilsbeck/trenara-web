@@ -1,7 +1,7 @@
 import { json, error } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { trainingApi } from '$lib/server/trenara';
-import { parseTrainingId, passthrough } from '$lib/server/trenara/request';
+import { parseBody, parseTrainingId, passthrough } from '$lib/server/trenara/request';
 import { setShoeSchema } from '$lib/schemas/training';
 
 /** Assign one of the user's shoes to this training. */
@@ -9,10 +9,7 @@ export const PUT: RequestHandler = async ({ params, request, cookies, locals }) 
 	if (!locals.user) error(401, 'Unauthorized');
 
 	const id = parseTrainingId(params.id);
-	const parsed = setShoeSchema.safeParse(await request.json());
-	if (!parsed.success) error(400, 'Invalid request body');
+	const body = parseBody(setShoeSchema, await request.json());
 
-	return json(
-		await passthrough(() => trainingApi.setSuggestedShoe(cookies, id, parsed.data.shoeId))
-	);
+	return json(await passthrough(() => trainingApi.setSuggestedShoe(cookies, id, body.shoeId)));
 };
