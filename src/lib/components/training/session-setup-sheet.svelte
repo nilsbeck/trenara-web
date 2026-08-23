@@ -20,6 +20,7 @@
 		HEIGHT_DIFFERENCES,
 		SURFACES,
 		UNMAPPED_ACTIVITIES,
+		UNMAPPED_SURFACES,
 		activityLabel,
 		conditionClimb,
 		elevationBand,
@@ -307,7 +308,7 @@
 			<p class="mb-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
 				Surface
 			</p>
-			<div class="grid grid-cols-2 gap-1.5">
+			<div class="grid grid-cols-3 gap-1.5">
 				{#each SURFACES as surface (surface.value)}
 					<button
 						type="button"
@@ -322,6 +323,11 @@
 					</button>
 				{/each}
 			</div>
+			<p class="mt-2 text-[11px] leading-relaxed text-muted-foreground">
+				Trenara also offers {UNMAPPED_SURFACES.join(' and ')}, which are missing here until we know
+				what to send for each — the value tried for the track is refused. A session already set to
+				one keeps it on the card, but applying a change here has to send a surface we know.
+			</p>
 
 			<p class="mb-2 mt-4 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
 				Elevation

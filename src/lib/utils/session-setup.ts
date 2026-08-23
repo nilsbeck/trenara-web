@@ -53,17 +53,31 @@ export interface Setting {
  * app also offers an unpaved road, and the difference between a technical
  * single track and a wide dirt road is the whole point of asking.
  *
- * That unpaved-road option is missing here: we have not seen the value the API
- * uses for it. An unrecognised surface still renders under its own name (see
- * `surfaceLabel`), so a session set to it elsewhere reads correctly — it just
+ * Two of the app's five surfaces are missing here — see `UNMAPPED_SURFACES`.
+ * An unrecognised surface still renders under its own name (see
+ * `surfaceLabel`), so a session set to one elsewhere reads correctly — it just
  * cannot be chosen from this app yet.
  */
 export const SURFACES = [
 	{ value: 'road', label: 'Road' },
-	{ value: 'athletics_track', label: 'Athletics track' },
 	{ value: 'treadmill', label: 'Treadmill' },
 	{ value: 'single_track', label: 'Single track' }
 ] as const;
+
+/**
+ * The surfaces the app lists, for the ones we cannot send.
+ *
+ * Kept next to `SURFACES` the way `UNMAPPED_ACTIVITIES` is kept next to
+ * `ACTIVITIES`, so the gap stays visible instead of being forgotten.
+ *
+ * The unpaved road has never been seen on the wire. The athletics track was
+ * offered here as `athletics_track`, which the API refuses with "The selected
+ * surface is invalid" — that value was read off the app's own list rather than
+ * captured, and no other spelling has been confirmed, so the option is gone
+ * until one is. Sending a guess fails the same way, on a call that also
+ * carries the elevation the runner did set.
+ */
+export const UNMAPPED_SURFACES = ['Athletics track', 'Unpaved road'] as const;
 
 /**
  * Elevation, as a four-step scale.

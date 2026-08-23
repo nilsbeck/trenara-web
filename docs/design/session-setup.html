@@ -608,6 +608,7 @@
 	}
 
 	.tiles-2 { grid-template-columns: repeat(2, 1fr); }
+	.tiles-3 { grid-template-columns: repeat(3, 1fr); }
 
 	.climb {
 		display: flex;
@@ -1410,7 +1411,6 @@
 
 	var SURFACES = [
 		{ v: 'road', label: 'Road', icon: 'i-road' },
-		{ v: 'athletics_track', label: 'Athletics track', icon: 'i-track' },
 		{ v: 'treadmill', label: 'Treadmill', icon: 'i-treadmill' },
 		{ v: 'single_track', label: 'Single track', icon: 'i-trail' }
 	];
@@ -1854,7 +1854,7 @@
 		}
 		return '<p class="sheet-text">Where you are running today. All of it goes up in one ' +
 			'call, so the sheet stays open until you tap Apply.</p>' +
-			'<p class="grp-label">Surface</p><div class="tiles tiles-2">' + a + '</div>' +
+			'<p class="grp-label">Surface</p><div class="tiles tiles-3">' + a + '</div>' +
 			'<p class="grp-label">Elevation</p><div class="tiles tiles-2">' + b + '</div>' +
 			'<p class="grp-label">Altitude</p>' +
 			'<div class="climb"><input type="number" value="0" min="0" step="10" readonly><span>m</span></div>' +
@@ -2470,14 +2470,18 @@
 		<div class="gap">
 			<span class="m">!</span>
 			<div>
-				<h4>One surface we cannot offer</h4>
+				<h4>Two surfaces we cannot offer</h4>
 				<p>
 					The app’s surface list has five entries — road, athletics track, treadmill, unpaved
-					road, single track — and we have only ever seen four values on the wire. The unpaved
-					road is missing, and its API value is not something to guess: a wrong one is refused
-					the same way a wrong elevation is. A session already set to it still <em>reads</em>
-					correctly, since an unregistered surface renders under its own humanised name; it
-					just cannot be chosen here until one capture names it.
+					road, single track — and only three of them have a value we can send. The unpaved
+					road has never been seen on the wire. The athletics track was offered as
+					<code>athletics_track</code>, a value read off the app’s own list rather than captured,
+					and the API answers it “The selected surface is invalid” — so it is gone too, rather
+					than guessed at again: <code>track</code> and <code>athletic_track</code> are as
+					plausible as each other, and the terrain call carries the elevation, so a refused
+					surface also loses a change the runner did make. A session already set to either
+					still <em>reads</em> correctly, since an unregistered surface renders under its own
+					humanised name; it just cannot be chosen here until one capture names it.
 				</p>
 			</div>
 		</div>

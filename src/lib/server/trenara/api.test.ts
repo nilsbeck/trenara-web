@@ -283,13 +283,13 @@ describe('trainingApi.setTrainingCondition', () => {
 		// invalid", which is why the editor stages a known label.
 		fetchMock().mockResolvedValue(mockResponse({ id: 1 }));
 		await trainingApi.setTrainingCondition(cookies, 1, {
-			surface: 'athletics_track',
+			surface: 'treadmill',
 			heightDifference: 'lights'
 		});
 
 		const body = lastRequest().body;
 		expect(body.height_difference).toBe('lights');
-		expect(body.surface).toBe('athletics_track');
+		expect(body.surface).toBe('treadmill');
 	});
 });
 

@@ -1,8 +1,10 @@
 import { describe, it, expect } from 'vitest';
-import type { ScheduledTraining, Shoe } from '$lib/server/trenara/types';
+import { TRAINING_SURFACES, type ScheduledTraining, type Shoe } from '$lib/server/trenara/types';
 import {
 	ACTIVITIES,
+	SURFACES,
 	UNMAPPED_ACTIVITIES,
+	UNMAPPED_SURFACES,
 	activityLabel,
 	chipSettings,
 	heightLabel,
@@ -572,6 +574,36 @@ describe('elevation bands', () => {
 		for (const height of HEIGHT_DIFFERENCES) {
 			expect(height.detail).toMatch(/D\+ per km/);
 		}
+	});
+});
+
+describe('surfaces', () => {
+	it('offers no surface the API refuses', () => {
+		// athletics_track was offered here and is answered "The selected surface
+		// is invalid": the value came off the app's list, not the wire. Every
+		// value left is one the API takes, because the terrain call carries the
+		// elevation too — a refused surface loses a change the runner did make.
+		expect(SURFACES.map((s) => s.value)).toEqual(['road', 'treadmill', 'single_track']);
+		expect(SURFACES.map((s) => s.value)).not.toContain('athletics_track');
+		expect(TRAINING_SURFACES).not.toContain('athletics_track' as never);
+	});
+
+	it('keeps the unmapped ones named, so the gap stays visible', () => {
+		expect(UNMAPPED_SURFACES).toContain('Athletics track');
+		expect(UNMAPPED_SURFACES).toContain('Unpaved road');
+	});
+
+	it('does not list a surface as both offered and unmapped', () => {
+		const offered = SURFACES.map((s) => s.label);
+		for (const pending of UNMAPPED_SURFACES) {
+			expect(offered).not.toContain(pending);
+		}
+	});
+
+	it('still reads back a surface it cannot send', () => {
+		// A track session set in Trenara's own app has to render as a track
+		// here, whatever the value turns out to be spelled like.
+		expect(surfaceLabel('athletics_track')).toBe('Athletics track');
 	});
 });
 

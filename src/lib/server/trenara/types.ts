@@ -184,8 +184,16 @@ export interface Exercise {
  * API and Trenara can add a value at any time, so narrowing what we *read*
  * would turn a new surface into a type that lies. Only request payloads, where
  * we choose the value, use `TrainingSurface`.
+ *
+ * `athletics_track` used to be in this list and is gone: the API answers it
+ * with "The selected surface is invalid". It was inferred from the surface the
+ * app offers rather than captured on the wire, and the spelling the API wants
+ * for a track is still unknown — `track`, `athletic_track` and the Dutch
+ * spelling are all as plausible as each other, and a wrong guess is refused
+ * exactly like the one that was here. The surface comes back when a capture
+ * names it.
  */
-export const TRAINING_SURFACES = ['road', 'treadmill', 'single_track', 'athletics_track'] as const;
+export const TRAINING_SURFACES = ['road', 'treadmill', 'single_track'] as const;
 export type TrainingSurface = (typeof TRAINING_SURFACES)[number];
 
 /**
