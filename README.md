@@ -33,7 +33,7 @@ It has some drawbacks, that this web app aims to improve and mitigate.
 
 ## What is the status?
 
-The core functionality is implemented. The app reads data from the reverse-engineered Trenara API and displays training, strength and nutrition data. You can add RPE feedback, move or delete trainings, view training progress over time in a chart, and track your predicted race performance over time with an overall prediction history view.
+The core functionality is implemented. The app reads data from the reverse-engineered Trenara API and displays training, strength and nutrition data. You can add RPE feedback, move or delete trainings, view training progress over time in a chart, and track your predicted race performance over time with an overall prediction history view. Trenara's in-app news is readable too, with a badge that only ever counts items published since your first visit — new content gets noticed, the backlog stays quiet.
 
 ## What is the future?
 

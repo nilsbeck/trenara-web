@@ -49,3 +49,20 @@ CREATE INDEX IF NOT EXISTS idx_goal_history_user_end_date
 ALTER TABLE prediction_history
     ADD COLUMN IF NOT EXISTS predicted_time_10k VARCHAR(20),
     ADD COLUMN IF NOT EXISTS predicted_pace_10k VARCHAR(20);
+
+-- News read state (added later)
+-- Trenara's news endpoint carries no read/unread state, so the newest item a
+-- reader has been shown is recorded here. One row per user: news is
+-- append-only and newest-first, so a single high-water mark answers "is there
+-- anything new?" without a row per item. Seeded on a reader's first visit to
+-- the newest item that exists then, which is what keeps an existing user's
+-- backlog from raising a badge they never asked for.
+
+CREATE TABLE IF NOT EXISTS news_read_state (
+    user_id INTEGER PRIMARY KEY,
+    last_seen_id INTEGER NOT NULL,
+    -- Unix seconds, matching NewsItem.created_at. The feed is ordered by this,
+    -- so it — not the id — decides what counts as newer.
+    last_seen_created_at BIGINT NOT NULL,
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);

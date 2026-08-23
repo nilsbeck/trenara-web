@@ -9,14 +9,21 @@
 		UserCircle,
 		Target,
 		History,
-		Archive
+		Archive,
+		Newspaper
 	} from 'lucide-svelte';
 	import ChatBubble from '$lib/components/chat/chat-bubble.svelte';
+	import { formatUnread, type UnreadSummary } from '$lib/utils/news-unread';
 
 	let { children, data }: { children: any; data: LayoutServerData } = $props();
 
 	let menuOpen = $state(false);
 	let userData = $state<User | null>(null);
+
+	// Null while the badge is still streaming in, and also when it could not be
+	// computed at all. Both mean the same thing to the navbar: show nothing.
+	let newsUnread = $state<UnreadSummary | null>(null);
+	const newsBadgeLabel = $derived(newsUnread ? formatUnread(newsUnread) : '');
 
 	$effect(() => {
 		data.userData
@@ -25,6 +32,16 @@
 			})
 			.catch(() => {
 				userData = null;
+			});
+	});
+
+	$effect(() => {
+		data.newsBadge
+			.then((badge) => {
+				newsUnread = badge;
+			})
+			.catch(() => {
+				newsUnread = null;
 			});
 	});
 
@@ -69,7 +86,8 @@
 				<div class="relative">
 					<button
 						type="button"
-						class="flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium text-foreground hover:bg-accent"
+						class="relative flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium text-foreground hover:bg-accent"
+						aria-label={newsBadgeLabel ? `Menu, ${newsBadgeLabel} unread news items` : 'Menu'}
 						onclick={(e) => {
 							e.stopPropagation();
 							toggleMenu();
@@ -85,6 +103,18 @@
 							<UserCircle class="h-8 w-8 text-muted-foreground" />
 						{/if}
 						<ChevronDown class="h-4 w-4 text-muted-foreground" />
+						<!--
+							The menu is collapsed, so the count lives on the row inside it and
+							only a dot shows out here — enough to say "there is something in
+							here" without competing with the chat bubble for attention. The
+							label is on the button, so this is decoration.
+						-->
+						{#if newsBadgeLabel}
+							<span
+								class="absolute right-1.5 top-1.5 h-2.5 w-2.5 rounded-full bg-primary ring-2 ring-card"
+								aria-hidden="true"
+							></span>
+						{/if}
 					</button>
 
 					{#if menuOpen}
@@ -121,6 +151,22 @@
 							>
 								<Target class="h-4 w-4" />
 								Goal/Predictions
+							</a>
+							<a
+								href="/news"
+								class="flex items-center gap-2 px-4 py-2 text-sm text-foreground hover:bg-accent"
+								role="menuitem"
+								onclick={closeMenu}
+							>
+								<Newspaper class="h-4 w-4" />
+								News
+								{#if newsBadgeLabel}
+									<span
+										class="ml-auto inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1.5 text-xs font-medium text-primary-foreground"
+									>
+										{newsBadgeLabel}
+									</span>
+								{/if}
 							</a>
 							<a
 								href="/history"
