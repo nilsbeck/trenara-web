@@ -451,7 +451,16 @@
 			</p>
 
 			{#if store.shoes === null}
-				<p class="py-4 text-center text-xs text-muted-foreground">Loading your shoes…</p>
+				<!-- The locker is a separate fetch, made the first time this section
+				     opens. A spinner says the list is coming; bare text read as the
+				     answer itself. -->
+				<p
+					class="flex items-center justify-center gap-2 py-4 text-xs text-muted-foreground"
+					role="status"
+				>
+					<Loader2 class="h-3.5 w-3.5 animate-spin" />
+					Loading your shoes…
+				</p>
 			{:else if orderedShoes.length === 0}
 				<p class="py-4 text-center text-xs text-muted-foreground">No shoes in your locker yet.</p>
 			{:else}
@@ -516,7 +525,13 @@
 					Another session
 				</p>
 				{#if store.candidates === null}
-					<p class="py-3 text-center text-xs text-muted-foreground">Loading alternatives…</p>
+					<p
+						class="flex items-center justify-center gap-2 py-3 text-xs text-muted-foreground"
+						role="status"
+					>
+						<Loader2 class="h-3.5 w-3.5 animate-spin" />
+						Loading alternatives…
+					</p>
 				{:else if store.candidates.length === 0}
 					<p class="py-3 text-center text-xs text-muted-foreground">
 						No alternatives offered for this session.

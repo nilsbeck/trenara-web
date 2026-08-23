@@ -137,6 +137,80 @@ describe('training-details session setup', () => {
 	});
 });
 
+describe('while the detail is still loading', () => {
+	/** A response that only lands when the test says so. */
+	function deferred() {
+		let settle!: (value: unknown) => void;
+		return { promise: new Promise((resolve) => (settle = resolve)), settle };
+	}
+
+	it('holds the rail with placeholders until the chips arrive', async () => {
+		const detailResponse = deferred();
+		vi.stubGlobal('fetch', vi.fn().mockReturnValue(detailResponse.promise));
+
+		render(TrainingDetails, {
+			props: { selectedDate: '2026-08-22', training: base, entry: null, isLoading: false }
+		});
+
+		// The week payload carries no capability flags, so the chips cannot be
+		// drawn yet — but the row is where it will be, rather than the card
+		// jumping once the fetch lands.
+		await waitFor(() => expect(screen.getByTestId('setup-rail-skeleton')).toBeTruthy());
+
+		detailResponse.settle({ ok: true, status: 200, json: async () => detail });
+
+		await waitFor(() => expect(screen.getAllByText('Treadmill · Flat').length).toBeGreaterThan(0));
+		expect(screen.queryByTestId('setup-rail-skeleton')).toBeNull();
+		vi.unstubAllGlobals();
+	});
+
+	it('promises no rail on a session the plan pins', async () => {
+		const detailResponse = deferred();
+		vi.stubGlobal('fetch', vi.fn().mockReturnValue(detailResponse.promise));
+
+		render(TrainingDetails, {
+			props: {
+				selectedDate: '2026-08-22',
+				training: { ...base, can_be_edited: false },
+				entry: null,
+				isLoading: false
+			}
+		});
+
+		// can_be_edited is already known from the week, and it is false on the
+		// goal race: a rail placeholder there would advertise controls that never
+		// come.
+		await waitFor(() => expect(screen.getAllByText('Tempo run').length).toBeGreaterThan(0));
+		expect(screen.queryByTestId('setup-rail-skeleton')).toBeNull();
+
+		detailResponse.settle({ ok: true, status: 200, json: async () => detail });
+		vi.unstubAllGlobals();
+	});
+
+	it('spins while the shoe locker is being fetched', async () => {
+		const shoesResponse = deferred();
+		const fetchMock = vi.fn().mockImplementation((url: string) => {
+			if (url === '/api/v1/shoes') return shoesResponse.promise;
+			return Promise.resolve({ ok: true, status: 200, json: async () => detail });
+		});
+		vi.stubGlobal('fetch', fetchMock);
+
+		render(TrainingDetails, {
+			props: { selectedDate: '2026-08-22', training: base, entry: null, isLoading: false }
+		});
+
+		await waitFor(() => expect(screen.getAllByText('Shoe').length).toBeGreaterThan(0));
+		await fireEvent.click(screen.getAllByText('Shoe')[0]);
+
+		// The locker is a second fetch, made the first time the picker opens.
+		await waitFor(() => expect(screen.getByText(/Loading your shoes/)).toBeTruthy());
+
+		shoesResponse.settle({ ok: true, status: 200, json: async () => [] });
+		await waitFor(() => expect(screen.getByText('No shoes in your locker yet.')).toBeTruthy());
+		vi.unstubAllGlobals();
+	});
+});
+
 describe('cool-down', () => {
 	/** A session with a cool-down it is allowed to drop. */
 	const withCooldown: ScheduledTraining = {
