@@ -24,6 +24,24 @@ import { activityLabel, type SettingKey } from '$lib/utils/session-setup';
  *    blocks entirely, and either can flip other capability flags. Merging by
  *    hand would leave the UI describing a training that no longer exists.
  */
+/**
+ * Drop the per-day `GET /api/v1/training/{id}` and render the setup UI from
+ * the week's copy alone.
+ *
+ * An experiment, not a feature: it answers whether the week response carries
+ * the capability flags. With the fetch gone, chips that still appear came from
+ * the week; a rail that never appears means the flags really are detail-only
+ * and the round trip is the price of the feature.
+ *
+ * On in a built deployment, which is where this gets looked at — the preview.
+ * Off under vitest (`MODE` is `test` there), so the suite still exercises the
+ * real path rather than the experiment.
+ *
+ * Writes are unaffected — they address the training by id, which `load()` sets
+ * either way, and their responses replace the detail as usual.
+ */
+const SKIP_DETAIL_FETCH = import.meta.env.MODE === 'production';
+
 export class SessionDetailStore {
 	/**
 	 * Told about every training the server hands back after a change, so the
@@ -61,6 +79,9 @@ export class SessionDetailStore {
 	/**
 	 * Point the store at a training. Safe to call on every render: it only
 	 * refetches when the id actually changes.
+	 *
+	 * In a built deployment the fetch is dropped entirely and the setup UI runs
+	 * on the week's copy alone — see `SKIP_DETAIL_FETCH`.
 	 */
 	load(trainingId: number | null): void {
 		if (trainingId === this.#trainingId) return;
@@ -73,7 +94,7 @@ export class SessionDetailStore {
 		this.error = null;
 		this.undoable = null;
 
-		if (trainingId == null) {
+		if (trainingId == null || SKIP_DETAIL_FETCH) {
 			this.loading = false;
 			return;
 		}

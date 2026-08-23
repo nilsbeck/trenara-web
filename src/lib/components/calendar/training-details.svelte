@@ -122,6 +122,36 @@
 			training.can_be_edited
 	);
 
+	// ── Week payload probe (temporary) ─────────────────────────────
+	//
+	// Which of the setup fields the *week* copy actually carries, read off the
+	// object the calendar was handed. Nothing between Trenara and here strips
+	// fields, so this is the raw answer to whether the per-day detail fetch is
+	// load bearing. On screen rather than in a console because it is looked at
+	// in a deployed preview, where there is no terminal to watch.
+	//
+	// Read it before changing anything on the session: a mutation response
+	// replaces the week's copy with a detail, and the probe would then be
+	// describing that instead.
+	const SETUP_FIELDS = [
+		'can_cross_train',
+		'can_be_exchanged',
+		'can_change_intensity',
+		'can_change_distance',
+		'can_toggle_cooldown',
+		'suggested_shoe',
+		'training_condition'
+	] as const;
+
+	const weekProbe = $derived.by(() => {
+		if (!training) return null;
+		const present = SETUP_FIELDS.filter((field) => field in training);
+		return {
+			keys: Object.keys(training).length,
+			present: present.length ? present.join(', ') : 'none'
+		};
+	});
+
 	// Treadmill mode is only meaningful for a running session that hasn't been
 	// completed yet. A cross-trained session has no pace to hold on a belt, so
 	// the button goes with the rest of the running detail — and it goes as soon
@@ -355,6 +385,16 @@
 				{/if}
 			</div>
 		</div>
+
+		<!-- Temporary: what the week payload carries, so the preview can answer
+		     whether the per-day detail fetch is needed at all. -->
+		{#if weekProbe}
+			<p
+				class="rounded-lg border border-dashed border-border px-3 py-2 font-mono text-[11px] leading-relaxed text-muted-foreground"
+			>
+				week payload · {weekProbe.keys} keys · setup fields: {weekProbe.present}
+			</p>
+		{/if}
 
 		<!-- Session setup: what is applied, and the way to change it -->
 		{#if setupLoading}

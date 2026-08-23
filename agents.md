@@ -46,3 +46,4 @@ You are a Senior Fullstack Engineer specializing in the **SvelteKit, Bun, and Su
 - **Unit Tests:** All utility functions and pure logic must have a `*.test.ts` file in the same directory or a `__tests__` folder.
 - **Integration Tests:** Use `bun test` to test Svelte components and Server Actions.
 - **Mocking:** Mock Supabase responses and SvelteKit `event` objects to ensure the "Sad Path" (errors) and "Happy Path" work as expected.
+- **Trying a branch:** the maintainer tests branches as **Vercel preview deployments**, not with a local dev server. Anything meant to be seen or exercised by hand must therefore work in a production build: no `dev`-only code paths, no env-var flags to set, and diagnostics on screen rather than in a terminal.
