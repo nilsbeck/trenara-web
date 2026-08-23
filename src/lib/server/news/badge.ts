@@ -1,0 +1,91 @@
+import type { Cookies } from '@sveltejs/kit';
+import { newsApi } from '$lib/server/trenara';
+import { newsReadStateDAO } from '$lib/server/db/news-read-state';
+import { newestOf, summarizeUnread, type UnreadSummary } from '$lib/utils/news-unread';
+
+/**
+ * The unread-news badge, ready for the navbar.
+ *
+ * This runs on every page load behind the layout's streamed data, so it is
+ * cached: news changes a few times a month, and a badge that is ten minutes
+ * stale is invisible to the reader while a second upstream call on every
+ * navigation is not.
+ */
+
+const CACHE_TTL_MS = 10 * 60 * 1000;
+
+interface CacheEntry {
+	summary: UnreadSummary;
+	expiresAt: number;
+}
+
+/**
+ * Per-user badge cache.
+ *
+ * Module scope, so on Vercel it lives for as long as the serverless instance
+ * does and is not shared between them. That is fine for what it holds: a miss
+ * costs one upstream call, and the value is advisory either way.
+ */
+const cache = new Map<number, CacheEntry>();
+
+/** Drop a reader's cached badge, so the next load recomputes it. */
+export function clearBadgeCache(userId: number): void {
+	cache.delete(userId);
+}
+
+/** Testing seam — the cache outlives a single test otherwise. */
+export function clearAllBadgeCache(): void {
+	cache.clear();
+}
+
+/**
+ * How many news items the reader has not seen.
+ *
+ * Returns null when the answer is not knowable — news unreachable, database
+ * down. A badge nobody can justify is worse than no badge, so the navbar shows
+ * nothing rather than guessing.
+ *
+ * A reader with no mark yet is seeded to whatever is newest right now and
+ * reported as having nothing unread. The one item this can cost them is one
+ * published between their first page load and their first look at the feed;
+ * the alternative is greeting every existing user with a badge for a backlog
+ * they have already chosen not to read.
+ */
+export async function loadNewsBadge(
+	cookies: Cookies,
+	userId: number
+): Promise<UnreadSummary | null> {
+	const cached = cache.get(userId);
+	if (cached && cached.expiresAt > Date.now()) {
+		return cached.summary;
+	}
+
+	try {
+		const [news, mark] = await Promise.all([
+			newsApi.getNews(cookies, 1),
+			newsReadStateDAO.getMark(userId)
+		]);
+
+		const items = news.data ?? [];
+		const now = Math.floor(Date.now() / 1000);
+
+		let summary: UnreadSummary;
+		if (mark === null) {
+			const newest = newestOf(items);
+			// Nothing to seed from yet: leave the reader unmarked so the first
+			// item to arrive is genuinely new to them rather than pre-read.
+			if (newest !== null) {
+				await newsReadStateDAO.advanceMark(userId, newest);
+			}
+			summary = { count: 0, capped: false };
+		} else {
+			summary = summarizeUnread(items, mark, now, (news.pagination?.total_pages ?? 1) > 1);
+		}
+
+		cache.set(userId, { summary, expiresAt: Date.now() + CACHE_TTL_MS });
+		return summary;
+	} catch (e) {
+		console.error('Failed to compute news badge:', e instanceof Error ? e.message : e);
+		return null;
+	}
+}
