@@ -9,9 +9,11 @@
 	const actualDay = $derived(day - store.monthData.offsetAtStart);
 	const isValidDay = $derived(actualDay > 0);
 
+	// Read from the store rather than `new Date()`: a tab left open overnight has
+	// to move the highlight on at midnight, and only a value that can change will.
 	const isToday = $derived.by(() => {
 		if (!isValidDay) return false;
-		const now = new Date();
+		const now = store.today;
 		return (
 			store.currentDate.getFullYear() === now.getFullYear() &&
 			store.currentDate.getMonth() === now.getMonth() &&

@@ -218,6 +218,24 @@ describe('nutrition tab failure handling', () => {
 		expect(screen.queryByText('—')).not.toBeInTheDocument();
 	});
 
+	/*
+		The advice is derived from the session, so a session that moved underneath
+		the tab invalidates it as surely as picking another day does. This is the
+		half of the guard a cache test cannot see: without it the tab would go on
+		showing the advice for a plan that no longer exists, and nothing else here
+		would notice.
+	*/
+	it('asks again when the plan the advice was for has moved', async () => {
+		const store = mount();
+		await openNutrition();
+		await waitFor(() => expect(screen.getByText('Total for the day')).toBeInTheDocument());
+		expect(nutritionCalls).toBe(1);
+
+		store.replaceTraining({ ...training, title: 'Easy run', distance: 8 } as never);
+
+		await waitFor(() => expect(nutritionCalls).toBe(2));
+	});
+
 	it('does not refetch a day it already has', async () => {
 		mount();
 		await openNutrition();

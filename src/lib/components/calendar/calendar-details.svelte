@@ -1,7 +1,6 @@
 <script lang="ts">
 	import { getContext } from 'svelte';
 	import { browser } from '$app/environment';
-	import { invalidateAll } from '$app/navigation';
 	import type { CalendarStore } from '$lib/stores/calendar.svelte';
 	import { Tab } from '$lib/stores/calendar.svelte';
 	import type { NutritionAdvice } from '$lib/server/trenara/types';
@@ -17,8 +16,14 @@
 	let nutritionData = $state<NutritionAdvice | null>(null);
 	let nutritionLoading = $state(false);
 	let nutritionError = $state<string | null>(null);
-	let lastNutritionDate: string | null = null;
 	let nutritionAbort: AbortController | null = null;
+	/**
+	 * Which day's advice is in hand, and which version of the plan it was for.
+	 * The advice is derived from the session, so a session that moved underneath
+	 * us — overnight, or on a background refresh — invalidates it just as surely
+	 * as picking a different day does.
+	 */
+	let lastNutritionKey: string | null = null;
 
 	/*
 		How long the tab waits before it gives up and says so.
@@ -31,9 +36,10 @@
 	*/
 	const NUTRITION_TIMEOUT_MS = 15_000;
 
-	async function loadNutrition(timestamp: string) {
-		if (timestamp === lastNutritionDate) return; // already loaded for this date
-		lastNutritionDate = timestamp;
+	async function loadNutrition(timestamp: string, revision: number) {
+		const key = `${revision}:${timestamp}`;
+		if (key === lastNutritionKey) return; // already loaded for this date and plan
+		lastNutritionKey = key;
 
 		// Abort any in-flight request before starting a new one
 		nutritionAbort?.abort();
@@ -67,7 +73,7 @@
 			// A failed date is not a loaded date. Without this the guard above
 			// treats the failure as the answer, and every later visit to the tab
 			// returns the same blank — with no way to ask again.
-			lastNutritionDate = null;
+			lastNutritionKey = null;
 		} finally {
 			clearTimeout(deadline);
 			// Only clear loading if this is still the active request
@@ -78,7 +84,9 @@
 	}
 
 	function retryNutrition() {
-		if (store.selectedDateString) loadNutrition(store.selectedDateString);
+		if (store.selectedDateString) {
+			loadNutrition(store.selectedDateString, store.scheduleRevision);
+		}
 	}
 
 	// ── Derived helpers ────────────────────────────────────────────
@@ -102,7 +110,7 @@
 	$effect(() => {
 		const _ = store.selectedDateString;
 		// Reset nutrition cache so it re-fetches for the new date
-		lastNutritionDate = null;
+		lastNutritionKey = null;
 		nutritionData = null;
 		nutritionError = null;
 
@@ -117,10 +125,12 @@
 		}
 	});
 
-	// Fetch nutrition data when the Nutrition tab becomes active (browser-only)
+	// Fetch nutrition data when the Nutrition tab becomes active (browser-only),
+	// and again if the plan it is advice for has changed since.
 	$effect(() => {
+		const revision = store.scheduleRevision;
 		if (browser && activeTab === Tab.Nutrition && store.selectedDateString) {
-			loadNutrition(store.selectedDateString);
+			loadNutrition(store.selectedDateString, revision);
 		}
 	});
 
@@ -176,8 +186,9 @@
 					entry={selectedEntry}
 					isLoading={store.isLoading}
 					onScheduleChanged={() => {
+						// refresh() re-runs the page load too, so the cards beside the
+						// calendar move with it — no second invalidateAll needed.
 						store.refresh();
-						invalidateAll();
 					}}
 					onTrainingChanged={(updated) => store.replaceTraining(updated)}
 				/>
