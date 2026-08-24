@@ -903,6 +903,15 @@ capture matches that type field for field.
   against a `current_goal.time_in_sec` of 3360 (56:00), so the gap between the
   two is the live read on whether the goal is in reach. Parsing it means
   parsing strings — nothing in this block ships a raw value.
+  - **The whole block is one number.** Every figure in this capture lies on a
+    single Riegel curve, `T2 = T1 * (D2/D1)^e`, at e = 1.0710-1.0713: 5 km
+    19:29, 10 km 40:56, 15 km 1:03:12, half 1:31:04, marathon 3:11:18. So these
+    are not five predictions but one fitness estimate rendered at five
+    distances, and any one of them converts to any other. Practically: trend
+    the 10 km series (stable across goal changes, which is why the app records
+    it) and map to the goal distance, rather than trending `time_for_goal`
+    through a goal switch. The same conversion sizes the ask — 56:00 over 15 km
+    is a 36:16 10 km, against 40:56 predicted, so 12.9% of improvement.
 - `flat_stats[]` — display-ready cards (`Speed`, `Distance`, `Time`), each a
   title, a PNG icon URL, and `data[]` of title/value strings. Everything is
   pre-formatted (`"4686.04km"`, `"17d 11h"`), so it renders but does not
