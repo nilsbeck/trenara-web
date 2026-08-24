@@ -1,3 +1,70 @@
+/**
+ * An uploaded file as the API returns it — profile pictures, medal art, the
+ * recorded activity track.
+ *
+ * `meta` and `custom_properties` carry the same object as each other wherever
+ * both have been seen populated; on an activity track they describe what the
+ * file contains (`gps`, `heartbeat`, point counts) before you download it.
+ */
+export interface MediaFile {
+	id: number;
+	path: string;
+	original_path: string;
+	meta: Record<string, unknown> | null;
+	size_in_kb: number;
+	/** Unix seconds. */
+	created_at: number;
+	custom_properties: Record<string, unknown> | unknown[];
+}
+
+/**
+ * One row of the account's notification preferences.
+ *
+ * `type` is the wire key: `global`, `training_reminder`, `feedback`,
+ * `strength`, `scheme`, `calibration`, `rpe`, `sleep`. `global` gates all the
+ * others. `allow_time` says whether `time` (`"HH:MM"`) applies to this row —
+ * it is null on the ones that fire when the API decides rather than on a clock.
+ */
+export interface NotificationSetting {
+	type: string;
+	checked: boolean;
+	title: string;
+	icon_path: string;
+	allow_time: boolean;
+	time: string | null;
+}
+
+/** A team, as embedded in `captains_team`, `teams[]` and `teams_awaiting_approval[]`. */
+export interface Team {
+	id: number;
+	name: string;
+	awaiting_approval: boolean;
+	status_update: string | null;
+	nr_of_members: number;
+	nr_of_members_activated: number;
+	scheme_activated: boolean;
+	user_is_captain: boolean;
+	/** Unix seconds, null while no invitation is outstanding. */
+	invite_received_at: number | null;
+	/** Unix seconds. */
+	member_since: number;
+	/** Unix seconds. */
+	created_at: number;
+	nr_of_waiting_members: number;
+	/**
+	 * The invite code. Anyone holding it can join the team, so keep it out of
+	 * logs, error messages and screenshots.
+	 */
+	join_code: string;
+	captain: {
+		id: number;
+		name: string;
+		picture?: MediaFile | null;
+		profile_picture: MediaFile | null;
+	};
+	picture: MediaFile | null;
+}
+
 export interface User {
 	id: number;
 	account_created_at: number;
@@ -37,6 +104,47 @@ export interface User {
 	nationality_id: number;
 	pause_cause: string | null;
 	paused_since: number | null;
+	/** Stable public id, distinct from the numeric `id`. */
+	uuid: string;
+	/**
+	 * Selects which of a training block's two readings to show: `pace`
+	 * (min/km) or `pace_per_hour` (km/h). Blocks carry both.
+	 */
+	uses_pace_per_hour: boolean;
+	/** Spelled-out unit names — `"kilograms"`, `"centimeters"`. */
+	weight_unit_lang: string;
+	height_unit_lang: string;
+	/** True when the plan is driven by heart rate rather than pace. */
+	hr_prior: boolean;
+	/** Heart-rate thresholds, null until calibrated. */
+	hr_lt1: number | null;
+	hr_lt2: number | null;
+	has_pace_lts: boolean;
+	/**
+	 * Pace thresholds. `_value` is seconds per kilometre and `_unit` says so
+	 * (`"sec_km"`); `_unit_trans` is the label to print (`"min/km"`).
+	 *
+	 * These are what a completed session's training load is scored against —
+	 * see `docs/backend-api.md`.
+	 */
+	pace_lt1_value: number;
+	pace_lt1_unit: string;
+	pace_lt1_unit_trans: string;
+	pace_lt2_value: number;
+	pace_lt2_unit: string;
+	pace_lt2_unit_trans: string;
+	has_expired_trial: boolean;
+	premium_trial: boolean;
+	premium_trial_reminder: boolean;
+	/** Coach-account fields. Null on an ordinary account. */
+	trainer: unknown | null;
+	coupled_trainees: unknown[] | null;
+	max_trainees: number | null;
+	notification_settings: NotificationSetting[];
+	/** The team this account captains, repeated in full inside `teams`. */
+	captains_team: Team | null;
+	teams: Team[];
+	teams_awaiting_approval: Team[];
 	preferred_distance_unit_large: string;
 	preferred_distance_unit_large_text: string;
 	preferred_distance_unit_small: string;
@@ -46,13 +154,7 @@ export interface User {
 	premium_total_time: string;
 	premium_type: string;
 	premium_until: number;
-	profile_picture: {
-		id: number;
-		path: string;
-		original_path: string;
-		size_in_kb: number;
-		created_at: number;
-	};
+	profile_picture: MediaFile | null;
 	qr_code_url: string | null;
 	strength_calibration_notification_at: number | null;
 	strength_calibrated: boolean;
