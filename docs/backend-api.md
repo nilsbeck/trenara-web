@@ -221,6 +221,21 @@ Trailing slash required.
   client can render done-vs-goal as a bar rather than only printing the
   sentence. `actions: ["share"]` is the button list. The same object is
   repeated inside `last_entry.notification`.
+  - `done_tss` looks computed by Trenara from pace against the account's
+    thresholds, not relayed from the watch. The capture's entry ran 3037 s at
+    `pace_value: 379`; the standard IF² x hours x 100 gives 35.25 against
+    `pace_lt2_value` 245 and 37.30 against the 252 of `pace_for_goal`, where
+    the actual figure is 36.9671 — an implied threshold of 250.9 s/km, within
+    a percent of a textbook rTSS. It fits the rest of the account too:
+    `heartbeat_prior: false` with both pace thresholds set is a pace-driven
+    model, and a treadmill run (`gps: false`) is flat, so average pace stands
+    in for normalized graded pace. Garmin has no TSS to pass through in any
+    case — its metrics are Training Effect and an EPOC-derived Training Load,
+    and it labels anything TSS only for power-based cycling. Nothing in these
+    payloads carries a watch-side load figure: the entry has no field for one
+    and `gps_media[].meta` advertises samples only. To settle it, log a manual
+    entry through `POST /api/entries`, where no integration is involved; a
+    `done_tss` on that response rules pass-through out.
 - `current_goal` — nearly the same shape as `GET /api/goal` (`Goal` in
   `types.ts`), and **the fresher of the two records**: this capture is current,
   our `Goal` type was written against an older response. Where they disagree,
@@ -271,7 +286,15 @@ Trailing slash required.
   `team_data`, and `training.blocks[]` with nested `core` blocks carrying
   `repeat`. `show_description_from` is the unix time before which the
   description should stay hidden.
-- `last_entry` — an `Entry`, including `gps_media[]`. The media `meta` tells you
+- `last_entry` — an `Entry`, including `gps_media[]`. Six fields it returns are
+  missing from our `Entry` type: `allow_shoe`, `ask_feedback`, `cross_type` and
+  the trio `cross_percentage` / `_min` / `_max`. The percentages are how a
+  cross-trained session appears to have its load accounted for — a swim has no
+  pace to score against a threshold, so the effort is expressed as a share of
+  what was planned, bounded by `cross_training.percentage_range` (40) from
+  `/api/config/app`. All three were `null` here because this entry was a run; a
+  capture taken after a logged swim or ride would show what they hold and
+  whether such an entry carries a `done_tss` at all. The media `meta` tells you
   what the track actually contains before you download it: `gps: false` on a
   treadmill run, `points` after compression vs. `points_before_compression`.
 - `energy_value` (0–100) with `energy_title` / `energy_description` — the ATL
