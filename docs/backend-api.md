@@ -898,7 +898,11 @@ capture matches that type field for field.
 - `best_times` — predicted/achieved bests for 5 km, 10 km, half, marathon, plus
   `*_for_goal` for the current goal distance. Strings only, no raw values;
   `distance_unit` and `pace_unit` at the top say how they are formatted.
-  Time strings are `HH:MM:SS`.
+  Time strings are `HH:MM:SS`. `time_for_goal` is what the runner is currently
+  predicted to do over the goal distance, not what the goal asks: here 01:03:12
+  against a `current_goal.time_in_sec` of 3360 (56:00), so the gap between the
+  two is the live read on whether the goal is in reach. Parsing it means
+  parsing strings — nothing in this block ships a raw value.
 - `flat_stats[]` — display-ready cards (`Speed`, `Distance`, `Time`), each a
   title, a PNG icon URL, and `data[]` of title/value strings. Everything is
   pre-formatted (`"4686.04km"`, `"17d 11h"`), so it renders but does not
@@ -911,6 +915,19 @@ capture matches that type field for field.
   goal, with `month`/`year` labels for axis grouping and `is_current_week` for
   the highlight. Weeks already past with nothing run keep `done: null` rather
   than `0`, which is why the type has to allow null instead of defaulting.
+  A null is not evidence of a missed week either — a pause, a holiday or an
+  unsynced watch look the same from here; check the week's entries before
+  calling it non-compliance.
+  - **The totals are not the sum of `data[]`.** This capture's twelve weeks add
+    to 564.57 km against a stated `todo` of 595.36; the goal starts 2026-06-29,
+    ISO week 27, and the array starts at 28, so the missing 30.79 km is that
+    first week. Read the totals the response gives rather than adding the rows.
+  - It is the whole plan, future weeks included, which makes it the cheap way
+    to see where a plan gets hard before it does: week-on-week ramp is a
+    subtraction away (this capture jumps +46% into its 64.1 km peak, and +50%
+    again out of a down week). Kilometres under-count interval weeks, so for
+    load rather than volume, price the blocks from `/api/schedule/week/` with
+    the same rTSS arithmetic that reproduces `done_tss`.
 - Every quantity appears four times: formatted (`done`), raw (`done_value`),
   unit tag (`done_unit`), and unit label (`done_unit_text`). Chart maths uses
   `*_value`; labels use the formatted string, so imperial accounts stay correct
