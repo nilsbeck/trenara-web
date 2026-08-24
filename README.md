@@ -33,13 +33,61 @@ It has some drawbacks, that this web app aims to improve and mitigate.
 
 ## What is the status?
 
-The core functionality is implemented. The app reads data from the reverse-engineered Trenara API and displays training, strength and nutrition data. You can add RPE feedback, move or delete trainings, view training progress over time in a chart, and track your predicted race performance over time with an overall prediction history view. Trenara's in-app news is readable too, with a badge that only ever counts items published since your first visit — new content gets noticed, the backlog stays quiet.
+The core functionality is implemented. The app signs you in with your own Trenara account and reads
+everything from the reverse-engineered Trenara API.
+
+### Your training month
+
+- **A full monthly schedule** as the centre of the app — every week of the month fetched in parallel
+  and merged into one calendar, with running, strength and nutrition on the same grid.
+- **Training details** per day: the planned blocks, a shape bar of the session, and — once you have
+  run it — your actual numbers next to the plan.
+- **Strength sessions** with their exercises, and the **nutrition advice** and meal plan for the day,
+  in the same place as the training instead of three screens away.
+- **RPE feedback** straight from the training card, on a 1–10 scale.
+- **Treadmill mode**: the session as step-by-step instructions with the current and next step on
+  screen, swipeable, with the speeds in your own units.
+
+### Changing a session
+
+Everything Trenara lets you change about a planned training, gathered into one setup panel. What is
+offered is decided by the coach's own flags on that session — options it has locked are simply not
+shown.
+
+- **Swap the workout for another activity** — cycling, mountain biking, indoor cycling, swimming,
+  cross trainer, elliptical bike — and swap it back to a run.
+- **Change intensity and distance**, in the steps the coach allows for that session.
+- **Change the race pacing plan.**
+- **Change the shoes** you will run in, from your locker.
+- **Set the terrain**: surface (road, athletics track, treadmill, dirt road, single track), the
+  elevation band, and the climb in metres — which is checked against the session distance and tells
+  you what that actually reads as per kilometre.
+- **Keep or drop the cool-down.**
+- **Exchange the session** for a different one the coach accepts today.
+- **Move sessions to another date**, optionally shifting the rest of the plan with them.
+- **Delete sessions.**
+
+### Goals and predictions
+
+- **Current race predictions** across distances.
+- **Current goal predictions**, with the historic changes recorded over time.
+- **10K progress over time** in a chart — the 10K prediction rather than the goal distance, so the
+  series stays comparable across training blocks.
+- **A goal archive** of everything you have trained for: period, target, final prediction, status.
+  (This one may still be buggy.)
+
+### Staying in the loop
+
+- **Chat with Walter**, across threads, with an unread badge on the bubble that clears once you have
+  read it.
+- **Trenara's in-app news**, with a badge that only ever counts items published since your first
+  visit — new content gets noticed, the backlog stays quiet.
 
 ## What is the future?
 
-- Implement API calls to set training circumstances
 - Improve dialog usages to change data
 - Increase test coverage
+- Keep the goal archive honest
 
 ## Disclaimer
 
