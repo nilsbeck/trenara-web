@@ -36,6 +36,18 @@ It has some drawbacks, that this web app aims to improve and mitigate.
 The core functionality is implemented. The app signs you in with your own Trenara account and reads
 everything from the reverse-engineered Trenara API.
 
+### One design, on every screen
+
+- **A responsive design that works the same way on a phone, a tablet and a large monitor** — the
+  same app throughout, laid out for the space it has rather than a desktop page squeezed onto a
+  phone or a phone page stretched across a monitor.
+- **Functions are grouped by what they mean to a runner, not by which API call they came from.** A
+  session's setup arrives as a handful of separate Trenara endpoints; you get one panel. The day's
+  training, strength and nutrition are three fetches; you get one day.
+- **Fewer clicks, more at your fingertips.** Everything you actually need is on the screen you are
+  already on: the settings you can change are chips on the session itself, the ones you have changed
+  are marked, and rating, moving or deleting a session never leaves the calendar.
+
 ### Your training month
 
 - **A full monthly schedule** as the centre of the app — every week of the month fetched in parallel
