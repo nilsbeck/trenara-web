@@ -95,7 +95,9 @@
 	};
 
 	const title = $derived.by(() => {
-		if (!section) return 'Session setup';
+		// The same name the card's panel carries — backing out of an editor
+		// should land somewhere the runner recognises, not on a synonym.
+		if (!section) return 'Your setup';
 		// The package carries the coach's own wording, which differs per session:
 		// a distance package calls itself "Fine-tune intervals" on an interval
 		// session. Prefer it over anything we would hardcode.

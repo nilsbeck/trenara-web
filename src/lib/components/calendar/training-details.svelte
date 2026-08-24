@@ -29,6 +29,7 @@
 	import {
 		activityIcon,
 		cooldownBlockIndex,
+		chipSettings,
 		hasSetupFlags,
 		isRun,
 		sessionSettings,
@@ -119,6 +120,12 @@
 	const settings = $derived(setupTraining ? sessionSettings(setupTraining) : []);
 
 	const canShowSetup = $derived(setupTraining !== null && entry === null && settings.length > 0);
+
+	// The panel is only worth drawing where it would hold something. A session
+	// whose every setting lives elsewhere — the cool-down on its block, the
+	// workout behind its title — would otherwise get a heading over an empty
+	// box, which reads as a section that failed to load.
+	const railChips = $derived(setupTraining ? chipSettings(setupTraining) : []);
 
 	// While the fetch is out with nothing to render yet, the rail says so rather
 	// than being absent. The week's copy already says whether the plan lets this
@@ -375,11 +382,32 @@
 			</div>
 		</div>
 
-		<!-- Session setup: what is applied, and the way to change it -->
+		<!--
+			Session setup: what is applied, and the way to change it.
+
+			The chips are given a panel of their own rather than floating between
+			the identity strip and the coach's message. They are one thing — the
+			parts of this session the coach left to the runner — and without a
+			surface around them they read as loose decoration on the card. The
+			panel is recessed rather than outlined: the chips carry borders
+			already, and a box around them would stack one border on another.
+
+			"Your setup" names them by what makes them a group: the plan is the
+			coach's, these are the runner's. It sits as a peer of "Training
+			details" further down, which is the same distinction the other way up.
+		-->
 		{#if setupLoading}
-			<SetupRailLoading />
+			<div class="mt-3 rounded-lg bg-background/60 p-3">
+				<h4 class="mb-2 text-sm font-medium text-foreground">Your setup</h4>
+				<SetupRailLoading />
+			</div>
 		{:else if canShowSetup && setupTraining}
-			<SetupRail training={setupTraining} pending={detailStore.pending} onopen={openSetup} />
+			{#if railChips.length > 0}
+				<div class="mt-3 rounded-lg bg-background/60 p-3">
+					<h4 class="mb-2 text-sm font-medium text-foreground">Your setup</h4>
+					<SetupRail training={setupTraining} pending={detailStore.pending} onopen={openSetup} />
+				</div>
+			{/if}
 
 			<!--
 				Setup errors are shown inside the sheet while it is open. The

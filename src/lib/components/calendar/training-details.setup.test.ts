@@ -116,6 +116,57 @@ describe('training-details session setup', () => {
 		vi.unstubAllGlobals();
 	});
 
+	it('gathers the chips under one heading, so they read as one thing', async () => {
+		vi.stubGlobal(
+			'fetch',
+			vi.fn().mockResolvedValue({ ok: true, status: 200, json: async () => detail })
+		);
+
+		render(TrainingDetails, {
+			props: { selectedDate: '2026-08-22', training: base, entry: null, isLoading: false }
+		});
+
+		// The heading is up during loading too, so wait for the chips themselves.
+		await waitFor(() => expect(screen.getAllByText('Treadmill · Flat').length).toBeGreaterThan(0));
+
+		// The plan is the coach's; these are the runner's. The heading is what
+		// says so, and it sits as a peer of "Training details" — the sheet's own
+		// title carries the same name, hence the level.
+		const heading = screen.getByRole('heading', { level: 4, name: 'Your setup' });
+		// Every chip lives inside it rather than floating on the card.
+		const panel = heading.parentElement!;
+		expect(panel.textContent).toContain('Treadmill · Flat');
+		expect(panel.textContent).toContain('A bit slower');
+		vi.unstubAllGlobals();
+	});
+
+	it('draws no panel for a session whose settings all live elsewhere', async () => {
+		// Cool-down on its block, workout behind its title — a heading over an
+		// empty box would read as a section that failed to load.
+		const elsewhere = {
+			...detail,
+			cross_type: 'road_bike',
+			title: 'Cycling',
+			training_condition: null,
+			can_change_intensity: false,
+			change_intensity_package: null
+		};
+		vi.stubGlobal(
+			'fetch',
+			vi.fn().mockResolvedValue({ ok: true, status: 200, json: async () => elsewhere })
+		);
+
+		render(TrainingDetails, {
+			props: { selectedDate: '2026-08-22', training: base, entry: null, isLoading: false }
+		});
+
+		await waitFor(() => expect(screen.getAllByText('Cycling').length).toBeGreaterThan(0));
+		expect(screen.queryByRole('heading', { level: 4, name: 'Your setup' })).toBeNull();
+		// The session is still replaceable — from its title, as always.
+		expect(screen.getByRole('button', { name: /Cycling/ })).toBeTruthy();
+		vi.unstubAllGlobals();
+	});
+
 	it('drops treadmill mode and the running settings on a cross-trained session', async () => {
 		const bike = { ...detail, cross_type: 'road_bike', title: 'Cycling', training_condition: null };
 		vi.stubGlobal(

@@ -40,7 +40,7 @@
 	"Session setup" button unnecessary: there is nothing left behind it.
 -->
 {#if chips.length > 0}
-	<div class="mt-3 flex flex-wrap items-center gap-1.5">
+	<div class="flex flex-wrap items-center gap-1.5">
 		{#each chips as chip (chip.key)}
 			{@const Icon = ICONS[chip.key as keyof typeof ICONS]}
 			<button

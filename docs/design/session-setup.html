@@ -344,6 +344,25 @@
 	.shape i { display: block; height: 100%; border-radius: 1px; }
 
 	/* Chip rail */
+	/* The chips get a panel of their own rather than floating between the
+	   identity strip and the coach's message. They are one thing — the parts of
+	   the session the coach left to the runner — and a surface is what says so.
+	   Recessed rather than outlined: the chips carry borders already, and a box
+	   around them would stack one border on another. */
+	.setup {
+		margin-top: 12px;
+		background: rgba(0, 0, 0, 0.22);
+		border-radius: 10px;
+		padding: 11px;
+	}
+
+	.setup h4 {
+		font-family: system-ui, sans-serif;
+		font-size: 13px;
+		font-weight: 500;
+		margin-bottom: 8px;
+	}
+
 	/* Wraps rather than scrolls. A rail that scrolls hides its own contents at
 	   exactly the point there are enough of them to be worth reading, and this
 	   rail exists to stop settings being hidden. */
@@ -352,7 +371,6 @@
 		flex-wrap: wrap;
 		align-items: center;
 		gap: 6px;
-		margin-top: 12px;
 	}
 
 	.chip {
@@ -1277,6 +1295,26 @@
 			</div>
 			<div class="note">
 				<span class="k">Chip rail</span>
+				<h3>“Your setup”, and why it is a panel</h3>
+				<p>
+					The chips sit in a panel of their own, under a heading, rather than floating between
+					the identity strip and the coach’s message. They are one thing — the parts of this
+					session the coach left to the runner — and without a surface around them they read
+					as loose decoration. The panel is recessed rather than outlined, because the chips
+					carry borders already and a box would stack one border on another.
+				</p>
+				<p>
+					The heading names them by what makes them a group. <em>Your setup</em> sits as a peer
+					of <em>Training details</em> further down the card, and the pair carries the whole
+					distinction this screen is built on: the plan is the coach’s, the setup is yours.
+					That is why not <em>Session settings</em> — accurate, but it says only “these are
+					settings, and they are on a session”, which the reader can already see. It is also
+					why the panel disappears entirely on a session with nothing in it, rather than
+					showing a heading over an empty box.
+				</p>
+			</div>
+			<div class="note">
+				<span class="k">Chip rail</span>
 				<h3>The rail and the index are one list</h3>
 				<p>
 					Both render from the same array of settings, so a setting cannot carry a different
@@ -1859,7 +1897,9 @@
 					'<button type="button" tabindex="-1" aria-hidden="true">' + ic('i-trash', 17) + '</button>' +
 				'</div>' +
 			'</div>' +
-			'<div class="rail">' + renderRail() + '</div>' +
+			(chipDefs().length
+				? '<div class="setup"><h4>Your setup</h4><div class="rail">' + renderRail() + '</div></div>'
+				: '') +
 			'<div class="coach">' + ic('i-chat', 15) + '<p>' + esc(s.description) + '</p></div>' +
 			'<div class="blocks"><h4>Training details</h4>' + blocksHtml + '</div>';
 	}
@@ -2063,7 +2103,7 @@
 	}
 
 	var VIEWS = {
-		index: { title: 'Session setup', body: viewIndex },
+		index: { title: 'Your setup', body: viewIndex },
 		terrain: { title: 'Terrain', body: viewTerrain },
 		effort: { title: 'Fine-tune intensity', body: function () { return viewSteps('effort'); } },
 		volume: { title: 'Fine-tune distance', body: function () { return viewSteps('volume'); } },
