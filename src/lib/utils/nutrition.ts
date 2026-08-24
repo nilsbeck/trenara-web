@@ -123,22 +123,6 @@ export function energyAmount(totals: MacroAmount[]): MacroAmount | null {
 }
 
 /**
- * The colour the day is drawn in.
- *
- * `icon_background_color` comes back the same for every meal — it is the badge
- * the app paints each meal's glyph on, not a way of telling one from another —
- * so the day has one accent and this finds it. Empty when the API sends none,
- * which leaves the tab on its own primary.
- */
-export function dayAccent(plan: NutritionMeal[] | null | undefined): string {
-	for (const meal of plan ?? []) {
-		const colour = text(meal?.icon_background_color).trim();
-		if (colour) return colour;
-	}
-	return '';
-}
-
-/**
  * Each meal's share of the day, as a percentage.
  *
  * `percentage` comes from the API but not on a documented scale — some fields

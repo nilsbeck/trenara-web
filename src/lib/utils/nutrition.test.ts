@@ -3,7 +3,6 @@ import {
 	type NutritionMeal,
 	dailyTotals,
 	energyAmount,
-	dayAccent,
 	formatAmount,
 	macroColumns,
 	mealAmount,
@@ -197,29 +196,6 @@ describe('a day named for its units', () => {
 
 	it('keeps the macros as rows of their own', () => {
 		expect(dailyTotals(day()).map((m) => m.name)).toEqual(['Kcal', 'Carbs', 'Proteins']);
-	});
-});
-
-describe('dayAccent', () => {
-	it('is the colour the API paints every meal badge', () => {
-		expect(dayAccent(fullDay().map((m) => ({ ...m, icon_background_color: '#e11d48' })))).toBe(
-			'#e11d48'
-		);
-	});
-
-	it('skips past meals that carry no colour', () => {
-		const meals = fullDay();
-		meals[0] = { ...meals[0], icon_background_color: '' };
-		meals[1] = { ...meals[1], icon_background_color: '#e11d48' };
-		expect(dayAccent(meals)).toBe('#e11d48');
-	});
-
-	it('is empty when the API sends no colour at all, leaving the tab its own', () => {
-		expect(dayAccent(fullDay().map((m) => ({ ...m, icon_background_color: null as never })))).toBe(
-			''
-		);
-		expect(dayAccent([])).toBe('');
-		expect(dayAccent(null)).toBe('');
 	});
 });
 

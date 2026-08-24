@@ -2,7 +2,6 @@
 	import type { NutritionAdvice } from '$lib/server/trenara/types';
 	import {
 		dailyTotals,
-		dayAccent,
 		energyAmount,
 		formatAmount,
 		macroColumns,
@@ -33,7 +32,6 @@
 	const totals = $derived(dailyTotals(meals));
 	const energy = $derived(energyAmount(totals));
 	const shares = $derived(mealShares(meals));
-	const accent = $derived(dayAccent(meals));
 
 	/*
 		Every meal is laid out against the macros of the whole day rather than only
@@ -91,19 +89,15 @@
 				Food coach screen draws them: an outlined card under a badge, the
 				figure on the left and what it measures on the right.
 
-				The accent is the API's own — the colour it paints every meal badge —
-				rather than this tab's primary, so the two screens are recognisably the
-				same thing. Where the API sends no colour the tab falls back to its own.
+				Drawn in this tab's own primary rather than in the API's
+				`icon_background_color`. That colour is the app's accent, not the
+				web's, and the two are close enough that using it here read as a
+				near-miss of the primary sitting a few pixels away on the tab rule and
+				the header icon.
 			-->
-			<div
-				class="relative mt-3.5 rounded-xl border-2 px-4 pb-4 pt-5"
-				class:border-primary={!accent}
-				style={accent ? `border-color: ${accent}` : undefined}
-			>
+			<div class="relative mt-3.5 rounded-xl border-2 border-primary px-4 pb-4 pt-5">
 				<span
-					class="absolute -top-3.5 left-1/2 grid h-7 w-7 -translate-x-1/2 place-items-center rounded-full"
-					class:bg-primary={!accent}
-					style={accent ? `background-color: ${accent}` : undefined}
+					class="absolute -top-3.5 left-1/2 grid h-7 w-7 -translate-x-1/2 place-items-center rounded-full bg-primary"
 				>
 					<Equal class="h-4 w-4 text-white" />
 				</span>
@@ -152,14 +146,12 @@
 						<div class="relative rounded-xl border border-border bg-background/40 px-3 pb-3 pt-5">
 							<!--
 								The glyph is what tells one meal from another — a cup, a bolt,
-								a moon — and it is the reason the badge colour is the same on
-								every one of them. Where the API sends no icon the badge keeps
-								the colour and the shape, so a row of cards stays a row.
+								a moon — which is why the badge behind it is one colour on all
+								of them and not six. Where the API sends no icon the badge
+								keeps the colour and the shape, so a row of cards stays a row.
 							-->
 							<span
-								class="absolute -top-3.5 left-1/2 grid h-7 w-7 -translate-x-1/2 place-items-center rounded-full"
-								class:bg-primary={!accent}
-								style={accent ? `background-color: ${accent}` : undefined}
+								class="absolute -top-3.5 left-1/2 grid h-7 w-7 -translate-x-1/2 place-items-center rounded-full bg-primary"
 							>
 								{#if meal.icon}
 									<!--
@@ -224,11 +216,8 @@
 								<div class="mt-3">
 									<div class="h-1 overflow-hidden rounded-full bg-muted">
 										<div
-											class="h-full rounded-full"
-											class:bg-primary={!accent}
-											style="width: {Math.min(shares[index], 100)}%{accent
-												? `; background-color: ${accent}`
-												: ''}"
+											class="h-full rounded-full bg-primary"
+											style="width: {Math.min(shares[index], 100)}%"
 										></div>
 									</div>
 									<p class="mt-1 text-center text-[11px] tabular-nums text-muted-foreground">
