@@ -7,6 +7,7 @@ import type {
 	TrainingSurface
 } from '$lib/server/trenara/types';
 import { activityLabel, type SettingKey } from '$lib/utils/session-setup';
+import { appConfig } from './app-config.svelte';
 
 /**
  * The detail and mutations for one selected training.
@@ -199,7 +200,7 @@ export class SessionDetailStore {
 		// The inverse of a cross-train is exactly a cross-train, so this undo is
 		// precise rather than a best effort.
 		this.undoable = {
-			message: `Swapped to ${activityLabel(crossType)}.`,
+			message: `Swapped to ${activityLabel(crossType, appConfig.current)}.`,
 			apply: () => this.crossTrain(previous)
 		};
 		return true;

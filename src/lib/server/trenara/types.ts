@@ -168,6 +168,58 @@ export interface User {
 	trainer_picture_url: string;
 }
 
+/**
+ * Static configuration served by `GET /api/config/app`.
+ *
+ * The option lists a client builds its pickers from, plus copy. No user data,
+ * identical for everyone, and the source of truth for enumerations this file
+ * also spells out as constants — where the two disagree, the served list wins
+ * and the constant is only a fallback for a failed request.
+ */
+export interface AppConfig {
+	perks: { title: string; description: string };
+	nutritional: { disclaimer: string };
+	/** Reasons a plan can be paused, in display `order`. */
+	pause_types: Array<{
+		order: number;
+		type: string;
+		title: string;
+		/** True on the reasons that want a free-text follow-up. */
+		ask_extra_input: boolean;
+	}>;
+	/**
+	 * Onboarding copy: three variants in one string, separated by blank lines
+	 * and a leading `-`, keyed to the starting-volume choice. Not structured.
+	 */
+	init_popup: string;
+	shoes: {
+		/** `"Other"` is served last and is a sentinel — the real make goes in the name. */
+		brands: string[];
+		types: Array<{
+			/** The wire value, matching a `Shoe`'s `type`. */
+			tag: string;
+			name: string;
+			/**
+			 * `false` on every type seen so far, but a real flag rather than a
+			 * constant — do not collapse it away.
+			 */
+			changes_intensity: boolean;
+		}>;
+	};
+	cross_training: {
+		/** The ± window allowed on a cross-training effort percentage. */
+		percentage_range: number;
+		types: Array<{
+			/** The wire value, matching a session's `cross_type`. */
+			type: string;
+			name: string;
+			/** Absolute URL of an SVG on the API host. */
+			icon_path: string;
+			color: string;
+		}>;
+	};
+}
+
 export interface AuthResponse {
 	access_token: string;
 	refresh_token: string;

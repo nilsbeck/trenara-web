@@ -14,6 +14,7 @@
 	} from 'lucide-svelte';
 	import ChatBubble from '$lib/components/chat/chat-bubble.svelte';
 	import { formatUnread, type UnreadSummary } from '$lib/utils/news-unread';
+	import { appConfig } from '$lib/stores/app-config.svelte';
 
 	let { children, data }: { children: any; data: LayoutServerData } = $props();
 
@@ -28,6 +29,12 @@
 	let chatThreads = $state<ChatThread[]>([]);
 	let chatSeen = $state<Record<number, number>>({});
 	const newsBadgeLabel = $derived(newsUnread ? formatUnread(newsUnread) : '');
+
+	// Seeds the served option lists once. Anything that misses them renders from
+	// the constants instead, so there is nothing to wait for here.
+	$effect(() => {
+		data.appConfig.then((c) => appConfig.set(c)).catch(() => appConfig.set(null));
+	});
 
 	$effect(() => {
 		data.userData

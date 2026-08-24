@@ -1,6 +1,6 @@
 import { redirect } from '@sveltejs/kit';
 import type { LayoutServerLoad } from './$types';
-import { userApi } from '$lib/server/trenara';
+import { configApi, userApi } from '$lib/server/trenara';
 import { loadNewsBadge } from '$lib/server/news/badge';
 import { loadChatBadge } from '$lib/server/chat/badge';
 
@@ -24,9 +24,15 @@ export const load: LayoutServerLoad = async ({ cookies, locals, depends }) => {
 	// unread" — the page behind it has nothing to do with chat.
 	const chatBadge = loadChatBadge(cookies, locals.user.id);
 
+	// Option lists and copy the pickers render from. Streamed like the badges,
+	// and null on failure: every consumer falls back to the constants, so a
+	// config the API would not serve is not a reason to fail a page.
+	const appConfig = configApi.getAppConfig(cookies).catch(() => null);
+
 	return {
 		userData,
 		newsBadge,
-		chatBadge
+		chatBadge,
+		appConfig
 	};
 };

@@ -17,7 +17,7 @@
 	import CooldownIcon from '$lib/components/icons/cooldown-icon.svelte';
 	import type { SessionDetailStore } from '$lib/stores/session-detail.svelte';
 	import {
-		ACTIVITIES,
+		activities,
 		HEIGHT_DIFFERENCES,
 		SURFACES,
 		activityLabel,
@@ -32,6 +32,7 @@
 		shoeTypeLabel,
 		type SettingKey
 	} from '$lib/utils/session-setup';
+	import { appConfig } from '$lib/stores/app-config.svelte';
 
 	let {
 		training,
@@ -45,6 +46,9 @@
 		/** Which editor to show. `null` is the index. */
 		section: SettingKey | null;
 	} = $props();
+
+	// The served activity list when the config arrived, ours when it did not.
+	const activityChoices = $derived(activities(appConfig.current));
 
 	let dialogEl: HTMLDialogElement | undefined = $state();
 
@@ -492,7 +496,7 @@
 								<span
 									class="rounded bg-muted px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-muted-foreground"
 								>
-									{shoeTypeLabel(shoe.type)}
+									{shoeTypeLabel(shoe.type, appConfig.current)}
 								</span>
 								{#if shoe.id === recommendedShoeId}
 									<span
@@ -608,8 +612,9 @@
 							<span class="min-w-0 flex-1">
 								<span class="block text-sm">{candidate.title}</span>
 								<span class="block text-[11px] text-muted-foreground">
-									{candidate.training.total_distance ?? activityLabel(candidate.cross_type)} · {candidate
-										.training.total_time}
+									{candidate.training.total_distance ??
+										activityLabel(candidate.cross_type, appConfig.current)} · {candidate.training
+										.total_time}
 								</span>
 							</span>
 							<ChevronRight class="h-4 w-4 shrink-0 text-border" />
@@ -630,7 +635,7 @@
 					{isRun(training) ? 'Cross-train instead' : 'Or go back to running'}
 				</p>
 				<div class="grid grid-cols-2 gap-1.5">
-					{#each ACTIVITIES as activity (activity.label)}
+					{#each activityChoices as activity (activity.label)}
 						{@const active = (training.cross_type ?? null) === activity.crossType}
 						<button
 							type="button"
