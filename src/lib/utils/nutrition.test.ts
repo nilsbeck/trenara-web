@@ -246,8 +246,14 @@ describe('malformed API payloads', () => {
 		expect(macroColumns([oddMeal(null), oddMeal(undefined)])).toEqual([]);
 	});
 
-	it('treats a non-numeric amount as absent rather than as zero', () => {
+	it('reads an amount the API sent as a numeric string', () => {
 		const plan = [oddMeal([{ name: 'Energy', value: '620', order: 1, value_unit: 'kcal' }])];
+		const [column] = macroColumns(plan);
+		expect(mealAmount(plan[0], column)).toBe(620);
+	});
+
+	it('treats an amount that is not a number at all as absent', () => {
+		const plan = [oddMeal([{ name: 'Energy', value: 'plenty', order: 1, value_unit: 'kcal' }])];
 		const [column] = macroColumns(plan);
 		expect(mealAmount(plan[0], column)).toBeNull();
 	});

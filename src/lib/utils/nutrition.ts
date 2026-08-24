@@ -15,8 +15,21 @@ function text(value: unknown): string {
 	return typeof value === 'string' ? value : '';
 }
 
+/*
+	An amount the API means as a number, whether or not it sent one as such.
+
+	JSON from this API is not consistent about it — a value can arrive as 620 or
+	as "620" — and refusing the string spends the reading of a whole macro to
+	buy nothing: the em dash it leaves behind says "your coach did not plan
+	this", which is a different and worse claim than the truth.
+*/
 function finite(value: unknown): number | null {
-	return typeof value === 'number' && Number.isFinite(value) ? value : null;
+	if (typeof value === 'number') return Number.isFinite(value) ? value : null;
+	if (typeof value === 'string' && value.trim() !== '') {
+		const parsed = Number(value);
+		return Number.isFinite(parsed) ? parsed : null;
+	}
+	return null;
 }
 
 /** One macro column: the name the API gives it, and the unit its values carry. */

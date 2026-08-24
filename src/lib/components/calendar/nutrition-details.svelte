@@ -146,6 +146,7 @@
 				<h4 class="mb-2 text-sm font-medium text-foreground">Meal breakdown</h4>
 				<div class="flex flex-col gap-2">
 					{#each meals as meal, index}
+						{@const carries = columns.some((column) => mealAmount(meal, column) !== null)}
 						<div class="rounded-lg border border-border bg-background/40 p-3">
 							<div class="flex items-center gap-2">
 								<!--
@@ -169,25 +170,33 @@
 									</span>
 								{/if}
 							</div>
-							<dl class="mt-2 {macroGrid}">
-								{#each columns as column}
-									{@const amount = mealAmount(meal, column)}
-									<div class="min-w-0">
-										<dt class="truncate text-[11px] text-muted-foreground" title={column.name}>
-											{column.name}
-										</dt>
-										<dd class="mt-0.5 text-sm tabular-nums text-foreground">
-											{#if amount === null}
-												<span class="text-muted-foreground">—</span>
-											{:else}
-												{formatAmount(amount)}<span class="ml-0.5 text-xs text-muted-foreground"
-													>{column.unit}</span
-												>
-											{/if}
-										</dd>
-									</div>
-								{/each}
-							</dl>
+							<!--
+								A meal the API sends without any figures gets its name and
+								nothing else. Laid out against the day's macros it became a
+								row of em dashes — the heaviest thing on the card, saying
+								only that there is nothing to say.
+							-->
+							{#if carries}
+								<dl class="mt-2 {macroGrid}">
+									{#each columns as column}
+										{@const amount = mealAmount(meal, column)}
+										<div class="min-w-0">
+											<dt class="truncate text-[11px] text-muted-foreground" title={column.name}>
+												{column.name}
+											</dt>
+											<dd class="mt-0.5 text-sm tabular-nums text-foreground">
+												{#if amount === null}
+													<span class="text-muted-foreground">—</span>
+												{:else}
+													{formatAmount(amount)}<span class="ml-0.5 text-xs text-muted-foreground"
+														>{column.unit}</span
+													>
+												{/if}
+											</dd>
+										</div>
+									{/each}
+								</dl>
+							{/if}
 						</div>
 					{/each}
 				</div>

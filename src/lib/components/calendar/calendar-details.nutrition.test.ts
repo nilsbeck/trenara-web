@@ -211,7 +211,11 @@ describe('nutrition tab failure handling', () => {
 		await waitFor(() => expect(screen.getByText('Total for the day')).toBeInTheDocument());
 		expect(screen.queryByText('Loading...')).not.toBeInTheDocument();
 		expect(screen.getByText('Breakfast')).toBeInTheDocument();
+
+		// The meal the API sent no figures for keeps its name and drops the row
+		// of em dashes that stood in for them.
 		expect(screen.getByText('Lunch')).toBeInTheDocument();
+		expect(screen.queryByText('—')).not.toBeInTheDocument();
 	});
 
 	it('does not refetch a day it already has', async () => {
