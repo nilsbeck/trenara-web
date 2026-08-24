@@ -2,10 +2,8 @@ import { error } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { trainingApi } from '$lib/server/trenara';
 import { fingerprint } from '$lib/utils/fingerprint';
-
-function daysInMonth(year: number, month: number): number {
-	return new Date(year, month + 1, 0).getDate();
-}
+import { getMonthTimestamps, parseLocalDateString, weeksStillOpen } from '$lib/utils/date';
+import type { SchedulePayload } from '$lib/utils/schedule';
 
 export const GET: RequestHandler = async ({ url, request, cookies, locals }) => {
 	if (!locals.user) {
@@ -21,29 +19,37 @@ export const GET: RequestHandler = async ({ url, request, cookies, locals }) => 
 		error(400, 'Invalid date parameter');
 	}
 
-	const month = date.getMonth();
-	const year = date.getFullYear();
-	const firstDayOfMonthDate = new Date(year, month, 1);
-	const firstDayOfMonth = firstDayOfMonthDate.getDay();
+	let timestamps = getMonthTimestamps(date);
+	let coveredFrom: string | null = null;
 
-	const nextMonday = new Date(firstDayOfMonthDate);
-	nextMonday.setDate(nextMonday.getDate() + ((1 + 7 - firstDayOfMonthDate.getDay()) % 7 || 7));
-	const offsetAtStart = firstDayOfMonth === 0 ? firstDayOfMonth + 6 : firstDayOfMonth - 1;
-	const weeksInMonth = Math.ceil((offsetAtStart + daysInMonth(year, month)) / 7);
-
-	const timestamps: Date[] = [firstDayOfMonthDate];
-	timestamps.push(new Date(nextMonday));
-
-	for (let i = timestamps.length; i < weeksInMonth; i++) {
-		nextMonday.setDate(nextMonday.getDate() + 7);
-		timestamps.push(new Date(nextMonday));
+	/**
+	 * `from` says the caller already holds this month and only wants the weeks
+	 * that can still change. A week that ended before it is settled, so the
+	 * upstream calls for it are skipped entirely — in the back half of a month
+	 * that is most of them.
+	 *
+	 * A `from` that would leave nothing to fetch is ignored rather than answered
+	 * with an empty month: the caller is expected not to ask about a month
+	 * wholly in the past, and if they do, the whole month is the safe answer.
+	 */
+	const fromParam = url.searchParams.get('from');
+	if (fromParam) {
+		const from = parseLocalDateString(fromParam);
+		if (!from) {
+			error(400, 'Invalid from parameter');
+		}
+		const open = weeksStillOpen(timestamps, from);
+		if (open.anchors.length > 0 && open.anchors.length < timestamps.length) {
+			timestamps = open.anchors;
+			coveredFrom = open.coveredFrom;
+		}
 	}
 
 	const schedules = await Promise.all(
 		timestamps.map((ts) => trainingApi.getSchedule(cookies, Math.floor(ts.getTime() / 1000)))
 	);
 
-	const merged = {
+	const merged: SchedulePayload = {
 		id: 0,
 		start_day: 0,
 		start_day_long: '',
@@ -51,7 +57,8 @@ export const GET: RequestHandler = async ({ url, request, cookies, locals }) => 
 		type: 'ultimate' as const,
 		trainings: schedules.flatMap((s) => s.trainings),
 		strength_trainings: schedules.flatMap((s) => s.strength_trainings),
-		entries: schedules.flatMap((s) => s.entries)
+		entries: schedules.flatMap((s) => s.entries),
+		covered_from: coveredFrom
 	};
 
 	const body = JSON.stringify(merged);
@@ -66,7 +73,7 @@ export const GET: RequestHandler = async ({ url, request, cookies, locals }) => 
 		'cache-control': 'private, no-cache, must-revalidate'
 	};
 
-	// The client already holds this exact month. Nothing to send.
+	// The client already holds this exact answer. Nothing to send.
 	if (request.headers.get('if-none-match') === etag) {
 		return new Response(null, { status: 304, headers });
 	}

@@ -1203,6 +1203,15 @@ describe('revalidate', () => {
 		};
 	}
 
+	/** The `from` parameter of the nth request, or null if it asked for everything. */
+	function requestedFrom(call: number): string | null {
+		return new URL(mockFetch.mock.calls[call][0], 'http://localhost').searchParams.get('from');
+	}
+
+	function runOn(id: number, day: string) {
+		return { id, day_long: day, title: `Run ${id}` } as unknown as Schedule['trainings'][number];
+	}
+
 	function notModified() {
 		return {
 			ok: false,
@@ -1310,17 +1319,64 @@ describe('revalidate', () => {
 		expect(store.schedule?.id).toBe(7);
 	});
 
-	it('asks without a condition when the runner presses refresh', async () => {
+	it('asks for the whole month, unconditionally, when the runner presses refresh', async () => {
 		mockFetch
 			.mockResolvedValueOnce(okResponse(makeSchedule({ id: 7 }), 'W/"abc"'))
 			.mockResolvedValueOnce(okResponse(makeSchedule({ id: 8 }), 'W/"def"'));
 
-		const store = createCalendarStore(new Date('2025-03-05'));
-		await store.loadMonthData(new Date('2025-03-05'));
+		const store = createCalendarStore(new Date(2025, 2, 28));
+		await store.loadMonthData(new Date(2025, 2, 28));
 		await store.refresh();
 
 		expect(mockFetch.mock.calls[1][1]?.headers).toEqual({});
+		expect(requestedFrom(1)).toBeNull();
 		expect(store.schedule?.id).toBe(8);
+	});
+
+	it('asks only about the weeks that can still change once a month is in hand', async () => {
+		mockFetch.mockResolvedValue(okResponse(makeSchedule()));
+
+		const store = createCalendarStore(new Date(2025, 2, 28));
+		await store.loadMonthData(new Date(2025, 2, 28));
+		// Nothing cached to graft onto yet, so the first ask is for all of it.
+		expect(requestedFrom(0)).toBeNull();
+
+		await store.revalidate();
+		// A week's grace behind today, so a run synced late still lands.
+		expect(requestedFrom(1)).toBe('2025-03-21');
+	});
+
+	it('grafts a partial answer onto the month it already holds', async () => {
+		const full = makeSchedule({
+			trainings: [runOn(1, '2025-03-03'), runOn(2, '2025-03-25')]
+		});
+		const partial = {
+			...makeSchedule({ trainings: [runOn(2, '2025-03-26')] }),
+			covered_from: '2025-03-24'
+		};
+
+		mockFetch
+			.mockResolvedValueOnce(okResponse(full))
+			.mockResolvedValueOnce(okResponse(partial as Schedule));
+
+		const store = createCalendarStore(new Date(2025, 2, 28));
+		await store.loadMonthData(new Date(2025, 2, 28));
+		await store.revalidate();
+
+		// The untouched week survives; the answered week is taken as given.
+		expect(store.schedule?.trainings.map((t) => t.day_long)).toEqual(['2025-03-03', '2025-03-26']);
+	});
+
+	it('says nothing at all about a month that is wholly in the past', async () => {
+		mockFetch.mockResolvedValue(okResponse(makeSchedule()));
+
+		const store = createCalendarStore(new Date(2025, 7, 15));
+		await store.loadMonthData(new Date(2025, 2, 15));
+		vi.clearAllMocks();
+
+		await store.revalidate();
+
+		expect(mockFetch).not.toHaveBeenCalled();
 	});
 
 	it('keeps the plan on screen when the refresh fails', async () => {
@@ -1347,14 +1403,15 @@ describe('revalidate', () => {
 		expect(store.lastUpdatedAt).toBeTypeOf('number');
 	});
 
-	it('leaves the month the page load covers to the page load', async () => {
+	it('fetches the month itself, alongside whatever else the page shows', async () => {
+		mockFetch.mockResolvedValue(okResponse(makeSchedule()));
 		const refreshPageData = vi.fn().mockResolvedValue(undefined);
-		const store = createCalendarStore(new Date('2025-03-05'), { refreshPageData });
+		const store = createCalendarStore(new Date(2025, 2, 5), { refreshPageData });
 
 		await store.revalidate();
 
 		expect(refreshPageData).toHaveBeenCalledTimes(1);
-		expect(mockFetch).not.toHaveBeenCalled();
+		expect(mockFetch).toHaveBeenCalledTimes(1);
 	});
 
 	it('fetches a month the runner paged to, which no page load covers', async () => {

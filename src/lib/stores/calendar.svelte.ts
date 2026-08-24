@@ -10,6 +10,8 @@ import type {
 } from '$lib/server/trenara/types';
 import { fingerprint } from '$lib/utils/fingerprint';
 import { stalenessReason } from '$lib/utils/revalidation';
+import { getMonthTimestamps, toLocalDateString, weeksStillOpen } from '$lib/utils/date';
+import { entryLocalDate, mergeSchedule, type SchedulePayload } from '$lib/utils/schedule';
 
 export type CalendarDate = {
 	year: number;
@@ -40,22 +42,22 @@ export interface CalendarStoreOptions {
 	refreshPageData?: () => Promise<unknown>;
 }
 
+/**
+ * How far back a refresh still asks about.
+ *
+ * The plan only ever changes ahead of the runner, so a finished week could in
+ * principle be skipped outright. Completed runs are the exception: a watch that
+ * syncs the next morning files an activity against yesterday, and a week that
+ * had already been written off would never pick it up. A week's grace covers
+ * that for the price of one extra request.
+ */
+export const REFRESH_LOOKBACK_DAYS = 7;
+
 // ── Helpers (pure, no allocations on hot path) ──────────────
 
 /** Extract YYYY-MM-DD from an ISO timestamp without creating a Date object. */
 function isoToDateString(iso: string): string {
 	return iso.slice(0, 10);
-}
-
-/** Extract YYYY-MM-DD from an entry start_time, handling timezone offset. */
-function entryDateString(startTime: string): string {
-	// start_time may be an ISO string like "2025-03-05T08:00:00.000Z"
-	// We need local-date, so we go through Date for TZ correction.
-	const d = new Date(startTime);
-	const y = d.getFullYear();
-	const m = String(d.getMonth() + 1).padStart(2, '0');
-	const day = String(d.getDate()).padStart(2, '0');
-	return `${y}-${m}-${day}`;
 }
 
 /** Build a cache key from a Date (YYYY-MM). */
@@ -107,7 +109,7 @@ function buildStatusIndex(schedule: Schedule): StatusIndex {
 		scheduledStrength.add(isoToDateString(s.day));
 	}
 	for (const e of schedule.entries ?? []) {
-		const d = entryDateString(e.start_time);
+		const d = entryLocalDate(e.start_time);
 		if (e.type === 'run') {
 			completedRuns.add(d);
 		} else if (e.type === 'strength') {
@@ -124,7 +126,7 @@ function buildStatusIndex(schedule: Schedule): StatusIndex {
 function buildEntryDateCache(entries: Entry[]): Map<Entry, string> {
 	const map = new Map<Entry, string>();
 	for (const e of entries) {
-		map.set(e, entryDateString(e.start_time));
+		map.set(e, entryLocalDate(e.start_time));
 	}
 	return map;
 }
@@ -378,18 +380,35 @@ export function createCalendarStore(initialDate: Date, options: CalendarStoreOpt
 		});
 	}
 
+	/** The oldest day a refresh still asks the server about. */
+	function lookbackFrom(): Date {
+		const from = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+		from.setDate(from.getDate() - REFRESH_LOOKBACK_DAYS);
+		return from;
+	}
+
+	/** Whether every week of a month finished before the lookback — nothing left to ask. */
+	function isSettled(date: Date): boolean {
+		return weeksStillOpen(getMonthTimestamps(date), lookbackFrom()).anchors.length === 0;
+	}
+
 	/** One month, straight from the API. Throws; callers decide what that means. */
 	async function fetchMonth(
 		date: Date,
-		conditional: boolean
-	): Promise<{ schedule: Schedule; etag: string | null } | null> {
+		{ conditional, from }: { conditional: boolean; from: Date | null }
+	): Promise<{ payload: SchedulePayload; etag: string | null } | null> {
 		const cached = scheduleCache.get(monthKey(date));
 		const headers: Record<string, string> = {};
 		if (conditional && cached?.etag) {
 			headers['If-None-Match'] = cached.etag;
 		}
 
-		const response = await fetch(`/api/v1/schedule?date=${date.getTime()}`, { headers });
+		const params = new URLSearchParams({ date: String(date.getTime()) });
+		if (from) {
+			params.set('from', toLocalDateString(from));
+		}
+
+		const response = await fetch(`/api/v1/schedule?${params}`, { headers });
 
 		// Nothing moved — the server recognised the fingerprint we sent.
 		if (response.status === 304) return null;
@@ -399,7 +418,7 @@ export function createCalendarStore(initialDate: Date, options: CalendarStoreOpt
 		}
 
 		return {
-			schedule: (await response.json()) as Schedule,
+			payload: (await response.json()) as SchedulePayload,
 			etag: response.headers?.get?.('etag') ?? null
 		};
 	}
@@ -411,19 +430,40 @@ export function createCalendarStore(initialDate: Date, options: CalendarStoreOpt
 	 * and is still the best answer available, so a refresh that could not reach
 	 * the server should leave it alone rather than replace a plan with an error.
 	 */
-	async function revalidateMonth(date: Date, conditional = true): Promise<void> {
+	async function revalidateMonth(
+		date: Date,
+		{ full = false }: { full?: boolean } = {}
+	): Promise<void> {
+		// A month whose every week is over cannot have moved. Say nothing to
+		// the server about it at all.
+		if (isSettled(date)) return;
+
 		const key = monthKey(date);
+		const cached = scheduleCache.get(key);
+
 		try {
-			const result = await fetchMonth(date, conditional);
+			const result = await fetchMonth(date, {
+				conditional: !full,
+				// Only worth asking for part of a month when there is a whole one
+				// already in hand for the answer to be grafted onto. A forced
+				// refresh asks for all of it, since it is the button people press
+				// when they think something is wrong.
+				from: full || !cached ? null : lookbackFrom()
+			});
+
 			if (!result) {
-				const cached = scheduleCache.get(key);
 				if (cached) {
 					scheduleCache.set(key, { ...cached, fetchedAt: Date.now() });
 					if (key === monthKey(currentDate)) lastUpdatedAt = Date.now();
 				}
 				return;
 			}
-			commitSchedule(key, result.schedule, result.etag);
+
+			const { covered_from: coveredFrom, ...incoming } = result.payload;
+			const next =
+				coveredFrom && cached ? mergeSchedule(cached.schedule, incoming, coveredFrom) : incoming;
+
+			commitSchedule(key, next, result.etag);
 		} catch {
 			// Keep what we have.
 		}
@@ -432,22 +472,19 @@ export function createCalendarStore(initialDate: Date, options: CalendarStoreOpt
 	/**
 	 * Go and check everything, without taking the UI away from the runner.
 	 *
-	 * The month the page was opened on is not fetched here: the page's own
-	 * `load` covers it, along with the goal and prediction cards, and asking for
-	 * the same five weeks twice would double the work for one screen. Any other
-	 * month the user has paged to is fetched directly, since nothing else will.
+	 * The month on screen is fetched here whichever month it is, and only for
+	 * the weeks that can still change. `refreshPageData` runs alongside for
+	 * everything else the page is showing — it must not fetch the schedule
+	 * itself, or the trimming here buys nothing.
 	 */
 	async function revalidate({ force = false }: { force?: boolean } = {}): Promise<void> {
 		if (isRevalidating) return;
 		isRevalidating = true;
 
 		try {
-			const pageCoversCurrentMonth =
-				Boolean(options.refreshPageData) && monthKey(currentDate) === monthKey(today);
-
 			await Promise.all([
 				options.refreshPageData?.().catch(() => {}),
-				pageCoversCurrentMonth ? Promise.resolve() : revalidateMonth(new Date(currentDate), !force)
+				revalidateMonth(new Date(currentDate), { full: force })
 			]);
 		} finally {
 			isRevalidating = false;
@@ -479,9 +516,11 @@ export function createCalendarStore(initialDate: Date, options: CalendarStoreOpt
 				return;
 			}
 
-			const result = await fetchMonth(date, false);
+			// Nothing cached to graft onto, so the whole month it is.
+			const result = await fetchMonth(date, { conditional: false, from: null });
 			if (result) {
-				commitSchedule(key, result.schedule, result.etag);
+				const { covered_from: _coverage, ...incoming } = result.payload;
+				commitSchedule(key, incoming, result.etag);
 			}
 		} catch (err) {
 			error = err instanceof Error ? err : new Error('Failed to load month data');
