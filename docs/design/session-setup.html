@@ -344,26 +344,16 @@
 	.shape i { display: block; height: 100%; border-radius: 1px; }
 
 	/* Chip rail */
+	/* Wraps rather than scrolls. A rail that scrolls hides its own contents at
+	   exactly the point there are enough of them to be worth reading, and this
+	   rail exists to stop settings being hidden. */
 	.rail {
 		display: flex;
+		flex-wrap: wrap;
 		align-items: center;
 		gap: 6px;
 		margin-top: 12px;
 	}
-
-	.rail-scroll {
-		flex: 1 1 auto;
-		min-width: 0;
-		display: flex;
-		gap: 6px;
-		overflow-x: auto;
-		scrollbar-width: none;
-		-ms-overflow-style: none;
-		padding-right: 2px;
-		mask-image: linear-gradient(to right, #000 calc(100% - 14px), transparent);
-	}
-
-	.rail-scroll::-webkit-scrollbar { display: none; }
 
 	.chip {
 		display: inline-flex;
@@ -403,7 +393,6 @@
 
 	.chip.ghost { border-style: dashed; background: transparent; }
 
-	.chip.more { padding: 6px 8px; flex: 0 0 auto; }
 
 	.chip.syncing { color: var(--app-dim); }
 	.chip.syncing .spin {
@@ -448,60 +437,6 @@
 	/* Block list (below the rail, unchanged from today's UI) */
 	.blocks { margin-top: 16px; display: flex; flex-direction: column; gap: 9px; }
 	.blocks h4 { font-family: system-ui, sans-serif; font-size: 13px; font-weight: 500; }
-
-	/* Pacing plan: race day only, and the one setting whose control is a radio
-	   group on the card rather than a chip. The descriptions are the point —
-	   they are how a runner tells three strategies apart. */
-	.pacing { margin-top: 16px; display: flex; flex-direction: column; gap: 8px; }
-	.pacing h4 {
-		font-family: system-ui, sans-serif; font-size: 13px; font-weight: 500;
-		display: flex; align-items: center; gap: 7px;
-	}
-
-	.pace-opt {
-		display: flex; align-items: flex-start; gap: 10px;
-		width: 100%; text-align: left; font: inherit;
-		border: 1px solid var(--app-border);
-		background: var(--app-muted);
-		border-radius: 10px; padding: 11px; cursor: pointer;
-		color: var(--app-fg);
-	}
-
-	.pace-opt:hover { background: rgba(255,255,255,0.03); }
-	.pace-opt:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-	.pace-opt[disabled] { opacity: 0.6; cursor: default; }
-	.pace-opt.on {
-		border-color: color-mix(in srgb, var(--accent) 50%, transparent);
-		background: color-mix(in srgb, var(--accent) 10%, transparent);
-	}
-
-	.pace-opt .radio {
-		width: 16px; height: 16px; border-radius: 999px;
-		border: 1.5px solid var(--app-dim);
-		flex: 0 0 auto; margin-top: 1px;
-		display: grid; place-items: center;
-	}
-	.pace-opt .radio.on { border-color: var(--accent); }
-	.pace-opt .radio.on::after {
-		content: ''; width: 8px; height: 8px; border-radius: 999px; background: var(--accent);
-	}
-
-	.pace-m { flex: 1; min-width: 0; }
-	.pace-t { display: block; font-size: 13.5px; }
-	.pace-d {
-		display: block; margin-top: 2px;
-		font-size: 11.5px; line-height: 1.45; color: var(--app-dim);
-	}
-	.blk {
-		display: flex;
-		align-items: center;
-		gap: 9px;
-		font-size: 13px;
-		border-radius: 7px;
-		margin: 0 -5px;
-		padding: 2px 5px;
-		transition: background 0.2s;
-	}
 
 	.blk .bullet { width: 13px; height: 13px; border-radius: 999px; flex: 0 0 auto; }
 	.blk .bullet.ring { border: 1.5px dashed var(--app-border); background: transparent; }
@@ -1252,11 +1187,12 @@
 		<span class="tag">clickable · real payload shapes</span>
 	</div>
 	<p class="prose" style="color:#aeb6c3;margin-bottom:26px">
-		Three real sessions from the API fixtures. Switch between them and watch the chip rail
+		Four real sessions from the API fixtures. Switch between them and watch the chip rail
 		rebuild itself: the cycling session drops terrain and shoe because
-		<code>cross_type</code> is set; the tempo run hides volume because
-		<code>can_change_distance</code> is <code>false</code>. Tap any chip to open its editor, and
-		use <em>Remove</em> on the cool-down block to watch the plan lose it.
+		<code>cross_type</code> is set; the tempo run drops volume because
+		<code>can_change_distance</code> is <code>false</code>; the goal race is the only one with a
+		pacing plan. Tap any chip to open its editor, and use <em>Remove</em> on the cool-down block
+		to watch the plan lose it.
 	</p>
 
 	<div class="stage">
@@ -1346,42 +1282,52 @@
 					Both render from the same array of settings, so a setting cannot carry a different
 					name, icon, value or position in one than it has in the other — “Adidas Boston 13”
 					on the chip is “Adidas Boston 13” in the row. What differs is only which ones show:
-					terrain and shoe always, because they are the session’s standing setup; effort,
-					volume and cool-down only once they differ from plan, since at “as planned” they
-					are noise. Activity and workout never get a chip — the identity strip is already
-					showing them, the icon for one and the title for the other.
+					every setting the runner can change from here gets a chip, whether or not they
+					have changed it. Only the cool-down and the workout are left off, and neither is
+					hidden by it: the cool-down control is on its own block and the workout is behind
+					its title, both already on the card.
 				</p>
 				<p>
-					With one exception, and race day is what found it. “Only once it differs” exists to
-					quieten a rail that already has something on it; when it empties the rail entirely
-					the rule is working against itself, and what replaced it was a button reading
-					<em>Session setup</em> — strictly less than the setting it was standing in for.
-					So a rail with nothing on it shows what there is instead, at its current value:
-					<em>Effort · As planned</em> rather than a generic way in. A <code>never</code>
-					setting stays off even then, because <code>never</code> does not mean hidden — it
-					means shown somewhere better.
+					That is a reversal. The rail used to hide effort and volume until they differed
+					from plan, on the grounds that a row of dials all reading “as planned” is noise.
+					But the backend always has a value for those — and for terrain, and for the
+					recommended shoe — so the dial is never really unset, and hiding it hid the fact
+					that it could be changed at all. A chip is how a runner finds an option, not just
+					how they read it. <em>Changed</em> still means something: a chip that differs from
+					plan picks up a dot and a tinted border, so “what did I touch” is still one glance.
+					It just no longer decides whether the chip is there.
+				</p>
+				<p>
+					Two things follow. The rail wraps instead of scrolling — a rail that scrolls hides
+					its contents at exactly the point there are enough of them to be worth reading,
+					which is the thing this rail exists to stop. And the trailing <em>Session setup</em>
+					button is gone: it existed to reach settings that had no chip, and there are none.
+					The sheet’s index survives as the screen you get by backing out of an editor, but
+					nothing needs to land there any more.
 				</p>
 			</div>
 			<div class="note">
 				<span class="k">Chip rail</span>
-				<h3>One trailing control, not a toolbar</h3>
+				<h3>No trailing control, and no toolbar</h3>
 				<p>
-					The sliders chip is the only always-present affordance and the only way to reach a
-					setting that has no chip yet. The header keeps the icons it already has — treadmill
-					mode, move date, delete — because those act on the session as a whole rather than on
-					its setup. Treadmill mode stays mobile-only as it is today, and now also drops off a
-					cross-trained session: a ride has no pace to hold, so it goes with the rest of the
-					running detail.
+					There is no sliders chip. It existed to reach a setting that had no chip of its
+					own, and every setting has one now. The header keeps the icons it already has —
+					treadmill mode, move date, delete — because those act on the session as a whole
+					rather than on its setup. Treadmill mode stays mobile-only as it is today, and now
+					also drops off a cross-trained session: a ride has no pace to hold, so it goes with
+					the rest of the running detail.
 				</p>
 			</div>
 			<div class="note">
 				<span class="k">Sheet</span>
 				<h3>Two levels, one screen deep</h3>
 				<p>
-					A chip opens the sheet directly on its editor; the sliders chip opens the index and
-					you drill in once. A pick commits and closes — shoe, activity, workout. A dial
-					commits and stays, because the whole point of moving the effort step is watching the
-					total time move with it. A switch commits in place.
+					A chip opens the sheet directly on its editor — never on an index you then have to
+					drill through. The index is still there, as what you get by backing out of an
+					editor, but nothing lands on it first. A pick commits and closes: shoe, activity,
+					workout, pacing plan. A dial commits and stays, because the whole point of moving
+					the effort step is watching the total time move with it. A switch commits in
+					place.
 				</p>
 			</div>
 			<div class="note">
@@ -1744,32 +1690,43 @@
 	// from this, so a setting cannot appear in one with a different name,
 	// icon, value or position than it has in the other.
 	//
-	// `chip` says when the setting earns a place on the rail:
-	//   'always'  — part of the session's standing setup (running only)
-	//   'changed' — only once it differs from what the coach planned
-	//   'never'   — already shown by the identity strip, so a chip would
-	//               repeat it: the activity is the icon, the workout is
-	//               the title
+	// `chip` says whether the setting gets a chip. True for everything the
+	// runner can change from here, whether or not they have changed it — the
+	// chip is how you find out the option exists at all. False only where the
+	// card already offers it somewhere better: the cool-down on its block, the
+	// session behind its title.
 	function settings() {
 		var out = [];
 
-		// Terrain and shoe are the only two settings with no can_* flag of their
-		// own, so can_be_edited is the one signal we have about them. It says
-		// nothing about the rest: the goal race sends it false alongside
-		// can_change_intensity and can_change_pacing_plan true.
-		if (!s.cross_type && s.can_be_edited) {
+		// Terrain and shoe have no can_* flag of their own, and the backend
+		// always has a value for both, so they are always shown. can_be_edited
+		// tracks edits to the schedule entry — moving and deleting it — not
+		// these: the goal race sends it false alongside can_change_intensity
+		// and can_change_pacing_plan true.
+		if (!s.cross_type) {
 			var su = surfaceOpt(), he = heightOpt();
 			out.push({
 				key: 'terrain', view: 'terrain', label: 'Terrain',
 				icon: su ? su.icon : 'i-mountain',
 				value: su ? su.label + ' · ' + (he ? he.label : 'Flat') : null,
-				changed: false, chip: 'always'
+				changed: false, chip: true
 			});
 			var sh = shoe();
 			out.push({
 				key: 'shoe', view: 'shoe', label: 'Shoe', icon: 'i-shoe',
 				value: shoeName(sh),
-				changed: false, chip: 'always'
+				changed: false, chip: true
+			});
+		}
+
+		// Ahead of the dials, because it is not one: effort and volume tune a
+		// session, the pacing plan decides what the session is. No option is
+		// knowable as the coach's default over the runner's last choice, so it
+		// is never marked changed — only ever shown.
+		if (s.can_change_pacing_plan) {
+			out.push({
+				key: 'pacing', view: 'pacing', label: 'Pacing plan', icon: 'i-flag',
+				value: s.pacing, changed: false, chip: true
 			});
 		}
 
@@ -1777,7 +1734,7 @@
 			out.push({
 				key: 'effort', view: 'effort', label: 'Effort', icon: 'i-gauge',
 				value: stepText(s.intensitySteps, s.intensity),
-				changed: s.intensity !== 0, chip: 'changed'
+				changed: s.intensity !== 0, chip: true
 			});
 		}
 
@@ -1785,7 +1742,7 @@
 			out.push({
 				key: 'volume', view: 'volume', label: 'Volume', icon: 'i-volume',
 				value: stepText(s.distanceSteps, s.distance),
-				changed: s.distance !== 0, chip: 'changed'
+				changed: s.distance !== 0, chip: true
 			});
 		}
 
@@ -1797,21 +1754,7 @@
 					: 'Removed',
 				// No chip: the block list already says it is gone, where it is
 				// missing from, and the accent moves onto that row instead.
-				changed: !s.has_cooldown, chip: 'never', toggle: true
-			});
-		}
-
-		if (s.can_change_pacing_plan) {
-			// Not a dial: three named strategies, and no option is knowable as
-			// the coach's default over the runner's last choice, so this is
-			// never marked changed — only ever shown.
-			//
-			// And not a chip either. Like the cool-down, its control lives out on
-			// the card: three strategies that only mean anything alongside the
-			// coach's copy for each do not compress into a chip.
-			out.push({
-				key: 'pacing', view: 'pacing', label: 'Pacing plan', icon: 'i-flag',
-				value: s.pacing, changed: false, chip: 'never', inline: true
+				changed: !s.has_cooldown, chip: false, toggle: true
 			});
 		}
 
@@ -1821,7 +1764,7 @@
 		if (s.can_cross_train || s.can_be_exchanged) {
 			out.push({
 				key: 'session', view: 'session', label: 'Session', icon: 'i-swap',
-				value: s.title, changed: !!s.cross_type, chip: 'never', replace: true
+				value: s.title, changed: !!s.cross_type, chip: false, replace: true
 			});
 		}
 
@@ -1832,19 +1775,7 @@
 	function chipDefs() {
 		var all = settings(), out = [];
 		for (var i = 0; i < all.length; i++) {
-			var d = all[i];
-			if (d.chip === 'always' || (d.chip === 'changed' && d.changed)) out.push(d);
-		}
-		if (out.length) return out;
-
-		// Nothing earned a chip, so show what there is. The `changed` rule keeps
-		// quiet dials off a rail that already has something on it; with the rail
-		// empty there is nothing to keep them off, and the alternative is a
-		// button reading "Session setup" that says less than the chip it hides.
-		// A `never` setting stays off either way — it is not hidden, it is shown
-		// somewhere better.
-		for (var j = 0; j < all.length; j++) {
-			if (all[j].chip !== 'never') out.push(all[j]);
+			if (all[i].chip) out.push(all[i]);
 		}
 		return out;
 	}
@@ -1862,13 +1793,9 @@
 				(d.changed ? '<span class="dot"></span>' : '') +
 				esc(d.chipLabel || d.value || d.label) + '</button>';
 		}
-		if (defs.length === 0) {
-			return '<button type="button" class="chip" data-open="index">' +
-				ic('i-sliders', 13) + 'Session setup</button>';
-		}
-		return '<div class="rail-scroll">' + html + '</div>' +
-			'<button type="button" class="chip more" data-open="index" aria-label="Session setup">' +
-			ic('i-sliders', 14) + '</button>';
+		// No trailing sliders button: every setting has a chip, so there is
+		// nothing left behind one.
+		return html;
 	}
 
 	// ── Card ─────────────────────────────────────────────────────────
@@ -1900,26 +1827,6 @@
 					(busy ? ' disabled' : '') + '><span class="bullet ring"></span>' +
 					'<span>Cool-down removed</span>' +
 					'<span class="blk-act">' + (busy ? 'Saving…' : '＋ Add back') + '</span></button>';
-		}
-
-		// The pacing plan, directly under the blocks it rewrites. Race day is the
-		// only session that offers one, and on that card there is little else to
-		// compete with it: the plan is pinned, so there is no terrain, shoe or
-		// workout swap. Three radio rows, each under the coach's own words.
-		var pacingHtml = '';
-		if (s.can_change_pacing_plan && s.pacingOptions) {
-			for (var p = 0; p < s.pacingOptions.length; p++) {
-				var o = s.pacingOptions[p];
-				pacingHtml += '<button type="button" class="pace-opt' + (o.selected ? ' on' : '') +
-					'" data-set="pacing" data-value="' + (o.value === null ? '' : o.value) +
-					'" aria-pressed="' + o.selected + '"' + (pending === 'pacing' ? ' disabled' : '') + '>' +
-					'<span class="radio' + (o.selected ? ' on' : '') + '"></span>' +
-					'<span class="pace-m"><span class="pace-t">' + esc(o.title) + '</span>' +
-					'<span class="pace-d">' + esc(o.description) + '</span></span></button>';
-			}
-			pacingHtml = '<div class="pacing"><h4>Pacing plan' +
-				(pending === 'pacing' ? ' <span class="spin"></span>' : '') +
-				'</h4>' + pacingHtml + '</div>';
 		}
 
 		return '' +
@@ -1954,8 +1861,7 @@
 			'</div>' +
 			'<div class="rail">' + renderRail() + '</div>' +
 			'<div class="coach">' + ic('i-chat', 15) + '<p>' + esc(s.description) + '</p></div>' +
-			'<div class="blocks"><h4>Training details</h4>' + blocksHtml + '</div>' +
-			pacingHtml;
+			'<div class="blocks"><h4>Training details</h4>' + blocksHtml + '</div>';
 	}
 
 	// ── Sheet views ──────────────────────────────────────────────────
@@ -2414,13 +2320,13 @@
 				<tr>
 					<td class="f">can_change_intensity<br>change_intensity_package</td>
 					<td class="f">PUT .../intensity</td>
-					<td>Effort row; chip appears once the step ≠ 0</td>
+					<td>Effort row and chip; the chip is marked changed once the step ≠ 0</td>
 					<td>Row and chip both absent</td>
 				</tr>
 				<tr>
 					<td class="f">can_change_distance<br>change_distance_package</td>
 					<td class="f">PUT .../distance</td>
-					<td>Volume row; chip appears once the step ≠ 0</td>
+					<td>Volume row and chip; the chip is marked changed once the step ≠ 0</td>
 					<td>Row and chip both absent — this is the tempo run’s case</td>
 				</tr>
 				<tr>
@@ -2438,7 +2344,7 @@
 				<tr>
 					<td class="f">can_change_pacing_plan<br>change_pacing_plan_package</td>
 					<td class="f">PUT .../pacing_plan<br>{ pacing_plan }</td>
-					<td>Race day only. A radio group on the card, under the blocks it rewrites</td>
+					<td>Race day only. A chip carrying the applied strategy, opening a picker</td>
 					<td>Absent — every session that is not the goal race</td>
 				</tr>
 				<tr>
@@ -2759,13 +2665,12 @@
 					picking a strategy is never flagged as a deviation, only shown as what is set.
 				</p>
 				<p>
-					It does <em>not</em> go behind a chip. Three strategies that only mean anything
-					alongside a paragraph of the coach's copy do not compress into a pill, and race day
-					is the emptiest card in the plan — everything else on it is pinned. So the group
-					sits on the card, directly under the blocks it rewrites, exactly as the cool-down
-					control sits on its own block: the control belongs where the thing it changes is
-					already on screen. The sheet still lists it, because the index claims to be the
-					full inventory of what a session allows, and that claim has to survive race day.
+					It lives in the sheet, reached from its own chip, like every other setting. It was
+					briefly a radio group on the card itself, under the blocks it rewrites — but once
+					every setting had a chip, that was one surface too many for it: the chip already
+					answers “what am I running this race as”, and the picker is one tap behind it. The
+					chip carries the applied strategy by name, so <em>Plan B</em> reads off the rail
+					without opening anything.
 				</p>
 			</div>
 		</div>
@@ -2791,14 +2696,13 @@
 					<code>can_*</code> for, so it is the sole signal we have about them.
 				</p>
 				<p>
-					That last part is a judgement call, not a fact, and it is the open half of this.
-					<code>can_be_edited</code> may well mean only “this entry cannot be moved or
-					deleted”, in which case terrain and shoe are changeable on race day and hiding them
-					costs a shoe recommendation the server bothered to compute — an ASICS Metaspeed
-					Edge, on the one day it matters most. Showing them and letting the server refuse is
-					the other defensible answer. It stays conservative until a capture settles it: one
-					<code>POST .../training_condition</code> against the goal race is the whole
-					experiment.
+					Terrain and shoe are shown on race day too, and that is the second half of the same
+					correction. They are the only two settings with no <code>can_*</code> flag, and the
+					backend always has a value for both — a surface, an elevation, a recommended shoe.
+					Gating them on <code>can_be_edited</code> hid an ASICS Metaspeed Edge the server had
+					picked out for the race, on the one day it matters most, to avoid a write that may
+					well be accepted. If it is refused, the card says so; that is a better failure than
+					never showing a runner what their race is set up as.
 				</p>
 			</div>
 		</div>

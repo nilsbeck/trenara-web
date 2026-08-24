@@ -390,36 +390,40 @@ describe('a session the plan pins', () => {
 		expect(keys).toContain('pacing');
 	});
 
-	it('drops the two settings that have no flag of their own', () => {
-		// Terrain and shoe are ungated by the API, so can_be_edited is the only
-		// thing that speaks for them — and it says no.
+	it('keeps terrain and shoe, which carry a backend value either way', () => {
+		// can_be_edited tracks edits to the schedule entry — moving and deleting
+		// it. Reading it as a gate on these two hid the surface the race is set
+		// up for, and the shoe the server recommended for it.
 		const keys = sessionSettings(goalRace()).map((s) => s.key);
-		expect(keys).not.toContain('terrain');
-		expect(keys).not.toContain('shoe');
-	});
-
-	it('keeps terrain and shoe on an ordinary session', () => {
-		const keys = sessionSettings(goalRace({ can_be_edited: true })).map((s) => s.key);
 		expect(keys).toContain('terrain');
 		expect(keys).toContain('shoe');
 	});
 
-	it('never puts the pacing plan on the chip rail', () => {
-		// Three strategies do not compress into a chip, and the control lives on
-		// the card instead — the same call the cool-down makes.
+	it('chips the pacing plan like any other setting', () => {
 		const pacing = sessionSettings(goalRace()).find((s) => s.key === 'pacing');
-		expect(pacing?.chip).toBe('never');
-		expect(pacing?.inline).toBe(true);
-		expect(chipSettings(goalRace()).map((c) => c.key)).not.toContain('pacing');
+		expect(pacing?.chip).toBe(true);
+		// No longer inline: the sheet holds the picker, the chip is the way in.
+		expect(pacing?.inline).toBeUndefined();
+		expect(pacing?.value).toBe('No pacing plan');
 	});
 
-	it('puts effort on the rail rather than a button standing in for it', () => {
-		// Terrain and shoe are gone, the pacing plan is on the card, and effort
-		// sits at the planned step — which normally keeps it off the rail. That
-		// rule exists to quieten a busy rail, and here there is no busy rail: a
-		// "Session setup" button in its place would say less than the chip does.
-		expect(chipSettings(goalRace()).map((c) => c.key)).toEqual(['effort']);
-		expect(chipSettings(goalRace())[0].value).toBe('As planned');
+	it('rails everything race day leaves open', () => {
+		// Effort sits at the planned step and terrain at a backend default, and
+		// both still show: the chip is how a runner learns the option is there.
+		expect(chipSettings(goalRace()).map((c) => c.key)).toEqual([
+			'terrain',
+			'shoe',
+			'pacing',
+			'effort'
+		]);
+	});
+
+	it('leads with the strategy, since the dials tune within it', () => {
+		// The pacing plan decides what the session is; effort and volume adjust
+		// it. So it sits with the standing setup, ahead of both.
+		const keys = sessionSettings(goalRace({ can_be_edited: true })).map((s) => s.key);
+		expect(keys.indexOf('pacing')).toBeLessThan(keys.indexOf('effort'));
+		expect(keys.indexOf('shoe')).toBeLessThan(keys.indexOf('pacing'));
 	});
 });
 
@@ -461,7 +465,9 @@ describe('chipSettings', () => {
 		expect(chips).toEqual(['terrain', 'shoe', 'effort']);
 	});
 
-	it('hides a dial sitting at the planned value', () => {
+	it('keeps a dial sitting at the planned value, so the option is findable', () => {
+		// The backend always has a value for effort and volume, so hiding them
+		// at the planned step hid the fact they could be changed at all.
 		const training = tempoRun({
 			change_intensity_package: {
 				title: 'Fine-tune intensity',
@@ -469,7 +475,10 @@ describe('chipSettings', () => {
 				steps: [{ step: 3, value: 0, text: 'As planned', selected: true }]
 			}
 		});
-		expect(chipSettings(training).map((c) => c.key)).toEqual(['terrain', 'shoe']);
+		const effort = chipSettings(training).find((c) => c.key === 'effort');
+		expect(effort?.value).toBe('As planned');
+		// Unchanged, so it stays muted rather than picking up the changed dot.
+		expect(effort?.changed).toBe(false);
 	});
 
 	it('never chips the session itself — the identity strip shows it', () => {
@@ -486,39 +495,21 @@ describe('chipSettings', () => {
 		expect(setting?.changed).toBe(true);
 	});
 
-	it('shows an unchanged dial rather than nothing, once it is all there is', () => {
-		// The `changed` rule keeps quiet dials off a rail that has something on
-		// it. With the rail empty there is nothing to keep them off, and the
-		// alternative is a "Session setup" button that says less than the chip.
-		const planned = {
-			title: 'Fine-tune intensity',
-			text: '',
-			steps: [{ step: 1, value: 0, text: 'As planned', selected: true }]
-		};
-		const pinned = tempoRun({ can_be_edited: false, change_intensity_package: planned });
-
-		expect(chipSettings(pinned).map((c) => c.key)).toEqual(['effort']);
-		expect(chipSettings(pinned)[0].value).toBe('As planned');
-	});
-
-	it('still keeps a setting shown elsewhere off the rail, even when empty', () => {
-		// `never` does not mean hidden, it means shown somewhere better — so the
-		// fallback must not drag those onto the rail. Here the pacing plan is on
-		// the card and the session is in the title.
-		const raceDay = tempoRun({
-			can_be_edited: false,
+	it('keeps a setting shown elsewhere off the rail', () => {
+		// The cool-down is on its block and the session is in its title, so a
+		// chip for either would spend a slot repeating the card.
+		const bike = tempoRun({
+			cross_type: 'road_bike',
 			can_change_intensity: false,
 			change_intensity_package: null,
 			can_be_exchanged: true,
-			can_change_pacing_plan: true,
-			change_pacing_plan_package: [
-				{ order: 1, value: null, title: 'No pacing plan', description: '', selected: true }
-			]
+			can_toggle_cooldown: true,
+			has_cooldown: false
 		});
 
-		expect(chipSettings(raceDay)).toEqual([]);
+		expect(chipSettings(bike)).toEqual([]);
 		// Both settings are real, they just belong on other surfaces.
-		expect(sessionSettings(raceDay).map((s) => s.key)).toEqual(['pacing', 'session']);
+		expect(sessionSettings(bike).map((s) => s.key)).toEqual(['cooldown', 'session']);
 	});
 
 	it('never disagrees with the sheet about a setting it shows', () => {
@@ -677,7 +668,7 @@ describe('packages without an "as planned" step', () => {
 		expect(volume?.changed).toBe(true);
 	});
 
-	it('keeps the chip off a percentage package sitting at the plan', () => {
+	it('leaves a percentage package sitting at the plan unmarked, but still chipped', () => {
 		const training = tempoRun({
 			can_change_distance: true,
 			change_distance_package: {
@@ -689,7 +680,11 @@ describe('packages without an "as planned" step', () => {
 				]
 			}
 		});
-		expect(chipSettings(training).map((c) => c.key)).not.toContain('volume');
+		// Chipped like everything else — the rail is the inventory now — but at
+		// the plan, so it stays muted rather than picking up the changed mark.
+		const volume = chipSettings(training).find((c) => c.key === 'volume');
+		expect(volume?.value).toBe('0%');
+		expect(volume?.changed).toBe(false);
 	});
 });
 

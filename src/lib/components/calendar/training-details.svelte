@@ -26,7 +26,6 @@
 	import SessionSetupSheet from '$lib/components/training/session-setup-sheet.svelte';
 	import { SessionDetailStore } from '$lib/stores/session-detail.svelte';
 	import CooldownBlock from '$lib/components/training/cooldown-block.svelte';
-	import PacingPlan from '$lib/components/training/pacing-plan.svelte';
 	import {
 		activityIcon,
 		cooldownBlockIndex,
@@ -172,25 +171,6 @@
 		void detailStore.setCooldown(next);
 	}
 
-	// ── Pacing plan ────────────────────────────────────────────────
-	//
-	// Race day only, and it sits on the card rather than behind a chip: it is
-	// the plan for the blocks right above it, and three named strategies only
-	// mean anything next to the coach's copy for each. Same reasoning as the
-	// cool-down control, which lives on its block for the same reason.
-	const pacingOptions = $derived(
-		setupTraining !== null &&
-			entry === null &&
-			!!setupTraining.can_change_pacing_plan &&
-			setupTraining.change_pacing_plan_package
-			? setupTraining.change_pacing_plan_package
-			: null
-	);
-
-	function setPacingPlan(value: string | null) {
-		void detailStore.setPacingPlan(value);
-	}
-
 	// Whether the session itself can be replaced, which decides if its title is
 	// a control or just a heading.
 	const canChangeSession = $derived(
@@ -207,7 +187,10 @@
 		return () => clearTimeout(timer);
 	});
 
-	function openSetup(key: SettingKey | null) {
+	// Always onto a specific editor now. Nothing opens the bare index any more:
+	// every setting has a chip, and the two that do not are reached from the
+	// card itself — the cool-down on its block, the session from its title.
+	function openSetup(key: SettingKey) {
 		setupSection = key;
 		setupOpen = true;
 	}
@@ -580,20 +563,6 @@
 						/>
 					{/if}
 				</div>
-			{/if}
-
-			<!--
-				The pacing plan, directly under the blocks it rewrites. Race day is
-				the only session that offers one, and on that card there is little
-				else: the plan is pinned, so there is no terrain, shoe or workout
-				swap to compete with it.
-			-->
-			{#if pacingOptions}
-				<PacingPlan
-					options={pacingOptions}
-					pending={detailStore.pending === 'pacing'}
-					onchange={setPacingPlan}
-				/>
 			{/if}
 
 			<!-- Plan vs Actual metrics table -->

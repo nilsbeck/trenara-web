@@ -22,15 +22,6 @@ import type {
 export type SettingKey =
 	'terrain' | 'shoe' | 'effort' | 'volume' | 'cooldown' | 'pacing' | 'session';
 
-/** When a setting earns a place on the chip rail. */
-export type ChipRule =
-	/** Part of the session's standing setup — shown even when unset. */
-	| 'always'
-	/** Only once it differs from what the coach planned. */
-	| 'changed'
-	/** Never: the identity strip already shows it. */
-	| 'never';
-
 export interface Setting {
 	key: SettingKey;
 	label: string;
@@ -38,7 +29,11 @@ export interface Setting {
 	value: string | null;
 	/** Shown on the chip in place of `value` (the cool-down reads "No cool-down"). */
 	chipLabel?: string;
-	/** True when this differs from the coach's plan. */
+	/**
+	 * True when this differs from the coach's plan. Styling only — a changed
+	 * chip picks up a dot and a tinted border. It does not decide whether the
+	 * chip is there; see `chip`.
+	 */
 	changed: boolean;
 	/**
 	 * The field this value comes from is not on this copy of the training at
@@ -46,7 +41,16 @@ export interface Setting {
 	 * bring it. The chip shows a spinner instead of claiming nothing is set.
 	 */
 	awaiting?: boolean;
-	chip: ChipRule;
+	/**
+	 * Whether the setting gets a chip on the rail.
+	 *
+	 * True for everything the runner can change here, whether or not they have
+	 * changed it: the chip is how you find out the option exists at all, which
+	 * matters most for the settings the backend always has a value for. False
+	 * only where the card already offers the setting somewhere better — the
+	 * cool-down on its block, the session in its title.
+	 */
+	chip: boolean;
 	/** Replacing the session rather than tuning it — grouped apart in the sheet. */
 	replace?: boolean;
 	/** Acts on a block rather than the session, so it lives on the block. */
@@ -218,9 +222,9 @@ function packageSetting(
 	step: ChangeStep | null
 ): Pick<Setting, 'value' | 'changed' | 'chip'> {
 	if (!hasNeutralStep(pkg)) {
-		return { value: step?.text ?? null, changed: false, chip: 'always' };
+		return { value: step?.text ?? null, changed: false, chip: true };
 	}
-	return { value: step?.text ?? null, changed: !!step && step.value !== 0, chip: 'changed' };
+	return { value: step?.text ?? null, changed: !!step && step.value !== 0, chip: true };
 }
 
 /**
@@ -304,7 +308,7 @@ function packageOrAwaiting(
 	training: ScheduledTraining,
 	key: 'change_intensity_package' | 'change_distance_package'
 ): Pick<Setting, 'value' | 'changed' | 'chip' | 'awaiting'> | null {
-	if (!(key in training)) return { value: null, changed: false, chip: 'always', awaiting: true };
+	if (!(key in training)) return { value: null, changed: false, chip: true, awaiting: true };
 
 	const pkg = training[key];
 	if (!pkg) return null;
@@ -323,16 +327,19 @@ export function sessionSettings(training: ScheduledTraining): Setting[] {
 	const run = isRun(training);
 
 	// Terrain and shoe are the only two settings with no `can_*` flag of their
-	// own, so `can_be_edited` is the one signal we have about them — a session
-	// the plan pins is unlikely to accept a rewritten condition.
+	// own, and the backend always has a value for both — a surface, an
+	// elevation, a recommended shoe. So they are always shown.
 	//
-	// It says nothing about the rest. The goal race is the proof: it sends
-	// `can_be_edited: false` alongside `can_change_intensity: true` and
-	// `can_change_pacing_plan: true`. Reading it as a master switch over the
-	// whole of setup — which is what the card used to do — hides two controls
-	// the server just said were open, on the one session where the second of
-	// them is the entire point.
-	if (run && training.can_be_edited) {
+	// `can_be_edited` is not the gate it looks like. The goal race sends it
+	// false alongside `can_change_intensity: true` and
+	// `can_change_pacing_plan: true`, so it plainly does not mean "nothing here
+	// may change"; it tracks edits to the schedule entry, which is what the
+	// delete and move-date controls use it for. Reading it as a master switch
+	// is what hid the whole rail on race day, and reading it as a gate on these
+	// two hid a shoe the server had recommended for the race. If a write is
+	// refused, the card says so — which is a better failure than never showing
+	// the runner what their race is set up as.
+	if (run) {
 		const condition = training.training_condition;
 		const surface = surfaceLabel(condition?.surface);
 		const height = heightLabel(condition?.height_difference);
@@ -346,7 +353,7 @@ export function sessionSettings(training: ScheduledTraining): Setting[] {
 				? [surface, height ?? 'Flat', climb > 0 ? `${climb} m` : null].filter(Boolean).join(' · ')
 				: null,
 			changed: false,
-			chip: 'always',
+			chip: true,
 			awaiting: !('training_condition' in training)
 		});
 
@@ -355,9 +362,41 @@ export function sessionSettings(training: ScheduledTraining): Setting[] {
 			label: 'Shoe',
 			value: training.suggested_shoe ? shoeName(training.suggested_shoe) : null,
 			changed: false,
-			chip: 'always',
+			chip: true,
 			awaiting: !('suggested_shoe' in training)
 		});
+	}
+
+	// The pacing plan is not a `ChangePackage` — `change_pacing_plan_package`
+	// is itself the array of three named strategies — so it gets its own
+	// awaiting/absent handling rather than going through `packageOrAwaiting`.
+	// True only on the goal race; every other session sends `false`.
+	//
+	// Ahead of the dials, because it is not one: effort and volume tune a
+	// session, the pacing plan decides what the session is. It belongs with
+	// terrain and shoe as part of the standing setup, and on race day it is the
+	// standing setup — the only thing the plan leaves open.
+	if (training.can_change_pacing_plan) {
+		if (!('change_pacing_plan_package' in training)) {
+			settings.push({
+				key: 'pacing',
+				label: 'Pacing plan',
+				value: null,
+				changed: false,
+				chip: true,
+				awaiting: true
+			});
+		} else if (training.change_pacing_plan_package) {
+			settings.push({
+				key: 'pacing',
+				label: 'Pacing plan',
+				value: selectedPacingPlan(training.change_pacing_plan_package)?.title ?? null,
+				// No coach-planned default is knowable from the payload — unlike a
+				// percentage package, a named strategy has no "0%" to call neutral.
+				changed: false,
+				chip: true
+			});
+		}
 	}
 
 	// A package that arrived as null is Trenara saying there is no such control,
@@ -382,42 +421,6 @@ export function sessionSettings(training: ScheduledTraining): Setting[] {
 		});
 	}
 
-	// The pacing plan is not a `ChangePackage` — `change_pacing_plan_package`
-	// is itself the array of three named strategies — so it gets its own
-	// awaiting/absent handling rather than going through `packageOrAwaiting`.
-	// True only on the goal race; every other session sends `false`.
-	//
-	// Like the cool-down, its control lives out on the card rather than behind a
-	// chip. Three strategies that only mean anything alongside the coach's copy
-	// for each do not compress into a chip, and this is race day: the card has
-	// almost nothing else on it, and the choice is the most consequential one in
-	// the plan. So the setting is `inline`, and the card renders the radio group
-	// the app itself shows.
-	if (training.can_change_pacing_plan) {
-		if (!('change_pacing_plan_package' in training)) {
-			settings.push({
-				key: 'pacing',
-				label: 'Pacing plan',
-				value: null,
-				changed: false,
-				chip: 'never',
-				awaiting: true,
-				inline: true
-			});
-		} else if (training.change_pacing_plan_package) {
-			settings.push({
-				key: 'pacing',
-				label: 'Pacing plan',
-				value: selectedPacingPlan(training.change_pacing_plan_package)?.title ?? null,
-				// No coach-planned default is knowable from the payload — unlike a
-				// percentage package, a named strategy has no "0%" to call neutral.
-				changed: false,
-				chip: 'never',
-				inline: true
-			});
-		}
-	}
-
 	// Only sessions that have a cool-down can drop one — plenty of runs have
 	// none, and those cannot gain one. Its control lives on the block itself,
 	// since that is what it acts on and it is already on screen.
@@ -430,7 +433,7 @@ export function sessionSettings(training: ScheduledTraining): Setting[] {
 			// No chip. The block list already says the cool-down is gone, in the
 			// place it is missing from, and a chip repeating that costs a whole
 			// row of the rail to say it a second time.
-			chip: 'never',
+			chip: false,
 			inline: true
 		});
 	}
@@ -450,7 +453,7 @@ export function sessionSettings(training: ScheduledTraining): Setting[] {
 			label: 'Session',
 			value: training.title,
 			changed: !run,
-			chip: 'never',
+			chip: false,
 			replace: true
 		});
 	}
@@ -459,25 +462,19 @@ export function sessionSettings(training: ScheduledTraining): Setting[] {
 }
 
 /** The subset of `sessionSettings` that appears on the chip rail. */
+/**
+ * The chip rail: every setting the runner can change from here.
+ *
+ * There is no "only once it differs" rule any more. Effort and volume always
+ * carry a value from the backend, so hiding them at the planned step hid the
+ * fact that they could be changed at all — the chip is how you find the option,
+ * not just how you read it. Showing them costs nothing now the rail wraps.
+ *
+ * What stays off is only what the card offers somewhere better: the cool-down
+ * on its own block, and the session behind its title.
+ */
 export function chipSettings(training: ScheduledTraining): Setting[] {
-	const settings = sessionSettings(training);
-	const earned = settings.filter((s) => s.chip === 'always' || (s.chip === 'changed' && s.changed));
-	if (earned.length > 0) return earned;
-
-	// Nothing earned a chip, so show what there is instead.
-	//
-	// The `changed` rule keeps untouched dials off a rail that already has
-	// something on it — three chips saying nothing has happened is noise. With
-	// the rail empty there is no noise to keep off it, and the alternative is a
-	// button reading "Session setup", which says strictly less than the setting
-	// it hides: "Effort · As planned" both names what is there and shows where
-	// it stands. Race day is the case that makes this obvious, since effort at
-	// the planned step is the whole of its rail.
-	//
-	// A setting marked `never` stays off either way: it is not hidden, it is
-	// shown somewhere better — the cool-down on its block, the session in the
-	// title, the pacing plan on the card.
-	return settings.filter((s) => s.chip !== 'never');
+	return sessionSettings(training).filter((s) => s.chip);
 }
 
 /**

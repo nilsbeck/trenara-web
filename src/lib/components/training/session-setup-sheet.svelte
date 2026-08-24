@@ -79,7 +79,6 @@
 	const tuneSettings = $derived(settings.filter((s) => !s.replace && !s.inline));
 	const replaceSettings = $derived(settings.filter((s) => s.replace));
 	const cooldown = $derived(settings.find((s) => s.key === 'cooldown') ?? null);
-	const pacing = $derived(settings.find((s) => s.key === 'pacing') ?? null);
 
 	const intensityPackage = $derived(training.change_intensity_package ?? null);
 	const distancePackage = $derived(training.change_distance_package ?? null);
@@ -241,32 +240,6 @@
 					</button>
 				{/each}
 			</div>
-
-			{#if pacing}
-				<!--
-					Listed for the same reason the cool-down is: the index claims to be
-					everything this session allows, and the pacing plan is the whole of
-					what race day allows. The control a runner reaches for is the radio
-					group on the card, under the blocks it rewrites — this is the way
-					back to it from here.
-				-->
-				<button
-					type="button"
-					onclick={() => (section = 'pacing')}
-					class="flex w-full items-center gap-3 border-t border-border px-1 py-3 text-left text-sm transition-colors hover:bg-foreground/5"
-				>
-					<Flag class="h-4 w-4 shrink-0 text-muted-foreground" />
-					<span class="flex-1">{pacing.label}</span>
-					<span class="flex items-center gap-1.5 text-xs text-muted-foreground">
-						{#if pacing.awaiting}
-							<Loader2 class="h-3 w-3 animate-spin" />
-						{:else}
-							{pacing.value ?? 'Not set'}
-						{/if}
-					</span>
-					<ChevronRight class="h-4 w-4 shrink-0 text-border" />
-				</button>
-			{/if}
 
 			{#if cooldown}
 				<!--

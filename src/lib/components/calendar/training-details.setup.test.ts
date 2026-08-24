@@ -569,9 +569,9 @@ describe('switching back to a run', () => {
 			props: { selectedDate: '2026-08-22', training: base, entry: null, isLoading: false }
 		});
 
-		await waitFor(() => expect(screen.getAllByText('Cycling').length).toBeGreaterThan(0));
-		await fireEvent.click(screen.getByLabelText('Session setup'));
-		await fireEvent.click(await waitFor(() => screen.getByText('Session')));
+		// The title is the way in: every setting has a chip now, so there is no
+		// trailing sliders button left to open a bare index from.
+		await fireEvent.click(await waitFor(() => screen.getByRole('button', { name: /Cycling/ })));
 
 		// The tile was disabled back when reverting was thought to be an
 		// exchange, which left it visible and dead.
@@ -598,9 +598,9 @@ describe('switching back to a run', () => {
 			props: { selectedDate: '2026-08-22', training: base, entry: null, isLoading: false }
 		});
 
-		await waitFor(() => expect(screen.getAllByText('Cycling').length).toBeGreaterThan(0));
-		await fireEvent.click(screen.getByLabelText('Session setup'));
-		await fireEvent.click(await waitFor(() => screen.getByText('Session')));
+		// The title is the way in: every setting has a chip now, so there is no
+		// trailing sliders button left to open a bare index from.
+		await fireEvent.click(await waitFor(() => screen.getByRole('button', { name: /Cycling/ })));
 
 		// The card's title is a button named "Cycling" too now, so name alone no
 		// longer identifies the tile — aria-pressed does.
@@ -657,8 +657,9 @@ describe('changing the session from the card', () => {
 });
 
 describe('the pacing plan on race day', () => {
-	// The goal race as the API sends it: pinned, so nothing about the session
-	// may be edited — yet the pacing plan and the intensity are both open.
+	// The goal race as the API sends it: pinned, so the schedule entry cannot be
+	// moved or deleted — yet the pacing plan and the intensity are both open,
+	// and terrain and shoe still carry the values the backend set.
 	const raceDay: ScheduledTraining = {
 		...base,
 		title: '15k nocturno',
@@ -699,19 +700,18 @@ describe('the pacing plan on race day', () => {
 				selected: true
 			}
 		],
-		training_condition: null,
+		training_condition: {
+			id: 9,
+			height_difference: 'flat',
+			surface: 'road',
+			updated_at: 0,
+			height: null,
+			height_unit: null
+		},
 		suggested_shoe: null
 	};
 
-	it('shows the three strategies on the card, with the coach’s copy', async () => {
-		// The regression: can_be_edited is false here, and the card used to read
-		// that as "nothing is changeable" and render no setup at all — on the one
-		// session in the plan whose pacing plan is the whole point.
-		vi.stubGlobal(
-			'fetch',
-			vi.fn().mockResolvedValue({ ok: true, status: 200, json: async () => raceDay })
-		);
-
+	function renderRaceDay() {
 		render(TrainingDetails, {
 			props: {
 				selectedDate: '2026-09-27',
@@ -720,22 +720,60 @@ describe('the pacing plan on race day', () => {
 				isLoading: false
 			}
 		});
+	}
 
-		await waitFor(() => expect(screen.getByText('Plan B')).toBeTruthy());
+	it('rails every setting the race leaves open, none of them hidden', async () => {
+		// The regression this guards: can_be_edited is false here, and the card
+		// used to read that as "nothing is changeable" and render no setup at
+		// all — on the one session whose pacing plan is the whole point. Effort
+		// sits at the planned step and terrain carries a backend default, and
+		// both show: a chip is how a runner learns the option is there.
+		vi.stubGlobal(
+			'fetch',
+			vi.fn().mockResolvedValue({ ok: true, status: 200, json: async () => raceDay })
+		);
 
-		// One choice from a fixed set, so they are radios rather than a row of
-		// buttons imitating them — and each is named by its own row, so the
-		// coach's copy is part of what a screen reader announces rather than
-		// text sitting nearby.
-		const radios = screen.getAllByRole('radio');
-		expect(radios).toHaveLength(3);
-		expect(screen.getByRole('radio', { name: /All roads lead to Rome/ })).toBeTruthy();
-		expect(screen.getByRole('radio', { name: /Always have a plan B in place/ })).toBeTruthy();
-		expect(screen.getByRole('radio', { name: /No pacing plan/ })).toBeTruthy();
+		renderRaceDay();
 
-		// The applied strategy is the one that reads as checked.
-		expect((radios[2] as HTMLInputElement).checked).toBe(true);
+		await waitFor(() =>
+			expect(screen.getByRole('button', { name: 'No pacing plan' })).toBeTruthy()
+		);
+		expect(screen.getByRole('button', { name: 'Road · Flat' })).toBeTruthy();
+		expect(screen.getByRole('button', { name: 'Shoe' })).toBeTruthy();
+		expect(screen.getByRole('button', { name: 'As planned' })).toBeTruthy();
 
+		// Nothing is left behind a trailing button, so there is not one.
+		const buttonText = screen.getAllByRole('button').map((b) => b.textContent?.trim());
+		expect(buttonText).not.toContain('Session setup');
+		expect(screen.queryByLabelText('Session setup')).toBeNull();
+		vi.unstubAllGlobals();
+	});
+
+	it('opens the three strategies from the chip, with the coach’s copy', async () => {
+		vi.stubGlobal(
+			'fetch',
+			vi.fn().mockResolvedValue({ ok: true, status: 200, json: async () => raceDay })
+		);
+
+		renderRaceDay();
+
+		const chip = await waitFor(() => screen.getByRole('button', { name: 'No pacing plan' }));
+		await fireEvent.click(chip);
+
+		// The chip lands on the editor itself, not a bare index.
+		await waitFor(() => expect(screen.getByText(/How to run the race itself/)).toBeTruthy());
+
+		// The copy travels with each option — it is how a runner tells three
+		// strategies apart — and the applied one reads as pressed.
+		expect(
+			screen
+				.getByRole('button', { name: /One block at your selected pace/ })
+				.getAttribute('aria-pressed')
+		).toBe('true');
+		expect(
+			screen.getByRole('button', { name: /All roads lead to Rome/ }).getAttribute('aria-pressed')
+		).toBe('false');
+		expect(screen.getByRole('button', { name: /Always have a plan B in place/ })).toBeTruthy();
 		vi.unstubAllGlobals();
 	});
 
@@ -746,17 +784,14 @@ describe('the pacing plan on race day', () => {
 			.mockResolvedValue({ ok: true, status: 200, json: async () => raceDay });
 		vi.stubGlobal('fetch', fetchMock);
 
-		render(TrainingDetails, {
-			props: {
-				selectedDate: '2026-09-27',
-				training: { ...base, title: '15k nocturno', can_be_edited: false },
-				entry: null,
-				isLoading: false
-			}
-		});
+		renderRaceDay();
 
-		await waitFor(() => expect(screen.getByText('Plan B')).toBeTruthy());
-		await fireEvent.click(screen.getAllByRole('radio')[1]);
+		await fireEvent.click(
+			await waitFor(() => screen.getByRole('button', { name: 'No pacing plan' }))
+		);
+		await fireEvent.click(
+			await waitFor(() => screen.getByRole('button', { name: /Always have a plan B in place/ }))
+		);
 
 		await waitFor(() =>
 			expect(fetchMock).toHaveBeenLastCalledWith(
@@ -767,59 +802,6 @@ describe('the pacing plan on race day', () => {
 				})
 			)
 		);
-		vi.unstubAllGlobals();
-	});
-
-	it('puts effort on the rail instead of a button standing in for it', async () => {
-		vi.stubGlobal(
-			'fetch',
-			vi.fn().mockResolvedValue({ ok: true, status: 200, json: async () => raceDay })
-		);
-
-		render(TrainingDetails, {
-			props: {
-				selectedDate: '2026-09-27',
-				training: { ...base, title: '15k nocturno', can_be_edited: false },
-				entry: null,
-				isLoading: false
-			}
-		});
-
-		await waitFor(() => expect(screen.getByText('Plan B')).toBeTruthy());
-
-		// Effort sits at the planned step, which normally keeps it off the rail.
-		// With nothing else on the rail there is no noise to keep it off, and
-		// "As planned" says more than a generic Session setup button would.
-		expect(screen.getByRole('button', { name: 'As planned' })).toBeTruthy();
-		// The button that reads "Session setup" in place of chips is gone. The
-		// sliders button at the end of the rail stays — same label, no text —
-		// and is still the way into the full index.
-		const buttonText = screen.getAllByRole('button').map((b) => b.textContent?.trim());
-		expect(buttonText).not.toContain('Session setup');
-		expect(screen.getByRole('button', { name: 'Session setup' })).toBeTruthy();
-		vi.unstubAllGlobals();
-	});
-
-	it('offers no terrain or shoe, which the plan has pinned', async () => {
-		vi.stubGlobal(
-			'fetch',
-			vi.fn().mockResolvedValue({ ok: true, status: 200, json: async () => raceDay })
-		);
-
-		render(TrainingDetails, {
-			props: {
-				selectedDate: '2026-09-27',
-				training: { ...base, title: '15k nocturno', can_be_edited: false },
-				entry: null,
-				isLoading: false
-			}
-		});
-
-		await waitFor(() => expect(screen.getByText('Plan B')).toBeTruthy());
-		// Those two have no flag of their own, so can_be_edited still speaks for
-		// them — it is only the master-switch reading that was wrong.
-		expect(screen.queryByText('Terrain')).toBeNull();
-		expect(screen.queryByText('Shoe')).toBeNull();
 		vi.unstubAllGlobals();
 	});
 });
