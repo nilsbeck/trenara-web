@@ -26,11 +26,13 @@
 	import SessionSetupSheet from '$lib/components/training/session-setup-sheet.svelte';
 	import { SessionDetailStore } from '$lib/stores/session-detail.svelte';
 	import CooldownBlock from '$lib/components/training/cooldown-block.svelte';
+	import PacingPlan from '$lib/components/training/pacing-plan.svelte';
 	import {
 		activityIcon,
 		cooldownBlockIndex,
 		hasSetupFlags,
 		isRun,
+		sessionSettings,
 		sessionSummary,
 		type SettingKey
 	} from '$lib/utils/session-setup';
@@ -106,9 +108,18 @@
 		detailStore.detail ?? (training && hasSetupFlags(training) ? training : null)
 	);
 
-	const canShowSetup = $derived(
-		setupTraining !== null && entry === null && setupTraining.can_be_edited
-	);
+	// What this session actually offers. Every entry is already gated on the
+	// flag that governs it, so the question here is only whether anything came
+	// back at all — not `can_be_edited`, which the card used to treat as a
+	// master switch over the whole of setup. It is not one: the goal race sends
+	// it false while offering both an intensity change and the pacing plan, and
+	// reading it as a master switch hid the entire rail on the one session
+	// whose pacing plan is the point. It now gates the two settings it really
+	// does speak for — terrain and shoe, the ones with no flag of their own —
+	// inside `sessionSettings`.
+	const settings = $derived(setupTraining ? sessionSettings(setupTraining) : []);
+
+	const canShowSetup = $derived(setupTraining !== null && entry === null && settings.length > 0);
 
 	// While the fetch is out with nothing to render yet, the rail says so rather
 	// than being absent. The week's copy already says whether the plan lets this
@@ -159,6 +170,25 @@
 
 	function setCooldown(next: boolean) {
 		void detailStore.setCooldown(next);
+	}
+
+	// ── Pacing plan ────────────────────────────────────────────────
+	//
+	// Race day only, and it sits on the card rather than behind a chip: it is
+	// the plan for the blocks right above it, and three named strategies only
+	// mean anything next to the coach's copy for each. Same reasoning as the
+	// cool-down control, which lives on its block for the same reason.
+	const pacingOptions = $derived(
+		setupTraining !== null &&
+			entry === null &&
+			!!setupTraining.can_change_pacing_plan &&
+			setupTraining.change_pacing_plan_package
+			? setupTraining.change_pacing_plan_package
+			: null
+	);
+
+	function setPacingPlan(value: string | null) {
+		void detailStore.setPacingPlan(value);
 	}
 
 	// Whether the session itself can be replaced, which decides if its title is
@@ -550,6 +580,20 @@
 						/>
 					{/if}
 				</div>
+			{/if}
+
+			<!--
+				The pacing plan, directly under the blocks it rewrites. Race day is
+				the only session that offers one, and on that card there is little
+				else: the plan is pinned, so there is no terrain, shoe or workout
+				swap to compete with it.
+			-->
+			{#if pacingOptions}
+				<PacingPlan
+					options={pacingOptions}
+					pending={detailStore.pending === 'pacing'}
+					onchange={setPacingPlan}
+				/>
 			{/if}
 
 			<!-- Plan vs Actual metrics table -->

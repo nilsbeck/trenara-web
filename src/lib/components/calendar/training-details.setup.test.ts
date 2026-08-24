@@ -655,3 +655,141 @@ describe('changing the session from the card', () => {
 		vi.unstubAllGlobals();
 	});
 });
+
+describe('the pacing plan on race day', () => {
+	// The goal race as the API sends it: pinned, so nothing about the session
+	// may be edited — yet the pacing plan and the intensity are both open.
+	const raceDay: ScheduledTraining = {
+		...base,
+		title: '15k nocturno',
+		type: 'goal',
+		can_be_edited: false,
+		can_cross_train: false,
+		cross_type: null,
+		can_be_exchanged: false,
+		can_change_distance: false,
+		change_distance_package: null,
+		can_change_intensity: true,
+		change_intensity_package: {
+			title: 'Fine-tune intensity',
+			text: 'Change today’s session intensity.',
+			steps: [{ step: 1, value: 0, text: 'As planned', selected: true }]
+		},
+		can_change_pacing_plan: true,
+		change_pacing_plan_package: [
+			{
+				order: 1,
+				value: 'trenara',
+				title: 'Pacing plan',
+				description: 'All roads lead to Rome, but this is my preferred pacing plan.',
+				selected: false
+			},
+			{
+				order: 2,
+				value: 'alternative',
+				title: 'Plan B',
+				description: 'Always have a plan B in place.',
+				selected: false
+			},
+			{
+				order: 3,
+				value: null,
+				title: 'No pacing plan',
+				description: 'One block at your selected pace.',
+				selected: true
+			}
+		],
+		training_condition: null,
+		suggested_shoe: null
+	};
+
+	it('shows the three strategies on the card, with the coach’s copy', async () => {
+		// The regression: can_be_edited is false here, and the card used to read
+		// that as "nothing is changeable" and render no setup at all — on the one
+		// session in the plan whose pacing plan is the whole point.
+		vi.stubGlobal(
+			'fetch',
+			vi.fn().mockResolvedValue({ ok: true, status: 200, json: async () => raceDay })
+		);
+
+		render(TrainingDetails, {
+			props: {
+				selectedDate: '2026-09-27',
+				training: { ...base, title: '15k nocturno', can_be_edited: false },
+				entry: null,
+				isLoading: false
+			}
+		});
+
+		await waitFor(() => expect(screen.getByText('Plan B')).toBeTruthy());
+
+		// One choice from a fixed set, so they are radios rather than a row of
+		// buttons imitating them — and each is named by its own row, so the
+		// coach's copy is part of what a screen reader announces rather than
+		// text sitting nearby.
+		const radios = screen.getAllByRole('radio');
+		expect(radios).toHaveLength(3);
+		expect(screen.getByRole('radio', { name: /All roads lead to Rome/ })).toBeTruthy();
+		expect(screen.getByRole('radio', { name: /Always have a plan B in place/ })).toBeTruthy();
+		expect(screen.getByRole('radio', { name: /No pacing plan/ })).toBeTruthy();
+
+		// The applied strategy is the one that reads as checked.
+		expect((radios[2] as HTMLInputElement).checked).toBe(true);
+
+		vi.unstubAllGlobals();
+	});
+
+	it('sends the strategy the runner picked', async () => {
+		const fetchMock = vi
+			.fn()
+			.mockResolvedValueOnce({ ok: true, status: 200, json: async () => raceDay })
+			.mockResolvedValue({ ok: true, status: 200, json: async () => raceDay });
+		vi.stubGlobal('fetch', fetchMock);
+
+		render(TrainingDetails, {
+			props: {
+				selectedDate: '2026-09-27',
+				training: { ...base, title: '15k nocturno', can_be_edited: false },
+				entry: null,
+				isLoading: false
+			}
+		});
+
+		await waitFor(() => expect(screen.getByText('Plan B')).toBeTruthy());
+		await fireEvent.click(screen.getAllByRole('radio')[1]);
+
+		await waitFor(() =>
+			expect(fetchMock).toHaveBeenLastCalledWith(
+				'/api/v1/training/42/pacing-plan',
+				expect.objectContaining({
+					method: 'PUT',
+					body: JSON.stringify({ pacingPlan: 'alternative' })
+				})
+			)
+		);
+		vi.unstubAllGlobals();
+	});
+
+	it('offers no terrain or shoe, which the plan has pinned', async () => {
+		vi.stubGlobal(
+			'fetch',
+			vi.fn().mockResolvedValue({ ok: true, status: 200, json: async () => raceDay })
+		);
+
+		render(TrainingDetails, {
+			props: {
+				selectedDate: '2026-09-27',
+				training: { ...base, title: '15k nocturno', can_be_edited: false },
+				entry: null,
+				isLoading: false
+			}
+		});
+
+		await waitFor(() => expect(screen.getByText('Plan B')).toBeTruthy());
+		// Those two have no flag of their own, so can_be_edited still speaks for
+		// them — it is only the master-switch reading that was wrong.
+		expect(screen.queryByText('Terrain')).toBeNull();
+		expect(screen.queryByText('Shoe')).toBeNull();
+		vi.unstubAllGlobals();
+	});
+});

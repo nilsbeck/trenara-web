@@ -448,6 +448,50 @@
 	/* Block list (below the rail, unchanged from today's UI) */
 	.blocks { margin-top: 16px; display: flex; flex-direction: column; gap: 9px; }
 	.blocks h4 { font-family: system-ui, sans-serif; font-size: 13px; font-weight: 500; }
+
+	/* Pacing plan: race day only, and the one setting whose control is a radio
+	   group on the card rather than a chip. The descriptions are the point —
+	   they are how a runner tells three strategies apart. */
+	.pacing { margin-top: 16px; display: flex; flex-direction: column; gap: 8px; }
+	.pacing h4 {
+		font-family: system-ui, sans-serif; font-size: 13px; font-weight: 500;
+		display: flex; align-items: center; gap: 7px;
+	}
+
+	.pace-opt {
+		display: flex; align-items: flex-start; gap: 10px;
+		width: 100%; text-align: left; font: inherit;
+		border: 1px solid var(--app-border);
+		background: var(--app-muted);
+		border-radius: 10px; padding: 11px; cursor: pointer;
+		color: var(--app-fg);
+	}
+
+	.pace-opt:hover { background: rgba(255,255,255,0.03); }
+	.pace-opt:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+	.pace-opt[disabled] { opacity: 0.6; cursor: default; }
+	.pace-opt.on {
+		border-color: color-mix(in srgb, var(--accent) 50%, transparent);
+		background: color-mix(in srgb, var(--accent) 10%, transparent);
+	}
+
+	.pace-opt .radio {
+		width: 16px; height: 16px; border-radius: 999px;
+		border: 1.5px solid var(--app-dim);
+		flex: 0 0 auto; margin-top: 1px;
+		display: grid; place-items: center;
+	}
+	.pace-opt .radio.on { border-color: var(--accent); }
+	.pace-opt .radio.on::after {
+		content: ''; width: 8px; height: 8px; border-radius: 999px; background: var(--accent);
+	}
+
+	.pace-m { flex: 1; min-width: 0; }
+	.pace-t { display: block; font-size: 13.5px; }
+	.pace-d {
+		display: block; margin-top: 2px;
+		font-size: 11.5px; line-height: 1.45; color: var(--app-dim);
+	}
 	.blk {
 		display: flex;
 		align-items: center;
@@ -1505,7 +1549,7 @@
 		tempo: {
 			key: 'tempo', title: 'Tempo run', hex: '#E69F00', activity: 'i-run', cross_type: null,
 			description: 'Tough interval session this week, so the tempo run stays fully aerobic.',
-			can_cross_train: false, can_be_exchanged: true,
+			can_be_edited: true, can_cross_train: false, can_be_exchanged: true,
 			can_change_distance: false, can_change_intensity: true, can_change_pacing_plan: false,
 			intensitySteps: [
 				{ value: -4, text: 'Slower' }, { value: -2, text: 'A bit slower' },
@@ -1526,7 +1570,7 @@
 		easy: {
 			key: 'easy', title: 'Easy run + strides', hex: '#7B3294', activity: 'i-run', cross_type: null,
 			description: 'A standard endurance run. The strides at the end keep your legs sharp.',
-			can_cross_train: true, can_be_exchanged: true,
+			can_be_edited: true, can_cross_train: true, can_be_exchanged: true,
 			can_change_distance: true, can_change_intensity: true, can_change_pacing_plan: false,
 			intensitySteps: [
 				{ value: -4, text: 'Slower' }, { value: -2, text: 'A bit slower' },
@@ -1550,7 +1594,7 @@
 		bike: {
 			key: 'bike', title: 'Cycling', hex: '#1BB9AA', activity: 'i-bike', cross_type: 'road_bike',
 			description: 'A great alternative — cycling eliminates the impact stress from running.',
-			can_cross_train: true, can_be_exchanged: true,
+			can_be_edited: true, can_cross_train: true, can_be_exchanged: true,
 			can_change_distance: false, can_change_intensity: true, can_change_pacing_plan: false,
 			intensitySteps: [{ value: 0, text: 'As planned' }],
 			distanceSteps: null,
@@ -1568,7 +1612,7 @@
 		goal: {
 			key: 'goal', title: '15k nocturno', hex: '#7B3294', activity: 'i-run', cross_type: null,
 			description: 'Time for your 15k nocturno. You’ve trained hard for this — best of luck!',
-			can_cross_train: false, can_be_exchanged: false,
+			can_be_edited: false, can_cross_train: false, can_be_exchanged: false,
 			can_change_distance: false, can_change_intensity: true, can_change_pacing_plan: true,
 			intensitySteps: [
 				{ value: -4, text: 'Slower' }, { value: -2, text: 'A bit slower' },
@@ -1699,7 +1743,11 @@
 	function settings() {
 		var out = [];
 
-		if (!s.cross_type) {
+		// Terrain and shoe are the only two settings with no can_* flag of their
+		// own, so can_be_edited is the one signal we have about them. It says
+		// nothing about the rest: the goal race sends it false alongside
+		// can_change_intensity and can_change_pacing_plan true.
+		if (!s.cross_type && s.can_be_edited) {
 			var su = surfaceOpt(), he = heightOpt();
 			out.push({
 				key: 'terrain', view: 'terrain', label: 'Terrain',
@@ -1747,9 +1795,13 @@
 			// Not a dial: three named strategies, and no option is knowable as
 			// the coach's default over the runner's last choice, so this is
 			// never marked changed — only ever shown.
+			//
+			// And not a chip either. Like the cool-down, its control lives out on
+			// the card: three strategies that only mean anything alongside the
+			// coach's copy for each do not compress into a chip.
 			out.push({
 				key: 'pacing', view: 'pacing', label: 'Pacing plan', icon: 'i-flag',
-				value: s.pacing, changed: false, chip: 'always'
+				value: s.pacing, changed: false, chip: 'never', inline: true
 			});
 		}
 
@@ -1829,6 +1881,26 @@
 					'<span class="blk-act">' + (busy ? 'Saving…' : '＋ Add back') + '</span></button>';
 		}
 
+		// The pacing plan, directly under the blocks it rewrites. Race day is the
+		// only session that offers one, and on that card there is little else to
+		// compete with it: the plan is pinned, so there is no terrain, shoe or
+		// workout swap. Three radio rows, each under the coach's own words.
+		var pacingHtml = '';
+		if (s.can_change_pacing_plan && s.pacingOptions) {
+			for (var p = 0; p < s.pacingOptions.length; p++) {
+				var o = s.pacingOptions[p];
+				pacingHtml += '<button type="button" class="pace-opt' + (o.selected ? ' on' : '') +
+					'" data-set="pacing" data-value="' + (o.value === null ? '' : o.value) +
+					'" aria-pressed="' + o.selected + '"' + (pending === 'pacing' ? ' disabled' : '') + '>' +
+					'<span class="radio' + (o.selected ? ' on' : '') + '"></span>' +
+					'<span class="pace-m"><span class="pace-t">' + esc(o.title) + '</span>' +
+					'<span class="pace-d">' + esc(o.description) + '</span></span></button>';
+			}
+			pacingHtml = '<div class="pacing"><h4>Pacing plan' +
+				(pending === 'pacing' ? ' <span class="spin"></span>' : '') +
+				'</h4>' + pacingHtml + '</div>';
+		}
+
 		return '' +
 			'<div class="ident" style="--sess:' + s.hex + '">' +
 				'<span class="ident-rail"></span>' +
@@ -1861,7 +1933,8 @@
 			'</div>' +
 			'<div class="rail">' + renderRail() + '</div>' +
 			'<div class="coach">' + ic('i-chat', 15) + '<p>' + esc(s.description) + '</p></div>' +
-			'<div class="blocks"><h4>Training details</h4>' + blocksHtml + '</div>';
+			'<div class="blocks"><h4>Training details</h4>' + blocksHtml + '</div>' +
+			pacingHtml;
 	}
 
 	// ── Sheet views ──────────────────────────────────────────────────
@@ -2252,7 +2325,9 @@
 			var nextOptions = s.pacingOptions.map(function (o) {
 				return Object.assign({}, o, { selected: o === opt });
 			});
-			commit('pacing', { pacingOptions: nextOptions, pacing: opt.title }, true);
+			// No close: the control is on the card, and reached from the sheet it
+			// behaves like effort — the choice updates in place.
+			commit('pacing', { pacingOptions: nextOptions, pacing: opt.title }, false);
 			return;
 		}
 
@@ -2341,9 +2416,9 @@
 				</tr>
 				<tr>
 					<td class="f">can_change_pacing_plan<br>change_pacing_plan_package</td>
-					<td class="f">setter unknown</td>
-					<td>Race day only. A picker between three named strategies, not a step scale</td>
-					<td>Row absent — every session that is not the goal race</td>
+					<td class="f">PUT .../pacing_plan<br>{ pacing_plan }</td>
+					<td>Race day only. A radio group on the card, under the blocks it rewrites</td>
+					<td>Absent — every session that is not the goal race</td>
 				</tr>
 				<tr>
 					<td class="f">can_toggle_cooldown<br>has_cooldown</td>
@@ -2652,34 +2727,57 @@
 2  "alternative"  "Plan B"         "Always have a plan B in place. Sometimes plan A doesn't match how you feel or the race-day circumstances. Here's an alternative pacing plan."
 3  null           "No pacing plan" "One block at your selected pace."</p>
 				<p>
-					Confirms the design call too: this is a picker like the workout swap, not a step
-					scale like effort. That is also literally how the app itself shows it — three radio
-					buttons in the session view for that training, each with the coach's own copy under
-					it, and no separate confirm step; tapping one commits it. The setup sheet here matches
-					that directly rather than reusing the effort dial: each option is a full-width row
-					with a radio mark, its title, and its description, and picking an unselected one calls
-					<code>setPacingPlan</code> and closes the sheet, the same commit-and-close pattern the
-					shoe and workout pickers already use. No option is treated as “the plan”, since nothing
-					in the payload marks one as the coach's default over the runner's last choice — so
-					unlike effort or volume, picking a strategy is never flagged as a deviation, only as
-					what is currently set.
+					Confirms the design call too: this is a picker, not a step scale. That is also
+					literally how the app itself shows it — three radio buttons in the session view for
+					that training, each with the coach's own copy under it, and no separate confirm
+					step. So it is radio buttons here as well, and real ones: one choice from a fixed
+					set with exactly one applied is what a radio group <em>is</em>, and it brings the
+					keyboard and screen-reader behaviour that a row of pressed-state buttons has to
+					imitate. No option is treated as “the plan”, since nothing in the payload marks one
+					as the coach's default over the runner's last choice — so unlike effort or volume,
+					picking a strategy is never flagged as a deviation, only shown as what is set.
+				</p>
+				<p>
+					It does <em>not</em> go behind a chip. Three strategies that only mean anything
+					alongside a paragraph of the coach's copy do not compress into a pill, and race day
+					is the emptiest card in the plan — everything else on it is pinned. So the group
+					sits on the card, directly under the blocks it rewrites, exactly as the cool-down
+					control sits on its own block: the control belongs where the thing it changes is
+					already on screen. The sheet still lists it, because the index claims to be the
+					full inventory of what a session allows, and that claim has to survive race day.
 				</p>
 			</div>
 		</div>
 		<div class="gap">
-			<span class="m">!</span>
+			<span class="m q">?</span>
 			<div>
-				<h4>The race-day session is locked, and delete does not know it</h4>
+				<h4>Resolved: <code>can_be_edited</code> is not a master switch</h4>
 				<p>
-					On that session nothing else can be changed and it cannot be deleted at all — the
-					pacing plan is the only thing on offer. The capability flags carry that, and the
-					setup rail already respects them: everything gated by a <code>can_*</code> simply
-					would not render. The delete button does not. It is gated on
-					<code>training !== null &amp;&amp; entry === null</code> and the date being today or
-					later, never on <code>can_be_edited</code> — unlike the move-date control right
-					beside it, which does check. So the one session that must not offer delete is exactly
-					the one that would, and the server would refuse the call. Pre-existing, but this is
-					where it bites.
+					Race day showed nothing at all — no chips, no rail, no pacing plan — and the cause
+					was one line: <code>canShowSetup</code> required <code>can_be_edited</code>, so a
+					single false hid the whole of setup. The goal race disproves that reading outright.
+					It sends <code>can_be_edited: false</code> together with
+					<code>can_change_intensity: true</code> and <code>can_change_pacing_plan: true</code>
+					— the server saying, in the same payload, both “you may not edit this training” and
+					“these two settings are open”. Read as a master switch it hid the pacing plan on the
+					one session that has one.
+				</p>
+				<p>
+					Every setting is already gated on the flag that governs it, so the rail simply asks
+					whether <em>any</em> setting survived. <code>can_be_edited</code> keeps the two jobs
+					it can actually speak for: the delete and move-date controls, which are edits to the
+					schedule entry, and terrain and shoe — the only two settings the API ships no
+					<code>can_*</code> for, so it is the sole signal we have about them.
+				</p>
+				<p>
+					That last part is a judgement call, not a fact, and it is the open half of this.
+					<code>can_be_edited</code> may well mean only “this entry cannot be moved or
+					deleted”, in which case terrain and shoe are changeable on race day and hiding them
+					costs a shoe recommendation the server bothered to compute — an ASICS Metaspeed
+					Edge, on the one day it matters most. Showing them and letting the server refuse is
+					the other defensible answer. It stays conservative until a capture settles it: one
+					<code>POST .../training_condition</code> against the goal race is the whole
+					experiment.
 				</p>
 			</div>
 		</div>

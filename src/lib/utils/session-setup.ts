@@ -322,7 +322,17 @@ export function sessionSettings(training: ScheduledTraining): Setting[] {
 	const settings: Setting[] = [];
 	const run = isRun(training);
 
-	if (run) {
+	// Terrain and shoe are the only two settings with no `can_*` flag of their
+	// own, so `can_be_edited` is the one signal we have about them — a session
+	// the plan pins is unlikely to accept a rewritten condition.
+	//
+	// It says nothing about the rest. The goal race is the proof: it sends
+	// `can_be_edited: false` alongside `can_change_intensity: true` and
+	// `can_change_pacing_plan: true`. Reading it as a master switch over the
+	// whole of setup — which is what the card used to do — hides two controls
+	// the server just said were open, on the one session where the second of
+	// them is the entire point.
+	if (run && training.can_be_edited) {
 		const condition = training.training_condition;
 		const surface = surfaceLabel(condition?.surface);
 		const height = heightLabel(condition?.height_difference);
@@ -376,6 +386,13 @@ export function sessionSettings(training: ScheduledTraining): Setting[] {
 	// is itself the array of three named strategies — so it gets its own
 	// awaiting/absent handling rather than going through `packageOrAwaiting`.
 	// True only on the goal race; every other session sends `false`.
+	//
+	// Like the cool-down, its control lives out on the card rather than behind a
+	// chip. Three strategies that only mean anything alongside the coach's copy
+	// for each do not compress into a chip, and this is race day: the card has
+	// almost nothing else on it, and the choice is the most consequential one in
+	// the plan. So the setting is `inline`, and the card renders the radio group
+	// the app itself shows.
 	if (training.can_change_pacing_plan) {
 		if (!('change_pacing_plan_package' in training)) {
 			settings.push({
@@ -383,8 +400,9 @@ export function sessionSettings(training: ScheduledTraining): Setting[] {
 				label: 'Pacing plan',
 				value: null,
 				changed: false,
-				chip: 'always',
-				awaiting: true
+				chip: 'never',
+				awaiting: true,
+				inline: true
 			});
 		} else if (training.change_pacing_plan_package) {
 			settings.push({
@@ -394,7 +412,8 @@ export function sessionSettings(training: ScheduledTraining): Setting[] {
 				// No coach-planned default is knowable from the payload — unlike a
 				// percentage package, a named strategy has no "0%" to call neutral.
 				changed: false,
-				chip: 'always'
+				chip: 'never',
+				inline: true
 			});
 		}
 	}

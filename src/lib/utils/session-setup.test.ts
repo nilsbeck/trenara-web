@@ -348,6 +348,80 @@ describe('sessionSettings', () => {
 	});
 });
 
+describe('a session the plan pins', () => {
+	/**
+	 * The goal race, with the flags the real payload carries: nothing about the
+	 * session may be edited, yet two settings are explicitly open.
+	 */
+	function goalRace(overrides: Partial<ScheduledTraining> = {}): ScheduledTraining {
+		return tempoRun({
+			title: '15k nocturno',
+			type: 'goal',
+			can_be_edited: false,
+			can_cross_train: false,
+			can_be_exchanged: false,
+			can_change_distance: false,
+			change_distance_package: null,
+			// Race day arrives at the planned intensity, not a nudged one.
+			change_intensity_package: {
+				title: 'Fine-tune intensity',
+				text: 'Change today’s session intensity.',
+				steps: [
+					{ step: 1, value: -2, text: 'A bit slower', selected: false },
+					{ step: 2, value: 0, text: 'As planned', selected: true }
+				]
+			},
+			can_change_pacing_plan: true,
+			change_pacing_plan_package: [
+				{ order: 1, value: 'trenara', title: 'Pacing plan', description: '', selected: false },
+				{ order: 2, value: 'alternative', title: 'Plan B', description: '', selected: false },
+				{ order: 3, value: null, title: 'No pacing plan', description: '', selected: true }
+			],
+			...overrides
+		});
+	}
+
+	it('still offers the settings whose own flag says they are open', () => {
+		// The regression this guards: can_be_edited was read as a master switch
+		// over the whole of setup, so the one session whose pacing plan is the
+		// entire point showed no setup at all.
+		const keys = sessionSettings(goalRace()).map((s) => s.key);
+		expect(keys).toContain('effort');
+		expect(keys).toContain('pacing');
+	});
+
+	it('drops the two settings that have no flag of their own', () => {
+		// Terrain and shoe are ungated by the API, so can_be_edited is the only
+		// thing that speaks for them — and it says no.
+		const keys = sessionSettings(goalRace()).map((s) => s.key);
+		expect(keys).not.toContain('terrain');
+		expect(keys).not.toContain('shoe');
+	});
+
+	it('keeps terrain and shoe on an ordinary session', () => {
+		const keys = sessionSettings(goalRace({ can_be_edited: true })).map((s) => s.key);
+		expect(keys).toContain('terrain');
+		expect(keys).toContain('shoe');
+	});
+
+	it('never puts the pacing plan on the chip rail', () => {
+		// Three strategies do not compress into a chip, and the control lives on
+		// the card instead — the same call the cool-down makes.
+		const pacing = sessionSettings(goalRace()).find((s) => s.key === 'pacing');
+		expect(pacing?.chip).toBe('never');
+		expect(pacing?.inline).toBe(true);
+		expect(chipSettings(goalRace()).map((c) => c.key)).not.toContain('pacing');
+	});
+
+	it('leaves race day with a rail that is empty rather than absent', () => {
+		// Nothing is chipped: terrain and shoe are gone, effort sits at the
+		// planned step, and the pacing plan is on the card. The rail falls back
+		// to its "Session setup" button, which is still the way to effort.
+		expect(chipSettings(goalRace())).toEqual([]);
+		expect(sessionSettings(goalRace()).length).toBeGreaterThan(0);
+	});
+});
+
 describe('selectedPacingPlan', () => {
 	it('finds the selected option', () => {
 		const options = [
