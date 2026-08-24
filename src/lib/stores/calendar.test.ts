@@ -1188,3 +1188,332 @@ describe('replaceTraining', () => {
 		expect(store.schedule?.trainings[0].title).toBe('Tempo run');
 	});
 });
+
+// ─────────────────────────────────────────────────────────────
+// Background revalidation
+// ─────────────────────────────────────────────────────────────
+describe('revalidate', () => {
+	function okResponse(schedule: Schedule, etag: string | null = null) {
+		return {
+			ok: true,
+			status: 200,
+			statusText: 'OK',
+			headers: { get: (name: string) => (name.toLowerCase() === 'etag' ? etag : null) },
+			json: () => Promise.resolve(schedule)
+		};
+	}
+
+	/** The `from` parameter of the nth request, or null if it asked for everything. */
+	function requestedFrom(call: number): string | null {
+		return new URL(mockFetch.mock.calls[call][0], 'http://localhost').searchParams.get('from');
+	}
+
+	function runOn(id: number, day: string) {
+		return { id, day_long: day, title: `Run ${id}` } as unknown as Schedule['trainings'][number];
+	}
+
+	function notModified() {
+		return {
+			ok: false,
+			status: 304,
+			statusText: 'Not Modified',
+			headers: { get: () => null },
+			json: () => Promise.reject(new Error('no body'))
+		};
+	}
+
+	beforeEach(() => {
+		vi.clearAllMocks();
+	});
+
+	it('swaps in a schedule that came back changed', async () => {
+		mockFetch
+			.mockResolvedValueOnce(okResponse(makeSchedule({ id: 1 })))
+			.mockResolvedValueOnce(okResponse(makeSchedule({ id: 2 })));
+
+		const store = createCalendarStore(new Date('2025-03-05'));
+		await store.loadMonthData(new Date('2025-03-05'));
+		await store.revalidate();
+
+		expect(store.schedule?.id).toBe(2);
+	});
+
+	it('leaves the very same schedule object in place when nothing changed', async () => {
+		mockFetch
+			.mockResolvedValueOnce(okResponse(makeSchedule({ id: 1 })))
+			.mockResolvedValueOnce(okResponse(makeSchedule({ id: 1 })));
+
+		const store = createCalendarStore(new Date('2025-03-05'));
+		await store.loadMonthData(new Date('2025-03-05'));
+		const before = store.schedule;
+
+		await store.revalidate();
+
+		// Same object, so nothing downstream rebuilds an index or re-renders.
+		expect(store.schedule).toBe(before);
+	});
+
+	it('bumps scheduleRevision only when the plan actually moved', async () => {
+		mockFetch
+			.mockResolvedValueOnce(okResponse(makeSchedule({ id: 1 })))
+			.mockResolvedValueOnce(okResponse(makeSchedule({ id: 1 })))
+			.mockResolvedValueOnce(okResponse(makeSchedule({ id: 2 })));
+
+		const store = createCalendarStore(new Date('2025-03-05'));
+		await store.loadMonthData(new Date('2025-03-05'));
+		const initial = store.scheduleRevision;
+
+		await store.revalidate();
+		expect(store.scheduleRevision).toBe(initial);
+
+		await store.revalidate();
+		expect(store.scheduleRevision).toBe(initial + 1);
+	});
+
+	it('never raises the blocking loading flag', async () => {
+		mockFetch.mockResolvedValue(okResponse(makeSchedule()));
+
+		const store = createCalendarStore(new Date('2025-03-05'));
+		const inFlight = store.revalidate();
+		expect(store.isLoading).toBe(false);
+		await inFlight;
+		expect(store.isLoading).toBe(false);
+	});
+
+	it('raises isRevalidating while in flight and drops it afterwards', async () => {
+		let release: (value: unknown) => void = () => {};
+		mockFetch.mockReturnValueOnce(
+			new Promise((resolve) => {
+				release = () => resolve(okResponse(makeSchedule()));
+			})
+		);
+
+		const store = createCalendarStore(new Date('2025-03-05'));
+		const inFlight = store.revalidate();
+		expect(store.isRevalidating).toBe(true);
+
+		release(null);
+		await inFlight;
+		expect(store.isRevalidating).toBe(false);
+	});
+
+	it('ignores a second call while one is already in flight', async () => {
+		mockFetch.mockResolvedValue(okResponse(makeSchedule()));
+
+		const store = createCalendarStore(new Date('2025-03-05'));
+		await Promise.all([store.revalidate(), store.revalidate()]);
+
+		expect(mockFetch).toHaveBeenCalledTimes(1);
+	});
+
+	it('sends the stored etag so an unchanged month costs nothing', async () => {
+		mockFetch
+			.mockResolvedValueOnce(okResponse(makeSchedule({ id: 7 }), 'W/"abc"'))
+			.mockResolvedValueOnce(notModified());
+
+		const store = createCalendarStore(new Date('2025-03-05'));
+		await store.loadMonthData(new Date('2025-03-05'));
+		await store.revalidate();
+
+		expect(mockFetch.mock.calls[1][1]).toMatchObject({ headers: { 'If-None-Match': 'W/"abc"' } });
+		expect(store.schedule?.id).toBe(7);
+	});
+
+	it('asks for the whole month, unconditionally, when the runner presses refresh', async () => {
+		mockFetch
+			.mockResolvedValueOnce(okResponse(makeSchedule({ id: 7 }), 'W/"abc"'))
+			.mockResolvedValueOnce(okResponse(makeSchedule({ id: 8 }), 'W/"def"'));
+
+		const store = createCalendarStore(new Date(2025, 2, 28));
+		await store.loadMonthData(new Date(2025, 2, 28));
+		await store.refresh();
+
+		expect(mockFetch.mock.calls[1][1]?.headers).toEqual({});
+		expect(requestedFrom(1)).toBeNull();
+		expect(store.schedule?.id).toBe(8);
+	});
+
+	it('asks only about the weeks that can still change once a month is in hand', async () => {
+		mockFetch.mockResolvedValue(okResponse(makeSchedule()));
+
+		const store = createCalendarStore(new Date(2025, 2, 28));
+		await store.loadMonthData(new Date(2025, 2, 28));
+		// Nothing cached to graft onto yet, so the first ask is for all of it.
+		expect(requestedFrom(0)).toBeNull();
+
+		await store.revalidate();
+		// A week's grace behind today, so a run synced late still lands.
+		expect(requestedFrom(1)).toBe('2025-03-21');
+	});
+
+	it('grafts a partial answer onto the month it already holds', async () => {
+		const full = makeSchedule({
+			trainings: [runOn(1, '2025-03-03'), runOn(2, '2025-03-25')]
+		});
+		const partial = {
+			...makeSchedule({ trainings: [runOn(2, '2025-03-26')] }),
+			covered_from: '2025-03-24'
+		};
+
+		mockFetch
+			.mockResolvedValueOnce(okResponse(full))
+			.mockResolvedValueOnce(okResponse(partial as Schedule));
+
+		const store = createCalendarStore(new Date(2025, 2, 28));
+		await store.loadMonthData(new Date(2025, 2, 28));
+		await store.revalidate();
+
+		// The untouched week survives; the answered week is taken as given.
+		expect(store.schedule?.trainings.map((t) => t.day_long)).toEqual(['2025-03-03', '2025-03-26']);
+	});
+
+	it('says nothing at all about a month that is wholly in the past', async () => {
+		mockFetch.mockResolvedValue(okResponse(makeSchedule()));
+
+		const store = createCalendarStore(new Date(2025, 7, 15));
+		await store.loadMonthData(new Date(2025, 2, 15));
+		vi.clearAllMocks();
+
+		await store.revalidate();
+
+		expect(mockFetch).not.toHaveBeenCalled();
+	});
+
+	it('keeps the plan on screen when the refresh fails', async () => {
+		mockFetch
+			.mockResolvedValueOnce(okResponse(makeSchedule({ id: 5 })))
+			.mockRejectedValueOnce(new Error('offline'));
+
+		const store = createCalendarStore(new Date('2025-03-05'));
+		await store.loadMonthData(new Date('2025-03-05'));
+		await store.revalidate();
+
+		expect(store.schedule?.id).toBe(5);
+		expect(store.error).toBeNull();
+		expect(store.isRevalidating).toBe(false);
+	});
+
+	it('records when the data last came back', async () => {
+		mockFetch.mockResolvedValue(okResponse(makeSchedule()));
+
+		const store = createCalendarStore(new Date('2025-03-05'));
+		expect(store.lastUpdatedAt).toBeNull();
+
+		await store.loadMonthData(new Date('2025-03-05'));
+		expect(store.lastUpdatedAt).toBeTypeOf('number');
+	});
+
+	it('fetches the month itself, alongside whatever else the page shows', async () => {
+		mockFetch.mockResolvedValue(okResponse(makeSchedule()));
+		const refreshPageData = vi.fn().mockResolvedValue(undefined);
+		const store = createCalendarStore(new Date(2025, 2, 5), { refreshPageData });
+
+		await store.revalidate();
+
+		expect(refreshPageData).toHaveBeenCalledTimes(1);
+		expect(mockFetch).toHaveBeenCalledTimes(1);
+	});
+
+	it('fetches a month the runner paged to, which no page load covers', async () => {
+		mockFetch.mockResolvedValue(okResponse(makeSchedule()));
+		const refreshPageData = vi.fn().mockResolvedValue(undefined);
+		const store = createCalendarStore(new Date('2025-03-05'), { refreshPageData });
+
+		await store.navigation.goToNextMonth();
+		vi.clearAllMocks();
+
+		await store.revalidate();
+
+		expect(refreshPageData).toHaveBeenCalledTimes(1);
+		expect(mockFetch).toHaveBeenCalledTimes(1);
+	});
+
+	it('survives a page refresh that throws', async () => {
+		const refreshPageData = vi.fn().mockRejectedValue(new Error('load failed'));
+		const store = createCalendarStore(new Date('2025-03-05'), { refreshPageData });
+
+		await expect(store.revalidate()).resolves.toBeUndefined();
+		expect(store.isRevalidating).toBe(false);
+	});
+});
+
+// ─────────────────────────────────────────────────────────────
+// setSchedule with an explicit month
+// ─────────────────────────────────────────────────────────────
+describe('setSchedule(schedule, forMonth)', () => {
+	beforeEach(() => {
+		vi.clearAllMocks();
+		mockFetch.mockResolvedValue({
+			ok: true,
+			status: 200,
+			headers: { get: () => null },
+			json: () => Promise.resolve(makeSchedule({ id: 0 }))
+		});
+	});
+
+	it('shows a schedule that covers the month on screen', () => {
+		const store = createCalendarStore(new Date('2025-03-05'));
+		store.setSchedule(makeSchedule({ id: 11 }), new Date('2025-03-20'));
+		expect(store.schedule?.id).toBe(11);
+	});
+
+	it('files a schedule for another month away instead of showing it', async () => {
+		const store = createCalendarStore(new Date('2025-03-05'));
+		store.setSchedule(makeSchedule({ id: 11 }));
+
+		// The runner has paged on; a refresh for March must not land on April.
+		await store.navigation.goToNextMonth();
+		store.setSchedule(makeSchedule({ id: 99 }), new Date('2025-03-05'));
+		expect(store.schedule?.id).toBe(0);
+
+		// ...but it is waiting for them when they page back.
+		await store.navigation.goToPreviousMonth();
+		expect(store.schedule?.id).toBe(99);
+	});
+});
+
+// ─────────────────────────────────────────────────────────────
+// syncToday
+// ─────────────────────────────────────────────────────────────
+describe('syncToday', () => {
+	it('reports no change within the same day', () => {
+		const store = createCalendarStore(new Date(2025, 2, 5, 9, 0));
+		expect(store.syncToday(new Date(2025, 2, 5, 23, 59))).toBe(false);
+	});
+
+	it('moves today on once the date has rolled over', () => {
+		const store = createCalendarStore(new Date(2025, 2, 5, 23, 0));
+		expect(store.syncToday(new Date(2025, 2, 6, 0, 5))).toBe(true);
+		expect(store.today.getDate()).toBe(6);
+	});
+
+	it('re-reads a scheduled session as missed once its day has passed', () => {
+		const store = createCalendarStore(new Date(2025, 2, 5, 23, 0));
+		store.setSchedule(
+			makeSchedule({
+				strength_trainings: [
+					{
+						id: 1,
+						strength_id: null,
+						type_id: 1,
+						title: 'Core',
+						training_type: 'strength',
+						description: '',
+						icon_url: '',
+						day: '2025-03-05',
+						time: '08:00',
+						rest_between_sets: 60,
+						rest_between_exercises: 90,
+						exercises: [],
+						accessories: []
+					}
+				]
+			})
+		);
+
+		expect(store.getTrainingStatusForDate({ type: 'strength', day: 5 })).toBe('scheduled');
+
+		store.syncToday(new Date(2025, 2, 6, 0, 5));
+		expect(store.getTrainingStatusForDate({ type: 'strength', day: 5 })).toBe('missed');
+	});
+});
