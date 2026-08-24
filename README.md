@@ -44,7 +44,9 @@ everything from the reverse-engineered Trenara API.
   run it — your actual numbers next to the plan.
 - **Strength sessions** with their exercises, and the **nutrition advice** and meal plan for the day,
   in the same place as the training instead of three screens away.
-- **RPE feedback** straight from the training card, on a 1–10 scale.
+- **An automatic RPE feedback dialog**: a session you have run but not yet rated prompts for it by
+  itself, with the details behind it blurred until you do. You can also rate one at any time from
+  the training card.
 - **Treadmill mode**: the session as step-by-step instructions with the current and next step on
   screen, swipeable, with the speeds in your own units.
 
@@ -54,16 +56,15 @@ Everything Trenara lets you change about a planned training, gathered into one s
 offered is decided by the coach's own flags on that session — options it has locked are simply not
 shown.
 
-- **Swap the workout for another activity** — cycling, mountain biking, indoor cycling, swimming,
-  cross trainer, elliptical bike — and swap it back to a run.
-- **Change intensity and distance**, in the steps the coach allows for that session.
+- **Change the workout session** — swap it for another activity (cycling, mountain biking, indoor
+  cycling, swimming, cross trainer, elliptical bike) and back to a run, or exchange it for a
+  different session the coach accepts that day.
+- **Change intensity, distance and cool-down**, in the steps the coach allows for that session.
 - **Change the race pacing plan.**
 - **Change the shoes** you will run in, from your locker.
 - **Set the terrain**: surface (road, athletics track, treadmill, dirt road, single track), the
   elevation band, and the climb in metres — which is checked against the session distance and tells
   you what that actually reads as per kilometre.
-- **Keep or drop the cool-down.**
-- **Exchange the session** for a different one the coach accepts today.
 - **Move sessions to another date**, optionally shifting the rest of the plan with them.
 - **Delete sessions.**
 
