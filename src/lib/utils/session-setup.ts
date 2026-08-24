@@ -1,6 +1,7 @@
 import type {
 	ChangePackage,
 	ChangeStep,
+	PacingPlanOption,
 	ScheduledTraining,
 	Shoe,
 	TrainingBlock,
@@ -18,16 +19,8 @@ import type {
  * tempo run. Titles are localised, so nothing may key off them either.
  */
 
-export type SettingKey = 'terrain' | 'shoe' | 'effort' | 'volume' | 'cooldown' | 'session';
-
-/** When a setting earns a place on the chip rail. */
-export type ChipRule =
-	/** Part of the session's standing setup — shown even when unset. */
-	| 'always'
-	/** Only once it differs from what the coach planned. */
-	| 'changed'
-	/** Never: the identity strip already shows it. */
-	| 'never';
+export type SettingKey =
+	'terrain' | 'shoe' | 'effort' | 'volume' | 'cooldown' | 'pacing' | 'session';
 
 export interface Setting {
 	key: SettingKey;
@@ -36,7 +29,11 @@ export interface Setting {
 	value: string | null;
 	/** Shown on the chip in place of `value` (the cool-down reads "No cool-down"). */
 	chipLabel?: string;
-	/** True when this differs from the coach's plan. */
+	/**
+	 * True when this differs from the coach's plan. Styling only — a changed
+	 * chip picks up a dot and a tinted border. It does not decide whether the
+	 * chip is there; see `chip`.
+	 */
 	changed: boolean;
 	/**
 	 * The field this value comes from is not on this copy of the training at
@@ -44,7 +41,16 @@ export interface Setting {
 	 * bring it. The chip shows a spinner instead of claiming nothing is set.
 	 */
 	awaiting?: boolean;
-	chip: ChipRule;
+	/**
+	 * Whether the setting gets a chip on the rail.
+	 *
+	 * True for everything the runner can change here, whether or not they have
+	 * changed it: the chip is how you find out the option exists at all, which
+	 * matters most for the settings the backend always has a value for. False
+	 * only where the card already offers the setting somewhere better — the
+	 * cool-down on its block, the session in its title.
+	 */
+	chip: boolean;
 	/** Replacing the session rather than tuning it — grouped apart in the sheet. */
 	replace?: boolean;
 	/** Acts on a block rather than the session, so it lives on the block. */
@@ -121,34 +127,22 @@ export function elevationBand(metresPerKilometre: number): TrainingHeightDiffere
 /**
  * Activities we can name, keyed by `cross_type` (null being a run).
  *
- * The app offers seven choices — keep as a run, cycling, MTB, swimming, cross
- * trainer, elliptical bike, indoor cycling — and exactly one of their wire
- * values has been observed: `road_bike`, which the app calls Cycling. The rest
- * are deliberately absent rather than guessed. Two of them are near-synonyms in
- * English (cross trainer, elliptical bike), so a plausible-looking guess would
- * be as likely to pick the wrong one as the right one, and a `cross_type` the
- * API does not know is refused the same way a bad surface is.
+ * All seven of the app's choices, in the order it lists them: keep as a run,
+ * cycling, mountain biking, indoor cycling, swimming, cross trainer, elliptical
+ * bike.
  *
  * This is a display registry, not a whitelist: a session already cross-trained
- * to an unregistered type still renders, under its own humanised name.
+ * to an unregistered type still renders, under its own humanised name — see
+ * `activityLabel`.
  */
 export const ACTIVITIES = [
 	{ crossType: null, label: 'Run' },
-	{ crossType: 'road_bike', label: 'Cycling' }
-] as const;
-
-/**
- * The activities the app lists, for the ones whose value we have not captured.
- *
- * Kept next to `ACTIVITIES` so the gap is visible rather than forgotten: when a
- * capture names a value, it moves up.
- */
-export const UNMAPPED_ACTIVITIES = [
-	'MTB',
-	'Swimming',
-	'Cross trainer',
-	'Elliptical bike',
-	'Indoor cycling'
+	{ crossType: 'road_bike', label: 'Cycling' },
+	{ crossType: 'mountain_bike', label: 'Mountain biking' },
+	{ crossType: 'indoor_cycling', label: 'Indoor cycling' },
+	{ crossType: 'swimming', label: 'Swimming' },
+	{ crossType: 'crosstrainer', label: 'Cross trainer' },
+	{ crossType: 'elliptical', label: 'Elliptical bike' }
 ] as const;
 
 const SHOE_TYPE_LABELS: Record<string, string> = {
@@ -193,6 +187,19 @@ export function selectedStep(pkg: ChangePackage | null | undefined): ChangeStep 
 }
 
 /**
+ * The pacing strategy currently applied, or null when the package is absent
+ * or unset.
+ *
+ * `change_pacing_plan_package` is the array of options itself, not a
+ * `ChangePackage` wrapping one — see `PacingPlanOption`.
+ */
+export function selectedPacingPlan(
+	pkg: PacingPlanOption[] | null | undefined
+): PacingPlanOption | null {
+	return pkg?.find((o) => o.selected) ?? null;
+}
+
+/**
  * Whether a package has a step meaning "as the coach planned it".
  *
  * A percentage package has one — 0% on distance, "As planned" on intensity —
@@ -215,9 +222,9 @@ function packageSetting(
 	step: ChangeStep | null
 ): Pick<Setting, 'value' | 'changed' | 'chip'> {
 	if (!hasNeutralStep(pkg)) {
-		return { value: step?.text ?? null, changed: false, chip: 'always' };
+		return { value: step?.text ?? null, changed: false, chip: true };
 	}
-	return { value: step?.text ?? null, changed: !!step && step.value !== 0, chip: 'changed' };
+	return { value: step?.text ?? null, changed: !!step && step.value !== 0, chip: true };
 }
 
 /**
@@ -253,9 +260,11 @@ export function sessionSummary(training: ScheduledTraining): string {
  * would be guesswork. An activity we cannot name gets the generic mark rather
  * than a wrong one.
  */
+const BIKE_CROSS_TYPES = new Set(['road_bike', 'mountain_bike', 'indoor_cycling']);
+
 export function activityIcon(crossType: string | null | undefined): 'run' | 'bike' | 'other' {
 	if (!crossType) return 'run';
-	return crossType === 'road_bike' ? 'bike' : 'other';
+	return BIKE_CROSS_TYPES.has(crossType) ? 'bike' : 'other';
 }
 
 /**
@@ -281,6 +290,25 @@ export function hasSetupFlags(training: ScheduledTraining): boolean {
 	);
 }
 
+/**
+ * What to call the setup panel on this session.
+ *
+ * “How you’ll run it” says what the chips are better than a noun does: not
+ * settings in the abstract, but the decisions the coach left to the runner —
+ * the surface, the shoes, the effort, the race strategy. It also pairs with
+ * "Training details" further down the card, which is the coach's half of the
+ * same split.
+ *
+ * A cross-trained session is not run, so it cannot borrow the verb: the same
+ * heading over a bike ride would be plainly wrong. Rather than a verb per
+ * activity — there are seven, and “how you’ll cross-train it” is not English —
+ * the non-run case drops to the neutral form, which is never wrong for any of
+ * them.
+ */
+export function setupHeading(training: ScheduledTraining): string {
+	return isRun(training) ? 'How you’ll run it' : 'How you’ll do it';
+}
+
 /** True when the training is a run rather than a cross-trained session. */
 export function isRun(training: ScheduledTraining): boolean {
 	return !training.cross_type;
@@ -299,7 +327,7 @@ function packageOrAwaiting(
 	training: ScheduledTraining,
 	key: 'change_intensity_package' | 'change_distance_package'
 ): Pick<Setting, 'value' | 'changed' | 'chip' | 'awaiting'> | null {
-	if (!(key in training)) return { value: null, changed: false, chip: 'always', awaiting: true };
+	if (!(key in training)) return { value: null, changed: false, chip: true, awaiting: true };
 
 	const pkg = training[key];
 	if (!pkg) return null;
@@ -317,6 +345,19 @@ export function sessionSettings(training: ScheduledTraining): Setting[] {
 	const settings: Setting[] = [];
 	const run = isRun(training);
 
+	// Terrain and shoe are the only two settings with no `can_*` flag of their
+	// own, and the backend always has a value for both — a surface, an
+	// elevation, a recommended shoe. So they are always shown.
+	//
+	// `can_be_edited` is not the gate it looks like. The goal race sends it
+	// false alongside `can_change_intensity: true` and
+	// `can_change_pacing_plan: true`, so it plainly does not mean "nothing here
+	// may change"; it tracks edits to the schedule entry, which is what the
+	// delete and move-date controls use it for. Reading it as a master switch
+	// is what hid the whole rail on race day, and reading it as a gate on these
+	// two hid a shoe the server had recommended for the race. If a write is
+	// refused, the card says so — which is a better failure than never showing
+	// the runner what their race is set up as.
 	if (run) {
 		const condition = training.training_condition;
 		const surface = surfaceLabel(condition?.surface);
@@ -331,7 +372,7 @@ export function sessionSettings(training: ScheduledTraining): Setting[] {
 				? [surface, height ?? 'Flat', climb > 0 ? `${climb} m` : null].filter(Boolean).join(' · ')
 				: null,
 			changed: false,
-			chip: 'always',
+			chip: true,
 			awaiting: !('training_condition' in training)
 		});
 
@@ -340,9 +381,41 @@ export function sessionSettings(training: ScheduledTraining): Setting[] {
 			label: 'Shoe',
 			value: training.suggested_shoe ? shoeName(training.suggested_shoe) : null,
 			changed: false,
-			chip: 'always',
+			chip: true,
 			awaiting: !('suggested_shoe' in training)
 		});
+	}
+
+	// The pacing plan is not a `ChangePackage` — `change_pacing_plan_package`
+	// is itself the array of three named strategies — so it gets its own
+	// awaiting/absent handling rather than going through `packageOrAwaiting`.
+	// True only on the goal race; every other session sends `false`.
+	//
+	// Ahead of the dials, because it is not one: effort and volume tune a
+	// session, the pacing plan decides what the session is. It belongs with
+	// terrain and shoe as part of the standing setup, and on race day it is the
+	// standing setup — the only thing the plan leaves open.
+	if (training.can_change_pacing_plan) {
+		if (!('change_pacing_plan_package' in training)) {
+			settings.push({
+				key: 'pacing',
+				label: 'Pacing plan',
+				value: null,
+				changed: false,
+				chip: true,
+				awaiting: true
+			});
+		} else if (training.change_pacing_plan_package) {
+			settings.push({
+				key: 'pacing',
+				label: 'Pacing plan',
+				value: selectedPacingPlan(training.change_pacing_plan_package)?.title ?? null,
+				// No coach-planned default is knowable from the payload — unlike a
+				// percentage package, a named strategy has no "0%" to call neutral.
+				changed: false,
+				chip: true
+			});
+		}
 	}
 
 	// A package that arrived as null is Trenara saying there is no such control,
@@ -379,7 +452,7 @@ export function sessionSettings(training: ScheduledTraining): Setting[] {
 			// No chip. The block list already says the cool-down is gone, in the
 			// place it is missing from, and a chip repeating that costs a whole
 			// row of the rail to say it a second time.
-			chip: 'never',
+			chip: false,
 			inline: true
 		});
 	}
@@ -399,7 +472,7 @@ export function sessionSettings(training: ScheduledTraining): Setting[] {
 			label: 'Session',
 			value: training.title,
 			changed: !run,
-			chip: 'never',
+			chip: false,
 			replace: true
 		});
 	}
@@ -408,10 +481,19 @@ export function sessionSettings(training: ScheduledTraining): Setting[] {
 }
 
 /** The subset of `sessionSettings` that appears on the chip rail. */
+/**
+ * The chip rail: every setting the runner can change from here.
+ *
+ * There is no "only once it differs" rule any more. Effort and volume always
+ * carry a value from the backend, so hiding them at the planned step hid the
+ * fact that they could be changed at all — the chip is how you find the option,
+ * not just how you read it. Showing them costs nothing now the rail wraps.
+ *
+ * What stays off is only what the card offers somewhere better: the cool-down
+ * on its own block, and the session behind its title.
+ */
 export function chipSettings(training: ScheduledTraining): Setting[] {
-	return sessionSettings(training).filter(
-		(s) => s.chip === 'always' || (s.chip === 'changed' && s.changed)
-	);
+	return sessionSettings(training).filter((s) => s.chip);
 }
 
 /**

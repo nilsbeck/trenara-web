@@ -158,6 +158,11 @@ export class SessionDetailStore {
 		return this.#mutate('volume', 'distance', 'PUT', { distanceValue });
 	}
 
+	/** Choose a pacing strategy for the goal race. `null` is "no pacing plan". */
+	setPacingPlan(pacingPlan: string | null) {
+		return this.#mutate('pacing', 'pacing-plan', 'PUT', { pacingPlan });
+	}
+
 	setShoe(shoeId: number) {
 		return this.#mutate('shoe', 'shoe', 'PUT', { shoeId });
 	}

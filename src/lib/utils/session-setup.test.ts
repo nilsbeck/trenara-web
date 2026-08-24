@@ -3,11 +3,13 @@ import { TRAINING_SURFACES, type ScheduledTraining, type Shoe } from '$lib/serve
 import {
 	ACTIVITIES,
 	SURFACES,
-	UNMAPPED_ACTIVITIES,
+	activityIcon,
 	activityLabel,
+	setupHeading,
 	chipSettings,
 	hasSetupFlags,
 	heightLabel,
+	selectedPacingPlan,
 	selectedStep,
 	sessionSettings,
 	conditionClimb,
@@ -186,10 +188,9 @@ describe('labels', () => {
 	});
 
 	it('renders values it has never seen rather than dropping them', () => {
-		// Five of the app's seven activities have no captured wire value, so an
-		// unregistered one has to survive as something readable.
+		// All seven of the app's activities are registered now, so this exercises
+		// a value from neither that list nor any other registry.
 		expect(activityLabel('open_water')).toBe('Open water');
-		expect(activityLabel('indoor_cycling')).toBe('Indoor cycling');
 		expect(surfaceLabel('gravel_path')).toBe('Gravel path');
 		expect(shoeTypeLabel('carbon_plate')).toBe('Carbon plate');
 	});
@@ -312,6 +313,151 @@ describe('sessionSettings', () => {
 		const withCooldown = tempoRun({ can_toggle_cooldown: true, has_cooldown: true });
 		expect(sessionSettings(withCooldown).map((s) => s.key)).toContain('cooldown');
 	});
+
+	it('omits the pacing plan from every session but the goal race', () => {
+		expect(sessionSettings(tempoRun()).map((s) => s.key)).not.toContain('pacing');
+	});
+
+	it('names the applied strategy on the goal race', () => {
+		const raceDay = tempoRun({
+			can_change_pacing_plan: true,
+			change_pacing_plan_package: [
+				{ order: 1, value: 'trenara', title: 'Pacing plan', description: '', selected: false },
+				{ order: 2, value: 'alternative', title: 'Plan B', description: '', selected: false },
+				{ order: 3, value: null, title: 'No pacing plan', description: '', selected: true }
+			]
+		});
+		const pacing = sessionSettings(raceDay).find((s) => s.key === 'pacing');
+		expect(pacing?.value).toBe('No pacing plan');
+		// Unlike a percentage package, no option here is knowable as the coach's
+		// default, so nothing is ever marked changed.
+		expect(pacing?.changed).toBe(false);
+	});
+
+	it('marks the pacing plan awaiting on a copy with the flag but no package field', () => {
+		const training = tempoRun({ can_change_pacing_plan: true });
+		delete training.change_pacing_plan_package;
+
+		const pacing = sessionSettings(training).find((s) => s.key === 'pacing');
+		expect(pacing?.awaiting).toBe(true);
+		expect(pacing?.value).toBeNull();
+	});
+
+	it('omits the pacing plan where the flag is true but the package is null', () => {
+		const training = tempoRun({ can_change_pacing_plan: true, change_pacing_plan_package: null });
+		expect(sessionSettings(training).map((s) => s.key)).not.toContain('pacing');
+	});
+});
+
+describe('a session the plan pins', () => {
+	/**
+	 * The goal race, with the flags the real payload carries: nothing about the
+	 * session may be edited, yet two settings are explicitly open.
+	 */
+	function goalRace(overrides: Partial<ScheduledTraining> = {}): ScheduledTraining {
+		return tempoRun({
+			title: '15k nocturno',
+			type: 'goal',
+			can_be_edited: false,
+			can_cross_train: false,
+			can_be_exchanged: false,
+			can_change_distance: false,
+			change_distance_package: null,
+			// Race day arrives at the planned intensity, not a nudged one.
+			change_intensity_package: {
+				title: 'Fine-tune intensity',
+				text: 'Change today’s session intensity.',
+				steps: [
+					{ step: 1, value: -2, text: 'A bit slower', selected: false },
+					{ step: 2, value: 0, text: 'As planned', selected: true }
+				]
+			},
+			can_change_pacing_plan: true,
+			change_pacing_plan_package: [
+				{ order: 1, value: 'trenara', title: 'Pacing plan', description: '', selected: false },
+				{ order: 2, value: 'alternative', title: 'Plan B', description: '', selected: false },
+				{ order: 3, value: null, title: 'No pacing plan', description: '', selected: true }
+			],
+			...overrides
+		});
+	}
+
+	it('still offers the settings whose own flag says they are open', () => {
+		// The regression this guards: can_be_edited was read as a master switch
+		// over the whole of setup, so the one session whose pacing plan is the
+		// entire point showed no setup at all.
+		const keys = sessionSettings(goalRace()).map((s) => s.key);
+		expect(keys).toContain('effort');
+		expect(keys).toContain('pacing');
+	});
+
+	it('keeps terrain and shoe, which carry a backend value either way', () => {
+		// can_be_edited tracks edits to the schedule entry — moving and deleting
+		// it. Reading it as a gate on these two hid the surface the race is set
+		// up for, and the shoe the server recommended for it.
+		const keys = sessionSettings(goalRace()).map((s) => s.key);
+		expect(keys).toContain('terrain');
+		expect(keys).toContain('shoe');
+	});
+
+	it('chips the pacing plan like any other setting', () => {
+		const pacing = sessionSettings(goalRace()).find((s) => s.key === 'pacing');
+		expect(pacing?.chip).toBe(true);
+		// No longer inline: the sheet holds the picker, the chip is the way in.
+		expect(pacing?.inline).toBeUndefined();
+		expect(pacing?.value).toBe('No pacing plan');
+	});
+
+	it('rails everything race day leaves open', () => {
+		// Effort sits at the planned step and terrain at a backend default, and
+		// both still show: the chip is how a runner learns the option is there.
+		expect(chipSettings(goalRace()).map((c) => c.key)).toEqual([
+			'terrain',
+			'shoe',
+			'pacing',
+			'effort'
+		]);
+	});
+
+	it('leads with the strategy, since the dials tune within it', () => {
+		// The pacing plan decides what the session is; effort and volume adjust
+		// it. So it sits with the standing setup, ahead of both.
+		const keys = sessionSettings(goalRace({ can_be_edited: true })).map((s) => s.key);
+		expect(keys.indexOf('pacing')).toBeLessThan(keys.indexOf('effort'));
+		expect(keys.indexOf('shoe')).toBeLessThan(keys.indexOf('pacing'));
+	});
+});
+
+describe('selectedPacingPlan', () => {
+	it('finds the selected option', () => {
+		const options = [
+			{
+				order: 1,
+				value: 'trenara' as const,
+				title: 'Pacing plan',
+				description: '',
+				selected: false
+			},
+			{ order: 2, value: null, title: 'No pacing plan', description: '', selected: true }
+		];
+		expect(selectedPacingPlan(options)?.title).toBe('No pacing plan');
+	});
+
+	it('returns null when the package is absent or nothing is selected', () => {
+		expect(selectedPacingPlan(null)).toBeNull();
+		expect(selectedPacingPlan(undefined)).toBeNull();
+		expect(
+			selectedPacingPlan([
+				{
+					order: 1,
+					value: 'trenara' as const,
+					title: 'Pacing plan',
+					description: '',
+					selected: false
+				}
+			])
+		).toBeNull();
+	});
 });
 
 describe('chipSettings', () => {
@@ -320,7 +466,9 @@ describe('chipSettings', () => {
 		expect(chips).toEqual(['terrain', 'shoe', 'effort']);
 	});
 
-	it('hides a dial sitting at the planned value', () => {
+	it('keeps a dial sitting at the planned value, so the option is findable', () => {
+		// The backend always has a value for effort and volume, so hiding them
+		// at the planned step hid the fact they could be changed at all.
 		const training = tempoRun({
 			change_intensity_package: {
 				title: 'Fine-tune intensity',
@@ -328,7 +476,10 @@ describe('chipSettings', () => {
 				steps: [{ step: 3, value: 0, text: 'As planned', selected: true }]
 			}
 		});
-		expect(chipSettings(training).map((c) => c.key)).toEqual(['terrain', 'shoe']);
+		const effort = chipSettings(training).find((c) => c.key === 'effort');
+		expect(effort?.value).toBe('As planned');
+		// Unchanged, so it stays muted rather than picking up the changed dot.
+		expect(effort?.changed).toBe(false);
 	});
 
 	it('never chips the session itself — the identity strip shows it', () => {
@@ -343,6 +494,23 @@ describe('chipSettings', () => {
 		// It is still a setting, still marked as differing from the plan.
 		const setting = sessionSettings(removed).find((s) => s.key === 'cooldown');
 		expect(setting?.changed).toBe(true);
+	});
+
+	it('keeps a setting shown elsewhere off the rail', () => {
+		// The cool-down is on its block and the session is in its title, so a
+		// chip for either would spend a slot repeating the card.
+		const bike = tempoRun({
+			cross_type: 'road_bike',
+			can_change_intensity: false,
+			change_intensity_package: null,
+			can_be_exchanged: true,
+			can_toggle_cooldown: true,
+			has_cooldown: false
+		});
+
+		expect(chipSettings(bike)).toEqual([]);
+		// Both settings are real, they just belong on other surfaces.
+		expect(sessionSettings(bike).map((s) => s.key)).toEqual(['cooldown', 'session']);
 	});
 
 	it('never disagrees with the sheet about a setting it shows', () => {
@@ -501,7 +669,7 @@ describe('packages without an "as planned" step', () => {
 		expect(volume?.changed).toBe(true);
 	});
 
-	it('keeps the chip off a percentage package sitting at the plan', () => {
+	it('leaves a percentage package sitting at the plan unmarked, but still chipped', () => {
 		const training = tempoRun({
 			can_change_distance: true,
 			change_distance_package: {
@@ -513,7 +681,11 @@ describe('packages without an "as planned" step', () => {
 				]
 			}
 		});
-		expect(chipSettings(training).map((c) => c.key)).not.toContain('volume');
+		// Chipped like everything else — the rail is the inventory now — but at
+		// the plan, so it stays muted rather than picking up the changed mark.
+		const volume = chipSettings(training).find((c) => c.key === 'volume');
+		expect(volume?.value).toBe('0%');
+		expect(volume?.changed).toBe(false);
 	});
 });
 
@@ -656,27 +828,42 @@ describe('surfaces', () => {
 	});
 });
 
+describe('setupHeading', () => {
+	it('names the panel for what the runner is deciding', () => {
+		// Not "settings" in the abstract — the surface, the shoes, the effort.
+		// It pairs with "Training details", the coach's half of the same split.
+		expect(setupHeading(tempoRun())).toBe('How you’ll run it');
+	});
+
+	it('drops the verb on a session that is not run', () => {
+		// The same heading over a bike ride would be plainly wrong, and there is
+		// no verb that covers all seven activities.
+		expect(setupHeading(bikeRide())).toBe('How you’ll do it');
+	});
+});
+
 describe('activities', () => {
-	it('registers only the cross type that has been captured', () => {
-		// road_bike is the one value seen on the wire. Guessing the others risks
-		// picking between near-synonyms — cross trainer and elliptical bike —
-		// and a cross_type the API does not know is refused.
-		expect(ACTIVITIES.map((a) => a.crossType)).toEqual([null, 'road_bike']);
+	it('registers all seven of the app’s activities', () => {
+		expect(ACTIVITIES.map((a) => a.crossType)).toEqual([
+			null,
+			'road_bike',
+			'mountain_bike',
+			'indoor_cycling',
+			'swimming',
+			'crosstrainer',
+			'elliptical'
+		]);
 	});
 
-	it('keeps the unmapped ones named, so the gap stays visible', () => {
-		expect(UNMAPPED_ACTIVITIES).toContain('MTB');
-		expect(UNMAPPED_ACTIVITIES).toContain('Swimming');
-		expect(UNMAPPED_ACTIVITIES).toContain('Cross trainer');
-		expect(UNMAPPED_ACTIVITIES).toContain('Elliptical bike');
-		expect(UNMAPPED_ACTIVITIES).toContain('Indoor cycling');
-	});
-
-	it('does not list an activity as both known and unmapped', () => {
-		const known = ACTIVITIES.map((a) => a.label);
-		for (const pending of UNMAPPED_ACTIVITIES) {
-			expect(known).not.toContain(pending);
-		}
+	it('picks the bike icon only for activities actually on a bike', () => {
+		expect(activityIcon(null)).toBe('run');
+		expect(activityIcon('road_bike')).toBe('bike');
+		expect(activityIcon('mountain_bike')).toBe('bike');
+		expect(activityIcon('indoor_cycling')).toBe('bike');
+		expect(activityIcon('swimming')).toBe('other');
+		expect(activityIcon('crosstrainer')).toBe('other');
+		expect(activityIcon('elliptical')).toBe('other');
+		expect(activityIcon('rowing')).toBe('other');
 	});
 });
 

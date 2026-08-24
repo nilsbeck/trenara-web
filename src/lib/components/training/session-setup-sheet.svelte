@@ -5,6 +5,7 @@
 		Check,
 		ChevronLeft,
 		ChevronRight,
+		Flag,
 		Footprints,
 		Gauge,
 		Loader2,
@@ -19,7 +20,6 @@
 		ACTIVITIES,
 		HEIGHT_DIFFERENCES,
 		SURFACES,
-		UNMAPPED_ACTIVITIES,
 		activityLabel,
 		conditionClimb,
 		elevationBand,
@@ -27,6 +27,7 @@
 		metresPerKm,
 		selectedStep,
 		sessionSettings,
+		setupHeading,
 		shoeName,
 		shoeTypeLabel,
 		type SettingKey
@@ -82,6 +83,7 @@
 
 	const intensityPackage = $derived(training.change_intensity_package ?? null);
 	const distancePackage = $derived(training.change_distance_package ?? null);
+	const pacingPackage = $derived(training.change_pacing_plan_package ?? null);
 
 	const TITLES: Record<SettingKey, string> = {
 		terrain: 'Terrain',
@@ -89,11 +91,14 @@
 		effort: 'Fine-tune intensity',
 		volume: 'Fine-tune distance',
 		cooldown: 'Cool-down',
+		pacing: 'Pacing plan',
 		session: 'Change this session'
 	};
 
 	const title = $derived.by(() => {
-		if (!section) return 'Session setup';
+		// The same name the card's panel carries — backing out of an editor
+		// should land somewhere the runner recognises, not on a synonym.
+		if (!section) return setupHeading(training);
 		// The package carries the coach's own wording, which differs per session:
 		// a distance package calls itself "Fine-tune intervals" on an interval
 		// session. Prefer it over anything we would hardcode.
@@ -108,6 +113,7 @@
 		effort: Gauge,
 		volume: MoveHorizontal,
 		cooldown: Gauge,
+		pacing: Flag,
 		session: Repeat
 	} as const;
 
@@ -516,8 +522,45 @@
 					</button>
 				{/each}
 			{/if}
-		{:else if section === 'effort' || section === 'volume'}
-			<!-- The flag put this setting on the rail; its steps come with the
+		{:else if section === 'pacing' && pacingPackage}
+			<p class="mb-3 text-xs leading-relaxed text-muted-foreground">
+				How to run the race itself. Every strategy rewrites the session into a schedule of when to
+				run how fast for how far.
+			</p>
+			<div class="flex flex-col gap-2">
+				{#each pacingPackage as option (option.order)}
+					<button
+						type="button"
+						disabled={store.pending === 'pacing' || option.selected}
+						onclick={() => commitAndClose(() => store.setPacingPlan(option.value))}
+						aria-pressed={option.selected}
+						class="flex w-full items-start gap-3 rounded-lg border p-3 text-left transition-colors disabled:opacity-100 {option.selected
+							? 'border-primary bg-primary/10'
+							: 'border-border bg-muted hover:bg-foreground/5'}"
+					>
+						<span
+							class="mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full border {option.selected
+								? 'border-primary'
+								: 'border-muted-foreground'}"
+						>
+							{#if option.selected}<span class="h-2 w-2 rounded-full bg-primary"></span>{/if}
+						</span>
+						<span class="min-w-0 flex-1">
+							<span class="block text-sm text-foreground">{option.title}</span>
+							<span class="mt-0.5 block text-[11px] text-muted-foreground"
+								>{option.description}</span
+							>
+						</span>
+					</button>
+				{/each}
+			</div>
+			{#if store.pending === 'pacing'}
+				<p class="mt-3 flex items-center gap-2 text-xs text-muted-foreground">
+					<Loader2 class="h-3 w-3 animate-spin" /> Saving…
+				</p>
+			{/if}
+		{:else if section === 'effort' || section === 'volume' || section === 'pacing'}
+			<!-- The flag put this setting on the rail; its options come with the
 			     detail, which is still on its way. -->
 			<p
 				class="flex items-center justify-center gap-2 py-6 text-xs text-muted-foreground"
@@ -603,9 +646,8 @@
 					{/each}
 				</div>
 				<p class="mt-2 text-[11px] leading-relaxed text-muted-foreground">
-					A ride has a duration, no distance and no pace, so the terrain and shoe go with it —
-					picking Run puts them back. Trenara also offers {UNMAPPED_ACTIVITIES.join(', ')}, which
-					are missing here until we know what to send for each.
+					A cross-trained session has a duration, no distance and no pace, so the terrain and shoe
+					go with it — picking Run puts them back.
 				</p>
 			{/if}
 

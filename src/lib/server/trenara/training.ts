@@ -9,7 +9,8 @@ import type {
 	ScheduledTrainingDetail,
 	ExchangeCandidate,
 	TrainingSurface,
-	TrainingHeightDifference
+	TrainingHeightDifference,
+	PacingPlan
 } from './types';
 import { fetchClient } from './client';
 import { TokenType } from '$lib/server/auth/types';
@@ -257,6 +258,26 @@ export const trainingApi = {
 		return fetchClient.put<ScheduledTrainingDetail>(
 			`/api/schedule/trainings/${trainingId}/cross_train`,
 			{ cross_type: crossType },
+			{ headers: bearerHeader(cookies), cookies }
+		);
+	},
+
+	/**
+	 * Choose a pacing strategy for the goal race.
+	 *
+	 * Gated by `can_change_pacing_plan`, true only on that one session. Unlike
+	 * `setIntensity`/`setDistance`, `pacingPlan` is not a percentage delta — it
+	 * is a `change_pacing_plan_package` option's `value`, an identifier
+	 * (`'trenara'`, `'alternative'`) or `null` for no pacing plan at all.
+	 */
+	async setPacingPlan(
+		cookies: Cookies,
+		trainingId: number,
+		pacingPlan: PacingPlan | null
+	): Promise<ScheduledTrainingDetail> {
+		return fetchClient.put<ScheduledTrainingDetail>(
+			`/api/schedule/trainings/${trainingId}/pacing_plan`,
+			{ pacing_plan: pacingPlan },
 			{ headers: bearerHeader(cookies), cookies }
 		);
 	},

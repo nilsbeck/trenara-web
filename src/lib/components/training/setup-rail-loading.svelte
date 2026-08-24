@@ -11,7 +11,7 @@
 	a row — and it says what it is doing: grey pills waiting to fill read as
 	empty content, not as something on its way.
 -->
-<div class="mt-3 flex items-center gap-1.5" role="status" data-testid="setup-rail-loading">
+<div class="flex items-center gap-1.5" role="status" data-testid="setup-rail-loading">
 	<span
 		class="inline-flex items-center gap-1.5 whitespace-nowrap rounded-full border border-dashed border-border bg-muted px-2.5 py-1.5 text-xs font-medium text-muted-foreground"
 	>

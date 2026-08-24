@@ -29,8 +29,11 @@
 	import {
 		activityIcon,
 		cooldownBlockIndex,
+		chipSettings,
 		hasSetupFlags,
+		setupHeading,
 		isRun,
+		sessionSettings,
 		sessionSummary,
 		type SettingKey
 	} from '$lib/utils/session-setup';
@@ -106,9 +109,24 @@
 		detailStore.detail ?? (training && hasSetupFlags(training) ? training : null)
 	);
 
-	const canShowSetup = $derived(
-		setupTraining !== null && entry === null && setupTraining.can_be_edited
-	);
+	// What this session actually offers. Every entry is already gated on the
+	// flag that governs it, so the question here is only whether anything came
+	// back at all — not `can_be_edited`, which the card used to treat as a
+	// master switch over the whole of setup. It is not one: the goal race sends
+	// it false while offering both an intensity change and the pacing plan, and
+	// reading it as a master switch hid the entire rail on the one session
+	// whose pacing plan is the point. It now gates the two settings it really
+	// does speak for — terrain and shoe, the ones with no flag of their own —
+	// inside `sessionSettings`.
+	const settings = $derived(setupTraining ? sessionSettings(setupTraining) : []);
+
+	const canShowSetup = $derived(setupTraining !== null && entry === null && settings.length > 0);
+
+	// The panel is only worth drawing where it would hold something. A session
+	// whose every setting lives elsewhere — the cool-down on its block, the
+	// workout behind its title — would otherwise get a heading over an empty
+	// box, which reads as a section that failed to load.
+	const railChips = $derived(setupTraining ? chipSettings(setupTraining) : []);
 
 	// While the fetch is out with nothing to render yet, the rail says so rather
 	// than being absent. The week's copy already says whether the plan lets this
@@ -177,7 +195,10 @@
 		return () => clearTimeout(timer);
 	});
 
-	function openSetup(key: SettingKey | null) {
+	// Always onto a specific editor now. Nothing opens the bare index any more:
+	// every setting has a chip, and the two that do not are reached from the
+	// card itself — the cool-down on its block, the session from its title.
+	function openSetup(key: SettingKey) {
 		setupSection = key;
 		setupOpen = true;
 	}
@@ -231,7 +252,13 @@
 	<div class="flex flex-col gap-4">
 		<!-- Title + action buttons -->
 		<div class="flex items-start justify-between gap-2">
-			<div class="flex min-w-0 items-stretch gap-2">
+			<!--
+				`flex-1` so this group fills the row up to the action buttons. Without
+				it the group shrinks to its content, and the shape bar inside — the one
+				thing here that wants the full width — ends wherever the title or the
+				distance happens to, which is nothing to do with the session.
+			-->
+			<div class="flex min-w-0 flex-1 items-stretch gap-2">
 				{#if entry}
 					<Check class="mt-0.5 h-5 w-5 shrink-0 text-green-500" />
 				{:else if shownTraining}
@@ -362,11 +389,38 @@
 			</div>
 		</div>
 
-		<!-- Session setup: what is applied, and the way to change it -->
+		<!--
+			Session setup: what is applied, and the way to change it.
+
+			The chips are given a panel of their own rather than floating between
+			the identity strip and the coach's message. They are one thing — the
+			parts of this session the coach left to the runner — and without a
+			surface around them they read as loose decoration on the card. The
+			panel is recessed rather than outlined: the chips carry borders
+			already, and a box around them would stack one border on another.
+
+			The heading names them by what makes them a group. “How you’ll run it”
+			sits as a peer of "Training details" further down the card, and the two
+			carry the whole split this screen is built on: the plan is the coach's,
+			how you run it is yours. See `setupHeading` for the cross-trained case,
+			which cannot borrow the verb.
+		-->
 		{#if setupLoading}
-			<SetupRailLoading />
+			<div class="mt-3 rounded-lg bg-background/60 p-3">
+				<h4 class="mb-2 text-sm font-medium text-foreground">
+					{training ? setupHeading(training) : 'How you’ll run it'}
+				</h4>
+				<SetupRailLoading />
+			</div>
 		{:else if canShowSetup && setupTraining}
-			<SetupRail training={setupTraining} pending={detailStore.pending} onopen={openSetup} />
+			{#if railChips.length > 0}
+				<div class="mt-3 rounded-lg bg-background/60 p-3">
+					<h4 class="mb-2 text-sm font-medium text-foreground">
+						{setupHeading(setupTraining)}
+					</h4>
+					<SetupRail training={setupTraining} pending={detailStore.pending} onopen={openSetup} />
+				</div>
+			{/if}
 
 			<!--
 				Setup errors are shown inside the sheet while it is open. The
