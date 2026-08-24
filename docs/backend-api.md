@@ -222,10 +222,30 @@ Trailing slash required.
   reads `week` today, which is why the drift went unnoticed. The embedded copy
   also has no `description` or `updated_at`; those may still exist on
   `/api/goal` proper, since this is a slimmer serialisation, so treat their
-  absence as unconfirmed rather than as removal. `training_id` points at a
-  plan-template training, not at a scheduled one — the ids here (2557-2563) are
-  four digits, where `next_training.id` is nine. Which weekday `day` numbers
-  (0-6) start from is not established by this capture.
+  absence as unconfirmed rather than as removal.
+- `current_goal.week[]` is the plan's repeating weekly pattern — one entry per
+  training day, `number_of_trainings` of them — and it is what the backend
+  expands from `start_date` to `end_date` into the dated sessions the calendar
+  shows. For a client it answers "which days do I train, and which session
+  lands on each" without pulling a month of schedule.
+  - `day` is **0 = Monday**: this capture's `{0, 2, 4, 6}` are exactly the four
+    days `/api/me/stats/` gives a `todo` (Mon, Wed, Fri, Sun), and
+    `next_training` on Wednesday 2026-08-26 carries the 6.78 km that stats
+    lists for Wednesday, matching the `day: 2` slot. Caveat: this account has
+    `start_of_week: "monday"`, so "0 = Monday" and "0 = the user's own start of
+    week" both fit the evidence. A Sunday-start account would tell them apart.
+  - `training_id` points at a plan-template training, not a scheduled one — the
+    ids here are four digits (2557-2563) where `next_training.id` is nine. Same
+    session, two identities: the recurring definition and the dated instance.
+  - `excel_id` is the row in the coach's source sheet, and moves with
+    `training_id` at a constant offset (3→2557, 4→2558, 5→2559, 9→2563), so a
+    scheme's trainings are one contiguous block of templates. The gaps in the
+    sequence are the sessions this runner's four-a-week plan does not use.
+  - The array is not sorted — not by `day`, `excel_id` or `training_id`. Sort
+    it yourself before rendering a week.
+  - Our `Goal.week[]` still carries a `prior` the backend no longer sends;
+    going by the name it ordered the week by priority, but that is inference,
+    not a recorded response.
 - `next_training` — a `ScheduledTraining`. Everything the training detail sheet
   needs is inlined: `change_distance_package` / `change_intensity_package`
   (the fine-tune steppers, with `selected` marking the current value),
