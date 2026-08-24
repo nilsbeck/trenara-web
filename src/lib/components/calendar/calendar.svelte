@@ -56,14 +56,15 @@
 		);
 	});
 
-	// Ask again at the moments the data is most likely to have moved on —
-	// notably the small hours, when the coach reschedules and nothing tells us.
+	// Sessions the runner changes come back from the mutation itself, so the only
+	// thing left to catch is the coach's overnight rework. This asks the server
+	// again when what is on screen is from before today, and otherwise does
+	// nothing but move the store's idea of "today" on at midnight.
 	$effect(() => {
 		const trigger = createRevalidationTrigger({
-			onTrigger: () => {
-				store.syncToday();
-				void store.revalidate();
-			}
+			lastUpdatedAt: () => store.lastUpdatedAt,
+			onCheck: () => store.syncToday(),
+			onTrigger: () => void store.revalidate()
 		});
 		return () => trigger.stop();
 	});

@@ -9,6 +9,7 @@ import type {
 	Entry
 } from '$lib/server/trenara/types';
 import { fingerprint } from '$lib/utils/fingerprint';
+import { stalenessReason } from '$lib/utils/revalidation';
 
 export type CalendarDate = {
 	year: number;
@@ -38,12 +39,6 @@ export interface CalendarStoreOptions {
 	 */
 	refreshPageData?: () => Promise<unknown>;
 }
-
-/**
- * How old a cached month may be before it is served *and* checked. Below this
- * the cache is taken at its word, so paging back and forth stays instant.
- */
-export const MONTH_STALE_MS = 5 * 60 * 1000;
 
 // ── Helpers (pure, no allocations on hot path) ──────────────
 
@@ -472,9 +467,10 @@ export function createCalendarStore(initialDate: Date, options: CalendarStoreOpt
 			if (cached) {
 				schedule = cached.schedule;
 				lastUpdatedAt = cached.fetchedAt;
-				// Shown straight away; checked afterwards if it has been sitting a
-				// while, so paging around stays instant but never goes stale.
-				if (Date.now() - cached.fetchedAt > MONTH_STALE_MS && !isRevalidating) {
+				// Shown straight away, and checked afterwards only if it was cached
+				// before today's rework — paging between months never costs a request
+				// on its own.
+				if (stalenessReason(cached.fetchedAt, Date.now()) && !isRevalidating) {
 					isRevalidating = true;
 					void revalidateMonth(new Date(date)).finally(() => {
 						isRevalidating = false;

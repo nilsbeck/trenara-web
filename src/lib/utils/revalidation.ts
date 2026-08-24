@@ -1,58 +1,91 @@
 /**
- * Deciding when the data on screen has had its day.
+ * Deciding when the data on screen has had its day — and it is very nearly
+ * that literal.
  *
- * The coach reschedules overnight — a session moves, a distance changes — and
- * a tab left open since yesterday evening goes on showing the plan as it was.
- * Nothing pushes that news to us: the official app is told over Firebase
- * Cloud Messaging, which is addressed to that app's own registrations and is
- * not something a third-party web client can subscribe to. So this app has to
- * ask again, at the moments it is most likely to be holding something stale.
+ * There are only two ways the plan changes. A session the runner edits comes
+ * back from the mutation in full, so the store patches it in and nothing needs
+ * fetching. Everything else happens overnight, when the coach's processing
+ * reworks the week. That is the whole of it: no push to subscribe to (the
+ * official app is told over Firebase Cloud Messaging, addressed to its own
+ * registrations), and nothing else that moves during the day.
  *
- * Those moments are cheap to spot: the tab becoming visible, the window
- * regaining focus, the network coming back, a timer ticking over while the
- * page is on screen — and, the one that matters for an overnight change, the
- * local calendar day rolling over under a page that never closed.
+ * So this does not poll. It watches a single question — is what we are looking
+ * at from before today? — and asks the server again only when the answer is
+ * yes. A tab opened each morning refreshes once. A tab left open for a week
+ * refreshes once a day. The events below are just chances to ask the question;
+ * none of them causes a request on its own.
  */
 
-export type RevalidationReason = 'visible' | 'focus' | 'online' | 'interval' | 'day-change';
+export type RevalidationReason = 'new-day' | 'max-age';
 
 export interface RevalidationTriggerOptions {
-	/** Called when something suggests the data may have moved on without us. */
-	onTrigger: (reason: RevalidationReason) => void;
-	/** How often to look while the page is open. */
-	intervalMs?: number;
 	/**
-	 * Floor between two triggers. Alt-tabbing repeatedly should not turn into a
-	 * request per keystroke; a day change and a reconnect ignore it, because
-	 * both mean the data really is suspect.
+	 * When what is on screen was last known to be current, or null if nothing
+	 * has loaded yet — in which case there is nothing to revalidate.
 	 */
+	lastUpdatedAt: () => number | null;
+	/** Called when the data is out of date. The only thing that costs a request. */
+	onTrigger: (reason: RevalidationReason) => void;
+	/**
+	 * Called on every check, whether or not the data turned out to be stale.
+	 * Free, local work only — noticing that midnight has passed, say.
+	 */
+	onCheck?: () => void;
+	/**
+	 * A backstop for the one case the day boundary misses: overnight processing
+	 * lands in the small hours, so a tab that refreshed at 00:01 holds a plan
+	 * from before the rework and is, by the day rule, perfectly current.
+	 */
+	maxAgeMs?: number;
+	/** How often to ask the question locally. No request unless the answer is yes. */
+	checkIntervalMs?: number;
+	/** Floor between two requests, so a failing refresh cannot become a retry storm. */
 	minGapMs?: number;
 	now?: () => number;
-	/** Injectable so day rollover can be tested without waiting for midnight. */
-	dayKey?: () => string;
 }
 
 export interface RevalidationTrigger {
 	stop: () => void;
 }
 
-export const DEFAULT_INTERVAL_MS = 5 * 60 * 1000;
+export const DEFAULT_MAX_AGE_MS = 6 * 60 * 60 * 1000;
+export const DEFAULT_CHECK_INTERVAL_MS = 5 * 60 * 1000;
 export const DEFAULT_MIN_GAP_MS = 60 * 1000;
 
 /** Local calendar day. Deliberately local: "overnight" means the runner's night. */
-export function localDayKey(date: Date = new Date()): string {
+export function localDayKey(date: Date): string {
 	return `${date.getFullYear()}-${date.getMonth() + 1}-${date.getDate()}`;
+}
+
+/**
+ * Whether data last confirmed at `lastUpdatedAt` should be fetched again, and
+ * why. Null means it is still good.
+ */
+export function stalenessReason(
+	lastUpdatedAt: number | null,
+	nowMs: number,
+	maxAgeMs: number = DEFAULT_MAX_AGE_MS
+): RevalidationReason | null {
+	// Nothing on screen yet: whatever is loading it owns that, not us.
+	if (lastUpdatedAt === null) return null;
+	// The day boundary is asked first because it is the real reason — the age
+	// backstop below is only there for the hours either side of it.
+	if (localDayKey(new Date(lastUpdatedAt)) !== localDayKey(new Date(nowMs))) return 'new-day';
+	if (nowMs - lastUpdatedAt >= maxAgeMs) return 'max-age';
+	return null;
 }
 
 export function createRevalidationTrigger(
 	options: RevalidationTriggerOptions
 ): RevalidationTrigger {
 	const {
+		lastUpdatedAt,
 		onTrigger,
-		intervalMs = DEFAULT_INTERVAL_MS,
+		onCheck,
+		maxAgeMs = DEFAULT_MAX_AGE_MS,
+		checkIntervalMs = DEFAULT_CHECK_INTERVAL_MS,
 		minGapMs = DEFAULT_MIN_GAP_MS,
-		now = Date.now,
-		dayKey = localDayKey
+		now = Date.now
 	} = options;
 
 	// Nothing to listen to while rendering on the server.
@@ -60,55 +93,41 @@ export function createRevalidationTrigger(
 		return { stop: () => {} };
 	}
 
-	let lastTriggeredAt = now();
-	let lastDay = dayKey();
+	let lastTriggeredAt: number | null = null;
 
-	function fire(reason: RevalidationReason, force = false) {
-		if (!force && now() - lastTriggeredAt < minGapMs) return;
-		lastTriggeredAt = now();
+	function check() {
+		onCheck?.();
+
+		const nowMs = now();
+		const reason = stalenessReason(lastUpdatedAt(), nowMs, maxAgeMs);
+		if (!reason) return;
+
+		// A refresh that failed leaves the data stale, so the next check would ask
+		// again immediately. Once a minute is enough to recover from that.
+		if (lastTriggeredAt !== null && nowMs - lastTriggeredAt < minGapMs) return;
+
+		lastTriggeredAt = nowMs;
 		onTrigger(reason);
-	}
-
-	/** True when it fired, so the caller does not also fire its own weaker reason. */
-	function checkDayRollover(): boolean {
-		const today = dayKey();
-		if (today === lastDay) return false;
-		lastDay = today;
-		fire('day-change', true);
-		return true;
 	}
 
 	function handleVisibility() {
 		if (document.visibilityState !== 'visible') return;
-		if (!checkDayRollover()) fire('visible');
-	}
-
-	function handleFocus() {
-		if (!checkDayRollover()) fire('focus');
-	}
-
-	function handleOnline() {
-		fire('online', true);
-	}
-
-	function handleInterval() {
-		// The rollover check runs even while hidden: a machine that slept through
-		// midnight wakes with the tab still hidden, and the day is already wrong.
-		if (checkDayRollover()) return;
-		if (document.visibilityState !== 'visible') return;
-		fire('interval');
+		check();
 	}
 
 	document.addEventListener('visibilitychange', handleVisibility);
-	window.addEventListener('focus', handleFocus);
-	window.addEventListener('online', handleOnline);
-	const timer = setInterval(handleInterval, intervalMs);
+	window.addEventListener('focus', check);
+	const timer = setInterval(() => {
+		// Hidden tabs are left alone; the visibility handler catches them the
+		// moment anyone looks, which is the only moment it matters.
+		if (document.visibilityState !== 'visible') return;
+		check();
+	}, checkIntervalMs);
 
 	return {
 		stop() {
 			document.removeEventListener('visibilitychange', handleVisibility);
-			window.removeEventListener('focus', handleFocus);
-			window.removeEventListener('online', handleOnline);
+			window.removeEventListener('focus', check);
 			clearInterval(timer);
 		}
 	};
