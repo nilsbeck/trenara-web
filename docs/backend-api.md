@@ -226,8 +226,20 @@ Trailing slash required.
 - `current_goal.week[]` is the plan's repeating weekly pattern — one entry per
   training day, `number_of_trainings` of them — and it is what the backend
   expands from `start_date` to `end_date` into the dated sessions the calendar
-  shows. For a client it answers "which days do I train, and which session
-  lands on each" without pulling a month of schedule.
+  shows. **It is a skeleton, not a display payload:** an entry carries `day`,
+  `training_id` and `excel_id` and nothing else — no title, type, distance,
+  icon or colour — so it tells you a session falls on Friday but never that
+  Friday is a long run. Nothing captured so far resolves a `training_id` into
+  session details; `GET /api/schedule/trainings/{id}` takes the nine-digit
+  scheduled id, and whether it also accepts a four-digit template id is
+  untested. For what a session actually is, fetch `/api/schedule/week/`, whose
+  trainings are full `ScheduledTraining` objects. What `week[]` is good for is
+  the shape of the week without a schedule fetch (how many sessions, which
+  days), and slot identity across weeks: the dated sessions each have their own
+  id, so only this tells you that two Fridays are the same recurring slot —
+  which is what a training-days editor, or detecting that the plan itself
+  changed, needs. Being the goal's pattern, it is also the plan's intent, where
+  the schedule is what became of it after moves and exchanges.
   - `day` is **0 = Monday**: this capture's `{0, 2, 4, 6}` are exactly the four
     days `/api/me/stats/` gives a `todo` (Mon, Wed, Fri, Sun), and
     `next_training` on Wednesday 2026-08-26 carries the 6.78 km that stats
