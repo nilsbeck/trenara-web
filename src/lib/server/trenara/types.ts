@@ -768,9 +768,37 @@ export interface Goal {
 	time_type_selected: string;
 	training_condition: TrainingCondition;
 	training_scheme_type: string;
+	/**
+	 * The plan's repeating week: one entry per training day, `number_of_trainings`
+	 * of them. The backend expands it from `start_date` to `end_date` into the
+	 * dated sessions the calendar shows.
+	 *
+	 * A skeleton, not a display payload — there is no title, type, distance or
+	 * colour here, so this says a session falls on Friday but never that Friday
+	 * is a long run. For that, read `/api/schedule/week/`.
+	 *
+	 * The array arrives **unsorted** — not by `day`, `excel_id` or `training_id`.
+	 * Sort before rendering a week.
+	 *
+	 * Shape recorded from a response captured on 2026-08-24; the older
+	 * `{ day, prior }` this was typed as is gone. See `docs/backend-api.md`.
+	 */
 	week: Array<{
+		/**
+		 * `0` = Monday. Established by lining a capture's `{0, 2, 4, 6}` up with
+		 * the four days the stats response gives a planned distance. That account
+		 * starts its week on Monday, so "0 = Monday" and "0 = the user's own start
+		 * of week" both fit the evidence — an account starting on Sunday would
+		 * tell them apart.
+		 */
 		day: number;
-		prior: number;
+		/** The row in the plan's source sheet. Tracks `training_id` at a constant offset. */
+		excel_id: number;
+		/**
+		 * A plan **template**, not a scheduled session — four digits here against
+		 * nine for a dated one. Nothing captured so far resolves it to details.
+		 */
+		training_id: number;
 	}>;
 	updated_at: number;
 }
