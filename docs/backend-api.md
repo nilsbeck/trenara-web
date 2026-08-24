@@ -1,9 +1,8 @@
-# Trenara backend API
+# Upstream API reference
 
-Notes on the upstream API this app talks to: `https://backend-prod.trenara.com`.
-It is not our API and it is not documented publicly, so this file is the record
-of what each endpoint actually returns — captured from live responses, not from
-a spec.
+Notes on the API this app reads from. It is not our API and it is not
+documented publicly, so this file is the record of what each endpoint actually
+returns — captured from live responses, not from a spec.
 
 **Samples are real responses from one account, with identifiers redacted**
 (e-mail, uuid, team join code, media filenames). Field _values_ are otherwise
@@ -14,8 +13,9 @@ matters when you type it.
 
 ## Conventions
 
-- **Base URL:** `https://backend-prod.trenara.com` — set in
-  `src/lib/server/trenara/client.ts`, which prefixes every relative path.
+- **Base URL:** held as `BASE_URL` in `src/lib/server/trenara/client.ts`, which
+  prefixes every relative path recorded here. Deliberately not repeated in this
+  file — the client is the one place it belongs.
 - **Auth:** `Authorization: Bearer <access_token>` on everything except
   login/refresh. `bearerHeader(cookies)` in `src/lib/server/trenara/*.ts`
   builds it from the access-token cookie.
@@ -26,6 +26,10 @@ matters when you type it.
   `/api/me/stats` answers either way, so it is not strictly load-bearing
   everywhere, but which paths tolerate which has not been tested: use the exact
   path recorded here.
+- **Wire values are quoted verbatim**, including the two that carry a vendor
+  name (`"time_type_selected": "trenara_time"` on a goal, and the boolean
+  `trenara` on an entry). They are the strings the API actually sends, so
+  rewriting them would make this file wrong.
 - **Timestamps** come in three flavours: unix seconds (`created_at`,
   `premium_until`), ISO-8601 with offset (`start_time`, notification
   `created_at`), and plain dates (`"2026-09-27"`). Per field, not per endpoint.
@@ -103,7 +107,7 @@ Not used by this app yet.
 {
 	"perks": {
 		"title": "Our partners",
-		"description": "Peak Pro users get extra perks!"
+		"description": "…"
 	},
 	"nutritional": {
 		"disclaimer": "Before you start using the nutritional coach..."
@@ -151,37 +155,37 @@ Not used by this app yet.
 			{
 				"type": "road_bike",
 				"name": "Cycling",
-				"icon_path": "https://backend-prod.trenara.com/icons/cross_training/bike.svg",
+				"icon_path": "https://<api-host>/icons/cross_training/bike.svg",
 				"color": "#1BB9AA"
 			},
 			{
 				"type": "mountain_bike",
 				"name": "MTB",
-				"icon_path": "https://backend-prod.trenara.com/icons/cross_training/mountain_bike.svg",
+				"icon_path": "https://<api-host>/icons/cross_training/mountain_bike.svg",
 				"color": "#A3B93E"
 			},
 			{
 				"type": "swimming",
 				"name": "Swimming",
-				"icon_path": "https://backend-prod.trenara.com/icons/cross_training/swim.svg",
+				"icon_path": "https://<api-host>/icons/cross_training/swim.svg",
 				"color": "#00ACC1"
 			},
 			{
 				"type": "crosstrainer",
 				"name": "Cross trainer",
-				"icon_path": "https://backend-prod.trenara.com/icons/cross_training/elliptical.svg",
+				"icon_path": "https://<api-host>/icons/cross_training/elliptical.svg",
 				"color": "#6574D8"
 			},
 			{
 				"type": "elliptical",
 				"name": "Elliptical bike",
-				"icon_path": "https://backend-prod.trenara.com/icons/cross_training/elliptical.svg",
+				"icon_path": "https://<api-host>/icons/cross_training/elliptical.svg",
 				"color": "#78909C"
 			},
 			{
 				"type": "indoor_cycling",
 				"name": "Indoor cycling",
-				"icon_path": "https://backend-prod.trenara.com/icons/cross_training/bike.svg",
+				"icon_path": "https://<api-host>/icons/cross_training/bike.svg",
 				"color": "#009688"
 			}
 		]
@@ -221,7 +225,7 @@ Trailing slash required.
   client can render done-vs-goal as a bar rather than only printing the
   sentence. `actions: ["share"]` is the button list. The same object is
   repeated inside `last_entry.notification`.
-  - `done_tss` looks computed by Trenara from pace against the account's
+  - `done_tss` looks computed upstream from pace against the account's
     thresholds, not relayed from the watch. The capture's entry ran 3037 s at
     `pace_value: 379`; the standard IF² x hours x 100 gives 35.25 against
     `pace_lt2_value` 245 and 37.30 against the 252 of `pace_for_goal`, where
@@ -229,7 +233,7 @@ Trailing slash required.
     a percent of a textbook rTSS. It fits the rest of the account too:
     `heartbeat_prior: false` with both pace thresholds set is a pace-driven
     model, and a treadmill run (`gps: false`) is flat, so average pace stands
-    in for normalized graded pace. Garmin has no TSS to pass through in any
+    in for normalized graded pace. The watch has no TSS to pass through in any
     case — its metrics are Training Effect and an EPOC-derived Training Load,
     and it labels anything TSS only for power-based cycling. Nothing in these
     payloads carries a watch-side load figure: the entry has no field for one
@@ -383,7 +387,7 @@ otherwise verbatim.
 		"description": "Designing this session down is easy…",
 		"show_description_from": 1787090400,
 		"type": "training",
-		"icon_url": "https://backend-prod.trenara.com/icons/icon__step.svg",
+		"icon_url": "https://<api-host>/icons/icon__step.svg",
 		"hex_training": "#CC3311",
 		"hex_completed": null,
 		"last_garmin_sync": "2026-08-24 01:14:34",
@@ -405,7 +409,7 @@ otherwise verbatim.
 		"can_change_intensity": true,
 		"change_intensity_package": {
 			"title": "Fine-tune intensity",
-			"text": "Change today's session intensity within limits set by Coach Christophe…",
+			"text": "Change today's session intensity within limits set by the coach…",
 			"steps": [
 				{ "step": 1, "value": -4, "text": "Slower", "selected": false },
 				{ "step": 2, "value": -2, "text": "A bit slower", "selected": false },
@@ -550,7 +554,7 @@ otherwise verbatim.
 		"name": "Garmin Treadmill running",
 		"start_time": "2026-08-24T17:13:06+02:00",
 		"type": "run",
-		"icon": "https://backend-prod.trenara.com/icons/icon__step.svg",
+		"icon": "https://<api-host>/icons/icon__step.svg",
 		"total_altitude": null,
 		"avg_heartbeat": 133,
 		"rpe": 1,
@@ -580,8 +584,8 @@ otherwise verbatim.
 		"gps_media": [
 			{
 				"id": 18221138,
-				"path": "https://…cloudfront.net/18221138/gps_data_garmin_29442588.json",
-				"original_path": "https://…cloudfront.net/18221138/gps_data_garmin_29442588.json",
+				"path": "https://<cdn-host>/18221138/gps_data_garmin_29442588.json",
+				"original_path": "https://<cdn-host>/18221138/gps_data_garmin_29442588.json",
 				"meta": {
 					"gps": false,
 					"time": true,
@@ -639,8 +643,8 @@ otherwise verbatim.
 			"message": "Great effort, you did it!…",
 			"picture": {
 				"id": 17706867,
-				"path": "https://…cloudfront.net/17706867/medal_picture_300min07-2026.png",
-				"original_path": "https://…cloudfront.net/17706867/medal_picture_300min07-2026.png",
+				"path": "https://<cdn-host>/17706867/medal_picture_300min07-2026.png",
+				"original_path": "https://<cdn-host>/17706867/medal_picture_300min07-2026.png",
 				"meta": null,
 				"size_in_kb": 41.047,
 				"created_at": 1783499523,
@@ -758,7 +762,7 @@ Identifiers redacted; otherwise verbatim.
 	"premium_platform": "b2b",
 	"premium_auto_renew": false,
 	"is_trainee": false,
-	"trainer_picture_url": "https://backend-prod.trenara.com/img/christophe.png",
+	"trainer_picture_url": "https://<api-host>/img/<coach>.png",
 	"is_trainer": false,
 	"qr_code_url": null,
 	"coupled_trainees": null,
@@ -773,8 +777,8 @@ Identifiers redacted; otherwise verbatim.
 	"has_nutritional_coach": true,
 	"profile_picture": {
 		"id": 12356744,
-		"path": "https://…cloudfront.net/12356744/profile_picture.jpg",
-		"original_path": "https://…cloudfront.net/12356744/profile_picture.jpg",
+		"path": "https://<cdn-host>/12356744/profile_picture.jpg",
+		"original_path": "https://<cdn-host>/12356744/profile_picture.jpg",
 		"meta": null,
 		"size_in_kb": 351.536,
 		"created_at": 1740086660,
@@ -795,7 +799,7 @@ Identifiers redacted; otherwise verbatim.
 			"type": "global",
 			"checked": true,
 			"title": "Global notifications",
-			"icon_path": "https://backend-prod.trenara.com/icons/icon_bell.svg",
+			"icon_path": "https://<api-host>/icons/icon_bell.svg",
 			"allow_time": false,
 			"time": null
 		},
@@ -803,7 +807,7 @@ Identifiers redacted; otherwise verbatim.
 			"type": "training_reminder",
 			"checked": true,
 			"title": "Set running reminder",
-			"icon_path": "https://backend-prod.trenara.com/icons/icon_bell.svg",
+			"icon_path": "https://<api-host>/icons/icon_bell.svg",
 			"allow_time": true,
 			"time": "10:00"
 		},
@@ -811,7 +815,7 @@ Identifiers redacted; otherwise verbatim.
 			"type": "feedback",
 			"checked": true,
 			"title": "Feedback messages",
-			"icon_path": "https://backend-prod.trenara.com/icons/icon_bell.svg",
+			"icon_path": "https://<api-host>/icons/icon_bell.svg",
 			"allow_time": false,
 			"time": null
 		},
@@ -819,7 +823,7 @@ Identifiers redacted; otherwise verbatim.
 			"type": "strength",
 			"checked": true,
 			"title": "Set strength reminder",
-			"icon_path": "https://backend-prod.trenara.com/icons/icon_bell.svg",
+			"icon_path": "https://<api-host>/icons/icon_bell.svg",
 			"allow_time": true,
 			"time": "07:30"
 		},
@@ -827,7 +831,7 @@ Identifiers redacted; otherwise verbatim.
 			"type": "scheme",
 			"checked": true,
 			"title": "Training plan notifications",
-			"icon_path": "https://backend-prod.trenara.com/icons/icon_bell.svg",
+			"icon_path": "https://<api-host>/icons/icon_bell.svg",
 			"allow_time": false,
 			"time": null
 		},
@@ -835,7 +839,7 @@ Identifiers redacted; otherwise verbatim.
 			"type": "calibration",
 			"checked": true,
 			"title": "Calibration notifications",
-			"icon_path": "https://backend-prod.trenara.com/icons/icon_bell.svg",
+			"icon_path": "https://<api-host>/icons/icon_bell.svg",
 			"allow_time": false,
 			"time": null
 		},
@@ -843,7 +847,7 @@ Identifiers redacted; otherwise verbatim.
 			"type": "rpe",
 			"checked": true,
 			"title": "RPE notifications",
-			"icon_path": "https://backend-prod.trenara.com/icons/icon_bell.svg",
+			"icon_path": "https://<api-host>/icons/icon_bell.svg",
 			"allow_time": false,
 			"time": null
 		},
@@ -851,7 +855,7 @@ Identifiers redacted; otherwise verbatim.
 			"type": "sleep",
 			"checked": false,
 			"title": "Sleep score notifications",
-			"icon_path": "https://backend-prod.trenara.com/icons/icon_bell.svg",
+			"icon_path": "https://<api-host>/icons/icon_bell.svg",
 			"allow_time": false,
 			"time": null
 		}
@@ -966,12 +970,12 @@ across the rest.
 	"flat_stats": [
 		{
 			"title": "Speed",
-			"icon": "https://backend-prod.trenara.com/img/stats/stats_speed.png",
+			"icon": "https://<api-host>/img/stats/stats_speed.png",
 			"data": [{ "title": "Average pace", "value": "05:21 min/km" }]
 		},
 		{
 			"title": "Distance",
-			"icon": "https://backend-prod.trenara.com/img/stats/stats_distance.png",
+			"icon": "https://<api-host>/img/stats/stats_distance.png",
 			"data": [
 				{ "title": "All time", "value": "4686.04km" },
 				{ "title": "This week", "value": "8km" },
@@ -980,7 +984,7 @@ across the rest.
 		},
 		{
 			"title": "Time",
-			"icon": "https://backend-prod.trenara.com/img/stats/stats_time.png",
+			"icon": "https://<api-host>/img/stats/stats_time.png",
 			"data": [
 				{ "title": "Total running time", "value": "17d 11h" },
 				{ "title": "Total sporting time", "value": "20d 18h" }
