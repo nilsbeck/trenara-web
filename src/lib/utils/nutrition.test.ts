@@ -209,6 +209,72 @@ describe('mealShares', () => {
 	});
 });
 
+/*
+	The plan is API data, and its type is a promise about shape that the wire
+	does not keep. A tab that throws while rendering never replaces what it drew
+	last, so anything unhandled here leaves a runner on "Loading..." for good —
+	which is exactly what one null `value_unit` used to do.
+*/
+describe('malformed API payloads', () => {
+	const oddMeal = (values: unknown): NutritionMeal =>
+		({
+			type: 'meal',
+			order: 1,
+			icon: '',
+			icon_background_color: '#E69F00',
+			title: 'Breakfast',
+			percentage: 100,
+			values
+		}) as NutritionMeal;
+
+	it('reads a value whose unit is null', () => {
+		const plan = [oddMeal([{ name: 'Energy', value: 620, order: 1, value_unit: null }])];
+		expect(energyAmount(dailyTotals(plan))).toMatchObject({ name: 'Energy', value: 620, unit: '' });
+	});
+
+	it('reads a value with no unit key at all', () => {
+		const plan = [oddMeal([{ name: 'Energy', value: 620, order: 1 }])];
+		expect(() => energyAmount(dailyTotals(plan))).not.toThrow();
+	});
+
+	it('skips a value with no name to key it by', () => {
+		const plan = [oddMeal([{ name: null, value: 620, order: 1, value_unit: 'kcal' }])];
+		expect(macroColumns(plan)).toEqual([]);
+	});
+
+	it('reads a meal carrying no values', () => {
+		expect(macroColumns([oddMeal(null), oddMeal(undefined)])).toEqual([]);
+	});
+
+	it('treats a non-numeric amount as absent rather than as zero', () => {
+		const plan = [oddMeal([{ name: 'Energy', value: '620', order: 1, value_unit: 'kcal' }])];
+		const [column] = macroColumns(plan);
+		expect(mealAmount(plan[0], column)).toBeNull();
+	});
+
+	it('orders meals whose order is missing', () => {
+		const plan = [
+			oddMeal([]),
+			{ ...oddMeal([]), order: null, title: 'Lunch' } as unknown as NutritionMeal
+		];
+		expect(() => orderedMeals(plan)).not.toThrow();
+	});
+
+	it('shares out a day whose percentages are not numbers', () => {
+		const plan = [
+			{
+				...oddMeal([{ name: 'Energy', value: 620, order: 1, value_unit: 'kcal' }]),
+				percentage: null
+			},
+			{
+				...oddMeal([{ name: 'Energy', value: 620, order: 1, value_unit: 'kcal' }]),
+				percentage: null
+			}
+		] as unknown as NutritionMeal[];
+		expect(mealShares(plan)).toEqual([50, 50]);
+	});
+});
+
 describe('formatAmount', () => {
 	it('writes big numbers whole, with a thousands separator', () => {
 		expect(formatAmount(2480)).toBe('2,480');
@@ -218,5 +284,10 @@ describe('formatAmount', () => {
 	it('keeps one decimal where the value is small enough to need it', () => {
 		expect(formatAmount(2.45)).toBe('2.5');
 		expect(formatAmount(0)).toBe('0');
+	});
+
+	it('does not print a number for something that is not one', () => {
+		expect(formatAmount(NaN)).toBe('—');
+		expect(formatAmount(Infinity)).toBe('—');
 	});
 });

@@ -3,6 +3,22 @@ import type { NutritionAdvice } from '$lib/server/trenara/types';
 export type NutritionMeal = NutritionAdvice['plan'][number];
 export type NutritionValue = NutritionMeal['values'][number];
 
+/*
+	The plan comes straight from the API and is trusted for its shape only as
+	far as its type says. In practice a value arrives with a null `value_unit`,
+	and a meal with no `values` at all — so every field is read through these
+	rather than reached into. A tab that throws while rendering never replaces
+	what it drew last, which means one null unit shows a runner "Loading..."
+	for ever.
+*/
+function text(value: unknown): string {
+	return typeof value === 'string' ? value : '';
+}
+
+function finite(value: unknown): number | null {
+	return typeof value === 'number' && Number.isFinite(value) ? value : null;
+}
+
 /** One macro column: the name the API gives it, and the unit its values carry. */
 export interface MacroColumn {
 	name: string;
@@ -22,7 +38,9 @@ export interface MacroAmount extends MacroColumn {
  * breakdown unreadable no matter how it is styled.
  */
 export function orderedMeals(plan: NutritionMeal[] | null | undefined): NutritionMeal[] {
-	return [...(plan ?? [])].sort((a, b) => a.order - b.order);
+	return [...(plan ?? [])]
+		.filter((meal) => meal != null)
+		.sort((a, b) => (finite(a.order) ?? 0) - (finite(b.order) ?? 0));
 }
 
 /**
@@ -36,17 +54,16 @@ export function orderedMeals(plan: NutritionMeal[] | null | undefined): Nutritio
 export function macroColumns(plan: NutritionMeal[] | null | undefined): MacroColumn[] {
 	const columns = new Map<string, MacroColumn>();
 	for (const meal of plan ?? []) {
-		for (const value of meal.values ?? []) {
-			const existing = columns.get(value.name);
+		for (const value of meal?.values ?? []) {
+			const name = text(value?.name);
+			if (!name) continue;
+			const order = finite(value?.order) ?? 0;
+			const existing = columns.get(name);
 			// Keep the lowest order seen: it decides where the column sits, and a
 			// meal that happens to list its macros in an odd order should not move
 			// the column for every other meal.
-			if (!existing || value.order < existing.order) {
-				columns.set(value.name, {
-					name: value.name,
-					unit: value.value_unit,
-					order: value.order
-				});
+			if (!existing || order < existing.order) {
+				columns.set(name, { name, unit: text(value?.value_unit), order });
 			}
 		}
 	}
@@ -55,8 +72,8 @@ export function macroColumns(plan: NutritionMeal[] | null | undefined): MacroCol
 
 /** One meal's value for a column, or null when the meal does not carry it. */
 export function mealAmount(meal: NutritionMeal, column: MacroColumn): number | null {
-	const match = (meal.values ?? []).find((value) => value.name === column.name);
-	return match ? match.value : null;
+	const match = (meal?.values ?? []).find((value) => text(value?.name) === column.name);
+	return match ? finite(match.value) : null;
 }
 
 /** The day's totals, one per macro column. */
@@ -76,7 +93,9 @@ export function dailyTotals(plan: NutritionMeal[] | null | undefined): MacroAmou
  * another language, which it does for meal titles already.
  */
 export function energyAmount(totals: MacroAmount[]): MacroAmount | null {
-	return totals.find((total) => /^(kcal|cal|kj)$/i.test(total.unit.trim())) ?? totals[0] ?? null;
+	return (
+		totals.find((total) => /^(kcal|cal|kj)$/i.test(text(total.unit).trim())) ?? totals[0] ?? null
+	);
 }
 
 /** The totals that are not the headline energy figure. */
@@ -98,7 +117,7 @@ export function mealShares(plan: NutritionMeal[] | null | undefined): number[] {
 	const meals = plan ?? [];
 	if (meals.length === 0) return [];
 
-	const raw = meals.map((meal) => meal.percentage ?? 0);
+	const raw = meals.map((meal) => finite(meal?.percentage) ?? 0);
 	const sum = raw.reduce((total, value) => total + value, 0);
 	if (Math.abs(sum - 100) < 5) return raw;
 	if (Math.abs(sum - 1) < 0.05) return raw.map((value) => value * 100);
@@ -113,6 +132,7 @@ export function mealShares(plan: NutritionMeal[] | null | undefined): number[] {
  * that a decimal is noise, one decimal where it is not.
  */
 export function formatAmount(value: number): string {
+	if (!Number.isFinite(value)) return '—';
 	const rounded = Math.abs(value) >= 10 ? Math.round(value) : Math.round(value * 10) / 10;
 	return rounded.toLocaleString('en-US');
 }

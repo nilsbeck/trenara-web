@@ -32,12 +32,37 @@ function schedule(): Schedule {
 	} as unknown as Schedule;
 }
 
-const nutrition = {
-	id: 1,
-	date: '2026-08-24',
-	advice: 'Eat well.',
-	title: 'Nutrition advice',
-	description: 'A training day.',
+function nutritionShape() {
+	return {
+		id: 1,
+		date: '2026-08-24',
+		advice: 'Eat well.',
+		title: 'Nutrition advice',
+		description: 'A training day.',
+		plan: [
+			{
+				type: 'meal',
+				order: 1,
+				icon: '',
+				icon_background_color: '#E69F00',
+				title: 'Breakfast',
+				percentage: 100,
+				values: [{ name: 'Energy', value: 620, order: 1, value_unit: 'kcal' }]
+			}
+		]
+	};
+}
+
+const nutrition = nutritionShape();
+
+/*
+	The same day as `nutrition`, as the API has actually been seen to send it:
+	a null `value_unit`, a meal carrying no values, a percentage that is not a
+	number. Rendering used to throw on the first of these, and a tab that throws
+	never replaces what it drew last — so the runner kept the spinner for good.
+*/
+const awkwardNutrition = {
+	...nutritionShape(),
 	plan: [
 		{
 			type: 'meal',
@@ -45,13 +70,25 @@ const nutrition = {
 			icon: '',
 			icon_background_color: '#E69F00',
 			title: 'Breakfast',
-			percentage: 100,
-			values: [{ name: 'Energy', value: 620, order: 1, value_unit: 'kcal' }]
+			percentage: null,
+			values: [
+				{ name: 'Energy', value: 620, order: 1, value_unit: null },
+				{ name: 'Carbs', value: 80, order: 2, value_unit: 'g' }
+			]
+		},
+		{
+			type: 'meal',
+			order: 2,
+			icon: '',
+			icon_background_color: '#56B4E9',
+			title: 'Lunch',
+			percentage: null,
+			values: null
 		}
 	]
 };
 
-type Mode = 'ok' | 'fail' | 'hang';
+type Mode = 'ok' | 'fail' | 'hang' | 'awkward';
 let mode: Mode = 'ok';
 let nutritionCalls = 0;
 
@@ -62,6 +99,12 @@ function stubFetch() {
 			if (url.includes('/api/v1/nutrition')) {
 				nutritionCalls++;
 				if (mode === 'fail') return new Response('nope', { status: 500 });
+				if (mode === 'awkward') {
+					return new Response(JSON.stringify(awkwardNutrition), {
+						status: 200,
+						headers: { 'content-type': 'application/json' }
+					});
+				}
 				if (mode === 'hang') {
 					// Never settles on its own — only the caller's abort ends it.
 					return new Promise((_, reject) => {
@@ -155,6 +198,20 @@ describe('nutrition tab failure handling', () => {
 		await fireEvent.click(screen.getByRole('button', { name: 'Training' }));
 		await openNutrition();
 		await waitFor(() => expect(screen.getByText('Total for the day')).toBeInTheDocument());
+	});
+
+	it('renders a day the API sends with null units and empty meals', async () => {
+		mode = 'awkward';
+		mount();
+		await openNutrition();
+
+		// The point of the test is that this arrives at all: the render used to
+		// throw here, leaving the spinner in place with the error only in the
+		// console.
+		await waitFor(() => expect(screen.getByText('Total for the day')).toBeInTheDocument());
+		expect(screen.queryByText('Loading...')).not.toBeInTheDocument();
+		expect(screen.getByText('Breakfast')).toBeInTheDocument();
+		expect(screen.getByText('Lunch')).toBeInTheDocument();
 	});
 
 	it('does not refetch a day it already has', async () => {
