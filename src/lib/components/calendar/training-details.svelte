@@ -251,7 +251,13 @@
 	<div class="flex flex-col gap-4">
 		<!-- Title + action buttons -->
 		<div class="flex items-start justify-between gap-2">
-			<div class="flex min-w-0 items-stretch gap-2">
+			<!--
+				`flex-1` so this group fills the row up to the action buttons. Without
+				it the group shrinks to its content, and the shape bar inside — the one
+				thing here that wants the full width — ends wherever the title or the
+				distance happens to, which is nothing to do with the session.
+			-->
+			<div class="flex min-w-0 flex-1 items-stretch gap-2">
 				{#if entry}
 					<Check class="mt-0.5 h-5 w-5 shrink-0 text-green-500" />
 				{:else if shownTraining}
