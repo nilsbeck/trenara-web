@@ -1,12 +1,13 @@
-import { json, error } from '@sveltejs/kit';
+import { error } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { trainingApi } from '$lib/server/trenara';
+import { fingerprint } from '$lib/utils/fingerprint';
 
 function daysInMonth(year: number, month: number): number {
 	return new Date(year, month + 1, 0).getDate();
 }
 
-export const GET: RequestHandler = async ({ url, cookies, locals }) => {
+export const GET: RequestHandler = async ({ url, request, cookies, locals }) => {
 	if (!locals.user) {
 		error(401, 'Unauthorized');
 	}
@@ -53,5 +54,25 @@ export const GET: RequestHandler = async ({ url, cookies, locals }) => {
 		entries: schedules.flatMap((s) => s.entries)
 	};
 
-	return json(merged);
+	const body = JSON.stringify(merged);
+	const etag = `W/"${fingerprint(body)}"`;
+
+	const headers: Record<string, string> = {
+		etag,
+		// The plan changes under us — overnight, and whenever the coach moves a
+		// session — so a stored copy is never good enough on its own. `no-cache`
+		// keeps the copy but insists it be checked, which is what the ETag above
+		// is for: unchanged weeks come back as 304 and cost nothing to send.
+		'cache-control': 'private, no-cache, must-revalidate'
+	};
+
+	// The client already holds this exact month. Nothing to send.
+	if (request.headers.get('if-none-match') === etag) {
+		return new Response(null, { status: 304, headers });
+	}
+
+	return new Response(body, {
+		status: 200,
+		headers: { ...headers, 'content-type': 'application/json' }
+	});
 };

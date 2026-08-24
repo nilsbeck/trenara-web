@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { invalidateAll } from '$app/navigation';
 	import type { PageServerData } from './$types';
 	import Calendar from '$lib/components/calendar/calendar.svelte';
 	import GoalCard from '$lib/components/goal/goal-card.svelte';
@@ -10,7 +11,7 @@
 <div class="flex flex-col items-center justify-center md:flex-row">
 	<div class="flex flex-col items-start justify-center md:flex-row md:space-x-6">
 		<div class="flex flex-col items-center md:flex-row">
-			<Calendar today={new Date()} schedule={data.schedule} />
+			<Calendar today={new Date()} schedule={data.schedule} refreshPageData={invalidateAll} />
 		</div>
 
 		<div class="hidden space-y-6 sm:block">

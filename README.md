@@ -24,6 +24,7 @@ It has some drawbacks, that this web app aims to improve and mitigate.
   - It is a web app with a responsive design to work on any screensize
 - It's loading times are too long. It takes approx. 4-6s to load the main screen and every other screen as well
   - Make the app blazing fast, by running API calls in parallel and caching data. It is surely about 60% faster than the original app.
+  - Cached data is checked again in the background — when the tab comes back into view, when the network returns, on a timer, and when the day rolls over under a tab left open — so a plan the coach changed overnight is swapped in underneath rather than waiting for a reload. The calendar's refresh icon spins while that is happening, and nothing on screen is taken away.
 - It does not give me the information I need at a glance since the dashboard is not informative
   - Make the (monthly!) calendar the center of the app, add goal and prediction data at the same time (on large screens, otherwise accessible via menu)
 - Join data that belongs together (training, strength and nutrition details) but is currently split into multiple screens, each needing loading times.
