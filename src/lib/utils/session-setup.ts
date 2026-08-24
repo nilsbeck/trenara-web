@@ -460,9 +460,24 @@ export function sessionSettings(training: ScheduledTraining): Setting[] {
 
 /** The subset of `sessionSettings` that appears on the chip rail. */
 export function chipSettings(training: ScheduledTraining): Setting[] {
-	return sessionSettings(training).filter(
-		(s) => s.chip === 'always' || (s.chip === 'changed' && s.changed)
-	);
+	const settings = sessionSettings(training);
+	const earned = settings.filter((s) => s.chip === 'always' || (s.chip === 'changed' && s.changed));
+	if (earned.length > 0) return earned;
+
+	// Nothing earned a chip, so show what there is instead.
+	//
+	// The `changed` rule keeps untouched dials off a rail that already has
+	// something on it — three chips saying nothing has happened is noise. With
+	// the rail empty there is no noise to keep off it, and the alternative is a
+	// button reading "Session setup", which says strictly less than the setting
+	// it hides: "Effort · As planned" both names what is there and shows where
+	// it stands. Race day is the case that makes this obvious, since effort at
+	// the planned step is the whole of its rail.
+	//
+	// A setting marked `never` stays off either way: it is not hidden, it is
+	// shown somewhere better — the cool-down on its block, the session in the
+	// title, the pacing plan on the card.
+	return settings.filter((s) => s.chip !== 'never');
 }
 
 /**

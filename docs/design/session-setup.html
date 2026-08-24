@@ -1351,6 +1351,16 @@
 					are noise. Activity and workout never get a chip — the identity strip is already
 					showing them, the icon for one and the title for the other.
 				</p>
+				<p>
+					With one exception, and race day is what found it. “Only once it differs” exists to
+					quieten a rail that already has something on it; when it empties the rail entirely
+					the rule is working against itself, and what replaced it was a button reading
+					<em>Session setup</em> — strictly less than the setting it was standing in for.
+					So a rail with nothing on it shows what there is instead, at its current value:
+					<em>Effort · As planned</em> rather than a generic way in. A <code>never</code>
+					setting stays off even then, because <code>never</code> does not mean hidden — it
+					means shown somewhere better.
+				</p>
 			</div>
 			<div class="note">
 				<span class="k">Chip rail</span>
@@ -1824,6 +1834,17 @@
 		for (var i = 0; i < all.length; i++) {
 			var d = all[i];
 			if (d.chip === 'always' || (d.chip === 'changed' && d.changed)) out.push(d);
+		}
+		if (out.length) return out;
+
+		// Nothing earned a chip, so show what there is. The `changed` rule keeps
+		// quiet dials off a rail that already has something on it; with the rail
+		// empty there is nothing to keep them off, and the alternative is a
+		// button reading "Session setup" that says less than the chip it hides.
+		// A `never` setting stays off either way — it is not hidden, it is shown
+		// somewhere better.
+		for (var j = 0; j < all.length; j++) {
+			if (all[j].chip !== 'never') out.push(all[j]);
 		}
 		return out;
 	}

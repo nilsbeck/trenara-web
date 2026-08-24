@@ -770,6 +770,36 @@ describe('the pacing plan on race day', () => {
 		vi.unstubAllGlobals();
 	});
 
+	it('puts effort on the rail instead of a button standing in for it', async () => {
+		vi.stubGlobal(
+			'fetch',
+			vi.fn().mockResolvedValue({ ok: true, status: 200, json: async () => raceDay })
+		);
+
+		render(TrainingDetails, {
+			props: {
+				selectedDate: '2026-09-27',
+				training: { ...base, title: '15k nocturno', can_be_edited: false },
+				entry: null,
+				isLoading: false
+			}
+		});
+
+		await waitFor(() => expect(screen.getByText('Plan B')).toBeTruthy());
+
+		// Effort sits at the planned step, which normally keeps it off the rail.
+		// With nothing else on the rail there is no noise to keep it off, and
+		// "As planned" says more than a generic Session setup button would.
+		expect(screen.getByRole('button', { name: 'As planned' })).toBeTruthy();
+		// The button that reads "Session setup" in place of chips is gone. The
+		// sliders button at the end of the rail stays — same label, no text —
+		// and is still the way into the full index.
+		const buttonText = screen.getAllByRole('button').map((b) => b.textContent?.trim());
+		expect(buttonText).not.toContain('Session setup');
+		expect(screen.getByRole('button', { name: 'Session setup' })).toBeTruthy();
+		vi.unstubAllGlobals();
+	});
+
 	it('offers no terrain or shoe, which the plan has pinned', async () => {
 		vi.stubGlobal(
 			'fetch',

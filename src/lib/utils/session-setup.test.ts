@@ -413,12 +413,13 @@ describe('a session the plan pins', () => {
 		expect(chipSettings(goalRace()).map((c) => c.key)).not.toContain('pacing');
 	});
 
-	it('leaves race day with a rail that is empty rather than absent', () => {
-		// Nothing is chipped: terrain and shoe are gone, effort sits at the
-		// planned step, and the pacing plan is on the card. The rail falls back
-		// to its "Session setup" button, which is still the way to effort.
-		expect(chipSettings(goalRace())).toEqual([]);
-		expect(sessionSettings(goalRace()).length).toBeGreaterThan(0);
+	it('puts effort on the rail rather than a button standing in for it', () => {
+		// Terrain and shoe are gone, the pacing plan is on the card, and effort
+		// sits at the planned step — which normally keeps it off the rail. That
+		// rule exists to quieten a busy rail, and here there is no busy rail: a
+		// "Session setup" button in its place would say less than the chip does.
+		expect(chipSettings(goalRace()).map((c) => c.key)).toEqual(['effort']);
+		expect(chipSettings(goalRace())[0].value).toBe('As planned');
 	});
 });
 
@@ -483,6 +484,41 @@ describe('chipSettings', () => {
 		// It is still a setting, still marked as differing from the plan.
 		const setting = sessionSettings(removed).find((s) => s.key === 'cooldown');
 		expect(setting?.changed).toBe(true);
+	});
+
+	it('shows an unchanged dial rather than nothing, once it is all there is', () => {
+		// The `changed` rule keeps quiet dials off a rail that has something on
+		// it. With the rail empty there is nothing to keep them off, and the
+		// alternative is a "Session setup" button that says less than the chip.
+		const planned = {
+			title: 'Fine-tune intensity',
+			text: '',
+			steps: [{ step: 1, value: 0, text: 'As planned', selected: true }]
+		};
+		const pinned = tempoRun({ can_be_edited: false, change_intensity_package: planned });
+
+		expect(chipSettings(pinned).map((c) => c.key)).toEqual(['effort']);
+		expect(chipSettings(pinned)[0].value).toBe('As planned');
+	});
+
+	it('still keeps a setting shown elsewhere off the rail, even when empty', () => {
+		// `never` does not mean hidden, it means shown somewhere better — so the
+		// fallback must not drag those onto the rail. Here the pacing plan is on
+		// the card and the session is in the title.
+		const raceDay = tempoRun({
+			can_be_edited: false,
+			can_change_intensity: false,
+			change_intensity_package: null,
+			can_be_exchanged: true,
+			can_change_pacing_plan: true,
+			change_pacing_plan_package: [
+				{ order: 1, value: null, title: 'No pacing plan', description: '', selected: true }
+			]
+		});
+
+		expect(chipSettings(raceDay)).toEqual([]);
+		// Both settings are real, they just belong on other surfaces.
+		expect(sessionSettings(raceDay).map((s) => s.key)).toEqual(['pacing', 'session']);
 	});
 
 	it('never disagrees with the sheet about a setting it shows', () => {
