@@ -2,16 +2,15 @@
 	import type { NutritionAdvice } from '$lib/server/trenara/types';
 	import {
 		dailyTotals,
+		dayAccent,
 		energyAmount,
 		formatAmount,
-		macroAmounts,
-		energyUnit,
 		macroColumns,
 		mealAmount,
 		mealShares,
 		orderedMeals
 	} from '$lib/utils/nutrition';
-	import { Lightbulb, TriangleAlert, UtensilsCrossed } from 'lucide-svelte';
+	import { Equal, Lightbulb, TriangleAlert, UtensilsCrossed } from 'lucide-svelte';
 
 	let {
 		selectedDate,
@@ -33,23 +32,19 @@
 	const columns = $derived(macroColumns(meals));
 	const totals = $derived(dailyTotals(meals));
 	const energy = $derived(energyAmount(totals));
-	const energyLabel = $derived(energyUnit(energy));
-	const macros = $derived(macroAmounts(totals));
 	const shares = $derived(mealShares(meals));
+	const accent = $derived(dayAccent(meals));
 
 	/*
-		Both the day's totals and each meal lay their macros out on this grid, so
-		the same macro sits in the same place down the whole tab and can be
-		compared without reading a single label twice.
-
-		It is `auto-fit` rather than a fixed column per macro because the macro
-		names come from the API, in the account's language: a fixed set of columns
-		fits "Carbs" and pushes "Koolhydraten" off the side of a phone. This one
-		reflows to however many fit, and since every meal carries the same macro
-		set they still line up.
+		Every meal is laid out against the macros of the whole day rather than only
+		its own, with an em dash where a meal does not carry one. That keeps a macro
+		on the same line of every card, so the day can be read down a column instead
+		of card by card — which is the one thing the app's own screen leaves to the
+		reader, since its cards only list what each meal happens to have.
 	*/
-	const macroGrid =
-		'grid gap-x-3 gap-y-2 [grid-template-columns:repeat(auto-fit,minmax(4.5rem,1fr))]';
+	function rowsFor(meal: (typeof meals)[number]) {
+		return columns.map((column) => ({ column, amount: mealAmount(meal, column) }));
+	}
 </script>
 
 {#if isLoading}
@@ -92,120 +87,154 @@
 
 		{#if meals.length > 0}
 			<!--
-				The day's totals, before the meals that make them up.
+				The day's totals, before the meals that make them up, drawn the way the
+				Food coach screen draws them: an outlined card under a badge, the
+				figure on the left and what it measures on the right.
 
-				This is the number the runner opened the tab for — how much to eat
-				today — and it was previously nowhere on the screen at all: it had to
-				be added up by eye from a column of "Calories: 620" strings. Energy
-				carries the panel as the headline and the macros sit under a rule as
-				its composition, which is the relationship they actually have.
+				The accent is the API's own — the colour it paints every meal badge —
+				rather than this tab's primary, so the two screens are recognisably the
+				same thing. Where the API sends no colour the tab falls back to its own.
 			-->
-			{#if energy}
-				<div class="rounded-xl border border-border bg-background/60 p-4">
-					<h4 class="text-sm font-medium text-foreground">Total for the day</h4>
-					<p class="mt-1 flex items-baseline gap-1.5">
-						<span class="text-3xl font-semibold tabular-nums text-foreground">
-							{formatAmount(energy.value)}
-						</span>
-						{#if energyLabel}
-							<span class="text-sm font-medium text-muted-foreground">{energyLabel}</span>
-						{/if}
-					</p>
-					{#if macros.length > 0}
-						<dl class="mt-3 border-t border-border pt-3 {macroGrid}">
-							{#each macros as macro}
-								<div class="min-w-0">
-									<dt class="truncate text-[11px] text-muted-foreground" title={macro.name}>
-										{macro.name}
-									</dt>
-									<dd class="mt-0.5 text-sm font-semibold tabular-nums text-foreground">
-										{formatAmount(macro.value)}<span
-											class="ml-0.5 text-xs font-normal text-muted-foreground">{macro.unit}</span
-										>
-									</dd>
-								</div>
-							{/each}
-						</dl>
-					{/if}
-				</div>
-			{/if}
+			<div
+				class="relative mt-3.5 rounded-xl border-2 px-4 pb-4 pt-5"
+				class:border-primary={!accent}
+				style={accent ? `border-color: ${accent}` : undefined}
+			>
+				<span
+					class="absolute -top-3.5 left-1/2 grid h-7 w-7 -translate-x-1/2 place-items-center rounded-full"
+					class:bg-primary={!accent}
+					style={accent ? `background-color: ${accent}` : undefined}
+				>
+					<Equal class="h-4 w-4 text-white" />
+				</span>
+				<h4 class="text-center text-sm font-semibold text-foreground">Total for the day</h4>
+				<dl class="mt-3 flex flex-col gap-1.5 border-t border-border pt-3">
+					{#each totals as total}
+						<!--
+							`flex-row-reverse` so the figure reads first and the name sits at
+							the right margin, while the markup keeps the term ahead of the
+							description it belongs to.
+						-->
+						<div class="flex flex-row-reverse items-baseline justify-between gap-3">
+							<dt class="truncate text-xs text-muted-foreground" title={total.name}>
+								{total.name}
+							</dt>
+							<dd
+								class="shrink-0 tabular-nums text-foreground"
+								class:text-2xl={total === energy}
+								class:font-semibold={total === energy}
+								class:text-sm={total !== energy}
+								class:font-medium={total !== energy}
+							>
+								{formatAmount(total.value)}{#if total.unit}<span
+										class="ml-0.5 text-xs font-normal text-muted-foreground">{total.unit}</span
+									>{/if}
+							</dd>
+						</div>
+					{/each}
+				</dl>
+			</div>
 
 			<!--
-				The breakdown, as one panel per meal in the shape of the totals panel
-				above: the day and each meal are the same thing at two scales, so they
-				are drawn the same way.
+				The breakdown, two cards to a row as the app lays it out: six meals
+				stacked one to a row is a lot of scrolling for cards this short.
 
-				Every meal is laid out against the macros of the whole day rather than
-				only its own, with an em dash where a meal does not carry one. That
-				keeps the macros in the same place in every panel — the old table
-				stacked "name: value" strings per row, so reading the protein down the
-				day meant finding a different line in each one.
+				`auto-fit` rather than a fixed pair so the cards fall to one column
+				where two will not fit — the calendar is a fixed 28rem today, but this
+				card should not be the thing that decides that.
 			-->
 			<div>
-				<h4 class="mb-2 text-sm font-medium text-foreground">Meal breakdown</h4>
-				<div class="flex flex-col gap-2">
+				<h4 class="mb-4 text-sm font-medium text-foreground">Meal breakdown</h4>
+				<div class="grid gap-x-3 gap-y-7 [grid-template-columns:repeat(auto-fit,minmax(9rem,1fr))]">
 					{#each meals as meal, index}
-						{@const carries = columns.some((column) => mealAmount(meal, column) !== null)}
-						<div class="rounded-lg border border-border bg-background/40 p-3">
-							<div class="flex items-center gap-2">
-								<span class="min-w-0 flex-1 truncate text-sm font-medium text-foreground">
-									{meal.title}
-								</span>
-								{#if shares[index] > 0}
-									<span
-										class="shrink-0 whitespace-nowrap text-[11px] tabular-nums text-muted-foreground"
-									>
-										{Math.round(shares[index])}% of day
-									</span>
-								{/if}
-							</div>
+						{@const rows = rowsFor(meal)}
+						{@const carries = rows.some((row) => row.amount !== null)}
+						<div class="relative rounded-xl border border-border bg-background/40 px-3 pb-3 pt-5">
 							<!--
-								The share as a bar, not only as a number.
-
-								This carries the server's colour, which is where the rail that
-								used to sit beside the title carried it — and every meal on a day
-								comes back the same colour, so as a rail it marked the row
-								without telling a runner anything. Six meals between 7% and 30%
-								have a shape, and reading it off six right-aligned percentages is
-								work the bar does at a glance.
+								The glyph is what tells one meal from another — a cup, a bolt,
+								a moon — and it is the reason the badge colour is the same on
+								every one of them. Where the API sends no icon the badge keeps
+								the colour and the shape, so a row of cards stays a row.
 							-->
-							{#if shares[index] > 0}
-								<div class="mt-2 h-1 overflow-hidden rounded-full bg-muted">
-									<div
-										class="h-full rounded-full"
-										style="width: {Math.min(
-											shares[index],
-											100
-										)}%; background-color: {meal.icon_background_color}"
-									></div>
-								</div>
-							{/if}
+							<span
+								class="absolute -top-3.5 left-1/2 grid h-7 w-7 -translate-x-1/2 place-items-center rounded-full"
+								class:bg-primary={!accent}
+								style={accent ? `background-color: ${accent}` : undefined}
+							>
+								{#if meal.icon}
+									<!--
+										The glyph is served from the API's host, so it can fail to
+										arrive. Hiding it leaves the badge as a plain disc — the
+										shape and colour a row of cards is aligned on — rather
+										than a broken-image mark in every one of them.
+									-->
+									<img
+										src={meal.icon}
+										alt=""
+										class="h-4 w-4"
+										onerror={(event) => {
+											(event.currentTarget as HTMLImageElement).style.display = 'none';
+										}}
+									/>
+								{:else}
+									<UtensilsCrossed class="h-3.5 w-3.5 text-white" />
+								{/if}
+							</span>
+							<p
+								class="truncate text-center text-sm font-medium text-foreground"
+								title={meal.title}
+							>
+								{meal.title}
+							</p>
+
 							<!--
-								A meal the API sends without any figures gets its name and
-								nothing else. Laid out against the day's macros it became a
-								row of em dashes — the heaviest thing on the card, saying
-								only that there is nothing to say.
+								A meal the API sends no figures for keeps its name and drops the
+								rows. Laid out against the day's macros it became a column of em
+								dashes — the heaviest thing on the card, saying only that there
+								is nothing to say.
 							-->
 							{#if carries}
-								<dl class="mt-2 {macroGrid}">
-									{#each columns as column}
-										{@const amount = mealAmount(meal, column)}
-										<div class="min-w-0">
-											<dt class="truncate text-[11px] text-muted-foreground" title={column.name}>
+								<dl class="mt-2 flex flex-col gap-1 border-t border-border pt-2">
+									{#each rows as { column, amount }}
+										<div class="flex flex-row-reverse items-baseline justify-between gap-2">
+											<dt class="truncate text-xs text-muted-foreground" title={column.name}>
 												{column.name}
 											</dt>
-											<dd class="mt-0.5 text-sm tabular-nums text-foreground">
+											<dd class="shrink-0 text-sm tabular-nums text-foreground">
 												{#if amount === null}
 													<span class="text-muted-foreground">—</span>
 												{:else}
-													{formatAmount(amount)}<span class="ml-0.5 text-xs text-muted-foreground"
-														>{column.unit}</span
-													>
+													{formatAmount(amount)}{#if column.unit}<span
+															class="ml-0.5 text-xs text-muted-foreground">{column.unit}</span
+														>{/if}
 												{/if}
 											</dd>
 										</div>
 									{/each}
 								</dl>
+							{/if}
+
+							<!--
+								The share as a bar, not only as a number — the one thing the
+								app's own screen does not show. Six meals between 7% and 30%
+								have a shape, and reading it off six figures is work the bar
+								does at a glance.
+							-->
+							{#if shares[index] > 0}
+								<div class="mt-3">
+									<div class="h-1 overflow-hidden rounded-full bg-muted">
+										<div
+											class="h-full rounded-full"
+											class:bg-primary={!accent}
+											style="width: {Math.min(shares[index], 100)}%{accent
+												? `; background-color: ${accent}`
+												: ''}"
+										></div>
+									</div>
+									<p class="mt-1 text-center text-[11px] tabular-nums text-muted-foreground">
+										{Math.round(shares[index])}% of day
+									</p>
+								</div>
 							{/if}
 						</div>
 					{/each}

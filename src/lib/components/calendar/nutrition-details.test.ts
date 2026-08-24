@@ -92,7 +92,7 @@ describe('NutritionDetails', () => {
 		expect(screen.getByText('40% of day')).toBeInTheDocument();
 	});
 
-	it('prints the headline unit when the API names the column for it', () => {
+	it('names each total by the quantity it measures', () => {
 		renderTab(
 			advice({
 				plan: [
@@ -103,14 +103,21 @@ describe('NutritionDetails', () => {
 						icon_background_color: '#e11d48',
 						title: 'Breakfast',
 						percentage: 100,
-						values: [{ name: 'Kcal', value: 729, order: 1, value_unit: null }]
+						values: [
+							{ name: 'Kcal', value: 729, order: 1, value_unit: null },
+							{ name: 'Carbs', value: 119, order: 2, value_unit: 'gr' }
+						]
 					}
 				]
 			} as unknown as Partial<NutritionAdvice>)
 		);
+		// The API names the energy column for its unit and sends no `value_unit`,
+		// so the row's own label is what says what 729 is.
 		const total = screen.getByText('Total for the day').closest('div')!;
 		expect(within(total).getByText('729')).toBeInTheDocument();
-		expect(within(total).getByText('kcal')).toBeInTheDocument();
+		expect(within(total).getAllByText('Kcal').length).toBeGreaterThan(0);
+		expect(within(total).getByText('119')).toBeInTheDocument();
+		expect(within(total).getAllByText('gr').length).toBeGreaterThan(0);
 	});
 
 	it('puts the standing preamble after the numbers, not before them', () => {

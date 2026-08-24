@@ -3,9 +3,8 @@ import {
 	type NutritionMeal,
 	dailyTotals,
 	energyAmount,
-	energyUnit,
+	dayAccent,
 	formatAmount,
-	macroAmounts,
 	macroColumns,
 	mealAmount,
 	mealShares,
@@ -196,40 +195,31 @@ describe('a day named for its units', () => {
 		expect(energyAmount(dailyTotals(day()))).toMatchObject({ name: 'Kcal', value: 1684 });
 	});
 
-	it('prints the headline in the unit the column is named for', () => {
-		expect(energyUnit(energyAmount(dailyTotals(day())))).toBe('kcal');
-	});
-
-	it('leaves the macros to the breakdown', () => {
-		expect(macroAmounts(dailyTotals(day())).map((m) => m.name)).toEqual(['Carbs', 'Proteins']);
+	it('keeps the macros as rows of their own', () => {
+		expect(dailyTotals(day()).map((m) => m.name)).toEqual(['Kcal', 'Carbs', 'Proteins']);
 	});
 });
 
-describe('energyUnit', () => {
-	const column = (name: string, unit: string) => ({ name, unit, order: 1, value: 1 });
-
-	it('uses the unit the values carry', () => {
-		expect(energyUnit(column('Energy', 'kcal'))).toBe('kcal');
+describe('dayAccent', () => {
+	it('is the colour the API paints every meal badge', () => {
+		expect(dayAccent(fullDay().map((m) => ({ ...m, icon_background_color: '#e11d48' })))).toBe(
+			'#e11d48'
+		);
 	});
 
-	it('falls back to the column name when that is the unit', () => {
-		expect(energyUnit(column('Kcal', ''))).toBe('kcal');
-		expect(energyUnit(column('kJ', ''))).toBe('kj');
+	it('skips past meals that carry no colour', () => {
+		const meals = fullDay();
+		meals[0] = { ...meals[0], icon_background_color: '' };
+		meals[1] = { ...meals[1], icon_background_color: '#e11d48' };
+		expect(dayAccent(meals)).toBe('#e11d48');
 	});
 
-	it('says nothing rather than printing a name that is not a unit', () => {
-		expect(energyUnit(column('Energy', ''))).toBe('');
-	});
-
-	it('says nothing for a day with no energy column', () => {
-		expect(energyUnit(null)).toBe('');
-	});
-});
-
-describe('macroAmounts', () => {
-	it('is everything but the headline energy figure', () => {
-		const totals = dailyTotals(fullDay());
-		expect(macroAmounts(totals).map((t) => t.name)).toEqual(['Carbs', 'Protein', 'Fat']);
+	it('is empty when the API sends no colour at all, leaving the tab its own', () => {
+		expect(dayAccent(fullDay().map((m) => ({ ...m, icon_background_color: null as never })))).toBe(
+			''
+		);
+		expect(dayAccent([])).toBe('');
+		expect(dayAccent(null)).toBe('');
 	});
 });
 

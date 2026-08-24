@@ -102,8 +102,8 @@ export function dailyTotals(plan: NutritionMeal[] | null | undefined): MacroAmou
 const ENERGY_UNIT = /^(kcal|cal|kj)$/i;
 
 /**
- * The energy column — the one that belongs at the top of the card as the day's
- * headline number, with the rest reading as its composition.
+ * The energy column — the row that carries the weight in the totals, with the
+ * macros reading as its composition.
  *
  * Matched on the unit or the name rather than the name alone, so it survives
  * the API answering in another language — which it does for meal titles
@@ -123,26 +123,19 @@ export function energyAmount(totals: MacroAmount[]): MacroAmount | null {
 }
 
 /**
- * What to print beside the day's energy figure.
+ * The colour the day is drawn in.
  *
- * The headline is labelled "Total for the day", so unlike the columns in the
- * breakdown it does not name the quantity anywhere else — a bare "3,148" is
- * the one number on this tab that has to carry its own unit. When the API
- * leaves `value_unit` null and puts the unit in the column name instead, the
- * name is the unit.
+ * `icon_background_color` comes back the same for every meal — it is the badge
+ * the app paints each meal's glyph on, not a way of telling one from another —
+ * so the day has one accent and this finds it. Empty when the API sends none,
+ * which leaves the tab on its own primary.
  */
-export function energyUnit(energy: MacroAmount | null): string {
-	if (!energy) return '';
-	const unit = text(energy.unit).trim();
-	if (unit) return unit;
-	const name = text(energy.name).trim();
-	return ENERGY_UNIT.test(name) ? name.toLowerCase() : '';
-}
-
-/** The totals that are not the headline energy figure. */
-export function macroAmounts(totals: MacroAmount[]): MacroAmount[] {
-	const energy = energyAmount(totals);
-	return totals.filter((total) => total !== energy);
+export function dayAccent(plan: NutritionMeal[] | null | undefined): string {
+	for (const meal of plan ?? []) {
+		const colour = text(meal?.icon_background_color).trim();
+		if (colour) return colour;
+	}
+	return '';
 }
 
 /**
