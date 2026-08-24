@@ -36,6 +36,7 @@
 		--t-tempo: #e69f00;
 		--t-easy: #7b3294;
 		--t-bike: #1bb9aa;
+		--t-goal: #7b3294;
 
 		--warn: #f5b73d;
 		--ok: #4ade80;
@@ -722,6 +723,7 @@
 		cursor: pointer;
 	}
 
+	.pick:has(.radio) { align-items: flex-start; }
 	.pick:hover { background: rgba(255,255,255,0.03); }
 	.pick:focus-visible { outline: 2px solid var(--accent); outline-offset: 0; }
 	.pick[aria-pressed="true"] {
@@ -740,6 +742,19 @@
 	.pick .pm { flex: 1; min-width: 0; display: block; }
 	.pick .pn { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
 	.pick .ps { display: block; font-size: 11.5px; color: var(--app-dim); font-variant-numeric: tabular-nums; }
+
+	/* pacing plan: a radio row, not a step scale or a shoe icon */
+	.pick .radio {
+		width: 16px; height: 16px; border-radius: 999px;
+		border: 1.5px solid var(--app-dim);
+		flex: 0 0 auto; margin-top: 2px;
+		display: grid; place-items: center;
+	}
+	.pick .radio.on { border-color: var(--accent); }
+	.pick .radio.on::after {
+		content: ''; width: 8px; height: 8px; border-radius: 999px; background: var(--accent);
+	}
+	.pick .radio + .pm .ps { white-space: normal; line-height: 1.4; margin-top: 2px; }
 
 	.wear {
 		display: block;
@@ -1074,6 +1089,9 @@
 		<g id="i-gauge" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
 			<path d="m12 14 4-4"/><path d="M3.34 19a10 10 0 1 1 17.32 0"/>
 		</g>
+		<g id="i-flag" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+			<path d="M5 21V4"/><path d="M5 4h13l-3 4 3 4H5"/>
+		</g>
 		<g id="i-volume" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
 			<path d="m18 8 4 4-4 4"/><path d="M2 12h20"/><path d="m6 8-4 4 4 4"/>
 		</g>
@@ -1208,6 +1226,9 @@
 				</button>
 				<button type="button" data-session="bike" aria-pressed="false">
 					<span class="swatch" style="background:var(--t-bike)"></span>Cycling
+				</button>
+				<button type="button" data-session="goal" aria-pressed="false">
+					<span class="swatch" style="background:var(--t-goal)"></span>Goal race
 				</button>
 			</div>
 
@@ -1425,15 +1446,17 @@
 	];
 
 	/**
-	 * Activity registry. The app offers seven choices — keep as a run, cycling,
-	 * MTB, swimming, cross trainer, elliptical bike, indoor cycling — and
-	 * `road_bike` is the one whose wire value has been captured. The rest are a
-	 * single dashed slot rather than five guesses.
+	 * Activity registry. All seven of the app's choices, now captured, in the
+	 * order the app lists them.
 	 */
 	var ACTIVITIES = [
 		{ v: null, label: 'Run', icon: 'i-run', known: true },
 		{ v: 'road_bike', label: 'Cycling', icon: 'i-bike', known: true },
-		{ v: '__more', label: 'five more', icon: 'i-cross', known: false }
+		{ v: 'mountain_bike', label: 'Mountain biking', icon: 'i-bike', known: true },
+		{ v: 'indoor_cycling', label: 'Indoor cycling', icon: 'i-bike', known: true },
+		{ v: 'swimming', label: 'Swimming', icon: 'i-cross', known: true },
+		{ v: 'crosstrainer', label: 'Cross trainer', icon: 'i-cross', known: true },
+		{ v: 'elliptical', label: 'Elliptical bike', icon: 'i-elliptical', known: true }
 	];
 
 	var CANDIDATES = [
@@ -1538,6 +1561,38 @@
 			cooldown: null,
 			shape: [{ w: 1, c: '#1BB9AA' }],
 			blocks: [{ c: '#1BB9AA', t: 'Ride 1:43:43' }]
+		},
+		// The goal race: the one session with a pacing plan. Everything else is
+		// locked — no cross-training, no volume change, no exchange — and it
+		// cannot be deleted, transcribed from a real capture.
+		goal: {
+			key: 'goal', title: '15k nocturno', hex: '#7B3294', activity: 'i-run', cross_type: null,
+			description: 'Time for your 15k nocturno. You’ve trained hard for this — best of luck!',
+			can_cross_train: false, can_be_exchanged: false,
+			can_change_distance: false, can_change_intensity: true, can_change_pacing_plan: true,
+			intensitySteps: [
+				{ value: -4, text: 'Slower' }, { value: -2, text: 'A bit slower' },
+				{ value: 0, text: 'As planned' }, { value: 2, text: 'A bit faster' }
+			],
+			distanceSteps: null,
+			intensity: 0, distance: 0,
+			pacingOptions: [
+				{ order: 1, value: 'trenara', title: 'Pacing plan',
+					description: 'All roads lead to Rome, but this is my preferred pacing plan for your race.',
+					selected: false },
+				{ order: 2, value: 'alternative', title: 'Plan B',
+					description: 'Always have a plan B in place. Sometimes plan A doesn’t match how you feel or the race-day circumstances. Here’s an alternative pacing plan.',
+					selected: false },
+				{ order: 3, value: null, title: 'No pacing plan',
+					description: 'One block at your selected pace.', selected: true }
+			],
+			pacing: 'No pacing plan',
+			surface: 'road', height: 'flat', shoeId: 8120, suggestedShoeId: 8120,
+			can_toggle_cooldown: false, has_cooldown: false,
+			base: { km: 15, sec: 3360 },
+			cooldown: null,
+			shape: [{ w: 1, c: '#7B3294' }],
+			blocks: [{ c: '#7B3294', t: 'Run 15 km at 3:44 min/km' }]
 		}
 	};
 
@@ -1689,9 +1744,12 @@
 		}
 
 		if (s.can_change_pacing_plan) {
+			// Not a dial: three named strategies, and no option is knowable as
+			// the coach's default over the runner's last choice, so this is
+			// never marked changed — only ever shown.
 			out.push({
-				key: 'pacing', view: 'pacing', label: 'Pacing plan', icon: 'i-gauge',
-				value: 'Even', changed: false, chip: 'changed'
+				key: 'pacing', view: 'pacing', label: 'Pacing plan', icon: 'i-flag',
+				value: s.pacing, changed: false, chip: 'always'
 			});
 		}
 
@@ -1891,6 +1949,31 @@
 					'session, so there is nothing to change here today.</p>' : '');
 	}
 
+	/**
+	 * The pacing plan is not a dial: three named strategies, each with the
+	 * coach's own copy, matching how the app itself shows it — a radio row per
+	 * option, not a row of step buttons. Picking an unselected one commits and
+	 * closes, the same pattern the shoe and workout pickers already use.
+	 */
+	function viewPacing() {
+		var html = '';
+		for (var i = 0; i < s.pacingOptions.length; i++) {
+			var o = s.pacingOptions[i];
+			html += '<button type="button" class="pick" data-set="pacing" data-value="' +
+				(o.value === null ? '' : o.value) + '" aria-pressed="' + o.selected + '">' +
+				'<span class="radio' + (o.selected ? ' on' : '') + '"></span>' +
+				'<span class="pm"><span class="pn">' + esc(o.title) + '</span>' +
+				'<span class="ps">' + esc(o.description) + '</span></span>' +
+				'</button>';
+		}
+		if (pending === 'pacing') {
+			return '<p class="sheet-text">How to run the race itself.</p>' + html +
+				'<p class="effect"><span class="spin" style="width:11px;height:11px;border:1.5px solid var(--app-border);border-top-color:var(--accent);border-radius:999px;display:inline-block"></span> Saving…</p>';
+		}
+		return '<p class="sheet-text">How to run the race itself. Every strategy rewrites the ' +
+			'session into a schedule of when to run how fast for how far.</p>' + html;
+	}
+
 	function viewShoe() {
 		// The server's recommendation is pinned; everything else keeps the order
 		// the server sent, untouched. No client-side notion of which shoe suits
@@ -1943,17 +2026,13 @@
 		for (var i = 0; i < ACTIVITIES.length; i++) {
 			var a = ACTIVITIES[i];
 			var on = (s.cross_type || null) === a.v;
-			var more = a.v === '__more';
-			html += '<button type="button" class="tile' + (more ? ' unknown' : '') +
-				'" style="padding:13px 4px 10px" data-set="activity" data-value="' +
-				(a.v === null ? '' : a.v) + '" aria-pressed="' + on + '"' + (more ? ' disabled' : '') + '>' +
+			html += '<button type="button" class="tile" style="padding:13px 4px 10px" data-set="activity" ' +
+				'data-value="' + (a.v === null ? '' : a.v) + '" aria-pressed="' + on + '">' +
 				ic(a.icon, 20) + esc(a.label) + '</button>';
 		}
 		return '<div class="tiles" style="grid-template-columns:repeat(2,1fr)">' + html + '</div>' +
-			'<p class="sheet-text" style="margin:13px 0 0">MTB, swimming, cross trainer, elliptical ' +
-			'bike and indoor cycling are offered too. Their wire values have not been captured, and ' +
-			'two of them are near enough synonyms that guessing would be a coin toss — so they wait ' +
-			'rather than shipping a value the API would refuse.</p>';
+			'<p class="sheet-text" style="margin:13px 0 0">A cross-trained session has a duration, no ' +
+			'distance and no pace, so the terrain and shoe go with it — picking Run puts them back.</p>';
 	}
 
 	function viewSession() {
@@ -1989,6 +2068,7 @@
 		effort: { title: 'Fine-tune intensity', body: function () { return viewSteps('effort'); } },
 		volume: { title: 'Fine-tune distance', body: function () { return viewSteps('volume'); } },
 		shoe: { title: 'Shoe', body: viewShoe },
+		pacing: { title: 'Pacing plan', body: viewPacing },
 		session: { title: 'Change this session', body: viewSession }
 	};
 
@@ -2020,7 +2100,6 @@
 	}
 
 	function open(v, focus) {
-		if (v === 'pacing') v = 'effort';
 		view = v;
 		staged = v === 'terrain' ? { surface: s.surface || 'road', height: s.height || 'flat' } : null;
 		// A chip whose setting has no editor of its own — the cool-down switch —
@@ -2147,17 +2226,33 @@
 		if (set === 'activity') {
 			var ct = val === '' ? null : val;
 			if (ct === (s.cross_type || null)) { close(); return; }
+			var chosen = null;
+			for (var a2 = 0; a2 < ACTIVITIES.length; a2++) if (ACTIVITIES[a2].v === ct) chosen = ACTIVITIES[a2];
 			var patch = ct
 				? {
-					cross_type: 'road_bike', title: 'Cycling', hex: '#1BB9AA', activity: 'i-bike',
+					cross_type: ct, title: chosen.label, hex: '#1BB9AA', activity: chosen.icon,
 					surface: null, height: null, shoeId: null, intensity: 0, distance: 0,
 					can_change_distance: false, intensitySteps: [{ value: 0, text: 'As planned' }],
 					can_toggle_cooldown: false, has_cooldown: false, cooldown: null,
 					base: { km: null, sec: shownSec() }, shape: [{ w: 1, c: '#1BB9AA' }],
-					blocks: [{ c: '#1BB9AA', t: 'Ride ' + fmtTime(shownSec()) }]
+					blocks: [{ c: '#1BB9AA', t: activityLabel(ct) + ' ' + fmtTime(shownSec()) }]
 				}
 				: clone(SESSIONS.easy);
-			commit('meta', patch, true, ct ? 'Swapped to cycling.' : 'Back to running.');
+			commit('meta', patch, true, ct ? 'Swapped to ' + chosen.label + '.' : 'Back to running.');
+			return;
+		}
+
+		if (set === 'pacing') {
+			var opt = null;
+			for (var p = 0; p < s.pacingOptions.length; p++) {
+				var pv = s.pacingOptions[p].value === null ? '' : s.pacingOptions[p].value;
+				if (pv === val) opt = s.pacingOptions[p];
+			}
+			if (!opt || opt.selected) { close(); return; }
+			var nextOptions = s.pacingOptions.map(function (o) {
+				return Object.assign({}, o, { selected: o === opt });
+			});
+			commit('pacing', { pacingOptions: nextOptions, pacing: opt.title }, true);
 			return;
 		}
 
@@ -2516,49 +2611,58 @@
 			</div>
 		</div>
 		<div class="gap">
-			<span class="m">!</span>
+			<span class="m q">?</span>
 			<div>
-				<h4>Five of the seven activities have no captured value</h4>
+				<h4>Resolved: all seven activities are now captured</h4>
 				<p>
-					The app offers <em>keep as a run, cycling, MTB, swimming, cross trainer, elliptical
-					bike, indoor cycling</em>. Exactly one wire value is known: <code>road_bike</code>,
-					which the app calls Cycling. The other five are absent from the picker rather than
-					guessed — a <code>cross_type</code> the API does not recognise is refused, and cross
-					trainer and elliptical bike are near enough synonyms in English that a plausible guess
-					would be as likely to pick the wrong one as the right one.
+					The guesswork is gone. Alongside <code>road_bike</code> (Cycling), the API takes
+					<code>mountain_bike</code>, <code>indoor_cycling</code>, <code>swimming</code>,
+					<code>crosstrainer</code> and <code>elliptical</code> — the near-synonyms that made
+					guessing risky, cross trainer and elliptical bike, turned out to be
+					<code>crosstrainer</code> and <code>elliptical</code> respectively, one word apart
+					from each other and from nothing an educated guess would have landed on. All six now
+					sit in the picker alongside Run, in the app's own order.
 				</p>
 				<p>
-					Two things this also shows. “Keep as a run” sits in the same picker, so reverting a
-					cross-train is this endpoint rather than an exchange — Run is a choice on the picker
-					now, sending a null cross type, which is the conventional way to say “none” and the
-					one part of this still unconfirmed. And a session already cross-trained to an
-					unregistered type still reads correctly, since the label falls back to the humanised
-					value.
+					“Keep as a run” is confirmed too: reverting a cross-train sends
+					<code>{ cross_type: null }</code> to the same <code>cross_train</code> endpoint,
+					never an exchange. And a session already cross-trained to an unregistered type still
+					reads correctly regardless — the label registry was always a display convenience, not
+					a whitelist, so an eighth activity added upstream shows its humanised name instead of
+					breaking.
 				</p>
 			</div>
 		</div>
 		<div class="gap">
 			<span class="m q">?</span>
 			<div>
-				<h4>The pacing plan is race day, and it is not a dial</h4>
+				<h4>Resolved: the pacing plan is three radio buttons, not a dial</h4>
 				<p>
-					It appears on one session in the whole plan: the goal race, on the last day. That is
-					why <code>can_change_pacing_plan</code> is <code>false</code> on every payload captured
-					so far — a midweek tempo, an easy run and a bike ride are not races.
+					Captured off the goal race itself. <code>PUT
+					/schedule/trainings/{id}/pacing_plan</code> takes
+					<code>{ pacing_plan: "trenara" | "alternative" | null }</code> and hands back the
+					whole training, same as every other mutation here. And
+					<code>change_pacing_plan_package</code> confirmed the shape the design notes
+					predicted: it is not a <code>ChangePackage</code> at all — no wrapping
+					<code>title</code>/<code>text</code>, the field is itself the array of three options,
+					each with its own <code>order</code>, <code>value</code>, <code>title</code>,
+					<code>description</code> and <code>selected</code>:
 				</p>
+				<p style="font-family:ui-monospace,monospace;font-size:12.5px;background:var(--panel);border-radius:8px;padding:10px 12px;white-space:pre-wrap;line-height:1.5">1  "trenara"     "Pacing plan"    "All roads lead to Rome, but this is my preferred pacing plan for your race."
+2  "alternative"  "Plan B"         "Always have a plan B in place. Sometimes plan A doesn't match how you feel or the race-day circumstances. Here's an alternative pacing plan."
+3  null           "No pacing plan" "One block at your selected pace."</p>
 				<p>
-					It also breaks the pattern the other two packages set. Effort and volume are
-					continuous dials whose steps are percentage deltas; the pacing plan is a choice
-					between three named strategies — <em>no plan</em>, <em>plan A</em>, <em>plan B</em> —
-					and picking one rewrites the session into a schedule of when to run how fast for how
-					far. So its <code>ChangeStep.value</code> is an identifier, not a percentage, and its
-					editor is a picker like the workout swap rather than a step scale like effort. The
-					shape bar earns its place here more than anywhere else: a pacing plan is literally a
-					shape.
-				</p>
-				<p>
-					One capture of that session settles the rest — the endpoint, the step values, and the
-					coach's own copy for the three options.
+					Confirms the design call too: this is a picker like the workout swap, not a step
+					scale like effort. That is also literally how the app itself shows it — three radio
+					buttons in the session view for that training, each with the coach's own copy under
+					it, and no separate confirm step; tapping one commits it. The setup sheet here matches
+					that directly rather than reusing the effort dial: each option is a full-width row
+					with a radio mark, its title, and its description, and picking an unselected one calls
+					<code>setPacingPlan</code> and closes the sheet, the same commit-and-close pattern the
+					shoe and workout pickers already use. No option is treated as “the plan”, since nothing
+					in the payload marks one as the coach's default over the runner's last choice — so
+					unlike effort or volume, picking a strategy is never flagged as a deviation, only as
+					what is currently set.
 				</p>
 			</div>
 		</div>

@@ -8,7 +8,8 @@ import {
 	setShoeSchema,
 	setCooldownSchema,
 	crossTrainSchema,
-	exchangeTrainingSchema
+	exchangeTrainingSchema,
+	setPacingPlanSchema
 } from './training';
 
 // ─────────────────────────────────────────────────────────────
@@ -169,13 +170,18 @@ describe('setShoeSchema', () => {
 });
 
 describe('crossTrainSchema', () => {
-	it('accepts the one cross type we have observed', () => {
+	it('accepts every cross type captured so far', () => {
 		expect(crossTrainSchema.safeParse({ crossType: 'road_bike' }).success).toBe(true);
+		expect(crossTrainSchema.safeParse({ crossType: 'mountain_bike' }).success).toBe(true);
+		expect(crossTrainSchema.safeParse({ crossType: 'indoor_cycling' }).success).toBe(true);
+		expect(crossTrainSchema.safeParse({ crossType: 'swimming' }).success).toBe(true);
+		expect(crossTrainSchema.safeParse({ crossType: 'crosstrainer' }).success).toBe(true);
+		expect(crossTrainSchema.safeParse({ crossType: 'elliptical' }).success).toBe(true);
 	});
 
 	it('accepts a cross type we have not, because the list is incomplete', () => {
 		// Refusing an unseen value would break a feature the backend supports.
-		expect(crossTrainSchema.safeParse({ crossType: 'elliptical' }).success).toBe(true);
+		expect(crossTrainSchema.safeParse({ crossType: 'rowing' }).success).toBe(true);
 	});
 
 	it('accepts null, which is how the session goes back to being a run', () => {
@@ -201,6 +207,28 @@ describe('exchangeTrainingSchema', () => {
 		// Upstream calls it training_id, which is easy to confuse with the
 		// scheduled training in the path. The schema forces the distinction.
 		expect(exchangeTrainingSchema.safeParse({ training_id: 20112 }).success).toBe(false);
+	});
+});
+
+describe('setPacingPlanSchema', () => {
+	it('accepts the two named strategies', () => {
+		expect(setPacingPlanSchema.safeParse({ pacingPlan: 'trenara' }).success).toBe(true);
+		expect(setPacingPlanSchema.safeParse({ pacingPlan: 'alternative' }).success).toBe(true);
+	});
+
+	it('accepts null, which is "no pacing plan" rather than an unset field', () => {
+		expect(setPacingPlanSchema.safeParse({ pacingPlan: null }).success).toBe(true);
+	});
+
+	it('rejects a strategy the package has never offered', () => {
+		// Unlike crossTrainSchema, this stays strict: the package that would
+		// carry a third strategy is the only source of truth for what to send,
+		// and it has been captured on one session only.
+		expect(setPacingPlanSchema.safeParse({ pacingPlan: 'even' }).success).toBe(false);
+	});
+
+	it('still requires the field to be present', () => {
+		expect(setPacingPlanSchema.safeParse({}).success).toBe(false);
 	});
 });
 

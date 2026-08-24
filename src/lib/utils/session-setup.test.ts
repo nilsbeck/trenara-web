@@ -3,11 +3,12 @@ import { TRAINING_SURFACES, type ScheduledTraining, type Shoe } from '$lib/serve
 import {
 	ACTIVITIES,
 	SURFACES,
-	UNMAPPED_ACTIVITIES,
+	activityIcon,
 	activityLabel,
 	chipSettings,
 	hasSetupFlags,
 	heightLabel,
+	selectedPacingPlan,
 	selectedStep,
 	sessionSettings,
 	conditionClimb,
@@ -186,10 +187,9 @@ describe('labels', () => {
 	});
 
 	it('renders values it has never seen rather than dropping them', () => {
-		// Five of the app's seven activities have no captured wire value, so an
-		// unregistered one has to survive as something readable.
+		// All seven of the app's activities are registered now, so this exercises
+		// a value from neither that list nor any other registry.
 		expect(activityLabel('open_water')).toBe('Open water');
-		expect(activityLabel('indoor_cycling')).toBe('Indoor cycling');
 		expect(surfaceLabel('gravel_path')).toBe('Gravel path');
 		expect(shoeTypeLabel('carbon_plate')).toBe('Carbon plate');
 	});
@@ -311,6 +311,72 @@ describe('sessionSettings', () => {
 		expect(sessionSettings(tempoRun()).map((s) => s.key)).not.toContain('cooldown');
 		const withCooldown = tempoRun({ can_toggle_cooldown: true, has_cooldown: true });
 		expect(sessionSettings(withCooldown).map((s) => s.key)).toContain('cooldown');
+	});
+
+	it('omits the pacing plan from every session but the goal race', () => {
+		expect(sessionSettings(tempoRun()).map((s) => s.key)).not.toContain('pacing');
+	});
+
+	it('names the applied strategy on the goal race', () => {
+		const raceDay = tempoRun({
+			can_change_pacing_plan: true,
+			change_pacing_plan_package: [
+				{ order: 1, value: 'trenara', title: 'Pacing plan', description: '', selected: false },
+				{ order: 2, value: 'alternative', title: 'Plan B', description: '', selected: false },
+				{ order: 3, value: null, title: 'No pacing plan', description: '', selected: true }
+			]
+		});
+		const pacing = sessionSettings(raceDay).find((s) => s.key === 'pacing');
+		expect(pacing?.value).toBe('No pacing plan');
+		// Unlike a percentage package, no option here is knowable as the coach's
+		// default, so nothing is ever marked changed.
+		expect(pacing?.changed).toBe(false);
+	});
+
+	it('marks the pacing plan awaiting on a copy with the flag but no package field', () => {
+		const training = tempoRun({ can_change_pacing_plan: true });
+		delete training.change_pacing_plan_package;
+
+		const pacing = sessionSettings(training).find((s) => s.key === 'pacing');
+		expect(pacing?.awaiting).toBe(true);
+		expect(pacing?.value).toBeNull();
+	});
+
+	it('omits the pacing plan where the flag is true but the package is null', () => {
+		const training = tempoRun({ can_change_pacing_plan: true, change_pacing_plan_package: null });
+		expect(sessionSettings(training).map((s) => s.key)).not.toContain('pacing');
+	});
+});
+
+describe('selectedPacingPlan', () => {
+	it('finds the selected option', () => {
+		const options = [
+			{
+				order: 1,
+				value: 'trenara' as const,
+				title: 'Pacing plan',
+				description: '',
+				selected: false
+			},
+			{ order: 2, value: null, title: 'No pacing plan', description: '', selected: true }
+		];
+		expect(selectedPacingPlan(options)?.title).toBe('No pacing plan');
+	});
+
+	it('returns null when the package is absent or nothing is selected', () => {
+		expect(selectedPacingPlan(null)).toBeNull();
+		expect(selectedPacingPlan(undefined)).toBeNull();
+		expect(
+			selectedPacingPlan([
+				{
+					order: 1,
+					value: 'trenara' as const,
+					title: 'Pacing plan',
+					description: '',
+					selected: false
+				}
+			])
+		).toBeNull();
 	});
 });
 
@@ -657,26 +723,27 @@ describe('surfaces', () => {
 });
 
 describe('activities', () => {
-	it('registers only the cross type that has been captured', () => {
-		// road_bike is the one value seen on the wire. Guessing the others risks
-		// picking between near-synonyms — cross trainer and elliptical bike —
-		// and a cross_type the API does not know is refused.
-		expect(ACTIVITIES.map((a) => a.crossType)).toEqual([null, 'road_bike']);
+	it('registers all seven of the app’s activities', () => {
+		expect(ACTIVITIES.map((a) => a.crossType)).toEqual([
+			null,
+			'road_bike',
+			'mountain_bike',
+			'indoor_cycling',
+			'swimming',
+			'crosstrainer',
+			'elliptical'
+		]);
 	});
 
-	it('keeps the unmapped ones named, so the gap stays visible', () => {
-		expect(UNMAPPED_ACTIVITIES).toContain('MTB');
-		expect(UNMAPPED_ACTIVITIES).toContain('Swimming');
-		expect(UNMAPPED_ACTIVITIES).toContain('Cross trainer');
-		expect(UNMAPPED_ACTIVITIES).toContain('Elliptical bike');
-		expect(UNMAPPED_ACTIVITIES).toContain('Indoor cycling');
-	});
-
-	it('does not list an activity as both known and unmapped', () => {
-		const known = ACTIVITIES.map((a) => a.label);
-		for (const pending of UNMAPPED_ACTIVITIES) {
-			expect(known).not.toContain(pending);
-		}
+	it('picks the bike icon only for activities actually on a bike', () => {
+		expect(activityIcon(null)).toBe('run');
+		expect(activityIcon('road_bike')).toBe('bike');
+		expect(activityIcon('mountain_bike')).toBe('bike');
+		expect(activityIcon('indoor_cycling')).toBe('bike');
+		expect(activityIcon('swimming')).toBe('other');
+		expect(activityIcon('crosstrainer')).toBe('other');
+		expect(activityIcon('elliptical')).toBe('other');
+		expect(activityIcon('rowing')).toBe('other');
 	});
 });
 

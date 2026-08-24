@@ -212,11 +212,19 @@ export type TrainingHeightDifference = (typeof TRAINING_HEIGHT_DIFFERENCES)[numb
 /**
  * Known `cross_type` values.
  *
- * Only `road_bike` has been observed, so this list is certainly incomplete.
- * That is why `crossTrain()` takes a plain `string`: refusing a value we simply
- * have not seen yet would be worse than passing it through.
+ * All seven of the app's activity choices, now captured: a run (`null`,
+ * elsewhere) and these six. `crossTrain()` still takes a plain `string` rather
+ * than this type — an eighth activity added upstream should pass through
+ * rather than being refused by a list we have not updated yet.
  */
-export const CROSS_TYPES = ['road_bike'] as const;
+export const CROSS_TYPES = [
+	'road_bike',
+	'mountain_bike',
+	'indoor_cycling',
+	'swimming',
+	'crosstrainer',
+	'elliptical'
+] as const;
 export type CrossType = (typeof CROSS_TYPES)[number];
 
 /**
@@ -404,16 +412,47 @@ export interface ChangeStep {
 }
 
 /**
- * A server-authoritative set of adjustments (distance, intensity, pacing plan).
+ * A server-authoritative set of adjustments (distance, intensity).
  *
  * Step count and values differ per training and are capped by the coach, so
  * never generate the range client-side. Find the current setting via
  * `selected`, not by index: packages have been seen with four steps and five.
+ *
+ * The pacing plan looked like a third member of this family until captured —
+ * it is not one. See {@link PacingPlanOption}.
  */
 export interface ChangePackage {
 	title: string;
 	text: string;
 	steps: ChangeStep[];
+}
+
+/**
+ * Known `pacing_plan` values. `null` is a valid third choice — "no pacing
+ * plan", one block at the selected pace — not the absence of one.
+ */
+export const PACING_PLANS = ['trenara', 'alternative'] as const;
+export type PacingPlan = (typeof PACING_PLANS)[number];
+
+/**
+ * One strategy offered by `change_pacing_plan_package`.
+ *
+ * Despite the name this is not a {@link ChangePackage}: there is no wrapping
+ * `title`/`text`, `change_pacing_plan_package` is itself the array of options,
+ * and `value` is the identifier to send back (a `PacingPlan` or `null`), never
+ * a number to do arithmetic on. Seen only on the goal race, the single session
+ * in a plan where `can_change_pacing_plan` is true.
+ */
+export interface PacingPlanOption {
+	/** 1-based position, matching the order the app lists them in. */
+	order: number;
+	/** What `setPacingPlan()` expects back. `null` is "no pacing plan". */
+	value: PacingPlan | null;
+	/** The coach's name for this strategy — "Pacing plan", "Plan B", "No pacing plan". */
+	title: string;
+	/** The coach's own copy explaining the strategy. */
+	description: string;
+	selected: boolean;
 }
 
 /** The team a training is shared with. */
@@ -535,8 +574,14 @@ export interface ScheduledTraining {
 	change_distance_package?: ChangePackage | null;
 	can_change_intensity?: boolean;
 	change_intensity_package?: ChangePackage | null;
+	/**
+	 * True on the goal race alone. A midweek tempo, an easy run and a bike ride
+	 * all send `false` — a pacing plan only makes sense for the one session
+	 * that is actually a race.
+	 */
 	can_change_pacing_plan?: boolean;
-	change_pacing_plan_package?: ChangePackage | null;
+	/** An array of named strategies, not a `ChangePackage` — see `PacingPlanOption`. */
+	change_pacing_plan_package?: PacingPlanOption[] | null;
 	can_be_exchanged?: boolean;
 	team_data?: TeamData | null;
 
@@ -650,6 +695,16 @@ export interface CrossTrainRequest {
 	 * not been captured, and null is the conventional way to say "none".
 	 */
 	cross_type: string | null;
+}
+
+/**
+ * Body of `PUT /schedule/trainings/{id}/pacing_plan`.
+ *
+ * A `change_pacing_plan_package` option's `value`, sent back verbatim —
+ * `null` for "no pacing plan", same as `CrossTrainRequest`'s revert.
+ */
+export interface SetPacingPlanRequest {
+	pacing_plan: PacingPlan | null;
 }
 
 export interface Schedule {

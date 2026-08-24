@@ -637,6 +637,173 @@ const steadyRunDetail = {
 	}
 } satisfies ScheduledTrainingDetail;
 
+// The goal race: the one session in the whole plan where the pacing plan is
+// offered. Nothing else can be changed and it cannot be deleted.
+const raceDetail = {
+	id: 127477847,
+	day: 1790460000,
+	day_long: '2026-09-27',
+	title: '15k nocturno',
+	description:
+		'Time for your 15k nocturno. You’ve trained hard for this, Nils.\n\n' +
+		'And those who train well are usually rewarded for it. Best of luck! I’m already cheering ' +
+		'you on.\n\nFeel free to share your result on social media so we can celebrate with you!',
+	show_description_from: 1789855200,
+	type: 'goal',
+	icon_url: 'https://backend-prod.trenara.com/icons/icon__badge.svg',
+	hex_training: '#7B3294',
+	hex_completed: null,
+	last_garmin_sync: null,
+	can_be_edited: false,
+	can_cross_train: false,
+	cross_type: null,
+	can_toggle_cooldown: false,
+	has_cooldown: false,
+	can_change_distance: false,
+	change_distance_package: null,
+	can_change_intensity: true,
+	change_intensity_package: {
+		title: 'Fine-tune intensity',
+		text:
+			'Change today’s session intensity within limits set by Coach Christophe. You can always ' +
+			'ease off; increases are capped.',
+		steps: [
+			{ step: 1, value: -4, text: 'Slower', selected: false },
+			{ step: 2, value: -2, text: 'A bit slower', selected: false },
+			{ step: 3, value: 0, text: 'As planned', selected: true },
+			{ step: 4, value: 2, text: 'A bit faster', selected: false }
+		]
+	},
+	can_change_pacing_plan: true,
+	change_pacing_plan_package: [
+		{
+			order: 1,
+			value: 'trenara',
+			title: 'Pacing plan',
+			description: 'All roads lead to Rome, but this is my preferred pacing plan for your race.',
+			selected: false
+		},
+		{
+			order: 2,
+			value: 'alternative',
+			title: 'Plan B',
+			description:
+				"Always have a plan B in place. Sometimes plan A doesn't match how you feel or the " +
+				"race-day circumstances. Here's an alternative pacing plan.",
+			selected: false
+		},
+		{
+			order: 3,
+			value: null,
+			title: 'No pacing plan',
+			description: 'One block at your selected pace.',
+			selected: true
+		}
+	],
+	can_be_exchanged: false,
+	team_data: {
+		team_id: 470,
+		name: 'Valencia 42k',
+		picture: null,
+		nr_same_day_participants: 0,
+		nr_other_day_participants: 0,
+		matches_captain_day: true,
+		captain_pace: true,
+		can_toggle_pace: false,
+		can_show_participant_overview: true
+	},
+	training: {
+		blocks: [
+			{
+				order: 1,
+				repeat: 1,
+				type: 'core',
+				blocks: [
+					{
+						order: 1,
+						type: 'run',
+						prior: 'distance',
+						hex_graph: '#CC3311',
+						hex_text: '#FFFFFF',
+						time: '56:00',
+						time_in_sec: 3360,
+						time_value: 3360,
+						time_unit: 'sec',
+						distance: '15km',
+						distance_value: 15,
+						distance_unit: 'km',
+						distance_unit_text: 'km',
+						pace: '03:44 min/km',
+						pace_value: 224,
+						pace_unit: 'min/km',
+						pace_per_hour: '16.07 km/h',
+						pace_per_hour_value: 224,
+						pace_per_hour_unit: 'km/h',
+						prefer_pph: false,
+						text: 'Run 15km in 56:00 (03:44 min/km)',
+						text_pph: 'Run 15km in 56:00 (16.07 km/h)'
+					}
+				]
+			}
+		],
+		total_time_in_sec: 3360,
+		total_distance_in_km: 15,
+		core_time_in_sec: 3360,
+		pre_advice: null,
+		post_advice: null,
+		core_distance: '15km',
+		core_distance_value: 15,
+		core_distance_unit: 'km',
+		core_distance_unit_text: 'km',
+		core_time: '56:00',
+		core_time_value: 3360,
+		core_time_unit: 'sec',
+		total_distance: '15km',
+		total_distance_value: 15,
+		total_distance_unit: 'km',
+		total_distance_unit_text: 'km',
+		total_time: '56:00',
+		total_time_value: 3360,
+		total_time_unit: 'sec'
+	},
+	training_condition: {
+		id: 3788086,
+		type: 'Goal',
+		height_difference: 'flat',
+		surface: 'road',
+		intensity: 100,
+		updated_at: 1782684230,
+		height: null,
+		height_value: null,
+		height_unit: null,
+		height_unit_text: null
+	},
+	suggested_shoe: {
+		id: 2447,
+		brand: 'ASICS',
+		name: 'Metaspeed Edge',
+		type: 'supershoe',
+		preferred: false,
+		buy_date: '2024-10-05',
+		lifetime_percentage: 38.64153846153846,
+		created_at: '2025-09-10T16:25:14+02:00',
+		updated_at: '2025-09-10T16:25:14+02:00',
+		retired_at: null,
+		expected_lifetime_distance: '650km',
+		expected_lifetime_distance_value: 650,
+		expected_lifetime_distance_unit: 'km',
+		expected_lifetime_distance_unit_text: 'km',
+		distance_done: '251.17km',
+		distance_done_value: 251.17,
+		distance_done_unit: 'km',
+		distance_done_unit_text: 'km',
+		avg_pace: '05:06 min/km',
+		avg_pace_value: 306,
+		avg_pace_unit: 'min/km',
+		picture: null
+	}
+} satisfies ScheduledTrainingDetail;
+
 // ─────────────────────────────────────────────────────────────
 // The week response.
 //
@@ -1069,5 +1236,31 @@ describe('captured payloads', () => {
 	it('offers exchange candidates with ids from a different space than the schedule id', () => {
 		// Candidate ids are small; scheduled training ids are nine digits.
 		expect(exchangeCandidate.id).toBeLessThan(runDetail.id);
+	});
+
+	it('offers the pacing plan on the goal race alone, as three named strategies', () => {
+		expect(raceDetail.can_change_pacing_plan).toBe(true);
+		expect(runDetail.can_change_pacing_plan).toBe(false);
+		expect(crossTrainDetail.can_change_pacing_plan).toBe(false);
+
+		// Not a ChangePackage: the field is the array of options itself, and
+		// `value` is a strategy name, never a number.
+		const values = raceDetail.change_pacing_plan_package.map((o) => o.value);
+		expect(values).toEqual(['trenara', 'alternative', null]);
+		expect(raceDetail.change_pacing_plan_package.find((o) => o.selected)?.title).toBe(
+			'No pacing plan'
+		);
+	});
+
+	it('locks every other setting on the goal race, and cannot be exchanged', () => {
+		// The pacing plan is the only thing on offer: no cross-training, no
+		// distance change, no exchange, and the session itself cannot be edited
+		// or deleted like an ordinary training.
+		expect(raceDetail.can_be_edited).toBe(false);
+		expect(raceDetail.can_cross_train).toBe(false);
+		expect(raceDetail.can_change_distance).toBe(false);
+		expect(raceDetail.can_be_exchanged).toBe(false);
+		// Effort is still open — even race day accepts an intensity nudge.
+		expect(raceDetail.can_change_intensity).toBe(true);
 	});
 });

@@ -246,6 +246,33 @@ describe('SessionDetailStore', () => {
 		expect(store.detail?.cross_type).toBeNull();
 	});
 
+	it('sends the chosen pacing plan, and null for "no pacing plan"', async () => {
+		const fetchMock = vi.mocked(fetch);
+		fetchMock.mockResolvedValueOnce(jsonResponse(detail({ can_change_pacing_plan: true })));
+		const store = new SessionDetailStore();
+		store.load(42);
+		await vi.waitFor(() => expect(store.detail).not.toBeNull());
+
+		fetchMock.mockResolvedValueOnce(jsonResponse(detail({ can_change_pacing_plan: true })));
+		await store.setPacingPlan('alternative');
+
+		expect(fetchMock).toHaveBeenLastCalledWith(
+			'/api/v1/training/42/pacing-plan',
+			expect.objectContaining({
+				method: 'PUT',
+				body: JSON.stringify({ pacingPlan: 'alternative' })
+			})
+		);
+
+		fetchMock.mockResolvedValueOnce(jsonResponse(detail({ can_change_pacing_plan: true })));
+		await store.setPacingPlan(null);
+
+		expect(fetchMock).toHaveBeenLastCalledWith(
+			'/api/v1/training/42/pacing-plan',
+			expect.objectContaining({ body: JSON.stringify({ pacingPlan: null }) })
+		);
+	});
+
 	it('sends the target cool-down state, not a flip', async () => {
 		const fetchMock = vi.mocked(fetch);
 		fetchMock.mockResolvedValueOnce(jsonResponse(detail({ has_cooldown: true })));

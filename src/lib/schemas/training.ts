@@ -1,5 +1,9 @@
 import { z } from 'zod';
-import { TRAINING_SURFACES, TRAINING_HEIGHT_DIFFERENCES } from '$lib/server/trenara/types';
+import {
+	TRAINING_SURFACES,
+	TRAINING_HEIGHT_DIFFERENCES,
+	PACING_PLANS
+} from '$lib/server/trenara/types';
 
 export const feedbackSchema = z.object({
 	entryId: z.number().int().positive(),
@@ -71,6 +75,17 @@ export const crossTrainSchema = z.object({
 /** A candidate id from `GET .../exchange` — a different id space to the training. */
 export const exchangeTrainingSchema = z.object({ candidateId: z.number().int().positive() });
 
+/**
+ * A `change_pacing_plan_package` option's `value`. Unlike `crossTrainSchema`
+ * this enumerates the known values rather than accepting any string: the
+ * package that would carry an unseen third strategy is the only source of
+ * truth for what to send, and it is captured on one session only (the goal
+ * race), so there is nothing to lose by being strict here.
+ */
+export const setPacingPlanSchema = z.object({
+	pacingPlan: z.enum(PACING_PLANS).nullable()
+});
+
 export type FeedbackData = z.infer<typeof feedbackSchema>;
 export type ChangeDateData = z.infer<typeof changeDateSchema>;
 export type TrainingConditionData = z.infer<typeof trainingConditionSchema>;
@@ -80,3 +95,4 @@ export type SetShoeData = z.infer<typeof setShoeSchema>;
 export type SetCooldownData = z.infer<typeof setCooldownSchema>;
 export type CrossTrainData = z.infer<typeof crossTrainSchema>;
 export type ExchangeTrainingData = z.infer<typeof exchangeTrainingSchema>;
+export type SetPacingPlanData = z.infer<typeof setPacingPlanSchema>;

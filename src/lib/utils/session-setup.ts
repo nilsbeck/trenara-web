@@ -1,6 +1,7 @@
 import type {
 	ChangePackage,
 	ChangeStep,
+	PacingPlanOption,
 	ScheduledTraining,
 	Shoe,
 	TrainingBlock,
@@ -18,7 +19,8 @@ import type {
  * tempo run. Titles are localised, so nothing may key off them either.
  */
 
-export type SettingKey = 'terrain' | 'shoe' | 'effort' | 'volume' | 'cooldown' | 'session';
+export type SettingKey =
+	'terrain' | 'shoe' | 'effort' | 'volume' | 'cooldown' | 'pacing' | 'session';
 
 /** When a setting earns a place on the chip rail. */
 export type ChipRule =
@@ -121,34 +123,22 @@ export function elevationBand(metresPerKilometre: number): TrainingHeightDiffere
 /**
  * Activities we can name, keyed by `cross_type` (null being a run).
  *
- * The app offers seven choices — keep as a run, cycling, MTB, swimming, cross
- * trainer, elliptical bike, indoor cycling — and exactly one of their wire
- * values has been observed: `road_bike`, which the app calls Cycling. The rest
- * are deliberately absent rather than guessed. Two of them are near-synonyms in
- * English (cross trainer, elliptical bike), so a plausible-looking guess would
- * be as likely to pick the wrong one as the right one, and a `cross_type` the
- * API does not know is refused the same way a bad surface is.
+ * All seven of the app's choices, in the order it lists them: keep as a run,
+ * cycling, mountain biking, indoor cycling, swimming, cross trainer, elliptical
+ * bike.
  *
  * This is a display registry, not a whitelist: a session already cross-trained
- * to an unregistered type still renders, under its own humanised name.
+ * to an unregistered type still renders, under its own humanised name — see
+ * `activityLabel`.
  */
 export const ACTIVITIES = [
 	{ crossType: null, label: 'Run' },
-	{ crossType: 'road_bike', label: 'Cycling' }
-] as const;
-
-/**
- * The activities the app lists, for the ones whose value we have not captured.
- *
- * Kept next to `ACTIVITIES` so the gap is visible rather than forgotten: when a
- * capture names a value, it moves up.
- */
-export const UNMAPPED_ACTIVITIES = [
-	'MTB',
-	'Swimming',
-	'Cross trainer',
-	'Elliptical bike',
-	'Indoor cycling'
+	{ crossType: 'road_bike', label: 'Cycling' },
+	{ crossType: 'mountain_bike', label: 'Mountain biking' },
+	{ crossType: 'indoor_cycling', label: 'Indoor cycling' },
+	{ crossType: 'swimming', label: 'Swimming' },
+	{ crossType: 'crosstrainer', label: 'Cross trainer' },
+	{ crossType: 'elliptical', label: 'Elliptical bike' }
 ] as const;
 
 const SHOE_TYPE_LABELS: Record<string, string> = {
@@ -190,6 +180,19 @@ export function shoeName(shoe: Shoe): string {
 /** The step currently applied, or null when the package is absent or unset. */
 export function selectedStep(pkg: ChangePackage | null | undefined): ChangeStep | null {
 	return pkg?.steps.find((s) => s.selected) ?? null;
+}
+
+/**
+ * The pacing strategy currently applied, or null when the package is absent
+ * or unset.
+ *
+ * `change_pacing_plan_package` is the array of options itself, not a
+ * `ChangePackage` wrapping one — see `PacingPlanOption`.
+ */
+export function selectedPacingPlan(
+	pkg: PacingPlanOption[] | null | undefined
+): PacingPlanOption | null {
+	return pkg?.find((o) => o.selected) ?? null;
 }
 
 /**
@@ -253,9 +256,11 @@ export function sessionSummary(training: ScheduledTraining): string {
  * would be guesswork. An activity we cannot name gets the generic mark rather
  * than a wrong one.
  */
+const BIKE_CROSS_TYPES = new Set(['road_bike', 'mountain_bike', 'indoor_cycling']);
+
 export function activityIcon(crossType: string | null | undefined): 'run' | 'bike' | 'other' {
 	if (!crossType) return 'run';
-	return crossType === 'road_bike' ? 'bike' : 'other';
+	return BIKE_CROSS_TYPES.has(crossType) ? 'bike' : 'other';
 }
 
 /**
@@ -365,6 +370,33 @@ export function sessionSettings(training: ScheduledTraining): Setting[] {
 			label: 'Volume',
 			...distance
 		});
+	}
+
+	// The pacing plan is not a `ChangePackage` — `change_pacing_plan_package`
+	// is itself the array of three named strategies — so it gets its own
+	// awaiting/absent handling rather than going through `packageOrAwaiting`.
+	// True only on the goal race; every other session sends `false`.
+	if (training.can_change_pacing_plan) {
+		if (!('change_pacing_plan_package' in training)) {
+			settings.push({
+				key: 'pacing',
+				label: 'Pacing plan',
+				value: null,
+				changed: false,
+				chip: 'always',
+				awaiting: true
+			});
+		} else if (training.change_pacing_plan_package) {
+			settings.push({
+				key: 'pacing',
+				label: 'Pacing plan',
+				value: selectedPacingPlan(training.change_pacing_plan_package)?.title ?? null,
+				// No coach-planned default is knowable from the payload — unlike a
+				// percentage package, a named strategy has no "0%" to call neutral.
+				changed: false,
+				chip: 'always'
+			});
+		}
 	}
 
 	// Only sessions that have a cool-down can drop one — plenty of runs have
