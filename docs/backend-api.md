@@ -62,6 +62,11 @@ Endpoints the app already calls live in `src/lib/server/trenara/`:
 
 Endpoints recorded below are **not wired up yet** unless the section says so.
 
+Their types in `src/lib/server/trenara/types.ts` were written at different
+times and are not all current: `Goal` in particular predates what the backend
+answers today (see `current_goal` under `/api/dashboard/`). A captured response
+in this file outranks the type that claims to describe it.
+
 ---
 
 ## GET /api/config/app
@@ -210,11 +215,16 @@ Trailing slash required.
   hit / missed the load" copy. `actions: ["share"]` is the button list.
   The same object is repeated inside `last_entry.notification`.
 - `current_goal` — nearly the same shape as `GET /api/goal` (`Goal` in
-  `types.ts`), with two differences worth knowing before you reuse the type:
-  the embedded copy has no `description` or `updated_at`, and its `week[]`
-  entries are `{ day, excel_id, training_id }` where our `Goal.week[]` is typed
-  `{ day, prior }`. One of the two is stale — check against a live `/api/goal`
-  response before typing anything against it. Which weekday `day` numbers
+  `types.ts`), and **the fresher of the two records**: this capture is current,
+  our `Goal` type was written against an older response. Where they disagree,
+  believe this one. Its `week[]` entries are `{ day, excel_id, training_id }`
+  while `Goal.week[]` is still typed `{ day, prior }` — nothing in the app
+  reads `week` today, which is why the drift went unnoticed. The embedded copy
+  also has no `description` or `updated_at`; those may still exist on
+  `/api/goal` proper, since this is a slimmer serialisation, so treat their
+  absence as unconfirmed rather than as removal. `training_id` points at a
+  plan-template training, not at a scheduled one — the ids here (2557-2563) are
+  four digits, where `next_training.id` is nine. Which weekday `day` numbers
   (0-6) start from is not established by this capture.
 - `next_training` — a `ScheduledTraining`. Everything the training detail sheet
   needs is inlined: `change_distance_package` / `change_intensity_package`
