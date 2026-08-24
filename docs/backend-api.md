@@ -210,10 +210,17 @@ Trailing slash required.
 ### Notable fields
 
 - `last_notification` — the coach's message about the last activity.
-  `metadata` varies by `notification_type`; for `"training"` it carries the TSS
-  triple (`goal_daily_tss`, `goal_pvt_tss`, `done_tss`) that drives the "you
-  hit / missed the load" copy. `actions: ["share"]` is the button list.
-  The same object is repeated inside `last_entry.notification`.
+  `metadata` varies by `notification_type`; for `"training"` it carries three
+  Training Stress Score figures — `goal_daily_tss` (the plan's load for that
+  day), `goal_pvt_tss` (the same target as a round number, plausibly the value
+  as authored in the coach's sheet, given the `excel_id` on the goal) and
+  `done_tss` (what the session earned). TSS is the usual metric where an hour
+  at threshold is 100, and the capture agrees with it: a 50-minute easy run
+  scored 36.97. Their ratio picks the copy — 81% of target here produced the
+  "you're really trying" message, tagged `type: "training_normal"` — so a
+  client can render done-vs-goal as a bar rather than only printing the
+  sentence. `actions: ["share"]` is the button list. The same object is
+  repeated inside `last_entry.notification`.
 - `current_goal` — nearly the same shape as `GET /api/goal` (`Goal` in
   `types.ts`), and **the fresher of the two records**: this capture is current,
   our `Goal` type was written against an older response. Where they disagree,
