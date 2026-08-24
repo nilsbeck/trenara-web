@@ -10,18 +10,22 @@
 		mealShares,
 		orderedMeals
 	} from '$lib/utils/nutrition';
-	import { Lightbulb, UtensilsCrossed } from 'lucide-svelte';
+	import { Lightbulb, TriangleAlert, UtensilsCrossed } from 'lucide-svelte';
 
 	let {
 		selectedDate,
 		nutritionDate,
 		nutritionData,
-		isLoading
+		isLoading,
+		error = null,
+		onRetry
 	}: {
 		selectedDate: string | null;
 		nutritionDate: string | null;
 		nutritionData: NutritionAdvice | null;
 		isLoading: boolean;
+		error?: string | null;
+		onRetry?: () => void;
 	} = $props();
 
 	const meals = $derived(orderedMeals(nutritionData?.plan));
@@ -49,6 +53,25 @@
 {#if isLoading}
 	<div class="flex items-center justify-center py-8">
 		<p class="text-sm text-muted-foreground">Loading...</p>
+	</div>
+	<!--
+	A failure is not an empty day. Both used to land on "No nutrition data",
+	which told a runner the coach had nothing for them when in fact the request
+	had fallen over — and left them nothing to do about it.
+-->
+{:else if error}
+	<div class="flex flex-col items-center gap-3 py-8 text-center">
+		<TriangleAlert class="h-5 w-5 text-destructive" />
+		<p class="text-sm text-foreground">{error}</p>
+		{#if onRetry}
+			<button
+				type="button"
+				onclick={onRetry}
+				class="rounded-full border border-border px-3 py-1 text-xs font-medium text-foreground transition-colors hover:border-primary hover:text-primary"
+			>
+				Try again
+			</button>
+		{/if}
 	</div>
 {:else if !nutritionData}
 	<div class="flex items-center justify-center py-8">

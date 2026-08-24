@@ -16,8 +16,20 @@
 	// ── Nutrition data loading ─────────────────────────────────────
 	let nutritionData = $state<NutritionAdvice | null>(null);
 	let nutritionLoading = $state(false);
+	let nutritionError = $state<string | null>(null);
 	let lastNutritionDate: string | null = null;
 	let nutritionAbort: AbortController | null = null;
+
+	/*
+		How long the tab waits before it gives up and says so.
+
+		Nothing else between here and the Trenara API sets a deadline, so a request
+		that never comes back left the tab on its "Loading..." for ever — the one
+		state a user cannot do anything about, and cannot tell apart from a slow
+		day. Past this the request is abandoned and the failure is shown, with a
+		way to ask again.
+	*/
+	const NUTRITION_TIMEOUT_MS = 15_000;
 
 	async function loadNutrition(timestamp: string) {
 		if (timestamp === lastNutritionDate) return; // already loaded for this date
@@ -29,6 +41,14 @@
 		nutritionAbort = controller;
 
 		nutritionLoading = true;
+		nutritionError = null;
+
+		let timedOut = false;
+		const deadline = setTimeout(() => {
+			timedOut = true;
+			controller.abort();
+		}, NUTRITION_TIMEOUT_MS);
+
 		try {
 			const res = await fetch(`/api/v1/nutrition?timestamp=${encodeURIComponent(timestamp)}`, {
 				signal: controller.signal
@@ -36,15 +56,29 @@
 			if (!res.ok) throw new Error(`${res.status}`);
 			nutritionData = await res.json();
 		} catch (e) {
-			// Ignore aborted requests — a newer one is already in flight
-			if (e instanceof DOMException && e.name === 'AbortError') return;
+			const aborted = e instanceof DOMException && e.name === 'AbortError';
+			// A newer request is already in flight and owns the state from here.
+			if (aborted && !timedOut) return;
+
 			nutritionData = null;
+			nutritionError = timedOut
+				? 'Nutrition took too long to load.'
+				: 'Could not load nutrition for this day.';
+			// A failed date is not a loaded date. Without this the guard above
+			// treats the failure as the answer, and every later visit to the tab
+			// returns the same blank — with no way to ask again.
+			lastNutritionDate = null;
 		} finally {
+			clearTimeout(deadline);
 			// Only clear loading if this is still the active request
 			if (nutritionAbort === controller) {
 				nutritionLoading = false;
 			}
 		}
+	}
+
+	function retryNutrition() {
+		if (store.selectedDateString) loadNutrition(store.selectedDateString);
 	}
 
 	// ── Derived helpers ────────────────────────────────────────────
@@ -70,6 +104,7 @@
 		// Reset nutrition cache so it re-fetches for the new date
 		lastNutritionDate = null;
 		nutritionData = null;
+		nutritionError = null;
 
 		if (hasTraining) {
 			activeTab = Tab.Training;
@@ -157,6 +192,8 @@
 					selectedDate={store.selectedDateString}
 					{nutritionDate}
 					{nutritionData}
+					error={nutritionError}
+					onRetry={retryNutrition}
 					isLoading={nutritionLoading || store.isLoading}
 				/>
 			{/if}
