@@ -31,6 +31,7 @@
 		cooldownBlockIndex,
 		chipSettings,
 		hasSetupFlags,
+		setupHeading,
 		isRun,
 		sessionSettings,
 		sessionSummary,
@@ -398,19 +399,25 @@
 			panel is recessed rather than outlined: the chips carry borders
 			already, and a box around them would stack one border on another.
 
-			"Your setup" names them by what makes them a group: the plan is the
-			coach's, these are the runner's. It sits as a peer of "Training
-			details" further down, which is the same distinction the other way up.
+			The heading names them by what makes them a group. “How you’ll run it”
+			sits as a peer of "Training details" further down the card, and the two
+			carry the whole split this screen is built on: the plan is the coach's,
+			how you run it is yours. See `setupHeading` for the cross-trained case,
+			which cannot borrow the verb.
 		-->
 		{#if setupLoading}
 			<div class="mt-3 rounded-lg bg-background/60 p-3">
-				<h4 class="mb-2 text-sm font-medium text-foreground">Your setup</h4>
+				<h4 class="mb-2 text-sm font-medium text-foreground">
+					{training ? setupHeading(training) : 'How you’ll run it'}
+				</h4>
 				<SetupRailLoading />
 			</div>
 		{:else if canShowSetup && setupTraining}
 			{#if railChips.length > 0}
 				<div class="mt-3 rounded-lg bg-background/60 p-3">
-					<h4 class="mb-2 text-sm font-medium text-foreground">Your setup</h4>
+					<h4 class="mb-2 text-sm font-medium text-foreground">
+						{setupHeading(setupTraining)}
+					</h4>
 					<SetupRail training={setupTraining} pending={detailStore.pending} onopen={openSetup} />
 				</div>
 			{/if}

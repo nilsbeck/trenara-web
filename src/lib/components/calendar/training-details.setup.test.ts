@@ -132,7 +132,7 @@ describe('training-details session setup', () => {
 		// The plan is the coach's; these are the runner's. The heading is what
 		// says so, and it sits as a peer of "Training details" — the sheet's own
 		// title carries the same name, hence the level.
-		const heading = screen.getByRole('heading', { level: 4, name: 'Your setup' });
+		const heading = screen.getByRole('heading', { level: 4, name: 'How you’ll run it' });
 		// Every chip lives inside it rather than floating on the card.
 		const panel = heading.parentElement!;
 		expect(panel.textContent).toContain('Treadmill · Flat');
@@ -161,7 +161,7 @@ describe('training-details session setup', () => {
 		});
 
 		await waitFor(() => expect(screen.getAllByText('Cycling').length).toBeGreaterThan(0));
-		expect(screen.queryByRole('heading', { level: 4, name: 'Your setup' })).toBeNull();
+		expect(screen.queryByRole('heading', { level: 4, name: /How you’ll/ })).toBeNull();
 		// The session is still replaceable — from its title, as always.
 		expect(screen.getByRole('button', { name: /Cycling/ })).toBeTruthy();
 		vi.unstubAllGlobals();

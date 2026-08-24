@@ -5,6 +5,7 @@ import {
 	SURFACES,
 	activityIcon,
 	activityLabel,
+	setupHeading,
 	chipSettings,
 	hasSetupFlags,
 	heightLabel,
@@ -824,6 +825,20 @@ describe('surfaces', () => {
 		// it — the registered label is what a session set elsewhere shows.
 		expect(surfaceLabel('track')).toBe('Athletics track');
 		expect(surfaceLabel('dirt_road')).toBe('Dirt road');
+	});
+});
+
+describe('setupHeading', () => {
+	it('names the panel for what the runner is deciding', () => {
+		// Not "settings" in the abstract — the surface, the shoes, the effort.
+		// It pairs with "Training details", the coach's half of the same split.
+		expect(setupHeading(tempoRun())).toBe('How you’ll run it');
+	});
+
+	it('drops the verb on a session that is not run', () => {
+		// The same heading over a bike ride would be plainly wrong, and there is
+		// no verb that covers all seven activities.
+		expect(setupHeading(bikeRide())).toBe('How you’ll do it');
 	});
 });
 

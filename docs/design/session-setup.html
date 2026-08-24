@@ -1295,7 +1295,7 @@
 			</div>
 			<div class="note">
 				<span class="k">Chip rail</span>
-				<h3>“Your setup”, and why it is a panel</h3>
+				<h3>“How you’ll run it”, and why it is a panel</h3>
 				<p>
 					The chips sit in a panel of their own, under a heading, rather than floating between
 					the identity strip and the coach’s message. They are one thing — the parts of this
@@ -1304,13 +1304,21 @@
 					carry borders already and a box would stack one border on another.
 				</p>
 				<p>
-					The heading names them by what makes them a group. <em>Your setup</em> sits as a peer
-					of <em>Training details</em> further down the card, and the pair carries the whole
-					distinction this screen is built on: the plan is the coach’s, the setup is yours.
-					That is why not <em>Session settings</em> — accurate, but it says only “these are
-					settings, and they are on a session”, which the reader can already see. It is also
-					why the panel disappears entirely on a session with nothing in it, rather than
-					showing a heading over an empty box.
+					The heading names them by what makes them a group. <em>How you’ll run it</em> sits as
+					a peer of <em>Training details</em> further down the card, and the pair carries the
+					whole distinction this screen is built on: the plan is the coach’s, how you run it
+					is yours. That is why not <em>Session settings</em> — accurate, but it says only
+					“these are settings, and they are on a session”, which the reader can already see.
+					A verb says what a noun cannot: these are the surface, the shoes, the effort, the
+					race strategy, not configuration in the abstract.
+				</p>
+				<p>
+					A cross-trained session cannot borrow the verb — the same heading over a bike ride
+					would be plainly wrong — and there is no verb that covers all seven activities
+					(“how you’ll cross-train it” is not English). So the non-run case drops to
+					<em>How you’ll do it</em>, which is never wrong for any of them. The panel also
+					disappears entirely on a session with nothing in it, rather than showing a heading
+					over an empty box.
 				</p>
 			</div>
 			<div class="note">
@@ -1690,6 +1698,17 @@
 		return sh.brand === 'Other' ? sh.name : sh.brand + ' ' + sh.name;
 	}
 
+	/**
+	 * What to call the setup panel. “How you’ll run it” says what the chips are
+	 * better than a noun does — not settings in the abstract, but the decisions
+	 * the coach left to the runner. A cross-trained session is not run, and
+	 * there is no verb covering all seven activities, so it drops to the neutral
+	 * form rather than claiming a bike ride is a run.
+	 */
+	function setupHeading() {
+		return s.cross_type ? 'How you’ll do it' : 'How you’ll run it';
+	}
+
 	/** Label for a cross_type. Unregistered types fall back to their own name. */
 	function activityLabel(ct) {
 		for (var i = 0; i < ACTIVITIES.length; i++) {
@@ -1898,7 +1917,8 @@
 				'</div>' +
 			'</div>' +
 			(chipDefs().length
-				? '<div class="setup"><h4>Your setup</h4><div class="rail">' + renderRail() + '</div></div>'
+				? '<div class="setup"><h4>' + esc(setupHeading()) + '</h4>' +
+					'<div class="rail">' + renderRail() + '</div></div>'
 				: '') +
 			'<div class="coach">' + ic('i-chat', 15) + '<p>' + esc(s.description) + '</p></div>' +
 			'<div class="blocks"><h4>Training details</h4>' + blocksHtml + '</div>';
@@ -2103,7 +2123,7 @@
 	}
 
 	var VIEWS = {
-		index: { title: 'Your setup', body: viewIndex },
+		index: { title: setupHeading, body: viewIndex },
 		terrain: { title: 'Terrain', body: viewTerrain },
 		effort: { title: 'Fine-tune intensity', body: function () { return viewSteps('effort'); } },
 		volume: { title: 'Fine-tune distance', body: function () { return viewSteps('volume'); } },
@@ -2128,7 +2148,8 @@
 	function render() {
 		cardBody.innerHTML = renderCard();
 		if (view) {
-			sheetTitle.textContent = VIEWS[view].title;
+			var t = VIEWS[view].title;
+			sheetTitle.textContent = typeof t === 'function' ? t() : t;
 			sheetBody.innerHTML = VIEWS[view].body();
 			sheetBack.hidden = view === 'index';
 			sheet.classList.add('open');

@@ -290,6 +290,25 @@ export function hasSetupFlags(training: ScheduledTraining): boolean {
 	);
 }
 
+/**
+ * What to call the setup panel on this session.
+ *
+ * “How you’ll run it” says what the chips are better than a noun does: not
+ * settings in the abstract, but the decisions the coach left to the runner —
+ * the surface, the shoes, the effort, the race strategy. It also pairs with
+ * "Training details" further down the card, which is the coach's half of the
+ * same split.
+ *
+ * A cross-trained session is not run, so it cannot borrow the verb: the same
+ * heading over a bike ride would be plainly wrong. Rather than a verb per
+ * activity — there are seven, and “how you’ll cross-train it” is not English —
+ * the non-run case drops to the neutral form, which is never wrong for any of
+ * them.
+ */
+export function setupHeading(training: ScheduledTraining): string {
+	return isRun(training) ? 'How you’ll run it' : 'How you’ll do it';
+}
+
 /** True when the training is a run rather than a cross-trained session. */
 export function isRun(training: ScheduledTraining): boolean {
 	return !training.cross_type;
