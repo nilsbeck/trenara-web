@@ -3,6 +3,7 @@ import {
 	type NutritionMeal,
 	dailyTotals,
 	energyAmount,
+	energyUnit,
 	formatAmount,
 	macroAmounts,
 	macroColumns,
@@ -169,6 +170,59 @@ describe('energyAmount', () => {
 
 	it('is null for a day with no macros at all', () => {
 		expect(energyAmount([])).toBeNull();
+	});
+});
+
+/*
+	The shape this API actually answers in: the energy column is named for its
+	unit ("Kcal") and every one of its values carries a null `value_unit`, while
+	the macros carry "gr".
+*/
+describe('a day named for its units', () => {
+	const day = (): NutritionMeal[] => [
+		meal('Breakfast', 1, 23, [
+			['Kcal', 729, null as unknown as string],
+			['Carbs', 119, 'gr'],
+			['Proteins', 25, 'gr']
+		]),
+		meal('Dinner', 2, 77, [
+			['Kcal', 955, null as unknown as string],
+			['Carbs', 140, 'gr'],
+			['Proteins', 25, 'gr']
+		])
+	];
+
+	it('finds the energy column by its name when it has no unit', () => {
+		expect(energyAmount(dailyTotals(day()))).toMatchObject({ name: 'Kcal', value: 1684 });
+	});
+
+	it('prints the headline in the unit the column is named for', () => {
+		expect(energyUnit(energyAmount(dailyTotals(day())))).toBe('kcal');
+	});
+
+	it('leaves the macros to the breakdown', () => {
+		expect(macroAmounts(dailyTotals(day())).map((m) => m.name)).toEqual(['Carbs', 'Proteins']);
+	});
+});
+
+describe('energyUnit', () => {
+	const column = (name: string, unit: string) => ({ name, unit, order: 1, value: 1 });
+
+	it('uses the unit the values carry', () => {
+		expect(energyUnit(column('Energy', 'kcal'))).toBe('kcal');
+	});
+
+	it('falls back to the column name when that is the unit', () => {
+		expect(energyUnit(column('Kcal', ''))).toBe('kcal');
+		expect(energyUnit(column('kJ', ''))).toBe('kj');
+	});
+
+	it('says nothing rather than printing a name that is not a unit', () => {
+		expect(energyUnit(column('Energy', ''))).toBe('');
+	});
+
+	it('says nothing for a day with no energy column', () => {
+		expect(energyUnit(null)).toBe('');
 	});
 });
 

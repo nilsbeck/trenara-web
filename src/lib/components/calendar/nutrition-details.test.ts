@@ -92,6 +92,35 @@ describe('NutritionDetails', () => {
 		expect(screen.getByText('40% of day')).toBeInTheDocument();
 	});
 
+	it('prints the headline unit when the API names the column for it', () => {
+		renderTab(
+			advice({
+				plan: [
+					{
+						type: 'meal',
+						order: 1,
+						icon: '',
+						icon_background_color: '#e11d48',
+						title: 'Breakfast',
+						percentage: 100,
+						values: [{ name: 'Kcal', value: 729, order: 1, value_unit: null }]
+					}
+				]
+			} as unknown as Partial<NutritionAdvice>)
+		);
+		const total = screen.getByText('Total for the day').closest('div')!;
+		expect(within(total).getByText('729')).toBeInTheDocument();
+		expect(within(total).getByText('kcal')).toBeInTheDocument();
+	});
+
+	it('puts the standing preamble after the numbers, not before them', () => {
+		const { container } = renderTab(advice());
+		const text = container.textContent ?? '';
+		expect(text.indexOf('Total for the day')).toBeLessThan(
+			text.indexOf('A training day with a hard session.')
+		);
+	});
+
 	it('keeps the coach’s note', () => {
 		renderTab(advice());
 		expect(screen.getByText(/Front-load your carbohydrates/)).toBeInTheDocument();

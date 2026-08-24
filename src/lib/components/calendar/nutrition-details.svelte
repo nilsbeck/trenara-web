@@ -5,6 +5,7 @@
 		energyAmount,
 		formatAmount,
 		macroAmounts,
+		energyUnit,
 		macroColumns,
 		mealAmount,
 		mealShares,
@@ -32,6 +33,7 @@
 	const columns = $derived(macroColumns(meals));
 	const totals = $derived(dailyTotals(meals));
 	const energy = $derived(energyAmount(totals));
+	const energyLabel = $derived(energyUnit(energy));
 	const macros = $derived(macroAmounts(totals));
 	const shares = $derived(mealShares(meals));
 
@@ -88,11 +90,6 @@
 			<p class="mt-0.5 text-xs text-muted-foreground">{nutritionDate ?? selectedDate}</p>
 		</div>
 
-		<!-- Description -->
-		{#if nutritionData.description}
-			<p class="text-sm leading-relaxed text-muted-foreground">{nutritionData.description}</p>
-		{/if}
-
 		{#if meals.length > 0}
 			<!--
 				The day's totals, before the meals that make them up.
@@ -110,7 +107,9 @@
 						<span class="text-3xl font-semibold tabular-nums text-foreground">
 							{formatAmount(energy.value)}
 						</span>
-						<span class="text-sm font-medium text-muted-foreground">{energy.unit}</span>
+						{#if energyLabel}
+							<span class="text-sm font-medium text-muted-foreground">{energyLabel}</span>
+						{/if}
 					</p>
 					{#if macros.length > 0}
 						<dl class="mt-3 border-t border-border pt-3 {macroGrid}">
@@ -149,16 +148,6 @@
 						{@const carries = columns.some((column) => mealAmount(meal, column) !== null)}
 						<div class="rounded-lg border border-border bg-background/40 p-3">
 							<div class="flex items-center gap-2">
-								<!--
-									The colour is the server's, per meal, and is the same one the
-									mobile app paints. It stays a marker rather than becoming text
-									or a fill behind text: several of those hues fail contrast on
-									this ground.
-								-->
-								<span
-									class="h-4 w-[3px] shrink-0 rounded-full"
-									style="background-color: {meal.icon_background_color}"
-								></span>
 								<span class="min-w-0 flex-1 truncate text-sm font-medium text-foreground">
 									{meal.title}
 								</span>
@@ -170,6 +159,27 @@
 									</span>
 								{/if}
 							</div>
+							<!--
+								The share as a bar, not only as a number.
+
+								This carries the server's colour, which is where the rail that
+								used to sit beside the title carried it — and every meal on a day
+								comes back the same colour, so as a rail it marked the row
+								without telling a runner anything. Six meals between 7% and 30%
+								have a shape, and reading it off six right-aligned percentages is
+								work the bar does at a glance.
+							-->
+							{#if shares[index] > 0}
+								<div class="mt-2 h-1 overflow-hidden rounded-full bg-muted">
+									<div
+										class="h-full rounded-full"
+										style="width: {Math.min(
+											shares[index],
+											100
+										)}%; background-color: {meal.icon_background_color}"
+									></div>
+								</div>
+							{/if}
 							<!--
 								A meal the API sends without any figures gets its name and
 								nothing else. Laid out against the day's macros it became a
@@ -204,10 +214,18 @@
 		{/if}
 
 		<!--
-			The coach's note sits under the numbers rather than above them: it reads
-			as guidance on the plan, and floating it between the title and the totals
-			pushed the one figure this tab exists for below the fold.
+			The prose sits under the numbers rather than above them.
+
+			Both of these read as guidance on the plan, and the standing preamble in
+			particular runs to a paragraph that says the same thing every day — six
+			lines of it between the title and the totals put the one figure this tab
+			exists for below the fold, which is the whole thing it was rebuilt to
+			stop doing.
 		-->
+		{#if nutritionData.description}
+			<p class="text-sm leading-relaxed text-muted-foreground">{nutritionData.description}</p>
+		{/if}
+
 		{#if nutritionData.advice}
 			<div
 				class="flex items-start gap-2 rounded-lg border-l-2 border-primary bg-primary/5 px-3 py-2"

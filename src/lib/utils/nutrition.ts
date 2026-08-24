@@ -98,17 +98,45 @@ export function dailyTotals(plan: NutritionMeal[] | null | undefined): MacroAmou
 	}));
 }
 
+/** kcal, cal, kJ — however the column happens to say it. */
+const ENERGY_UNIT = /^(kcal|cal|kj)$/i;
+
 /**
  * The energy column — the one that belongs at the top of the card as the day's
  * headline number, with the rest reading as its composition.
  *
- * Matched on the unit rather than the name so it survives the API answering in
- * another language, which it does for meal titles already.
+ * Matched on the unit or the name rather than the name alone, so it survives
+ * the API answering in another language — which it does for meal titles
+ * already — and so it still lands when the column is named for its unit and
+ * carries none, which is how this API sends it: a "Kcal" column whose every
+ * `value_unit` is null.
  */
 export function energyAmount(totals: MacroAmount[]): MacroAmount | null {
 	return (
-		totals.find((total) => /^(kcal|cal|kj)$/i.test(text(total.unit).trim())) ?? totals[0] ?? null
+		totals.find(
+			(total) =>
+				ENERGY_UNIT.test(text(total.unit).trim()) || ENERGY_UNIT.test(text(total.name).trim())
+		) ??
+		totals[0] ??
+		null
 	);
+}
+
+/**
+ * What to print beside the day's energy figure.
+ *
+ * The headline is labelled "Total for the day", so unlike the columns in the
+ * breakdown it does not name the quantity anywhere else — a bare "3,148" is
+ * the one number on this tab that has to carry its own unit. When the API
+ * leaves `value_unit` null and puts the unit in the column name instead, the
+ * name is the unit.
+ */
+export function energyUnit(energy: MacroAmount | null): string {
+	if (!energy) return '';
+	const unit = text(energy.unit).trim();
+	if (unit) return unit;
+	const name = text(energy.name).trim();
+	return ENERGY_UNIT.test(name) ? name.toLowerCase() : '';
 }
 
 /** The totals that are not the headline energy figure. */
