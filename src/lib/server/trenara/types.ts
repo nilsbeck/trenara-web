@@ -210,7 +210,26 @@ export interface Entry {
 	pace: string;
 	pace_value: number;
 	pace_unit: string;
-	gps_media: object[];
+	/** Whether a shoe can be attached to this entry. */
+	allow_shoe: boolean;
+	/** Whether the client should prompt for feedback on this entry. */
+	ask_feedback: boolean;
+	/** The activity when the session was swapped away from running. `null` for a run. See `CROSS_TYPES`. */
+	cross_type: string | null;
+	/**
+	 * How a cross-trained session's load appears to be accounted for: an
+	 * activity with no pace to score against a threshold is expressed as a
+	 * share of what was planned, bounded by `percentage_range` from the app
+	 * config.
+	 *
+	 * Inferred from the field names and that bound — every capture so far is a
+	 * run, where all three are `null`. One capture after a logged swim or ride
+	 * would confirm it.
+	 */
+	cross_percentage: number | null;
+	cross_percentage_min: number | null;
+	cross_percentage_max: number | null;
+	gps_media: MediaFile[];
 	notification: {
 		id: number;
 		title: string;
