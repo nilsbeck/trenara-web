@@ -20,6 +20,22 @@ describe('impliedDistanceKm', () => {
 		expect(impliedDistanceKm('00:35:00', '05:00')).toBe(7);
 	});
 
+	it('holds one goal at one distance despite the stored pace rounding', () => {
+		// Real rows from one goal, days apart. The pace is stored to the whole
+		// second, so the same goal divides out as 41.06 one day and 41.14 the
+		// next — and reading those as different distances moved the converted
+		// time by six seconds for no reason at all.
+		const sameGoal = [
+			impliedDistanceKm('02:59:58', '04:23'),
+			impliedDistanceKm('03:00:30', '04:24'),
+			impliedDistanceKm('03:00:12', '04:23'),
+			impliedDistanceKm('03:08:33', '04:35')
+		];
+
+		expect(new Set(sameGoal).size).toBe(1);
+		expect(sameGoal[0]).toBe(41);
+	});
+
 	it('has nothing to say about a malformed pair', () => {
 		expect(impliedDistanceKm('01:03:12', '00:00')).toBeNull();
 		expect(impliedDistanceKm('nonsense', '04:12')).toBeNull();
@@ -75,4 +91,34 @@ describe('raceEquivalent', () => {
 	it('uses the measured exponent by default', () => {
 		expect(RIEGEL_EXPONENT).toBeCloseTo(1.071, 3);
 	});
+});
+
+describe('a real series across a goal change', () => {
+	/**
+	 * Recorded either side of a switch from a 41 km goal to an 18 km one, six
+	 * days apart. The raw goal-distance series is useless across that seam;
+	 * converting is the whole reason the equivalent exists.
+	 */
+	const before = { time: '03:00:12', pace: '04:23' };
+	const after = { time: '01:16:18', pace: '04:14' };
+
+	it('turns a 58% cliff into six days of drift', () => {
+		const rawDrop =
+			(timeStringToSecondsLocal(before.time) - timeStringToSecondsLocal(after.time)) /
+			timeStringToSecondsLocal(before.time);
+		expect(rawDrop).toBeGreaterThan(0.5);
+
+		const a = raceEquivalent(before.time, before.pace)!;
+		const b = raceEquivalent(after.time, after.pace)!;
+
+		// Within a few per cent, and in the direction six days off training would
+		// take it — not a fitness cliff the runner never fell off.
+		expect(Math.abs(b.seconds - a.seconds) / a.seconds).toBeLessThan(0.03);
+		expect(b.seconds).toBeGreaterThan(a.seconds);
+	});
+
+	function timeStringToSecondsLocal(t: string): number {
+		const [h, m, s] = t.split(':').map(Number);
+		return h * 3600 + m * 60 + s;
+	}
 });

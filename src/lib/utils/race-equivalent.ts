@@ -22,6 +22,18 @@ const STANDARD_DISTANCES = [
 const SNAP_TOLERANCE = 0.015;
 
 /**
+ * Everything else rounds to this, in km.
+ *
+ * The stored pace is a whole number of seconds, so the same goal divides out a
+ * little differently from day to day — a real series read 41.06 one day and
+ * 41.14 the next, flipping between 41.0 and 41.1 and moving the converted time
+ * by six seconds for no reason at all. Half a kilometre is coarse enough to
+ * hold one goal at one distance, and costs at most a fraction of a percent on a
+ * goal that genuinely sits between the marks.
+ */
+const ROUND_TO_KM = 0.5;
+
+/**
  * The distance a stored prediction was about, in km.
  *
  * Nothing records it — but a time and a pace imply it, and the pair is stored.
@@ -38,7 +50,7 @@ export function impliedDistanceKm(time: string, pace: string): number | null {
 
 	const raw = seconds / perKm;
 	const standard = STANDARD_DISTANCES.find((d) => Math.abs(raw - d) / d <= SNAP_TOLERANCE);
-	return standard ?? Math.round(raw * 10) / 10;
+	return standard ?? Math.round(raw / ROUND_TO_KM) * ROUND_TO_KM;
 }
 
 /**
