@@ -40,13 +40,24 @@
 	}
 </script>
 
-<div class="flex flex-col items-center justify-center md:flex-row">
-	<div class="flex flex-col items-start justify-center md:flex-row md:space-x-6">
-		<div class="flex flex-col items-center md:flex-row">
+<!--
+	Side by side at `lg`, not `md`. Both columns are 28rem, so the pair needs
+	920px before the gap — more than the 768px `md` was letting them try, which
+	pushed the second column off the side of the viewport.
+-->
+<div class="flex flex-col items-center justify-center lg:flex-row">
+	<div class="flex flex-col items-start justify-center lg:flex-row lg:space-x-6">
+		<div class="flex flex-col items-center lg:flex-row">
 			<Calendar today={new Date()} schedule={data.schedule} {refreshPageData} />
 		</div>
 
-		<div class="hidden space-y-6 sm:block">
+		<!--
+			A definite width, matching the calendar beside it. Without one this
+			column is sized by its content, which means by the widest thing the
+			cards happen to contain — and the cards line up with the calendar only
+			by coincidence.
+		-->
+		<div class="hidden w-[28rem] min-w-0 max-w-full space-y-6 sm:block">
 			{#if goal && userStats}
 				<GoalCard {goal} {userStats} />
 				<PredictionsCard {userStats} />

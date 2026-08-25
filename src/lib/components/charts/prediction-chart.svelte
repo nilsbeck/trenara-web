@@ -238,7 +238,13 @@
 	}
 </script>
 
-<div class="w-full" bind:clientWidth={containerWidth}>
+<!--
+	`min-w-0` so this can be measured rather than measure itself. As a flex or
+	grid item it would otherwise be sized by its own content, and its content is
+	an SVG sized from this measurement — a loop that settles on whatever width
+	the state happened to start at and never moves again.
+-->
+<div class="w-full min-w-0" bind:clientWidth={containerWidth}>
 	{#if loading}
 		<div class="flex items-center justify-center py-16">
 			<Loader2 class="h-5 w-5 animate-spin text-muted-foreground" />
@@ -291,11 +297,18 @@
 			{/each}
 		</div>
 
-		<!-- SVG Chart -->
+		<!--
+			Drawn through a viewBox at 100% width rather than at a pixel width, so
+			the chart scales to whatever it is given and contributes no intrinsic
+			width of its own. A pixel width here makes the SVG the widest thing in
+			any content-sized container, which is how the card came to be as wide
+			as this component's initial guess.
+		-->
 		<svg
-			width={containerWidth}
+			viewBox="0 0 {Math.max(containerWidth, 1)} {HEIGHT}"
+			width="100%"
 			height={HEIGHT}
-			class="select-none"
+			class="block max-w-full select-none"
 			role="img"
 			aria-label="Prediction progress chart"
 		>
