@@ -2,6 +2,13 @@
 	import { Loader2, TrendingDown } from 'lucide-svelte';
 	import { secondsToTimeString, secondsToPaceString, formatDateShort } from '$lib/utils/format';
 
+	export interface ProjectionSeries {
+		label: string;
+		colour: string;
+		/** Dates with a predicted time in seconds, in order. */
+		points: { date: string; seconds: number }[];
+	}
+
 	export interface ChartDataPoint {
 		date: string;
 		predictedTime: number;
@@ -16,7 +23,9 @@
 		error = null,
 		timeLabel = 'Predicted Time',
 		paceLabel = 'Predicted Pace',
-		domainEnd = null
+		domainEnd = null,
+		projections = [],
+		reference = null
 	}: {
 		data: ChartDataPoint[];
 		loading?: boolean;
@@ -32,6 +41,17 @@
 		 * here.
 		 */
 		domainEnd?: Date | null;
+		/**
+		 * Lines drawn past the recorded history, dashed and named on the line
+		 * itself rather than in the legend — the legend describes what the chart
+		 * measures, and a projection is not a measurement.
+		 *
+		 * Time series only: a projected pace would be the same claim twice, and
+		 * the second one is not worth the ink.
+		 */
+		projections?: ProjectionSeries[];
+		/** A horizontal line to read the series against — the goal's own time. */
+		reference?: { seconds: number; label: string } | null;
 	} = $props();
 
 	// Layout constants
@@ -48,7 +68,12 @@
 	// ── Scale extents ──────────────────────────────────────────────
 	const timeExtent = $derived.by(() => {
 		if (data.length === 0) return { min: 0, max: 1 };
-		const vals = data.map((d) => d.predictedTime);
+		// Everything drawn, or a projection leaves the frame without saying so.
+		const vals = [
+			...data.map((d) => d.predictedTime),
+			...projections.flatMap((p) => p.points.map((pt) => pt.seconds)),
+			...(reference ? [reference.seconds] : [])
+		];
 		const min = Math.min(...vals);
 		const max = Math.max(...vals);
 		const pad = (max - min) * 0.12 || 60;
@@ -169,6 +194,18 @@
 
 	const BLUE = '#2563eb';
 	const RED = '#dc2626';
+
+	function projectionPath(series: ProjectionSeries): string {
+		return series.points
+			.map((p, i) => `${i === 0 ? 'M' : 'L'}${xAt(new Date(p.date).getTime())},${timeY(p.seconds)}`)
+			.join(' ');
+	}
+
+	/** Where a projection's label sits: at its far end, clear of the line. */
+	function labelAt(series: ProjectionSeries) {
+		const last = series.points[series.points.length - 1];
+		return { x: xAt(new Date(last.date).getTime()), y: timeY(last.seconds) };
+	}
 </script>
 
 <div class="w-full" bind:clientWidth={containerWidth}>
@@ -273,6 +310,56 @@
 						style="font-size:10px"
 					>
 						{label}
+					</text>
+				{/each}
+
+				<!-- The goal itself, to read the series against -->
+				{#if reference}
+					{@const ry = timeY(reference.seconds)}
+					<line
+						x1={0}
+						y1={ry}
+						x2={cw}
+						y2={ry}
+						stroke="currentColor"
+						class="text-muted-foreground"
+						stroke-dasharray="6,4"
+						opacity="0.7"
+					/>
+					<text
+						x={cw}
+						y={ry - 5}
+						text-anchor="end"
+						class="fill-current text-muted-foreground"
+						style="font-size:9px"
+					>
+						{reference.label}
+					</text>
+				{/if}
+
+				<!--
+					Projections, under the recorded line so they never obscure it, and
+					named on the line: dashes say "different", they do not say "this
+					one is our arithmetic rather than a figure anybody measured".
+				-->
+				{#each projections as series (series.label)}
+					{@const end = labelAt(series)}
+					<path
+						d={projectionPath(series)}
+						fill="none"
+						stroke={series.colour}
+						stroke-width="2"
+						stroke-dasharray="5,4"
+						stroke-linecap="round"
+						opacity="0.9"
+					/>
+					<text
+						x={end.x}
+						y={end.y - 6}
+						text-anchor="end"
+						style="font-size:9px;fill:{series.colour}"
+					>
+						{series.label}
 					</text>
 				{/each}
 

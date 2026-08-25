@@ -2,6 +2,8 @@
 	import type { Goal, UserStats } from '$lib/server/trenara/types';
 	import { onMount } from 'svelte';
 	import { Trophy, Calendar, Target } from 'lucide-svelte';
+	import { linearTrend, project, complianceRate } from '$lib/utils/projection';
+	import { readPlanWeeks } from '$lib/utils/plan-weeks';
 	import PredictionChart, {
 		type ChartDataPoint
 	} from '$lib/components/charts/prediction-chart.svelte';
@@ -61,6 +63,44 @@
 			ahead: predictedSeconds < goalSeconds
 		};
 	});
+
+	/**
+	 * Where the prediction lands on race day, drawn two ways.
+	 *
+	 * Both are arithmetic on past behaviour rather than a figure the API gives,
+	 * and each line says so where it ends. Nothing is drawn at all below a real
+	 * stretch of history — see `linearTrend`.
+	 *
+	 * The gap between the two is what the missed weeks cost: one carries the rate
+	 * the runner has actually managed, the other the rate that completing the
+	 * rest of the plan might buy.
+	 */
+	const raceDay = $derived(goal.end_date ? new Date(goal.end_date) : null);
+
+	const projections = $derived.by(() => {
+		if (!raceDay || isPast || chartData.length === 0) return [];
+
+		const trend = linearTrend(chartData.map((d) => ({ date: d.date, seconds: d.predictedTime })));
+		if (!trend) return [];
+
+		const plan = readPlanWeeks(userStats?.graph_stats?.goal);
+		const rate = complianceRate(plan.totalCompletedKm, plan.totalPlannedKm);
+
+		const asIs = project(trend, raceDay, { label: 'projected · current rate' });
+		const asPlanned =
+			rate > 1 ? project(trend, raceDay, { label: 'projected · plan completed', rate }) : null;
+
+		return [
+			...(asIs ? [{ label: asIs.label, colour: '#94a3b8', points: asIs.points }] : []),
+			...(asPlanned
+				? [{ label: asPlanned.label, colour: '#22c55e', points: asPlanned.points }]
+				: [])
+		];
+	});
+
+	const goalReference = $derived(
+		goal.time_in_sec ? { seconds: goal.time_in_sec, label: `Goal ${goal.time}` } : null
+	);
 
 	// ── Prediction history & chart ─────────────────────────────────
 	let chartData = $state<ChartDataPoint[]>([]);
@@ -356,7 +396,14 @@
 			<div class="mb-2">
 				<h3 class="text-sm font-medium text-muted-foreground">Prediction Progress</h3>
 			</div>
-			<PredictionChart data={chartData} loading={chartLoading} error={chartError} />
+			<PredictionChart
+				data={chartData}
+				loading={chartLoading}
+				error={chartError}
+				domainEnd={raceDay}
+				{projections}
+				reference={goalReference}
+			/>
 		</div>
 	{/if}
 </div>
