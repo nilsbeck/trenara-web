@@ -6,6 +6,12 @@
 		type ChartDataPoint
 	} from '$lib/components/charts/prediction-chart.svelte';
 	import { timeStringToSeconds, paceStringToSeconds } from '$lib/utils/format';
+	import {
+		readPlanWeeks,
+		upcomingWeeks,
+		planWeekWarning,
+		weeksAwayLabel
+	} from '$lib/utils/plan-weeks';
 
 	let { goal, userStats }: { goal: Goal; userStats: UserStats } = $props();
 
@@ -29,6 +35,20 @@
 
 	const formattedEndDate = $derived(
 		endDate.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })
+	);
+
+	// ── What the plan asks next ────────────────────────────────────
+	//
+	// The whole plan, future weeks included, is in the stats response this card
+	// already receives, so the weeks that change what a runner should do can be
+	// named before they start rather than discovered on the Monday morning.
+	const planWeeks = $derived(readPlanWeeks(userStats?.graph_stats?.goal));
+	const ahead = $derived(
+		planWeeks.weeks.length > 0
+			? upcomingWeeks(planWeeks, now)
+					.map((u) => ({ ...u, warning: planWeekWarning(u.week) }))
+					.filter((u) => u.warning !== null)
+			: []
 	);
 
 	// ── Prediction history & chart ─────────────────────────────────
@@ -231,6 +251,29 @@
 			<span class="text-border">|</span>
 			<span>{weeksRemaining} weeks remaining</span>
 		</div>
+
+		<!--
+			Weeks ahead worth knowing about before they start. Ours, read off the
+			plan's volume curve rather than sent by the API, and phrased as advice
+			because the direction is what makes it useful: the weeks that want less
+			are as easy to get wrong as the weeks that want more.
+		-->
+		{#if !isPast && ahead.length > 0}
+			<div class="mb-6 flex flex-col gap-2">
+				{#each ahead as item (item.week.startsOn.getTime())}
+					<div
+						class="rounded-md border-l-2 bg-muted/40 py-2 pl-3 pr-2 text-sm"
+						class:border-primary={item.warning?.direction === 'complete'}
+						class:border-border={item.warning?.direction !== 'complete'}
+					>
+						<span class="font-medium text-card-foreground">
+							{weeksAwayLabel(item.weeksAway)} is {item.warning?.headline}.
+						</span>
+						<span class="text-muted-foreground">{item.warning?.advice}</span>
+					</div>
+				{/each}
+			</div>
+		{/if}
 
 		<!-- Pace / Time table -->
 		{#if userStats?.best_times}

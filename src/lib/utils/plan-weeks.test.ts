@@ -1,5 +1,12 @@
 import { describe, it, expect } from 'vitest';
-import { readPlanWeeks, planWeekFor, isoWeekStart } from './plan-weeks';
+import {
+	readPlanWeeks,
+	planWeekFor,
+	upcomingWeeks,
+	planWeekWarning,
+	weeksAwayLabel,
+	isoWeekStart
+} from './plan-weeks';
 import type { UserStats } from '$lib/server/trenara/types';
 
 type GoalSeries = UserStats['graph_stats']['goal'];
@@ -167,5 +174,66 @@ describe('isoWeekStart', () => {
 		expect(isoWeekStart(2026, 27)).toEqual(new Date(2026, 5, 29));
 		// Week 1 of 2026 starts in the previous December.
 		expect(isoWeekStart(2026, 1)).toEqual(new Date(2025, 11, 29));
+	});
+});
+
+describe('upcomingWeeks', () => {
+	const plan = readPlanWeeks(referenceSeries());
+	// The Wednesday of week 35, which is a recovery week already under way.
+	const midWeek35 = new Date(2026, 7, 26);
+
+	it('warns about the weeks that change what to do, soonest first', () => {
+		const ahead = upcomingWeeks(plan, midWeek35);
+
+		expect(ahead.map((u) => u.week.week)).toEqual([36, 39]);
+		expect(ahead[0].weeksAway).toBe(1);
+		expect(ahead[1].weeksAway).toBe(4);
+	});
+
+	it('leaves out the week already under way', () => {
+		// A recovery week you are three days into is not a warning any more.
+		expect(upcomingWeeks(plan, midWeek35).map((u) => u.week.week)).not.toContain(35);
+	});
+
+	it('never returns an ordinary week', () => {
+		const ahead = upcomingWeeks(plan, new Date(2026, 6, 20), 10);
+		expect(ahead.every((u) => u.week.role !== 'steady')).toBe(true);
+	});
+
+	it('has nothing to say once the plan is behind you', () => {
+		expect(upcomingWeeks(plan, new Date(2026, 9, 5))).toEqual([]);
+	});
+
+	it('names the distance the way a person would', () => {
+		expect(weeksAwayLabel(1)).toBe('Next week');
+		expect(weeksAwayLabel(4)).toBe('In 4 weeks');
+	});
+});
+
+describe('planWeekWarning', () => {
+	const plan = readPlanWeeks(referenceSeries());
+	const warn = (week: number) => planWeekWarning(plan.weeks.find((w) => w.week === week)!);
+
+	it('says what is coming and what to do about it', () => {
+		expect(warn(32)).toEqual({
+			headline: 'the biggest week of the plan, at 64 km',
+			advice: 'Worth clearing the diary for.',
+			direction: 'complete'
+		});
+		expect(warn(36)?.headline).toBe('a step up to 56 km, 50% above the week before');
+	});
+
+	it('tells a runner to leave an easy week alone', () => {
+		// The failure mode of a down week is doing more, and the runner most
+		// likely to do that is the one catching up.
+		expect(warn(35)).toMatchObject({
+			advice: 'The drop is deliberate — resist topping it up.',
+			direction: 'respect'
+		});
+		expect(warn(39)?.advice).toContain('Freshness now');
+	});
+
+	it('has nothing to say about an ordinary week', () => {
+		expect(warn(37)).toBeNull();
 	});
 });

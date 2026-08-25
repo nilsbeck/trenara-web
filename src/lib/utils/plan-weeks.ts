@@ -235,3 +235,88 @@ export function planWeekFor(plan: PlanWeeks, date: Date): PlanWeek | null {
 	const monday = mondayOf(date).getTime();
 	return plan.weeks.find((w) => w.startsOn.getTime() === monday) ?? null;
 }
+
+/** A week ahead that is worth knowing about before it starts. */
+export interface UpcomingWeek {
+	week: PlanWeek;
+	/** Whole weeks from the one containing `today`. Always 1 or more. */
+	weeksAway: number;
+}
+
+/**
+ * The weeks ahead worth a warning, soonest first.
+ *
+ * Only weeks that have not started: a peak week you are already three days into
+ * is news you cannot act on. Ordinary weeks are never returned — the point is
+ * to spend a reader's attention on the few weeks that change what they should
+ * do, and a list of every week ahead is a list nobody reads.
+ */
+export function upcomingWeeks(plan: PlanWeeks, today: Date, limit = 2): UpcomingWeek[] {
+	const thisMonday = mondayOf(today).getTime();
+
+	return plan.weeks
+		.filter((w) => w.role !== 'steady' && w.startsOn.getTime() > thisMonday)
+		.slice(0, limit)
+		.map((week) => ({
+			week,
+			weeksAway: Math.round((week.startsOn.getTime() - thisMonday) / (7 * DAY_MS))
+		}));
+}
+
+/** "Next week", "In 3 weeks" — how a warning names its distance. */
+export function weeksAwayLabel(weeksAway: number): string {
+	return weeksAway <= 1 ? 'Next week' : `In ${weeksAway} weeks`;
+}
+
+/** A week ahead, said in a sentence rather than a badge. */
+export interface PlanWeekWarning {
+	headline: string;
+	/** What to do about it. The part a badge cannot carry. */
+	advice: string;
+	direction: PlanWeekDirection;
+}
+
+/**
+ * How a week ahead should read on a card.
+ *
+ * Deliberately a sentence: "your biggest week" tells a runner something, a red
+ * dot does not. The advice half is what makes the direction actionable — the
+ * weeks that want less are as easy to get wrong as the weeks that want more,
+ * and are the ones a runner catching up will trample.
+ */
+export function planWeekWarning(week: PlanWeek): PlanWeekWarning | null {
+	const km = Math.round(week.plannedKm);
+	const shift = week.ramp === null ? null : Math.abs(Math.round((week.ramp - 1) * 100));
+
+	switch (week.role) {
+		case 'peak':
+			return {
+				headline: `the biggest week of the plan, at ${km} km`,
+				advice: 'Worth clearing the diary for.',
+				direction: week.direction
+			};
+		case 'build':
+			return {
+				headline:
+					shift === null
+						? `a step up, to ${km} km`
+						: `a step up to ${km} km, ${shift}% above the week before`,
+				advice: 'Plan the long one before the week starts.',
+				direction: week.direction
+			};
+		case 'recovery':
+			return {
+				headline: shift === null ? `an easier ${km} km` : `an easier ${km} km, down ${shift}%`,
+				advice: 'The drop is deliberate — resist topping it up.',
+				direction: week.direction
+			};
+		case 'taper':
+			return {
+				headline: `the taper, at ${km} km`,
+				advice: 'Freshness now, not fitness. Doing more costs you.',
+				direction: week.direction
+			};
+		default:
+			return null;
+	}
+}
