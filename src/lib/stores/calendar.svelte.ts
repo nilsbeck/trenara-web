@@ -94,13 +94,19 @@ type StatusIndex = {
 	scheduledStrength: Set<string>;
 	completedStrength: Set<string>;
 	/**
-	 * The colours the API picks per session, by date.
+	 * The colour the API picks per session, by date.
 	 *
 	 * Its own taxonomy — intervals come through red, easy runs blue — which is
 	 * worth more than anything we would invent, since it is the same one the
 	 * runner sees in the official app.
+	 *
+	 * `hex_training` whatever became of the session, so that one session is one
+	 * colour and the marker's shape is free to say whether it was run. The
+	 * `hex_completed` the API also sends is deliberately unused: it is null in
+	 * every capture so far, and a second colour for a session already drawn
+	 * would undo exactly that.
 	 */
-	runColours: Map<string, { training: string | null; completed: string | null }>;
+	runColours: Map<string, string>;
 };
 
 /** Build O(1) lookup sets from a schedule. Called once per schedule change. */
@@ -110,12 +116,12 @@ function buildStatusIndex(schedule: Schedule): StatusIndex {
 	const scheduledStrength = new Set<string>();
 	const completedStrength = new Set<string>();
 
-	const runColours = new Map<string, { training: string | null; completed: string | null }>();
+	const runColours = new Map<string, string>();
 
 	for (const t of schedule.trainings ?? []) {
 		const date = isoToDateString(t.day_long);
 		scheduledRuns.add(date);
-		runColours.set(date, { training: t.hex_training ?? null, completed: t.hex_completed ?? null });
+		if (t.hex_training) runColours.set(date, t.hex_training);
 	}
 	for (const s of schedule.strength_trainings ?? []) {
 		scheduledStrength.add(isoToDateString(s.day));
@@ -289,23 +295,22 @@ export function createCalendarStore(initialDate: Date, options: CalendarStoreOpt
 	}
 
 	/**
-	 * The colour to draw a day's run dot in, or null to fall back to the theme.
+	 * The colour to draw a day's run marker in, or null to fall back to the theme.
 	 *
-	 * Only the session's own character is coloured. A missed session keeps the
-	 * status colour, because that is a fact about the runner rather than about
-	 * the session, and a completed one falls back whenever the API sends no
-	 * completed colour — which it usually does.
+	 * The same colour whatever became of the session — done, missed or still
+	 * ahead — because the colour is what the session *is*. Whether it happened
+	 * is the marker's shape to say.
+	 *
+	 * Null on a day the plan never scheduled: a run logged off-plan has no
+	 * session colour to borrow, and falls back to the theme.
 	 */
 	function getRunColourForDate(day: number, status: TrainingStatus): string | null {
-		if (!statusIndex || status === 'none' || status === 'missed') return null;
+		if (!statusIndex || status === 'none') return null;
 
 		const year = currentDate.getFullYear();
 		const month = currentDate.getMonth();
 		const date = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-		const colours = statusIndex.runColours.get(date);
-		if (!colours) return null;
-
-		return (status === 'completed' ? colours.completed : colours.training) ?? null;
+		return statusIndex.runColours.get(date) ?? null;
 	}
 
 	function hasTrainingEntriesForDate(filter: TrainingFilter): boolean {

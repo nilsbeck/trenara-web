@@ -1577,31 +1577,33 @@ describe('getRunColourForDate', () => {
 		return store;
 	}
 
-	it('gives a scheduled session the colour the API chose for it', () => {
-		const store = storeWith([runOn('2025-03-20', '#CC3311')]);
+	it('gives a session one colour, whatever became of it', () => {
+		// Done, missed or still ahead, it is the same session — the marker's
+		// shape carries what happened to it.
+		const store = storeWith([runOn('2025-03-20', '#CC3311'), runOn('2025-03-05', '#CC3311')]);
+
 		expect(store.getRunColourForDate(20, 'scheduled')).toBe('#CC3311');
+		expect(store.getRunColourForDate(20, 'completed')).toBe('#CC3311');
+		expect(store.getRunColourForDate(5, 'missed')).toBe('#CC3311');
 	});
 
-	it('leaves a missed session to the status colour', () => {
-		// Missing a session is a fact about the runner, not about the session, so
-		// the theme keeps saying it.
-		const store = storeWith([runOn('2025-03-05', '#CC3311')]);
-		expect(store.getRunColourForDate(5, 'missed')).toBeNull();
-	});
-
-	it('falls back when the API sends no completed colour', () => {
-		const store = storeWith([runOn('2025-03-20', '#CC3311', null)]);
-		expect(store.getRunColourForDate(20, 'completed')).toBeNull();
-	});
-
-	it('uses the completed colour when there is one', () => {
+	it('ignores the completed colour the API also sends', () => {
+		// It is null in every capture so far, and a second colour for a session
+		// already drawn would undo the point of colouring it at all.
 		const store = storeWith([runOn('2025-03-20', '#CC3311', '#1BB9AA')]);
-		expect(store.getRunColourForDate(20, 'completed')).toBe('#1BB9AA');
+		expect(store.getRunColourForDate(20, 'completed')).toBe('#CC3311');
 	});
 
-	it('has nothing to say about a day with no session', () => {
+	it('has no colour to lend a day the plan never scheduled', () => {
+		// A run logged off-plan falls back to the theme's own status colours.
 		const store = storeWith([runOn('2025-03-20', '#CC3311')]);
-		expect(store.getRunColourForDate(21, 'scheduled')).toBeNull();
+
+		expect(store.getRunColourForDate(21, 'completed')).toBeNull();
 		expect(store.getRunColourForDate(20, 'none')).toBeNull();
+	});
+
+	it('has no colour when the session arrived without one', () => {
+		const store = storeWith([runOn('2025-03-20', null)]);
+		expect(store.getRunColourForDate(20, 'scheduled')).toBeNull();
 	});
 });
