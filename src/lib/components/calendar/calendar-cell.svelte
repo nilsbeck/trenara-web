@@ -70,10 +70,19 @@
 >
 	{#if isValidDay}
 		<span class="leading-none">{actualDay}</span>
+		<!--
+			Shape carries the status, colour carries the session.
+
+			Once the session's own colour is used, colour alone cannot also mean
+			"missed" — an intervals session and a missed one both come out red. So a
+			missed session is square and everything else is round, which survives
+			any palette the API sends and does not depend on telling two reds apart.
+		-->
 		<div class="mt-0.5 flex gap-0.5">
 			{#if runStatus !== 'none'}
 				<span
-					class="block h-1 w-1 rounded-full"
+					class="block h-1 w-1"
+					class:rounded-full={runStatus !== 'missed'}
 					class:bg-dot-scheduled={!runColour && runStatus === 'scheduled'}
 					class:bg-dot-completed={!runColour && runStatus === 'completed'}
 					class:bg-dot-missed={runStatus === 'missed'}
@@ -82,7 +91,8 @@
 			{/if}
 			{#if strengthStatus !== 'none'}
 				<span
-					class="block h-1 w-1 rounded-full"
+					class="block h-1 w-1"
+					class:rounded-full={strengthStatus !== 'missed'}
 					class:bg-dot-scheduled={strengthStatus === 'scheduled'}
 					class:bg-dot-completed={strengthStatus === 'completed'}
 					class:bg-dot-missed={strengthStatus === 'missed'}
