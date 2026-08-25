@@ -8,7 +8,8 @@ import {
 	secondsToPaceString,
 	formatDateShort,
 	paceToKmh,
-	formatSpeedKmh
+	formatSpeedKmh,
+	formatSignedDuration
 } from './format';
 
 // ─────────────────────────────────────────────────────────────
@@ -267,5 +268,27 @@ describe('formatSpeedKmh', () => {
 
 	it('returns null for a negative speed', () => {
 		expect(formatSpeedKmh(-5)).toBeNull();
+	});
+});
+
+describe('formatSignedDuration', () => {
+	it('always shows which way the difference goes', () => {
+		// A gap that reads the same behind as ahead tells a runner nothing.
+		expect(formatSignedDuration(432)).toBe('+7:12');
+		expect(formatSignedDuration(-432)).toBe('−7:12');
+	});
+
+	it('drops to seconds when minutes would be noise', () => {
+		expect(formatSignedDuration(45)).toBe('+45s');
+		expect(formatSignedDuration(-9)).toBe('−9s');
+	});
+
+	it('carries hours when there are any', () => {
+		expect(formatSignedDuration(3725)).toBe('+1:02:05');
+	});
+
+	it('calls a dead heat what it is', () => {
+		expect(formatSignedDuration(0)).toBe('even');
+		expect(formatSignedDuration(0.4)).toBe('even');
 	});
 });

@@ -5,7 +5,11 @@
 	import PredictionChart, {
 		type ChartDataPoint
 	} from '$lib/components/charts/prediction-chart.svelte';
-	import { timeStringToSeconds, paceStringToSeconds } from '$lib/utils/format';
+	import {
+		timeStringToSeconds,
+		paceStringToSeconds,
+		formatSignedDuration
+	} from '$lib/utils/format';
 
 	let { goal, userStats }: { goal: Goal; userStats: UserStats } = $props();
 
@@ -30,6 +34,33 @@
 	const formattedEndDate = $derived(
 		endDate.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })
 	);
+
+	/**
+	 * How far the current prediction sits from the goal itself.
+	 *
+	 * Both numbers were already on this card, in adjacent rows, and nobody was
+	 * doing the subtraction. Positive is behind the goal.
+	 */
+	const gap = $derived.by(() => {
+		const predicted = userStats?.best_times?.time_for_goal;
+		if (!predicted || !goal.time) return null;
+
+		const predictedSeconds = timeStringToSeconds(predicted);
+		const goalSeconds = goal.time_in_sec || timeStringToSeconds(goal.time);
+		if (!predictedSeconds || !goalSeconds) return null;
+
+		const predictedPace = userStats?.best_times?.pace_for_goal;
+		const paceGap =
+			predictedPace && goal.pace
+				? paceStringToSeconds(predictedPace) - paceStringToSeconds(goal.pace)
+				: null;
+
+		return {
+			time: predictedSeconds - goalSeconds,
+			pace: paceGap,
+			ahead: predictedSeconds < goalSeconds
+		};
+	});
 
 	// ── Prediction history & chart ─────────────────────────────────
 	let chartData = $state<ChartDataPoint[]>([]);
@@ -262,7 +293,7 @@
 							<td class="px-4 py-2 text-card-foreground">{goal.time}</td>
 							<td class="px-4 py-2 text-card-foreground">{goal.pace}</td>
 						</tr>
-						<tr>
+						<tr class:border-b={gap !== null} class:border-border={gap !== null}>
 							<td class="px-4 py-2 font-medium text-card-foreground">Current Prediction</td>
 							<td class="px-4 py-2 text-card-foreground">
 								{userStats.best_times.time_for_goal ?? 'N/A'}
@@ -271,6 +302,25 @@
 								{userStats.best_times.pace_for_goal ?? 'N/A'}
 							</td>
 						</tr>
+						<!--
+							The subtraction nobody was doing: the two rows above have sat
+							next to each other saying nothing about the distance between
+							them. Ahead of the goal is an ordinary state, so it is coloured
+							as good news rather than treated as an anomaly.
+						-->
+						{#if gap}
+							<tr>
+								<td class="px-4 py-2 font-medium text-muted-foreground">
+									{gap.ahead ? 'Ahead by' : 'To find'}
+								</td>
+								<td class="px-4 py-2 tabular-nums" class:text-primary={gap.ahead}>
+									{formatSignedDuration(gap.time)}
+								</td>
+								<td class="px-4 py-2 tabular-nums text-muted-foreground">
+									{gap.pace === null ? '' : `${formatSignedDuration(gap.pace)} /km`}
+								</td>
+							</tr>
+						{/if}
 					</tbody>
 				</table>
 			</div>
