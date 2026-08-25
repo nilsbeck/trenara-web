@@ -5,6 +5,8 @@
 	import PredictionChart, {
 		type ChartDataPoint
 	} from '$lib/components/charts/prediction-chart.svelte';
+	import DistanceChart from '$lib/components/charts/distance-chart.svelte';
+	import { readWeekDistance, readGoalDistance } from '$lib/utils/distance-graph';
 	import { timeStringToSeconds, paceStringToSeconds } from '$lib/utils/format';
 
 	let { goal, userStats }: { goal: Goal; userStats: UserStats } = $props();
@@ -30,6 +32,28 @@
 	const formattedEndDate = $derived(
 		endDate.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })
 	);
+
+	// ── Which graph is on show ─────────────────────────────────────
+	//
+	// Prediction is the default: it is the one that answers "am I going to make
+	// it", which is what this card is for. The two distance graphs answer "what
+	// have I actually done", and are a click away.
+
+	type GraphView = 'prediction' | 'week' | 'goal';
+
+	// The picker is the heading — these read as titles, not as verbs.
+	const GRAPH_VIEWS: { value: GraphView; label: string }[] = [
+		{ value: 'prediction', label: 'Prediction Progress' },
+		{ value: 'week', label: 'Distance This Week' },
+		{ value: 'goal', label: 'Distance By Week' }
+	];
+
+	let graphView = $state<GraphView>('prediction');
+
+	// Both distance graphs read the stats this card already has — no fetch, so
+	// switching between them costs nothing and there is no loading state.
+	const weekSeries = $derived(readWeekDistance(userStats?.graph_stats?.weeks));
+	const goalSeries = $derived(readGoalDistance(userStats?.graph_stats?.goal));
 
 	// ── Prediction history & chart ─────────────────────────────────
 	let chartData = $state<ChartDataPoint[]>([]);
@@ -204,10 +228,8 @@
 
 		<!-- Historical chart for completed goals -->
 		<div class="mt-6">
-			<div class="mb-2">
-				<h3 class="text-sm font-medium text-muted-foreground">Historical Prediction Progress</h3>
-			</div>
-			<PredictionChart data={chartData} loading={chartLoading} error={chartError} />
+			{@render graphPicker()}
+			{@render graph()}
 		</div>
 	{:else}
 		<!-- Active goal -->
@@ -288,12 +310,41 @@
 			</div>
 		</div>
 
-		<!-- Prediction chart -->
+		<!-- Prediction / distance chart -->
 		<div>
-			<div class="mb-2">
-				<h3 class="text-sm font-medium text-muted-foreground">Prediction Progress</h3>
-			</div>
-			<PredictionChart data={chartData} loading={chartLoading} error={chartError} />
+			{@render graphPicker()}
+			{@render graph()}
 		</div>
 	{/if}
 </div>
+
+<!--
+	The card's own heading, which is also the control that swaps the graph under
+	it. One element rather than a title beside a picker: they said the same
+	thing, and the native select carries its own affordance.
+-->
+{#snippet graphPicker()}
+	<div class="mb-2">
+		<label>
+			<span class="sr-only">Which graph to show</span>
+			<select
+				bind:value={graphView}
+				class="-ml-1 cursor-pointer rounded-md border-0 bg-transparent py-0.5 pl-1 pr-6 text-sm font-medium text-muted-foreground hover:text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+			>
+				{#each GRAPH_VIEWS as view}
+					<option value={view.value}>{view.label}</option>
+				{/each}
+			</select>
+		</label>
+	</div>
+{/snippet}
+
+{#snippet graph()}
+	{#if graphView === 'week'}
+		<DistanceChart series={weekSeries} emptyMessage="No distance planned for this week" />
+	{:else if graphView === 'goal'}
+		<DistanceChart series={goalSeries} emptyMessage="No weekly distances for this goal yet" />
+	{:else}
+		<PredictionChart data={chartData} loading={chartLoading} error={chartError} />
+	{/if}
+{/snippet}
