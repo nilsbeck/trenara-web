@@ -321,6 +321,17 @@
 				<g transform="translate({PAD.left},{PAD.top})">
 					<line x1={0} y1={0} x2={0} y2={ch} stroke="currentColor" class="text-border" />
 					<line x1={0} y1={ch} x2={cw} y2={ch} stroke="currentColor" class="text-border" />
+					<!--
+						The pace axis gets its own rule, on the same terms as the time
+						one. Its labels were sitting off the right edge against nothing,
+						reading as numbers that had drifted loose rather than as a scale.
+						Only when there is a pace to show: without a consistent ratio the
+						right-hand labels are dropped, and a rule with nothing beside it
+						would just be a line.
+					-->
+					{#if ratio !== null}
+						<line x1={cw} y1={0} x2={cw} y2={ch} stroke="currentColor" class="text-border" />
+					{/if}
 
 					<!-- Time on the left, and the very same gridline read as a pace on
 				     the right. Two units, one scale — never two scales. -->
@@ -470,53 +481,67 @@
 						onmouseleave={() => (hoverIdx = null)}
 					/>
 
+					<!--
+						Nothing in here takes the pointer.
+
+						The crosshair and the tooltip are drawn above the surface that
+						tracks the mouse, so without this they intercept it: moving onto
+						the tooltip fires `mouseleave` on the surface underneath, the
+						hover clears, the tooltip vanishes — and since the pointer has
+						not moved again, nothing brings it back. The tooltip sits over
+						the top of the plot, which is where the readings are, so what
+						survived was a band near the bottom that the tooltip never
+						covers.
+					-->
 					{#if hoverIdx !== null && data[hoverIdx]}
 						{@const d = data[hoverIdx]}
 						{@const hx = xPos(hoverIdx)}
 						{@const tx = Math.max(0, Math.min(cw - TOOLTIP_W, hx - TOOLTIP_W / 2))}
-						<line
-							x1={hx}
-							y1={0}
-							x2={hx}
-							y2={ch}
-							stroke="currentColor"
-							class="text-muted-foreground"
-							stroke-dasharray="2,2"
-							opacity="0.5"
-						/>
-						<rect
-							x={tx}
-							y={4}
-							width={TOOLTIP_W}
-							height={TOOLTIP_H}
-							rx="6"
-							class="fill-popover stroke-border"
-							stroke-width="1"
-						/>
-						<text
-							x={tx + 10}
-							y={21}
-							class="fill-current text-popover-foreground"
-							style="font-size:11px;font-weight:600"
-						>
-							{formatDateShort(d.date)}
-						</text>
-						<text
-							x={tx + 10}
-							y={38}
-							class="fill-current text-muted-foreground"
-							style="font-size:11px"
-						>
-							Time {d.formattedTime}
-						</text>
-						<text
-							x={tx + 10}
-							y={53}
-							class="fill-current text-muted-foreground"
-							style="font-size:11px"
-						>
-							Pace {d.formattedPace}
-						</text>
+						<g class="pointer-events-none">
+							<line
+								x1={hx}
+								y1={0}
+								x2={hx}
+								y2={ch}
+								stroke="currentColor"
+								class="text-muted-foreground"
+								stroke-dasharray="2,2"
+								opacity="0.5"
+							/>
+							<rect
+								x={tx}
+								y={4}
+								width={TOOLTIP_W}
+								height={TOOLTIP_H}
+								rx="6"
+								class="fill-popover stroke-border"
+								stroke-width="1"
+							/>
+							<text
+								x={tx + 10}
+								y={21}
+								class="fill-current text-popover-foreground"
+								style="font-size:11px;font-weight:600"
+							>
+								{formatDateShort(d.date)}
+							</text>
+							<text
+								x={tx + 10}
+								y={38}
+								class="fill-current text-muted-foreground"
+								style="font-size:11px"
+							>
+								Time {d.formattedTime}
+							</text>
+							<text
+								x={tx + 10}
+								y={53}
+								class="fill-current text-muted-foreground"
+								style="font-size:11px"
+							>
+								Pace {d.formattedPace}
+							</text>
+						</g>
 					{/if}
 				</g>
 			</svg>
