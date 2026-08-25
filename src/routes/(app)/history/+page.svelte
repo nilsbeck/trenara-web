@@ -109,6 +109,7 @@
 				data={chartData}
 				timeLabel="Predicted 10K Time"
 				paceLabel="Predicted 10K Pace"
+				distanceKm={10}
 			/>
 		{:else}
 			<div class="flex items-center justify-center py-16">

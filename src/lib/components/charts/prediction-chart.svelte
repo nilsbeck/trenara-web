@@ -25,7 +25,8 @@
 		paceLabel = 'Predicted Pace',
 		domainEnd = null,
 		projections = [],
-		reference = null
+		reference = null,
+		distanceKm = null
 	}: {
 		data: ChartDataPoint[];
 		loading?: boolean;
@@ -52,6 +53,17 @@
 		projections?: ProjectionSeries[];
 		/** A horizontal line to read the series against — the goal's own time. */
 		reference?: { seconds: number; label: string } | null;
+		/**
+		 * The distance the series is about, which ties the two axes together.
+		 *
+		 * Time and pace are one number over a fixed distance, so with this set the
+		 * right axis is computed from the left and only one line is drawn. Both
+		 * readings stay — the axis a runner actually reads is the pace one — but
+		 * the chart stops plotting the same quantity twice.
+		 *
+		 * Null keeps the old behaviour: two independently scaled series.
+		 */
+		distanceKm?: number | null;
 	} = $props();
 
 	// Layout constants
@@ -80,8 +92,18 @@
 		return { min: min - pad, max: max + pad };
 	});
 
+	/** True when the two axes are two readings of one line. */
+	const coupled = $derived(distanceKm !== null && distanceKm > 0);
+
 	const paceExtent = $derived.by(() => {
 		if (data.length === 0) return { min: 0, max: 1 };
+		// Derived from the time axis rather than from the recorded pace: the
+		// stored pace is rounded to the whole second, which is fifteen seconds on
+		// a 15 km goal, and on an axis this tight that rounding was drawing
+		// zigzags nobody ran.
+		if (coupled) {
+			return { min: timeExtent.min / distanceKm!, max: timeExtent.max / distanceKm! };
+		}
 		const vals = data.map((d) => d.predictedPace);
 		const min = Math.min(...vals);
 		const max = Math.max(...vals);
@@ -254,10 +276,12 @@
 				<span class="inline-block h-0.5 w-4 rounded" style="background:{BLUE}"></span>
 				<span class="text-muted-foreground">{timeLabel}</span>
 			</span>
-			<span class="flex items-center gap-1.5">
-				<span class="inline-block h-0.5 w-4 rounded" style="background:{RED}"></span>
-				<span class="text-muted-foreground">{paceLabel}</span>
-			</span>
+			{#if !coupled}
+				<span class="flex items-center gap-1.5">
+					<span class="inline-block h-0.5 w-4 rounded" style="background:{RED}"></span>
+					<span class="text-muted-foreground">{paceLabel}</span>
+				</span>
+			{/if}
 		</div>
 
 		<!-- SVG Chart -->
@@ -390,8 +414,8 @@
 					/>
 				{/if}
 
-				<!-- Pace line -->
-				{#if data.length > 1}
+				<!-- Pace line — only when the axes are scaled independently -->
+				{#if data.length > 1 && !coupled}
 					<path
 						d={pacePath}
 						fill="none"
@@ -415,7 +439,7 @@
 				{/each}
 
 				<!-- Data points (pace) -->
-				{#each data as d, i}
+				{#each coupled ? [] : data as d, i}
 					<circle
 						cx={xPos(i)}
 						cy={paceY(d.predictedPace)}
@@ -479,7 +503,14 @@
 						Time: {d.formattedTime}
 					</text>
 					<text x={tx + 8} y={52} style="font-size:10px" fill={RED}>
-						Pace: {d.formattedPace}
+						<!--
+							Computed from the time when the axes are tied together, so the
+							tooltip agrees with the axis beside it rather than showing the
+							rounded pace that was stored.
+						-->
+						Pace: {coupled
+							? `${secondsToPaceString(Math.round(d.predictedTime / distanceKm!))} /km`
+							: d.formattedPace}
 					</text>
 				{/if}
 			</g>

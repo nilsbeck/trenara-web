@@ -413,6 +413,7 @@
 				domainEnd={raceDay}
 				{projections}
 				reference={goalReference}
+				distanceKm={goal.distance_value}
 			/>
 		</div>
 	{/if}
