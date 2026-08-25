@@ -3,6 +3,7 @@ import type { LayoutServerLoad } from './$types';
 import { configApi, userApi } from '$lib/server/trenara';
 import { loadNewsBadge } from '$lib/server/news/badge';
 import { loadChatBadge } from '$lib/server/chat/badge';
+import { loadWeekProgress } from '$lib/server/trenara/week-progress';
 
 export const load: LayoutServerLoad = async ({ cookies, locals, depends }) => {
 	if (!locals.user) {
@@ -29,10 +30,16 @@ export const load: LayoutServerLoad = async ({ cookies, locals, depends }) => {
 	// config the API would not serve is not a reason to fail a page.
 	const appConfig = configApi.getAppConfig(cookies).catch(() => null);
 
+	// This week's rings in the middle of the navbar. Streamed like the badges,
+	// and null on failure — it reports its own trouble as "nothing to show",
+	// because chrome on every page must never be able to fail a page.
+	const weekProgress = loadWeekProgress(cookies).catch(() => null);
+
 	return {
 		userData,
 		newsBadge,
 		chatBadge,
-		appConfig
+		appConfig,
+		weekProgress
 	};
 };

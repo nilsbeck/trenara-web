@@ -13,6 +13,8 @@
 		Newspaper
 	} from 'lucide-svelte';
 	import ChatBubble from '$lib/components/chat/chat-bubble.svelte';
+	import WeekOverview from '$lib/components/stats/week-overview.svelte';
+	import { hasAnyRing, type WeekProgress } from '$lib/utils/week-progress';
 	import { formatUnread, type UnreadSummary } from '$lib/utils/news-unread';
 	import { appConfig } from '$lib/stores/app-config.svelte';
 
@@ -29,6 +31,11 @@
 	let chatThreads = $state<ChatThread[]>([]);
 	let chatSeen = $state<Record<number, number>>({});
 	const newsBadgeLabel = $derived(newsUnread ? formatUnread(newsUnread) : '');
+
+	// This week's rings, streamed in behind the navbar. Null until it arrives,
+	// and null again if it could not be loaded — both render as nothing, so the
+	// bar does not reflow around a placeholder.
+	let weekProgress = $state<WeekProgress | null>(null);
 
 	// Seeds the served option lists once. Anything that misses them renders from
 	// the constants instead, so there is nothing to wait for here.
@@ -53,6 +60,16 @@
 			})
 			.catch(() => {
 				newsUnread = null;
+			});
+	});
+
+	$effect(() => {
+		data.weekProgress
+			.then((progress) => {
+				weekProgress = progress;
+			})
+			.catch(() => {
+				weekProgress = null;
 			});
 	});
 
@@ -103,6 +120,17 @@
 					</span>
 				</a>
 			</div>
+
+			<!--
+				This week at a glance, in the middle of the bar. Below `md` the bar
+				has room for the logo and the menu and nothing else, so it moves to
+				its own row underneath rather than disappearing.
+			-->
+			{#if hasAnyRing(weekProgress)}
+				<div class="hidden md:flex md:flex-1 md:justify-center">
+					{@render weekRings()}
+				</div>
+			{/if}
 
 			<div class="flex items-center gap-2">
 				<!-- User Menu -->
@@ -224,6 +252,12 @@
 				</div>
 			</div>
 		</div>
+
+		{#if hasAnyRing(weekProgress)}
+			<div class="flex justify-center border-t border-border px-4 py-2 md:hidden">
+				{@render weekRings()}
+			</div>
+		{/if}
 	</nav>
 
 	<!-- Main Content -->
@@ -237,3 +271,13 @@
 	initialThreads={chatThreads}
 	initialSeen={chatSeen}
 />
+
+{#snippet weekRings()}
+	<a
+		href="/goal"
+		class="rounded-md px-2 py-1 hover:bg-accent"
+		aria-label="This week's training progress"
+	>
+		<WeekOverview progress={weekProgress!} compact />
+	</a>
+{/snippet}

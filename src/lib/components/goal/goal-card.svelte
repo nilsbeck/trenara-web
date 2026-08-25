@@ -2,11 +2,13 @@
 	import type { Goal, UserStats } from '$lib/server/trenara/types';
 	import { onMount } from 'svelte';
 	import { Trophy, Calendar, Target } from 'lucide-svelte';
-	import { forecast, earnCutoff } from '$lib/utils/forecast';
-	import { readPlanWeeks } from '$lib/utils/plan-weeks';
 	import PredictionChart, {
 		type ChartDataPoint
 	} from '$lib/components/charts/prediction-chart.svelte';
+	import DistanceChart from '$lib/components/charts/distance-chart.svelte';
+	import { readWeekDistance, readGoalDistance } from '$lib/utils/distance-graph';
+	import { forecast, earnCutoff } from '$lib/utils/forecast';
+	import { readPlanWeeks } from '$lib/utils/plan-weeks';
 	import {
 		timeStringToSeconds,
 		paceStringToSeconds,
@@ -39,6 +41,28 @@
 		endDate.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })
 	);
 
+	// ── Which graph is on show ─────────────────────────────────────
+	//
+	// Prediction is the default: it is the one that answers "am I going to make
+	// it", which is what this card is for. The two distance graphs answer "what
+	// have I actually done", and are a click away.
+
+	type GraphView = 'prediction' | 'week' | 'goal';
+
+	// The picker is the heading — these read as titles, not as verbs.
+	const GRAPH_VIEWS: { value: GraphView; label: string }[] = [
+		{ value: 'prediction', label: 'Prediction Progress' },
+		{ value: 'week', label: 'Distance This Week' },
+		{ value: 'goal', label: 'Distance By Week' }
+	];
+
+	let graphView = $state<GraphView>('prediction');
+
+	// Both distance graphs read the stats this card already has — no fetch, so
+	// switching between them costs nothing and there is no loading state.
+	const weekSeries = $derived(readWeekDistance(userStats?.graph_stats?.weeks));
+	const goalSeries = $derived(readGoalDistance(userStats?.graph_stats?.goal));
+
 	/**
 	 * How far the current prediction sits from the goal itself.
 	 *
@@ -66,14 +90,10 @@
 		};
 	});
 
+	const raceDay = $derived(goal.end_date ? new Date(goal.end_date) : null);
+
 	/**
 	 * Where this runner lands on race day, given what they have actually done.
-	 *
-	 * One line, not three. The earlier version drew a trend through the recorded
-	 * predictions and a second, brighter copy of it scaled up for "if you had
-	 * followed the plan" — two lines about the past, neither of which answered
-	 * the only question worth asking on a goal card, which is where the training
-	 * still ahead can get to.
 	 *
 	 * The live prediction is the starting point because it has already absorbed
 	 * every session run and skipped; the remaining plan supplies the volume; the
@@ -81,8 +101,6 @@
 	 * intends one to be worth when there is not enough history to measure. See
 	 * `forecast`.
 	 */
-	const raceDay = $derived(goal.end_date ? new Date(goal.end_date) : null);
-
 	const raceForecast = $derived.by(() => {
 		const predicted = userStats?.best_times?.time_for_goal;
 		if (!raceDay || isPast || !predicted || !goal.time_in_sec) return null;
@@ -112,10 +130,10 @@
 	 * What the forecast rests on, said plainly.
 	 *
 	 * A projected time with nothing behind it is a number to be believed or
-	 * disbelieved and nothing else. These are the three things that decide
-	 * whether it is worth believing: how much training is left that can still
-	 * change it, what a kilometre of it is being priced at, and how that price
-	 * was arrived at.
+	 * disbelieved and nothing else. These are the things that decide whether it
+	 * is worth believing: how much training is left that can still change it,
+	 * what a kilometre of it is being priced at, and how that price was arrived
+	 * at.
 	 */
 	const forecastBasis = $derived.by(() => {
 		if (!raceForecast) return null;
@@ -151,8 +169,12 @@
 		raceForecast ? [{ label: 'Forecast', colour: '#22c55e', points: raceForecast.points }] : []
 	);
 
+	const goalReference = $derived(
+		goal.time_in_sec ? { seconds: goal.time_in_sec, label: `Goal ${goal.time}` } : null
+	);
+
 	/**
-	 * Why there is no line, when there is no line.
+	 * Why there is no forecast, when there is no forecast.
 	 *
 	 * A chart that silently declines to forecast is indistinguishable from one
 	 * that is broken. Every reason below is a real state with a real remedy, and
@@ -175,10 +197,6 @@
 		}
 		return 'Not enough of this block on record yet to forecast — the earliest reading is too recent to tell whether you are keeping pace.';
 	});
-
-	const goalReference = $derived(
-		goal.time_in_sec ? { seconds: goal.time_in_sec, label: `Goal ${goal.time}` } : null
-	);
 
 	// ── Prediction history & chart ─────────────────────────────────
 	let chartData = $state<ChartDataPoint[]>([]);
@@ -256,24 +274,11 @@
 		const reference =
 			time10k && rawPace10k ? { time_10k: time10k, pace_10k: stripPaceUnit(rawPace10k) } : {};
 
-		// The rest of what the same response predicted. Recording them now is what
-		// stops a later question about any of these distances being answered by
-		// inference from the two we happened to keep.
-		const set = {
-			...(userStats?.best_times?.time_for_5 ? { time_5k: userStats.best_times.time_for_5 } : {}),
-			...(userStats?.best_times?.time_for_half_marathon
-				? { time_half: userStats.best_times.time_for_half_marathon }
-				: {}),
-			...(userStats?.best_times?.time_for_marathon
-				? { time_marathon: userStats.best_times.time_for_marathon }
-				: {})
-		};
-
 		try {
 			const res = await fetch('/api/v1/prediction-history', {
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ time, pace, ...reference, ...set })
+				body: JSON.stringify({ time, pace, ...reference })
 			});
 			if (!res.ok) return; // non-critical, fail silently
 			const result = await res.json();
@@ -366,15 +371,8 @@
 
 		<!-- Historical chart for completed goals -->
 		<div class="mt-6">
-			<div class="mb-2">
-				<h3 class="text-sm font-medium text-muted-foreground">Historical Prediction Progress</h3>
-			</div>
-			<PredictionChart
-				data={chartData}
-				loading={chartLoading}
-				error={chartError}
-				distanceKm={goal.distance_value}
-			/>
+			{@render graphPicker()}
+			{@render graph()}
 		</div>
 	{:else}
 		<!-- Active goal -->
@@ -497,26 +495,59 @@
 			</div>
 		</div>
 
-		<!-- Prediction chart -->
+		<!-- Prediction / distance chart -->
 		<div>
-			<div class="mb-2">
-				<h3 class="text-sm font-medium text-muted-foreground">Prediction Progress</h3>
-			</div>
-			<PredictionChart
-				data={chartData}
-				loading={chartLoading}
-				error={chartError}
-				domainEnd={raceDay}
-				projections={chartLines}
-				reference={goalReference}
-				distanceKm={goal.distance_value}
-			/>
-			{#if raceForecast}
-				<p class="mt-2 text-xs leading-relaxed text-card-foreground">{shortfallNote}</p>
-				<p class="mt-1 text-xs leading-relaxed text-muted-foreground">{forecastBasis}</p>
-			{:else if noForecastReason}
-				<p class="mt-2 text-xs leading-relaxed text-muted-foreground">{noForecastReason}</p>
-			{/if}
+			{@render graphPicker()}
+			{@render graph()}
 		</div>
 	{/if}
 </div>
+
+<!--
+	The card's own heading, which is also the control that swaps the graph under
+	it. One element rather than a title beside a picker: they said the same
+	thing, and the native select carries its own affordance.
+-->
+{#snippet graphPicker()}
+	<div class="mb-2">
+		<label>
+			<span class="sr-only">Which graph to show</span>
+			<select
+				bind:value={graphView}
+				class="-ml-1 cursor-pointer rounded-md border-0 bg-transparent py-0.5 pl-1 pr-6 text-sm font-medium text-muted-foreground hover:text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+			>
+				{#each GRAPH_VIEWS as view}
+					<option value={view.value}>{view.label}</option>
+				{/each}
+			</select>
+		</label>
+	</div>
+{/snippet}
+
+{#snippet graph()}
+	{#if graphView === 'week'}
+		<DistanceChart series={weekSeries} emptyMessage="No distance planned for this week" />
+	{:else if graphView === 'goal'}
+		<DistanceChart series={goalSeries} emptyMessage="No weekly distances for this goal yet" />
+	{:else}
+		<PredictionChart
+			data={chartData}
+			loading={chartLoading}
+			error={chartError}
+			domainEnd={raceDay}
+			projections={chartLines}
+			reference={goalReference}
+		/>
+		<!--
+			Only under the prediction graph. The distance graphs answer a different
+			question, and a forecast of race-day time sitting under a bar chart of
+			kilometres would read as a caption for it.
+		-->
+		{#if raceForecast}
+			<p class="mt-2 text-xs leading-relaxed text-card-foreground">{shortfallNote}</p>
+			<p class="mt-1 text-xs leading-relaxed text-muted-foreground">{forecastBasis}</p>
+		{:else if noForecastReason}
+			<p class="mt-2 text-xs leading-relaxed text-muted-foreground">{noForecastReason}</p>
+		{/if}
+	{/if}
+{/snippet}
