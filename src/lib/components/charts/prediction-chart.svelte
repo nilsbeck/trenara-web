@@ -92,7 +92,16 @@
 		return { min: min - pad, max: max + pad };
 	});
 
-	/** True when the two axes are two readings of one line. */
+	/**
+	 * True when the pace axis is derived from the time one.
+	 *
+	 * Both series are still drawn — pace is what a runner executes and wants to
+	 * see. What coupling fixes is the two axes disagreeing: the goal reference
+	 * and any projection stretch the time extent, and a pace axis left to scale
+	 * itself against the data alone then magnifies the same movement several
+	 * times harder, so the two lines wander apart as though they were saying
+	 * different things.
+	 */
 	const coupled = $derived(distanceKm !== null && distanceKm > 0);
 
 	const paceExtent = $derived.by(() => {
@@ -276,12 +285,10 @@
 				<span class="inline-block h-0.5 w-4 rounded" style="background:{BLUE}"></span>
 				<span class="text-muted-foreground">{timeLabel}</span>
 			</span>
-			{#if !coupled}
-				<span class="flex items-center gap-1.5">
-					<span class="inline-block h-0.5 w-4 rounded" style="background:{RED}"></span>
-					<span class="text-muted-foreground">{paceLabel}</span>
-				</span>
-			{/if}
+			<span class="flex items-center gap-1.5">
+				<span class="inline-block h-0.5 w-4 rounded" style="background:{RED}"></span>
+				<span class="text-muted-foreground">{paceLabel}</span>
+			</span>
 		</div>
 
 		<!-- SVG Chart -->
@@ -414,8 +421,8 @@
 					/>
 				{/if}
 
-				<!-- Pace line — only when the axes are scaled independently -->
-				{#if data.length > 1 && !coupled}
+				<!-- Pace line -->
+				{#if data.length > 1}
 					<path
 						d={pacePath}
 						fill="none"
@@ -439,7 +446,7 @@
 				{/each}
 
 				<!-- Data points (pace) -->
-				{#each coupled ? [] : data as d, i}
+				{#each data as d, i}
 					<circle
 						cx={xPos(i)}
 						cy={paceY(d.predictedPace)}

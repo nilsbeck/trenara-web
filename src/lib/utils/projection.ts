@@ -198,35 +198,64 @@ export interface PlanTrajectory {
 	steps: PlanStep[];
 	/** Two or more points for drawing: today, then each week's end. */
 	points: Sample[];
-	/** Seconds of improvement the whole run asks for. */
+	/** Seconds of improvement the remaining plan earns in total. */
 	totalGainSeconds: number;
+	/** Where that leaves the prediction on race day. */
+	endSeconds: number;
+	/**
+	 * How far short of the goal that lands, in seconds. Positive means the
+	 * remaining work cannot close the gap — the cost of the weeks already lost,
+	 * which no amount of training left can undo.
+	 */
+	shortfallSeconds: number;
 }
 
 /**
- * What following the plan asks for, week by week.
+ * What the plan earns per kilometre, from its own design.
  *
- * Not a forecast of a body — a reading of the plan. The plan exists to put a
- * runner on their goal time on race day, so the improvement it asks for is the
- * gap between today's prediction and that goal, spread over the weeks left.
+ * A plan is built to carry a runner from where they were at the start to their
+ * goal by race day, using the volume it prescribes. So the improvement it
+ * intends per kilometre is the gap it set out to close, divided by the whole
+ * distance it asked for — read off this plan rather than assumed from a
+ * textbook.
  *
- * Spread by planned distance rather than evenly, because the weeks are not
- * equal: a 64 km week is asked to buy more than a 37 km one, and that is what
- * makes the numbers worth reading rather than an average nobody trains at.
+ * Null when the goal was already in reach at the start, when there is nothing
+ * to earn.
+ */
+export function planEarnRate(gapAtStartSeconds: number, totalPlannedKm: number): number | null {
+	if (!(gapAtStartSeconds > 0) || !(totalPlannedKm > 0)) return null;
+	return gapAtStartSeconds / totalPlannedKm;
+}
+
+/**
+ * What following the rest of the plan is worth, week by week.
+ *
+ * Not a forecast of a body, and not a promise about the goal: the training
+ * still ahead earns what the plan earns per kilometre, and that is all it
+ * earns. A week that was missed took its kilometres with it, so the line ends
+ * wherever the remaining work can reach — short of the goal when weeks were
+ * lost, which is the honest shape. Nothing here can make up for time missed,
+ * and a line that closed the gap anyway would be claiming otherwise.
+ *
+ * Spread by planned distance, because the weeks are not equal: a 56 km week
+ * earns more than a 37 km one, and that is what makes the numbers worth
+ * reading rather than an average nobody trains at.
  *
  * The last week earns nothing. Fitness from a session takes ten days or so to
  * arrive, so work in race week changes how fresh a runner is, not how fast —
- * and a plan that promised otherwise would be telling them to train through
+ * and a line that promised otherwise would be telling them to train through
  * the taper.
  *
- * Null when the goal is already in reach, or when there are no weeks left to
- * ask anything of.
+ * Volume only: a session done at half the prescribed intensity counts here as
+ * a session done, because kilometres are what the series records.
  */
 export function planTrajectory({
 	from,
 	fromDate,
 	goalSeconds,
 	weeks,
-	distanceKm
+	distanceKm,
+	secondsPerKm
 }: {
 	/** Today's predicted time in seconds. */
 	from: number;
@@ -235,18 +264,18 @@ export function planTrajectory({
 	/** Remaining weeks of the plan, in order, Monday-dated. */
 	weeks: { startsOn: Date; plannedKm: number }[];
 	distanceKm: number;
+	/** What a kilometre of this plan is worth — see `planEarnRate`. */
+	secondsPerKm: number;
 }): PlanTrajectory | null {
-	const gap = from - goalSeconds;
-	if (!(gap > 0) || !(distanceKm > 0)) return null;
+	if (!(distanceKm > 0) || !(secondsPerKm > 0)) return null;
 
 	// Everything but the last week, which arrives too late to count.
 	const earning = weeks.slice(0, -1).filter((w) => w.plannedKm > 0);
-	const totalKm = earning.reduce((sum, w) => sum + w.plannedKm, 0);
-	if (earning.length === 0 || totalKm <= 0) return null;
+	if (earning.length === 0) return null;
 
 	let standing = from;
 	const steps: PlanStep[] = earning.map((week) => {
-		const gainSeconds = (gap * week.plannedKm) / totalKm;
+		const gainSeconds = week.plannedKm * secondsPerKm;
 		standing -= gainSeconds;
 		return {
 			startsOn: week.startsOn,
@@ -266,6 +295,9 @@ export function planTrajectory({
 			{ date: iso(fromDate), seconds: from },
 			...steps.map((step) => ({ date: iso(weekEnd(step.startsOn)), seconds: step.endSeconds }))
 		],
-		totalGainSeconds: gap
+		totalGainSeconds: from - standing,
+		endSeconds: standing,
+		/** Positive when the remaining work cannot close the gap — weeks were lost. */
+		shortfallSeconds: standing - goalSeconds
 	};
 }

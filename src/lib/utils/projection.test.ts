@@ -7,6 +7,7 @@ import {
 	MIN_SAMPLES,
 	MIN_FIT,
 	planTrajectory,
+	planEarnRate,
 	type Sample
 } from './projection';
 
@@ -140,6 +141,18 @@ describe('complianceRate', () => {
 	});
 });
 
+describe('planEarnRate', () => {
+	it('reads what a kilometre of the plan is worth off the plan itself', () => {
+		// A plan that set out to close 410s over 595.36 km intends 0.69s per km.
+		expect(planEarnRate(410, 595.36)).toBeCloseTo(0.6887, 4);
+	});
+
+	it('has no rate when the goal was already in reach at the start', () => {
+		expect(planEarnRate(-30, 595.36)).toBeNull();
+		expect(planEarnRate(410, 0)).toBeNull();
+	});
+});
+
 describe('planTrajectory', () => {
 	const fromDate = new Date(Date.UTC(2026, 7, 24));
 	const weeks = [
@@ -150,25 +163,32 @@ describe('planTrajectory', () => {
 		{ startsOn: new Date(Date.UTC(2026, 8, 21)), plannedKm: 35.25 }
 	];
 
-	/** 1:03:12 predicted against a 56:00 goal over 15 km — a 7:12 gap. */
-	const args = { from: 3792, fromDate, goalSeconds: 3360, weeks, distanceKm: 15 };
+	/**
+	 * 1:03:12 predicted against a 56:00 goal over 15 km, on a plan that meant to
+	 * close 410s across 595.36 km.
+	 */
+	const rate = planEarnRate(410, 595.36)!;
+	const args = {
+		from: 3792,
+		fromDate,
+		goalSeconds: 3360,
+		weeks,
+		distanceKm: 15,
+		secondsPerKm: rate
+	};
 
-	it('asks each week for its share of the work', () => {
+	it('earns each week what its own kilometres are worth', () => {
 		const trajectory = planTrajectory(args)!;
 
-		// Four earning weeks, and the biggest of them is asked for the most.
 		expect(trajectory.steps).toHaveLength(4);
+		// The bigger week earns more, and neither earns a share of a gap.
 		expect(trajectory.steps[1].gainSeconds).toBeGreaterThan(trajectory.steps[0].gainSeconds);
-		expect(trajectory.totalGainSeconds).toBe(432);
+		expect(trajectory.steps[1].gainSeconds).toBeCloseTo(55.57 * rate, 6);
 	});
 
 	it('gives the ask in the unit a runner runs in', () => {
-		const trajectory = planTrajectory(args)!;
-		const week = trajectory.steps[1];
-
-		// 55.57 of 200.44 earning km, so 120s of the 432s gap — 8s/km.
+		const week = planTrajectory(args)!.steps[1];
 		expect(week.gainPaceSeconds).toBeCloseTo(week.gainSeconds / 15, 6);
-		expect(Math.round(week.gainPaceSeconds)).toBe(8);
 	});
 
 	it('asks nothing of race week', () => {
@@ -181,18 +201,26 @@ describe('planTrajectory', () => {
 		);
 	});
 
-	it('lands on the goal by race day', () => {
+	it('falls short of the goal when weeks have been missed', () => {
 		const trajectory = planTrajectory(args)!;
-		const last = trajectory.points[trajectory.points.length - 1];
 
-		expect(Math.round(last.seconds)).toBe(3360);
+		// 200.44 km left at 0.69s each is 138s, against a 432s gap. The rest is
+		// what the missed weeks took with them, and no training left can undo it.
+		expect(Math.round(trajectory.totalGainSeconds)).toBe(138);
+		expect(trajectory.shortfallSeconds).toBeGreaterThan(0);
+		expect(Math.round(trajectory.endSeconds)).toBe(3654);
 	});
 
-	it('has nothing to ask of a runner already there', () => {
-		expect(planTrajectory({ ...args, from: 3300 })).toBeNull();
+	it('reaches the goal for a runner who has not missed anything', () => {
+		// Same plan, same rate, but the prediction has kept pace with the work:
+		// the gap left is exactly what the remaining kilometres are worth.
+		const onTrack = planTrajectory({ ...args, from: 3360 + 200.44 * rate })!;
+
+		expect(Math.abs(onTrack.shortfallSeconds)).toBeLessThan(1);
 	});
 
-	it('has nothing to ask when only race week is left', () => {
+	it('has nothing to say without a rate to earn at', () => {
+		expect(planTrajectory({ ...args, secondsPerKm: 0 })).toBeNull();
 		expect(planTrajectory({ ...args, weeks: weeks.slice(-1) })).toBeNull();
 	});
 });

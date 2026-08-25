@@ -7,6 +7,7 @@
 		project,
 		complianceRate,
 		planTrajectory,
+		planEarnRate,
 		MIN_FIT
 	} from '$lib/utils/projection';
 	import { readPlanWeeks } from '$lib/utils/plan-weeks';
@@ -98,8 +99,16 @@
 	const planAsk = $derived.by(() => {
 		const predicted = userStats?.best_times?.time_for_goal;
 		if (!raceDay || isPast || !predicted || !goal.time_in_sec || !goal.distance_value) return null;
+		if (chartData.length === 0) return null;
 
 		const plan = readPlanWeeks(userStats?.graph_stats?.goal);
+
+		// What this plan meant a kilometre to be worth: the gap it set out to
+		// close, over the whole distance it asked for. Read off the first
+		// prediction recorded under this goal rather than assumed.
+		const rate = planEarnRate(chartData[0].predictedTime - goal.time_in_sec, plan.totalPlannedKm);
+		if (rate === null) return null;
+
 		const thisMonday = mondayOf(now).getTime();
 		const remaining = plan.weeks
 			.filter((w) => w.startsOn.getTime() >= thisMonday)
@@ -110,11 +119,19 @@
 			fromDate: now,
 			goalSeconds: goal.time_in_sec,
 			weeks: remaining,
-			distanceKm: goal.distance_value
+			distanceKm: goal.distance_value,
+			secondsPerKm: rate
 		});
 	});
 
-	/** The ask in a sentence: what a typical week wants, and the range across them. */
+	/**
+	 * The ask in a sentence — and what it does not reach.
+	 *
+	 * Missed weeks took their kilometres with them, so the honest version says
+	 * both what the rest of the plan is worth and how far short of the goal that
+	 * leaves. Silence about the shortfall would be the same overpromise as a
+	 * line drawn to the goal.
+	 */
 	const planAskSummary = $derived.by(() => {
 		if (!planAsk || planAsk.steps.length === 0) return null;
 
@@ -122,10 +139,14 @@
 		const low = Math.round(Math.min(...perWeek));
 		const high = Math.round(Math.max(...perWeek));
 		const weeks = planAsk.steps.length;
+		const each = low === high ? `${high}s/km` : `${low}–${high}s/km`;
 
-		return low === high
-			? `Following the plan asks for ${high}s/km a week over the ${weeks} weeks that still count.`
-			: `Following the plan asks for ${low}–${high}s/km a week over the ${weeks} weeks that still count — most in the big weeks, none in race week.`;
+		const worth = `The ${weeks} weeks that still count are worth about ${each} each.`;
+
+		if (planAsk.shortfallSeconds > 30) {
+			return `${worth} That lands about ${formatSignedDuration(planAsk.shortfallSeconds).replace('+', '')} short of the goal — the weeks already missed cannot be run again.`;
+		}
+		return `${worth} That is enough to reach the goal.`;
 	});
 
 	const projections = $derived.by(() => {
@@ -167,7 +188,9 @@
 	 * `MIN_FIT`.
 	 */
 	const chartLines = $derived([
-		...(planAsk ? [{ label: 'the plan asks', colour: '#22c55e', points: planAsk.points }] : []),
+		...(planAsk
+			? [{ label: 'the plan from here', colour: '#22c55e', points: planAsk.points }]
+			: []),
 		...projections
 	]);
 
@@ -364,7 +387,12 @@
 			<div class="mb-2">
 				<h3 class="text-sm font-medium text-muted-foreground">Historical Prediction Progress</h3>
 			</div>
-			<PredictionChart data={chartData} loading={chartLoading} error={chartError} />
+			<PredictionChart
+				data={chartData}
+				loading={chartLoading}
+				error={chartError}
+				distanceKm={goal.distance_value}
+			/>
 		</div>
 	{:else}
 		<!-- Active goal -->
