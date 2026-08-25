@@ -42,6 +42,23 @@
 	// back to the theme token, which is what a missed session always gets.
 	const runColour = $derived(isValidDay ? store.getRunColourForDate(actualDay, runStatus) : null);
 
+	/**
+	 * A day behind you is a triangle, a day ahead is a dot.
+	 *
+	 * Written as inline style rather than an arbitrary Tailwind class: the class
+	 * would only ever appear inside a `class:` directive, which is exactly the
+	 * shape Tailwind's scanner is least reliable at finding, and a missing
+	 * clip-path fails silently as a square.
+	 */
+	const TRIANGLE = 'clip-path: polygon(50% 0%, 100% 100%, 0% 100%)';
+
+	function markerStyle(status: string, colour: string | null): string | undefined {
+		const parts = [];
+		if (status !== 'scheduled') parts.push(TRIANGLE);
+		if (colour) parts.push(`background-color: ${colour}`);
+		return parts.length > 0 ? parts.join('; ') : undefined;
+	}
+
 	function handleClick() {
 		if (!isValidDay) return;
 		store.setSelectedDate({
@@ -71,31 +88,41 @@
 	{#if isValidDay}
 		<span class="leading-none">{actualDay}</span>
 		<!--
-			Shape carries the status, colour carries the session.
+			Shape says whether the day has happened, colour says what the session is.
 
-			Once the session's own colour is used, colour alone cannot also mean
-			"missed" — an intervals session and a missed one both come out red. So a
-			missed session is square and everything else is round, which survives
-			any palette the API sends and does not depend on telling two reds apart.
+			Colour cannot carry both: once a session is drawn in its own colour, an
+			intervals session and a missed one are both red. So a day behind you is
+			a triangle whether it was run or not, and a day still ahead is a dot —
+			a distinction that holds whatever palette the API sends, and one that
+			survives a reader who cannot separate two reds.
 		-->
-		<div class="mt-0.5 flex gap-0.5">
+		<div class="mt-0.5 flex items-end gap-0.5">
 			{#if runStatus !== 'none'}
 				<span
-					class="block h-1 w-1"
-					class:rounded-full={runStatus !== 'missed'}
+					class="block"
+					class:h-1={runStatus === 'scheduled'}
+					class:w-1={runStatus === 'scheduled'}
+					class:rounded-full={runStatus === 'scheduled'}
+					class:h-1.5={runStatus !== 'scheduled'}
+					class:w-1.5={runStatus !== 'scheduled'}
 					class:bg-dot-scheduled={!runColour && runStatus === 'scheduled'}
 					class:bg-dot-completed={!runColour && runStatus === 'completed'}
 					class:bg-dot-missed={runStatus === 'missed'}
-					style={runColour ? `background-color: ${runColour}` : undefined}
+					style={markerStyle(runStatus, runColour)}
 				></span>
 			{/if}
 			{#if strengthStatus !== 'none'}
 				<span
-					class="block h-1 w-1"
-					class:rounded-full={strengthStatus !== 'missed'}
+					class="block"
+					class:h-1={strengthStatus === 'scheduled'}
+					class:w-1={strengthStatus === 'scheduled'}
+					class:rounded-full={strengthStatus === 'scheduled'}
+					class:h-1.5={strengthStatus !== 'scheduled'}
+					class:w-1.5={strengthStatus !== 'scheduled'}
 					class:bg-dot-scheduled={strengthStatus === 'scheduled'}
 					class:bg-dot-completed={strengthStatus === 'completed'}
 					class:bg-dot-missed={strengthStatus === 'missed'}
+					style={markerStyle(strengthStatus, null)}
 				></span>
 			{/if}
 		</div>
