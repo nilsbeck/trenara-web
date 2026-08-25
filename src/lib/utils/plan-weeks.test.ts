@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { readPlanWeeks, planWeekFor, isoWeekStart } from './plan-weeks';
+import { readPlanWeeks, planWeekFor, planWeekBand, isoWeekStart } from './plan-weeks';
 import type { UserStats } from '$lib/server/trenara/types';
 
 type GoalSeries = UserStats['graph_stats']['goal'];
@@ -167,5 +167,37 @@ describe('isoWeekStart', () => {
 		expect(isoWeekStart(2026, 27)).toEqual(new Date(2026, 5, 29));
 		// Week 1 of 2026 starts in the previous December.
 		expect(isoWeekStart(2026, 1)).toEqual(new Date(2025, 11, 29));
+	});
+});
+
+describe('planWeekBand', () => {
+	const plan = readPlanWeeks(referenceSeries());
+	const bandFor = (week: number) => planWeekBand(plan.weeks.find((w) => w.week === week)!);
+
+	it('tells a runner what to do, not just what the week is', () => {
+		expect(bandFor(32)).toMatchObject({
+			label: 'Peak week',
+			action: 'complete it',
+			direction: 'complete'
+		});
+		expect(bandFor(35)).toMatchObject({
+			label: 'Recovery week',
+			action: 'keep it easy',
+			direction: 'respect'
+		});
+		expect(bandFor(39)).toMatchObject({ label: 'Taper', direction: 'respect' });
+	});
+
+	it('carries the evidence in a few words', () => {
+		expect(bandFor(36)?.note).toBe('56 km, up 50% on last week');
+		expect(bandFor(35)?.note).toBe('37 km, down 38% on purpose');
+		expect(bandFor(32)?.note).toBe('64 km — the biggest week of the plan');
+	});
+
+	it('leaves an ordinary week unmarked', () => {
+		// Labelling every row would spend attention on the weeks that need it
+		// least, and the ones that do need it would stop standing out.
+		expect(bandFor(37)).toBeNull();
+		expect(bandFor(30)).toBeNull();
 	});
 });

@@ -3,6 +3,7 @@
 	import { createCalendarStore, type CalendarStore } from '$lib/stores/calendar.svelte';
 	import { createRevalidationTrigger } from '$lib/utils/revalidation';
 	import type { Schedule } from '$lib/server/trenara/types';
+	import type { PlanWeeks } from '$lib/utils/plan-weeks';
 	import CalendarHeader from './calendar-header.svelte';
 	import CalendarGrid from './calendar-grid.svelte';
 	import CalendarDetails from './calendar-details.svelte';
@@ -11,10 +12,16 @@
 	let {
 		today,
 		schedule,
+		planWeeks = null,
 		refreshPageData
 	}: {
 		today: Date;
 		schedule: Schedule;
+		/**
+		 * What each week of the goal is for, when the page has the stats to say.
+		 * Null renders the grid exactly as it did before.
+		 */
+		planWeeks?: PlanWeeks | null;
 		/**
 		 * Re-runs the page's `load`. Passed in rather than reached for here so
 		 * the calendar stays usable outside a route that has one.
@@ -81,7 +88,7 @@
 
 	<div class="rounded-xl bg-card shadow-lg border border-border p-4">
 		<CalendarHeader />
-		<CalendarGrid />
+		<CalendarGrid {planWeeks} />
 	</div>
 
 	<CalendarDetails />

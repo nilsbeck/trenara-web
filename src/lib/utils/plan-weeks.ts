@@ -235,3 +235,66 @@ export function planWeekFor(plan: PlanWeeks, date: Date): PlanWeek | null {
 	const monday = mondayOf(date).getTime();
 	return plan.weeks.find((w) => w.startsOn.getTime() === monday) ?? null;
 }
+
+/** A week's role as a line of copy, or null for a week not worth labelling. */
+export interface PlanWeekBand {
+	label: string;
+	/** What to do about it, or null when there is nothing to say. */
+	action: string | null;
+	/** The evidence, in a few words. */
+	note: string;
+	direction: PlanWeekDirection;
+}
+
+function percent(ramp: number): number {
+	return Math.abs(Math.round((ramp - 1) * 100));
+}
+
+/**
+ * How a week should read on screen.
+ *
+ * Copy rather than a badge, because the useful part is what to do: a peak week
+ * and a recovery week are equally worth noticing and want opposite behaviour.
+ * A steady week returns null and is left unmarked — labelling every row would
+ * spend the reader's attention on the weeks that least need it.
+ */
+export function planWeekBand(week: PlanWeek): PlanWeekBand | null {
+	const km = Math.round(week.plannedKm);
+	const shift = week.ramp === null ? null : percent(week.ramp);
+
+	switch (week.role) {
+		case 'peak':
+			return {
+				label: 'Peak week',
+				action: 'complete it',
+				note: `${km} km — the biggest week of the plan`,
+				direction: week.direction
+			};
+		case 'build':
+			return {
+				label: 'Build week',
+				action: 'complete it',
+				note: shift === null ? `${km} km` : `${km} km, up ${shift}% on last week`,
+				direction: week.direction
+			};
+		case 'recovery':
+			return {
+				label: 'Recovery week',
+				action: 'keep it easy',
+				note:
+					shift === null
+						? `${km} km — the drop is deliberate`
+						: `${km} km, down ${shift}% on purpose`,
+				direction: week.direction
+			};
+		case 'taper':
+			return {
+				label: 'Taper',
+				action: 'keep it easy',
+				note: `${km} km — freshness now, not fitness`,
+				direction: week.direction
+			};
+		default:
+			return null;
+	}
+}
