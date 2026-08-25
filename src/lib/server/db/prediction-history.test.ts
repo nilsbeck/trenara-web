@@ -15,6 +15,8 @@ const { mockSingle, mockChain, mockFrom } = vi.hoisted(() => {
 		lte: vi.fn().mockReturnThis(),
 		lt: vi.fn().mockReturnThis(),
 		upsert: vi.fn().mockReturnThis(),
+		update: vi.fn().mockReturnThis(),
+		is: vi.fn().mockReturnThis(),
 		delete: vi.fn().mockReturnThis(),
 		single: mockSingle
 	};
@@ -528,5 +530,154 @@ describe('PredictionHistoryDAO — null-data defensive branches', () => {
 
 		const records = await dao.getUserPredictionHistory(1);
 		expect(records).toEqual([]);
+	});
+});
+
+// ─────────────────────────────────────────────────────────────
+// backfillDerivedTenK
+// ─────────────────────────────────────────────────────────────
+describe('backfillDerivedTenK', () => {
+	const dao = PredictionHistoryDAO.getInstance();
+
+	beforeEach(() => {
+		vi.clearAllMocks();
+		mockFrom.mockReturnValue(mockChain);
+	});
+
+	/** Make the next awaited query resolve with these rows. */
+	function rowsFound(rows: unknown[]) {
+		(mockChain as Record<string, unknown>)['then'] = vi.fn((resolve: (v: unknown) => void) =>
+			Promise.resolve({ data: rows, error: null }).then(resolve)
+		);
+	}
+
+	it('only looks at rows that have neither a recorded nor a derived value', async () => {
+		rowsFound([]);
+		await dao.backfillDerivedTenK(1);
+
+		// Both nulls, or the back-fill would overwrite what the API recorded.
+		expect(mockChain.is).toHaveBeenCalledWith('predicted_time_10k', null);
+		expect(mockChain.is).toHaveBeenCalledWith('derived_time_10k', null);
+	});
+
+	it('writes the equivalent into the derived columns', async () => {
+		rowsFound([{ id: 7, predicted_time: '01:03:12', predicted_pace: '04:12' }]);
+
+		const filled = await dao.backfillDerivedTenK(1);
+
+		expect(filled).toBe(1);
+		// A 15km prediction of 1:03:12 is the 40:56 the API gives for 10km.
+		expect(mockChain.update).toHaveBeenCalledWith({
+			derived_time_10k: '0:40:56',
+			derived_pace_10k: '4:06'
+		});
+	});
+
+	it('leaves a row it cannot convert alone', async () => {
+		rowsFound([{ id: 8, predicted_time: '01:03:12', predicted_pace: '00:00' }]);
+
+		expect(await dao.backfillDerivedTenK(1)).toBe(0);
+		expect(mockChain.update).not.toHaveBeenCalled();
+	});
+
+	it('has nothing to do once it has caught up', async () => {
+		rowsFound([]);
+		expect(await dao.backfillDerivedTenK(1)).toBe(0);
+		expect(mockChain.update).not.toHaveBeenCalled();
+	});
+});
+
+// ─────────────────────────────────────────────────────────────
+// storeIfChanged — the recorded prediction set
+// ─────────────────────────────────────────────────────────────
+describe('storeIfChanged with the wider prediction set', () => {
+	const dao = PredictionHistoryDAO.getInstance();
+
+	beforeEach(() => {
+		vi.clearAllMocks();
+		mockFrom.mockReturnValue(mockChain);
+	});
+
+	/** What the last upsert was asked to write. */
+	function written() {
+		return (mockChain.upsert as ReturnType<typeof vi.fn>).mock.calls.at(-1)?.[0] as Record<
+			string,
+			unknown
+		>;
+	}
+
+	/** The row `getLatestPrediction` finds, then the row the upsert returns. */
+	function latestIs(row: unknown) {
+		mockSingle.mockResolvedValueOnce({ data: row, error: null });
+		mockSingle.mockResolvedValueOnce({ data: { id: 1 }, error: null });
+	}
+
+	it('records the other distances the same response predicted', async () => {
+		latestIs(null);
+
+		await dao.storeIfChanged(1, '56:00', '3:44', null, {
+			time5k: '00:19:29',
+			timeHalf: '01:31:04',
+			timeMarathon: '03:11:18'
+		});
+
+		expect(written()).toMatchObject({
+			predicted_time_5k: '00:19:29',
+			predicted_time_half: '01:31:04',
+			predicted_time_marathon: '03:11:18'
+		});
+	});
+
+	it('still records a client that only knows the goal prediction', async () => {
+		latestIs(null);
+
+		const result = await dao.storeIfChanged(1, '56:00', '3:44');
+
+		expect(result.stored).toBe(true);
+		// Omitted rather than nulled, so an older client cannot erase what a newer
+		// one recorded.
+		expect(written()).not.toHaveProperty('predicted_time_5k');
+		expect(written()).not.toHaveProperty('predicted_time_10k');
+	});
+
+	it('counts a distance arriving for the first time as a change', async () => {
+		// The goal prediction has not moved, but the set is the point: skipping
+		// the write would leave it unrecorded until the prediction happened to
+		// change on its own.
+		latestIs({
+			predicted_time: '56:00',
+			predicted_pace: '3:44',
+			predicted_time_10k: null,
+			predicted_pace_10k: null,
+			predicted_time_5k: null
+		});
+
+		const result = await dao.storeIfChanged(1, '56:00', '3:44', null, { time5k: '00:19:29' });
+
+		expect(result.stored).toBe(true);
+	});
+
+	it('skips the write when nothing at all has moved', async () => {
+		latestIs({
+			predicted_time: '56:00',
+			predicted_pace: '3:44',
+			predicted_time_10k: null,
+			predicted_pace_10k: null,
+			predicted_time_5k: '00:19:29'
+		});
+
+		const result = await dao.storeIfChanged(1, '56:00', '3:44', null, { time5k: '00:19:29' });
+
+		expect(result.stored).toBe(false);
+		expect(mockChain.upsert).not.toHaveBeenCalled();
+	});
+
+	it('drops a malformed distance rather than failing the row', async () => {
+		latestIs(null);
+
+		await dao.storeIfChanged(1, '56:00', '3:44', null, { time5k: 'not a time' });
+
+		expect(written()).not.toHaveProperty('predicted_time_5k');
+		expect(written()).toMatchObject({ predicted_time: '56:00' });
 	});
 });

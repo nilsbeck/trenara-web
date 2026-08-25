@@ -7,7 +7,15 @@
 	} from '$lib/components/charts/prediction-chart.svelte';
 	import DistanceChart from '$lib/components/charts/distance-chart.svelte';
 	import { readWeekDistance, readGoalDistance } from '$lib/utils/distance-graph';
-	import { timeStringToSeconds, paceStringToSeconds } from '$lib/utils/format';
+	import { forecast, earnCutoff } from '$lib/utils/forecast';
+	import { readPlanWeeks } from '$lib/utils/plan-weeks';
+	import {
+		timeStringToSeconds,
+		paceStringToSeconds,
+		formatSignedDuration,
+		secondsToTimeString,
+		secondsToPaceString
+	} from '$lib/utils/format';
 
 	let { goal, userStats }: { goal: Goal; userStats: UserStats } = $props();
 
@@ -54,6 +62,178 @@
 	// switching between them costs nothing and there is no loading state.
 	const weekSeries = $derived(readWeekDistance(userStats?.graph_stats?.weeks));
 	const goalSeries = $derived(readGoalDistance(userStats?.graph_stats?.goal));
+
+	/**
+	 * How far the current prediction sits from the goal itself.
+	 *
+	 * Both numbers were already on this card, in adjacent rows, and nobody was
+	 * doing the subtraction. Positive is behind the goal.
+	 */
+	const gap = $derived.by(() => {
+		const predicted = userStats?.best_times?.time_for_goal;
+		if (!predicted || !goal.time) return null;
+
+		const predictedSeconds = timeStringToSeconds(predicted);
+		const goalSeconds = goal.time_in_sec || timeStringToSeconds(goal.time);
+		if (!predictedSeconds || !goalSeconds) return null;
+
+		const predictedPace = userStats?.best_times?.pace_for_goal;
+		const paceGap =
+			predictedPace && goal.pace
+				? paceStringToSeconds(predictedPace) - paceStringToSeconds(goal.pace)
+				: null;
+
+		return {
+			time: predictedSeconds - goalSeconds,
+			pace: paceGap,
+			ahead: predictedSeconds < goalSeconds
+		};
+	});
+
+	const raceDay = $derived(goal.end_date ? new Date(goal.end_date) : null);
+
+	/**
+	 * Where this runner lands on race day, given what they have actually done.
+	 *
+	 * The live prediction is the starting point because it has already absorbed
+	 * every session run and skipped; the remaining plan supplies the volume; the
+	 * rate is what a kilometre has been worth to this runner, or what the plan
+	 * intends one to be worth when there is not enough history to measure. See
+	 * `forecast`.
+	 */
+	const raceForecast = $derived.by(() => {
+		const predicted = userStats?.best_times?.time_for_goal;
+		if (!raceDay || isPast || !predicted || !goal.time_in_sec) return null;
+
+		const plan = readPlanWeeks(userStats?.graph_stats?.goal);
+		if (plan.weeks.length === 0) return null;
+
+		// `completedKm` is null for "no data" as well as for a week that has not
+		// happened, and the two are not the same thing. Reading null as zero is
+		// the conservative way round: an unsynced week looks like a missed one,
+		// which can only make the measured rate fail its own fit test and hand
+		// the forecast back to the plan's design rate. The opposite mistake would
+		// credit training nobody did.
+		return forecast({
+			nowSeconds: timeStringToSeconds(predicted),
+			now,
+			goalSeconds: goal.time_in_sec,
+			raceDay,
+			planned: plan.weeks.map((w) => ({ startsOn: w.startsOn, km: w.plannedKm })),
+			done: plan.weeks.map((w) => ({ startsOn: w.startsOn, km: w.completedKm ?? 0 })),
+			samples: chartData.map((d) => ({ date: d.date, seconds: d.predictedTime })),
+			goalStart: startDate
+		});
+	});
+
+	/**
+	 * What the forecast rests on, in as few words as it can be said.
+	 *
+	 * A projected time with nothing behind it is a number to be believed or
+	 * disbelieved and nothing else. Three things decide whether it is worth
+	 * believing — how much training is left that still counts, what a kilometre
+	 * of it is priced at, and whether that price was measured or assumed — and
+	 * none of them needs a clause to carry it.
+	 */
+	const forecastBasis = $derived.by(() => {
+		if (!raceForecast) return null;
+		const { rate, remainingKm, askedToDateKm, doneToDateKm } = raceForecast;
+
+		const price = `${rate.secondsPerKm.toFixed(2)}s/km`;
+		const basis =
+			rate.source === 'observed'
+				? `your measured ${price}`
+				: `the plan's ${price} (not enough history for yours)`;
+
+		const done =
+			askedToDateKm > 0
+				? ` ${Math.round(doneToDateKm)} of ${Math.round(askedToDateKm)} km run so far.`
+				: '';
+
+		return `${Math.round(remainingKm)} km left that still counts, at ${basis}.${done}`;
+	});
+
+	/**
+	 * The shortfall as a pace.
+	 *
+	 * A finish time is what the goal is written in, but it is not what anybody
+	 * runs. "4:31 short" over a whole race is a number you have to divide before
+	 * it means anything; the seconds per kilometre behind it is the thing a
+	 * runner can feel on the next rep.
+	 *
+	 * Null when the goal carries no distance, and there is nothing to divide by.
+	 */
+	const shortfallPerKm = $derived(
+		raceForecast && goal.distance_value ? raceForecast.shortfallSeconds / goal.distance_value : null
+	);
+
+	/** A second per kilometre either way is the goal, not a miss. */
+	const ON_GOAL_PER_KM = 1;
+
+	const onGoalPace = $derived(
+		shortfallPerKm === null
+			? (raceForecast?.shortfallSeconds ?? 0) <= 30
+			: shortfallPerKm <= ON_GOAL_PER_KM
+	);
+
+	/** `18s/km`, or `1:05/km` once it runs past a minute. */
+	function perKm(seconds: number): string {
+		const total = Math.round(Math.abs(seconds));
+		return total >= 60
+			? `${Math.floor(total / 60)}:${String(total % 60).padStart(2, '0')}/km`
+			: `${total}s/km`;
+	}
+
+	/** How far short the remaining work lands, once it is worth mentioning. */
+	const shortfallNote = $derived.by(() => {
+		if (!raceForecast) return null;
+
+		// No distance to divide by: fall back to the finish time, which is at
+		// least a number, rather than saying nothing.
+		if (shortfallPerKm === null) {
+			const short = raceForecast.shortfallSeconds;
+			if (short > 30) return `${formatSignedDuration(short).replace('+', '')} short of the goal.`;
+			if (short < -30) return `${formatSignedDuration(-short).replace('+', '')} inside the goal.`;
+			return 'On the goal, if you follow the rest of the plan.';
+		}
+
+		if (shortfallPerKm > ON_GOAL_PER_KM) return `${perKm(shortfallPerKm)} short of goal pace.`;
+		if (shortfallPerKm < -ON_GOAL_PER_KM) return `${perKm(shortfallPerKm)} inside goal pace.`;
+		return 'On goal pace, if you follow the rest of the plan.';
+	});
+
+	const chartLines = $derived(
+		raceForecast ? [{ label: 'Forecast', colour: '#ec4899', points: raceForecast.points }] : []
+	);
+
+	const goalReference = $derived(
+		goal.time_in_sec ? { seconds: goal.time_in_sec, label: `Goal ${goal.time}` } : null
+	);
+
+	/**
+	 * Why there is no forecast, when there is no forecast.
+	 *
+	 * A chart that silently declines to forecast is indistinguishable from one
+	 * that is broken. Every reason below is a real state with a real remedy, and
+	 * saying which one applies is the difference between waiting for something
+	 * and wondering whether it works.
+	 */
+	const noForecastReason = $derived.by(() => {
+		if (raceForecast || isPast || chartLoading || chartError) return null;
+		if (!userStats?.best_times?.time_for_goal || !goal.time_in_sec) {
+			return 'No prediction to forecast from yet.';
+		}
+		if (readPlanWeeks(userStats?.graph_stats?.goal).weeks.length === 0) {
+			return 'No plan weeks to forecast against yet.';
+		}
+		if (chartData.length === 0) {
+			return 'No prediction recorded yet for this goal — the forecast needs at least one earlier reading to price the plan against.';
+		}
+		if (raceDay && earnCutoff(raceDay) <= now) {
+			return 'Race week: training from here changes how fresh you are, not how fast, so there is nothing left to forecast.';
+		}
+		return 'Not enough of this block on record yet to forecast — the earliest reading is too recent to tell whether you are keeping pace.';
+	});
 
 	// ── Prediction history & chart ─────────────────────────────────
 	let chartData = $state<ChartDataPoint[]>([]);
@@ -271,7 +451,7 @@
 							<td class="px-4 py-2 text-card-foreground">{goal.time}</td>
 							<td class="px-4 py-2 text-card-foreground">{goal.pace}</td>
 						</tr>
-						<tr>
+						<tr class:border-b={gap !== null} class:border-border={gap !== null}>
 							<td class="px-4 py-2 font-medium text-card-foreground">Current Prediction</td>
 							<td class="px-4 py-2 text-card-foreground">
 								{userStats.best_times.time_for_goal ?? 'N/A'}
@@ -280,6 +460,48 @@
 								{userStats.best_times.pace_for_goal ?? 'N/A'}
 							</td>
 						</tr>
+						<!--
+							The subtraction nobody was doing: the two rows above have sat
+							next to each other saying nothing about the distance between
+							them. Ahead of the goal is an ordinary state, so it is coloured
+							as good news rather than treated as an anomaly.
+						-->
+						{#if gap}
+							<tr
+								class:border-b={raceForecast !== null}
+								class:border-border={raceForecast !== null}
+							>
+								<td class="px-4 py-2 font-medium text-muted-foreground">
+									{gap.ahead ? 'Ahead by' : 'To find'}
+								</td>
+								<td class="px-4 py-2 tabular-nums" class:text-primary={gap.ahead}>
+									{formatSignedDuration(gap.time)}
+								</td>
+								<td class="px-4 py-2 tabular-nums text-muted-foreground">
+									{gap.pace === null ? '' : `${formatSignedDuration(gap.pace)} /km`}
+								</td>
+							</tr>
+						{/if}
+						<!--
+							The number the card exists to give: not where the prediction is
+							today, but where the training still left can carry it by race
+							day. Highlighted when that reaches the goal, because reaching it
+							is the whole point of the plan and worth seeing at a glance.
+						-->
+						{#if raceForecast}
+							{@const onGoal = onGoalPace}
+							<tr>
+								<td class="px-4 py-2 font-medium text-card-foreground">Projected on race day</td>
+								<td class="px-4 py-2 font-medium tabular-nums" class:text-primary={onGoal}>
+									{secondsToTimeString(Math.round(raceForecast.endSeconds))}
+								</td>
+								<td class="px-4 py-2 tabular-nums text-muted-foreground">
+									{goal.distance_value
+										? `${secondsToPaceString(Math.round(raceForecast.endSeconds / goal.distance_value))} /km`
+										: ''}
+								</td>
+							</tr>
+						{/if}
 					</tbody>
 				</table>
 			</div>
@@ -345,6 +567,33 @@
 	{:else if graphView === 'goal'}
 		<DistanceChart series={goalSeries} emptyMessage="No weekly distances for this goal yet" />
 	{:else}
-		<PredictionChart data={chartData} loading={chartLoading} error={chartError} />
+		<PredictionChart
+			data={chartData}
+			loading={chartLoading}
+			error={chartError}
+			domainEnd={raceDay}
+			projections={chartLines}
+			reference={goalReference}
+		/>
 	{/if}
+
+	<!--
+		The forecast note reads only under the prediction graph — the distance
+		graphs answer a different question, and a race-day time sitting under a
+		chart of kilometres would read as a caption for it.
+
+		Its room is kept under all three. Letting it appear and vanish resized the
+		card every time the picker moved, which is the jump this box exists to
+		absorb.
+	-->
+	<div class="min-h-[3.75rem]">
+		{#if graphView === 'prediction'}
+			{#if raceForecast}
+				<p class="mt-2 text-xs leading-relaxed text-card-foreground">{shortfallNote}</p>
+				<p class="mt-1 text-xs leading-relaxed text-muted-foreground">{forecastBasis}</p>
+			{:else if noForecastReason}
+				<p class="mt-2 text-xs leading-relaxed text-muted-foreground">{noForecastReason}</p>
+			{/if}
+		{/if}
+	</div>
 {/snippet}

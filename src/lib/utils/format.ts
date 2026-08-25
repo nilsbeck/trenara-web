@@ -39,6 +39,30 @@ export function secondsToTimeString(totalSeconds: number): string {
 }
 
 /**
+ * A difference in seconds, signed, at whatever scale reads best.
+ *
+ * `+7:12` for seven minutes behind, `−45s` for forty-five seconds ahead. The
+ * sign is the point — a gap that reads the same in both directions tells a
+ * runner nothing — so it is always shown, and a true zero is `even` rather than
+ * a signed nothing.
+ */
+export function formatSignedDuration(seconds: number): string {
+	const rounded = Math.round(seconds);
+	if (rounded === 0) return 'even';
+
+	const sign = rounded > 0 ? '+' : '−';
+	const abs = Math.abs(rounded);
+	if (abs < 60) return `${sign}${abs}s`;
+
+	const h = Math.floor(abs / 3600);
+	const m = Math.floor((abs % 3600) / 60);
+	const s = abs % 60;
+	return h > 0
+		? `${sign}${h}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`
+		: `${sign}${m}:${String(s).padStart(2, '0')}`;
+}
+
+/**
  * Convert seconds per km back to MM:SS.
  */
 export function secondsToPaceString(totalSeconds: number): string {

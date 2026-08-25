@@ -3,6 +3,13 @@
 	import { secondsToTimeString, secondsToPaceString, formatDateShort } from '$lib/utils/format';
 	import { paceRatio, summarise, formatDelta } from '$lib/utils/prediction-graph';
 
+	export interface ProjectionSeries {
+		label: string;
+		colour: string;
+		/** Dates with a predicted time in seconds, in order. */
+		points: { date: string; seconds: number }[];
+	}
+
 	export interface ChartDataPoint {
 		date: string;
 		predictedTime: number;
@@ -16,7 +23,10 @@
 		loading = false,
 		error = null,
 		timeLabel = 'Predicted Time',
-		paceLabel = 'Predicted Pace'
+		paceLabel = 'Predicted Pace',
+		domainEnd = null,
+		projections = [],
+		reference = null
 	}: {
 		data: ChartDataPoint[];
 		loading?: boolean;
@@ -24,11 +34,35 @@
 		/** Axis captions — the series differs per chart (goal distance vs. 10K). */
 		timeLabel?: string;
 		paceLabel?: string;
+		/**
+		 * Push the x axis out to this date, past the last reading.
+		 *
+		 * For anything that has to be drawn beyond the recorded history — a race
+		 * date, a forecast — so the extension lives in the caller rather than
+		 * here.
+		 */
+		domainEnd?: Date | null;
+		/**
+		 * Lines drawn past the recorded history, dashed, and named in the caption
+		 * beside the series they extend.
+		 *
+		 * Time series only: with pace a second labelling of the same axis, a
+		 * projected pace would be the same claim twice.
+		 */
+		projections?: ProjectionSeries[];
+		/** A horizontal line to read the series against — the goal's own time. */
+		reference?: { seconds: number; label: string } | null;
 	} = $props();
 
 	// Shared with the distance charts this sits beside in the picker, so the
 	// card keeps its height when the view changes.
-	const HEIGHT = 196;
+	//
+	// Taller than the distance graphs used to be because this one is asked to
+	// hold more: the goal reference and the forecast both stretch the vertical
+	// range well past the readings themselves, and at the old height that
+	// squeezed a block's worth of progress into a band a few pixels deep.
+	const HEIGHT = 260;
+	const DAY_MS = 86_400_000;
 	const PAD = { top: 14, right: 46, bottom: 44, left: 54 };
 
 	let containerWidth = $state(500);
@@ -46,7 +80,12 @@
 	 */
 	const extent = $derived.by(() => {
 		if (data.length === 0) return { min: 0, max: 1 };
-		const vals = data.map((d) => d.predictedTime);
+		// Everything drawn, or a forecast leaves the frame without saying so.
+		const vals = [
+			...data.map((d) => d.predictedTime),
+			...projections.flatMap((p) => p.points.map((pt) => pt.seconds)),
+			...(reference ? [reference.seconds] : [])
+		];
 		const min = Math.min(...vals);
 		const max = Math.max(...vals);
 		// Predictions move by fractions of a percent, so a zero baseline would
@@ -61,9 +100,34 @@
 
 	const summary = $derived(summarise(data));
 
+	/**
+	 * x is a time scale, not a sample index.
+	 *
+	 * Readings are only recorded when the prediction changes, so by index three
+	 * days and five weeks are the same gap — which draws a straight line through
+	 * a quiet month and, more to the point, leaves no position at all for a date
+	 * past the last reading. Race day has to be placeable for the forecast to
+	 * reach it.
+	 */
+	const stamps = $derived(data.map((d) => new Date(d.date).getTime()));
+
+	const xDomain = $derived.by(() => {
+		if (stamps.length === 0) return { min: 0, max: 1 };
+		const min = Math.min(...stamps);
+		const last = Math.max(...stamps);
+		const max = Math.max(last, domainEnd?.getTime() ?? -Infinity);
+		// One reading, or several on the same day: give the axis a day of width
+		// so the point lands mid-chart rather than dividing by zero.
+		return max > min ? { min, max } : { min: min - DAY_MS / 2, max: min + DAY_MS / 2 };
+	});
+
+	function xAt(stamp: number): number {
+		const { min, max } = xDomain;
+		return ((stamp - min) / (max - min)) * cw;
+	}
+
 	function xPos(i: number): number {
-		if (data.length <= 1) return cw / 2;
-		return (i / (data.length - 1)) * cw;
+		return xAt(stamps[i] ?? xDomain.min);
 	}
 
 	function yPos(v: number): number {
@@ -108,19 +172,47 @@
 		return [...new Set(ticks)];
 	});
 
+	const MIN_LABEL_SPACING = 56;
+
+	/**
+	 * Date labels, chosen by how far apart they land rather than by how many
+	 * readings sit between them.
+	 *
+	 * On a time axis an every-nth-reading rule bunches labels wherever the
+	 * recording bunched. Walking back from the most recent instead keeps the
+	 * latest reading labelled — the one the read-out below is about — and lets
+	 * the rest fall in behind it at a spacing that stays legible.
+	 */
 	const xLabels = $derived.by(() => {
 		if (data.length === 0) return [];
-		const minSpacing = 56;
-		const step = Math.max(1, Math.ceil(data.length / Math.max(1, Math.floor(cw / minSpacing))));
-		const shown = data
-			.map((d, i) => ({ i, label: formatDateShort(d.date) }))
-			.filter(({ i }) => i % step === 0);
-		const last = data.length - 1;
-		if (shown[shown.length - 1]?.i !== last) {
-			shown.push({ i: last, label: formatDateShort(data[last].date) });
+		const picked: { x: number; label: string; isLatest: boolean }[] = [];
+		const endX = domainEnd ? xAt(domainEnd.getTime()) : null;
+
+		for (let i = data.length - 1; i >= 0; i--) {
+			const x = xPos(i);
+			// Race day owns its end of the axis: a reading crowded against it
+			// loses its label rather than printing over the date the chart is
+			// counting down to.
+			if (endX !== null && endX - x < MIN_LABEL_SPACING) continue;
+			if (picked.length > 0 && picked[picked.length - 1].x - x < MIN_LABEL_SPACING) continue;
+			picked.push({ x, label: formatDateShort(data[i].date), isLatest: i === data.length - 1 });
 		}
-		return shown;
+
+		return picked.reverse();
 	});
+
+	/** Race day's own label, when the axis has been pushed out to it. */
+	const endLabel = $derived(
+		domainEnd
+			? { x: xAt(domainEnd.getTime()), label: formatDateShort(domainEnd.toISOString()) }
+			: null
+	);
+
+	function projectionPath(series: ProjectionSeries): string {
+		return series.points
+			.map((p, i) => `${i === 0 ? 'M' : 'L'}${xAt(new Date(p.date).getTime())},${yPos(p.seconds)}`)
+			.join(' ');
+	}
 
 	// ── Hover ──────────────────────────────────────────────────────
 	let hoverIdx = $state<number | null>(null);
@@ -134,12 +226,19 @@
 		// convert the pointer into viewBox units rather than assuming 1:1.
 		const scale = rect.width > 0 ? Math.max(1, containerWidth) / rect.width : 1;
 		const mx = (e.clientX - rect.left) * scale - PAD.left;
-		if (data.length === 1) {
-			hoverIdx = 0;
-			return;
+
+		// Nearest reading by position. With a time axis the readings are no
+		// longer evenly spaced, so there is no segment width to divide by.
+		let nearest = 0;
+		let best = Infinity;
+		for (let i = 0; i < data.length; i++) {
+			const distance = Math.abs(xPos(i) - mx);
+			if (distance < best) {
+				best = distance;
+				nearest = i;
+			}
 		}
-		const seg = cw / (data.length - 1);
-		hoverIdx = Math.max(0, Math.min(data.length - 1, Math.round(mx / seg)));
+		hoverIdx = nearest;
 	}
 
 	const LINE = '#a855f7';
@@ -171,7 +270,13 @@
 			One series, so no legend box: the axis captions name both readings of
 			the line, which a legend of one entry could not do.
 		-->
-		<div class="mb-0.5 flex flex-wrap items-center gap-x-4 gap-y-0.5 text-xs">
+		<!--
+			Two lines of room whether or not two are used. The prediction chart
+			carries a third entry when a forecast is drawn and wraps; the distance
+			charts never do. Letting the row size itself makes the card jump by a
+			line every time the picker moves between them.
+		-->
+		<div class="mb-0.5 flex min-h-[2.25rem] flex-wrap items-center gap-x-4 gap-y-0.5 text-xs">
 			<span class="flex items-center gap-2">
 				<span class="inline-block h-2.5 w-2.5 rounded-full" style="background:{LINE}"></span>
 				<span class="text-muted-foreground">{timeLabel}</span>
@@ -179,6 +284,23 @@
 			{#if ratio !== null}
 				<span class="text-muted-foreground">· {paceLabel} on the right</span>
 			{/if}
+			<!-- A dashed swatch, so the caption says which line is arithmetic. -->
+			{#each projections as series (series.label)}
+				<span class="flex items-center gap-2">
+					<svg width="14" height="2" aria-hidden="true" class="shrink-0">
+						<line
+							x1="0"
+							y1="1"
+							x2="14"
+							y2="1"
+							stroke={series.colour}
+							stroke-width="2"
+							stroke-dasharray="4,3"
+						/>
+					</svg>
+					<span class="text-muted-foreground">{series.label}</span>
+				</span>
+			{/each}
 		</div>
 
 		<!--
@@ -210,6 +332,17 @@
 				<g transform="translate({PAD.left},{PAD.top})">
 					<line x1={0} y1={0} x2={0} y2={ch} stroke="currentColor" class="text-border" />
 					<line x1={0} y1={ch} x2={cw} y2={ch} stroke="currentColor" class="text-border" />
+					<!--
+						The pace axis gets its own rule, on the same terms as the time
+						one. Its labels were sitting off the right edge against nothing,
+						reading as numbers that had drifted loose rather than as a scale.
+						Only when there is a pace to show: without a consistent ratio the
+						right-hand labels are dropped, and a rule with nothing beside it
+						would just be a line.
+					-->
+					{#if ratio !== null}
+						<line x1={cw} y1={0} x2={cw} y2={ch} stroke="currentColor" class="text-border" />
+					{/if}
 
 					<!-- Time on the left, and the very same gridline read as a pace on
 				     the right. Two units, one scale — never two scales. -->
@@ -239,7 +372,55 @@
 						{/if}
 					{/each}
 
+					<!-- The goal itself, to read the series against. -->
+					{#if reference}
+						{@const ry = yPos(reference.seconds)}
+						<line
+							x1={0}
+							y1={ry}
+							x2={cw}
+							y2={ry}
+							stroke="currentColor"
+							class="text-muted-foreground"
+							stroke-dasharray="6,4"
+							opacity="0.7"
+						/>
+						<!--
+							Below the line, where the goal is the floor and the space under
+							it is empty. Above it is where the prediction lives and where a
+							forecast closing on the goal arrives, which is how this label
+							came to be printed over the line it was describing. Flipped back
+							above only when the goal sits too low for the text to fit.
+						-->
+						<text
+							x={cw}
+							y={ry + 11 > ch ? ry - 4 : ry + 11}
+							text-anchor="end"
+							class="fill-current text-muted-foreground"
+							style="font-size:9px"
+						>
+							{reference.label}
+						</text>
+					{/if}
+
 					<path d={areaPath} fill="url(#prediction-fill)" stroke="none" />
+
+					<!--
+						Forecasts, under the recorded line so they never obscure it, and
+						never filled: the area under the measured series says "this
+						happened", and there is nothing under a projection to shade.
+					-->
+					{#each projections as series (series.label)}
+						<path
+							d={projectionPath(series)}
+							fill="none"
+							stroke={series.colour}
+							stroke-width="2"
+							stroke-dasharray="5,4"
+							stroke-linecap="round"
+							opacity="0.9"
+						/>
+					{/each}
 
 					{#if data.length > 1}
 						<path
@@ -264,10 +445,9 @@
 						/>
 					{/each}
 
-					{#each xLabels as { i, label }}
-						{@const isLatest = i === data.length - 1}
+					{#each xLabels as { x, label, isLatest } (label)}
 						<text
-							x={xPos(i)}
+							{x}
 							y={ch + 17}
 							text-anchor="middle"
 							class="fill-current"
@@ -279,6 +459,18 @@
 						</text>
 					{/each}
 
+					{#if endLabel}
+						<text
+							x={endLabel.x}
+							y={ch + 17}
+							text-anchor="middle"
+							class="fill-current text-muted-foreground"
+							style="font-size:11px"
+						>
+							{endLabel.label}
+						</text>
+					{/if}
+
 					<text
 						x={cw / 2}
 						y={ch + 34}
@@ -286,7 +478,7 @@
 						class="fill-current text-muted-foreground"
 						style="font-size:11px"
 					>
-						Date recorded
+						{domainEnd ? 'Date' : 'Date recorded'}
 					</text>
 
 					<!-- svelte-ignore a11y_no_static_element_interactions -->
@@ -300,53 +492,67 @@
 						onmouseleave={() => (hoverIdx = null)}
 					/>
 
+					<!--
+						Nothing in here takes the pointer.
+
+						The crosshair and the tooltip are drawn above the surface that
+						tracks the mouse, so without this they intercept it: moving onto
+						the tooltip fires `mouseleave` on the surface underneath, the
+						hover clears, the tooltip vanishes — and since the pointer has
+						not moved again, nothing brings it back. The tooltip sits over
+						the top of the plot, which is where the readings are, so what
+						survived was a band near the bottom that the tooltip never
+						covers.
+					-->
 					{#if hoverIdx !== null && data[hoverIdx]}
 						{@const d = data[hoverIdx]}
 						{@const hx = xPos(hoverIdx)}
 						{@const tx = Math.max(0, Math.min(cw - TOOLTIP_W, hx - TOOLTIP_W / 2))}
-						<line
-							x1={hx}
-							y1={0}
-							x2={hx}
-							y2={ch}
-							stroke="currentColor"
-							class="text-muted-foreground"
-							stroke-dasharray="2,2"
-							opacity="0.5"
-						/>
-						<rect
-							x={tx}
-							y={4}
-							width={TOOLTIP_W}
-							height={TOOLTIP_H}
-							rx="6"
-							class="fill-popover stroke-border"
-							stroke-width="1"
-						/>
-						<text
-							x={tx + 10}
-							y={21}
-							class="fill-current text-popover-foreground"
-							style="font-size:11px;font-weight:600"
-						>
-							{formatDateShort(d.date)}
-						</text>
-						<text
-							x={tx + 10}
-							y={38}
-							class="fill-current text-muted-foreground"
-							style="font-size:11px"
-						>
-							Time {d.formattedTime}
-						</text>
-						<text
-							x={tx + 10}
-							y={53}
-							class="fill-current text-muted-foreground"
-							style="font-size:11px"
-						>
-							Pace {d.formattedPace}
-						</text>
+						<g class="pointer-events-none">
+							<line
+								x1={hx}
+								y1={0}
+								x2={hx}
+								y2={ch}
+								stroke="currentColor"
+								class="text-muted-foreground"
+								stroke-dasharray="2,2"
+								opacity="0.5"
+							/>
+							<rect
+								x={tx}
+								y={4}
+								width={TOOLTIP_W}
+								height={TOOLTIP_H}
+								rx="6"
+								class="fill-popover stroke-border"
+								stroke-width="1"
+							/>
+							<text
+								x={tx + 10}
+								y={21}
+								class="fill-current text-popover-foreground"
+								style="font-size:11px;font-weight:600"
+							>
+								{formatDateShort(d.date)}
+							</text>
+							<text
+								x={tx + 10}
+								y={38}
+								class="fill-current text-muted-foreground"
+								style="font-size:11px"
+							>
+								Time {d.formattedTime}
+							</text>
+							<text
+								x={tx + 10}
+								y={53}
+								class="fill-current text-muted-foreground"
+								style="font-size:11px"
+							>
+								Pace {d.formattedPace}
+							</text>
+						</g>
 					{/if}
 				</g>
 			</svg>
