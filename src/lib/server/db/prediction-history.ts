@@ -27,6 +27,16 @@ export interface PredictionRecord {
 	 */
 	derived_time_10k: string | null;
 	derived_pace_10k: string | null;
+	/**
+	 * The rest of the set the stats response carried that day, as recorded.
+	 *
+	 * Times only — a pace is the time over a known distance, and storing both
+	 * invites them to disagree. Null on a row written by a client that sends
+	 * only the goal and 10K predictions.
+	 */
+	predicted_time_5k: string | null;
+	predicted_time_half: string | null;
+	predicted_time_marathon: string | null;
 	recorded_at: string;
 	created_at: string;
 }
@@ -35,6 +45,18 @@ export interface PredictionRecord {
 export interface TenKPrediction {
 	time: string;
 	pace: string;
+}
+
+/**
+ * The other distances the same response predicted.
+ *
+ * Optional throughout: a client that only knows about the goal and the 10K
+ * still records what it has, and the columns stay null.
+ */
+export interface PredictionSet {
+	time5k?: string;
+	timeHalf?: string;
+	timeMarathon?: string;
 }
 
 interface PredictionHistoryOptions {
@@ -174,7 +196,8 @@ export class PredictionHistoryDAO {
 		userId: number,
 		time: string,
 		pace: string,
-		tenK?: TenKPrediction | null
+		tenK?: TenKPrediction | null,
+		set?: PredictionSet | null
 	): Promise<{ stored: boolean; record?: PredictionRecord }> {
 		if (!PredictionValidator.validateTime(time) || !PredictionValidator.validatePace(pace)) {
 			return { stored: false };
@@ -194,6 +217,20 @@ export class PredictionHistoryDAO {
 			}
 		}
 
+		// Only the times that parse. A malformed extra distance is dropped rather
+		// than allowed to fail the write: the goal prediction is the point of the
+		// row and the rest is supporting detail.
+		const extras: Record<string, string> = {};
+		if (set?.time5k && PredictionValidator.validateTime(set.time5k)) {
+			extras.predicted_time_5k = set.time5k;
+		}
+		if (set?.timeHalf && PredictionValidator.validateTime(set.timeHalf)) {
+			extras.predicted_time_half = set.timeHalf;
+		}
+		if (set?.timeMarathon && PredictionValidator.validateTime(set.timeMarathon)) {
+			extras.predicted_time_marathon = set.timeMarathon;
+		}
+
 		const latest = await this.getLatestPrediction(userId);
 		const unchanged =
 			latest !== null &&
@@ -203,7 +240,13 @@ export class PredictionHistoryDAO {
 			// when the goal prediction itself stayed put.
 			(reference === null ||
 				(latest.predicted_time_10k === reference.time &&
-					latest.predicted_pace_10k === reference.pace));
+					latest.predicted_pace_10k === reference.pace)) &&
+			// And so is a distance arriving for the first time, or moving: the
+			// point of the set is that it is recorded rather than inferred, which
+			// a skipped write would quietly undo.
+			Object.entries(extras).every(
+				([column, value]) => latest[column as keyof PredictionRecord] === value
+			);
 
 		if (unchanged) {
 			return { stored: false };
@@ -222,6 +265,10 @@ export class PredictionHistoryDAO {
 					...(reference
 						? { predicted_time_10k: reference.time, predicted_pace_10k: reference.pace }
 						: {}),
+					// Same reasoning as the 10K pair: omitted rather than nulled, so a
+					// client that cannot resolve a distance does not erase what an
+					// earlier one recorded.
+					...extras,
 					recorded_at: today
 				},
 				{ onConflict: 'user_id,recorded_at' }

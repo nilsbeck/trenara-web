@@ -98,3 +98,17 @@ CREATE TABLE IF NOT EXISTS chat_read_state (
 ALTER TABLE prediction_history
     ADD COLUMN IF NOT EXISTS derived_time_10k VARCHAR(20),
     ADD COLUMN IF NOT EXISTS derived_pace_10k VARCHAR(20);
+
+-- The recorded prediction set (added later)
+-- Every stats response carries predictions for five distances and only two of
+-- them were kept, so anything else had to be reconstructed by inference later.
+-- These hold the rest as the API gave them, which is what keeps a recorded
+-- value distinguishable from a derived one.
+-- Times only: a pace is the time over a known distance, and storing both
+-- invites them to disagree. NULL on rows written by a client that sends only
+-- the goal and 10K predictions.
+
+ALTER TABLE prediction_history
+    ADD COLUMN IF NOT EXISTS predicted_time_5k VARCHAR(20),
+    ADD COLUMN IF NOT EXISTS predicted_time_half VARCHAR(20),
+    ADD COLUMN IF NOT EXISTS predicted_time_marathon VARCHAR(20);

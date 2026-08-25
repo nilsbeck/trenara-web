@@ -107,11 +107,24 @@
 		const reference =
 			time10k && rawPace10k ? { time_10k: time10k, pace_10k: stripPaceUnit(rawPace10k) } : {};
 
+		// The rest of what the same response predicted. Recording them now is what
+		// stops a later question about any of these distances being answered by
+		// inference from the two we happened to keep.
+		const set = {
+			...(userStats?.best_times?.time_for_5 ? { time_5k: userStats.best_times.time_for_5 } : {}),
+			...(userStats?.best_times?.time_for_half_marathon
+				? { time_half: userStats.best_times.time_for_half_marathon }
+				: {}),
+			...(userStats?.best_times?.time_for_marathon
+				? { time_marathon: userStats.best_times.time_for_marathon }
+				: {})
+		};
+
 		try {
 			const res = await fetch('/api/v1/prediction-history', {
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ time, pace, ...reference })
+				body: JSON.stringify({ time, pace, ...reference, ...set })
 			});
 			if (!res.ok) return; // non-critical, fail silently
 			const result = await res.json();

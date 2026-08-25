@@ -10,7 +10,13 @@ export const predictionRecordSchema = z.object({
 	// Fixed 10K reference, used for the comparable all-time history. Optional so
 	// clients that cannot resolve it still record the goal prediction.
 	time_10k: timeString.optional(),
-	pace_10k: paceString.optional()
+	pace_10k: paceString.optional(),
+	// The rest of the set the same response predicted. Optional for the same
+	// reason, and times only: a pace is the time over a known distance, and
+	// storing both invites them to disagree.
+	time_5k: timeString.optional(),
+	time_half: timeString.optional(),
+	time_marathon: timeString.optional()
 });
 
 export const predictionHistoryQuerySchema = z.object({

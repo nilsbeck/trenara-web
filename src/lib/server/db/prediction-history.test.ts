@@ -586,3 +586,98 @@ describe('backfillDerivedTenK', () => {
 		expect(mockChain.update).not.toHaveBeenCalled();
 	});
 });
+
+// ─────────────────────────────────────────────────────────────
+// storeIfChanged — the recorded prediction set
+// ─────────────────────────────────────────────────────────────
+describe('storeIfChanged with the wider prediction set', () => {
+	const dao = PredictionHistoryDAO.getInstance();
+
+	beforeEach(() => {
+		vi.clearAllMocks();
+		mockFrom.mockReturnValue(mockChain);
+	});
+
+	/** What the last upsert was asked to write. */
+	function written() {
+		return (mockChain.upsert as ReturnType<typeof vi.fn>).mock.calls.at(-1)?.[0] as Record<
+			string,
+			unknown
+		>;
+	}
+
+	/** The row `getLatestPrediction` finds, then the row the upsert returns. */
+	function latestIs(row: unknown) {
+		mockSingle.mockResolvedValueOnce({ data: row, error: null });
+		mockSingle.mockResolvedValueOnce({ data: { id: 1 }, error: null });
+	}
+
+	it('records the other distances the same response predicted', async () => {
+		latestIs(null);
+
+		await dao.storeIfChanged(1, '56:00', '3:44', null, {
+			time5k: '00:19:29',
+			timeHalf: '01:31:04',
+			timeMarathon: '03:11:18'
+		});
+
+		expect(written()).toMatchObject({
+			predicted_time_5k: '00:19:29',
+			predicted_time_half: '01:31:04',
+			predicted_time_marathon: '03:11:18'
+		});
+	});
+
+	it('still records a client that only knows the goal prediction', async () => {
+		latestIs(null);
+
+		const result = await dao.storeIfChanged(1, '56:00', '3:44');
+
+		expect(result.stored).toBe(true);
+		// Omitted rather than nulled, so an older client cannot erase what a newer
+		// one recorded.
+		expect(written()).not.toHaveProperty('predicted_time_5k');
+		expect(written()).not.toHaveProperty('predicted_time_10k');
+	});
+
+	it('counts a distance arriving for the first time as a change', async () => {
+		// The goal prediction has not moved, but the set is the point: skipping
+		// the write would leave it unrecorded until the prediction happened to
+		// change on its own.
+		latestIs({
+			predicted_time: '56:00',
+			predicted_pace: '3:44',
+			predicted_time_10k: null,
+			predicted_pace_10k: null,
+			predicted_time_5k: null
+		});
+
+		const result = await dao.storeIfChanged(1, '56:00', '3:44', null, { time5k: '00:19:29' });
+
+		expect(result.stored).toBe(true);
+	});
+
+	it('skips the write when nothing at all has moved', async () => {
+		latestIs({
+			predicted_time: '56:00',
+			predicted_pace: '3:44',
+			predicted_time_10k: null,
+			predicted_pace_10k: null,
+			predicted_time_5k: '00:19:29'
+		});
+
+		const result = await dao.storeIfChanged(1, '56:00', '3:44', null, { time5k: '00:19:29' });
+
+		expect(result.stored).toBe(false);
+		expect(mockChain.upsert).not.toHaveBeenCalled();
+	});
+
+	it('drops a malformed distance rather than failing the row', async () => {
+		latestIs(null);
+
+		await dao.storeIfChanged(1, '56:00', '3:44', null, { time5k: 'not a time' });
+
+		expect(written()).not.toHaveProperty('predicted_time_5k');
+		expect(written()).toMatchObject({ predicted_time: '56:00' });
+	});
+});
