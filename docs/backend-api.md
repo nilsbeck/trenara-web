@@ -63,13 +63,14 @@ Endpoints the app already calls live in `src/lib/server/trenara/`:
 | GET         | `/api/nutritional/advice`                                                                                              | `trainingApi.getNutritionAdvice`                         |
 | GET         | `/api/threads/`, `/api/threads/{id}/messages`                                                                          | `chatApi.*`                                              |
 | GET         | `/api/news/`                                                                                                           | `newsApi.getNews`                                        |
+| GET         | `/api/config/app`                                                                                                      | `configApi.getAppConfig`                                 |
 
 Endpoints recorded below are **not wired up yet** unless the section says so.
 
 Their types in `src/lib/server/trenara/types.ts` were written at different
-times and are not all current: `Goal` in particular predates what the backend
-answers today (see `current_goal` under `/api/dashboard/`). A captured response
-in this file outranks the type that claims to describe it.
+times and are not all current — `Goal` was a version behind until a capture
+caught it. A captured response in this file outranks the type that claims to
+describe it.
 
 ---
 
@@ -77,11 +78,14 @@ in this file outranks the type that claims to describe it.
 
 Static app configuration: copy, enumerations, and the option lists the mobile
 app renders pickers from. No user data — the interesting part is that several
-enumerations we currently hard-code (`SHOE_TYPES`, `CROSS_TYPES` in
+enumerations we used to hard-code (`SHOE_TYPES`, `CROSS_TYPES` in
 `src/lib/server/trenara/types.ts`) are served from here, so this is the source
 of truth if they ever change.
 
-Not used by this app yet.
+Read by `configApi.getAppConfig`, cached for the process and streamed from the
+app layout. The activity picker and shoe labels come from it; the brand list,
+pause reasons, percentage bound and copy are typed but have no screen yet. The
+constants remain as the fallback for a request that failed.
 
 ### Notable fields
 
