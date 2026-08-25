@@ -10,6 +10,7 @@
 		orderedMeals
 	} from '$lib/utils/nutrition';
 	import { Equal, Lightbulb, TriangleAlert, UtensilsCrossed } from 'lucide-svelte';
+	import { appConfig } from '$lib/stores/app-config.svelte';
 
 	let {
 		selectedDate,
@@ -32,6 +33,21 @@
 	const totals = $derived(dailyTotals(meals));
 	const energy = $derived(energyAmount(totals));
 	const shares = $derived(mealShares(meals));
+
+	/*
+		The coach’s standing disclaimer, served rather than written here.
+	
+		It is the same paragraph for every runner on every day, which is exactly
+		why it belongs to the backend: it says what the advice is and is not,
+		and a copy of that wording kept in this repo is a copy that goes stale
+		the day Trenara reworks it.
+	
+		A config request that failed leaves it null and the tab renders without
+		it. The disclaimer qualifies the advice; it is not a precondition for
+		showing the day’s numbers, and withholding them over a second request
+		that did not arrive would cost the runner more than it protects them.
+	*/
+	const disclaimer = $derived(appConfig.current?.nutritional?.disclaimer?.trim() || null);
 
 	/*
 		Every meal is laid out against the macros of the whole day rather than only
@@ -251,6 +267,20 @@
 				<Lightbulb class="mt-0.5 h-3.5 w-3.5 shrink-0 text-primary" />
 				<p class="text-sm leading-relaxed text-foreground">{nutritionData.advice}</p>
 			</div>
+		{/if}
+
+		<!--
+			Last of all, and set smaller than everything above it.
+		
+			The advice is why a runner opened this tab; the disclaimer is the
+			condition it comes with. At the foot in small print it is there to be
+			read once and found again — where the app’s own screen puts it ahead of
+			the coach and makes it the first thing read every single day.
+		-->
+		{#if disclaimer}
+			<p class="border-t border-border pt-3 text-xs leading-relaxed text-muted-foreground">
+				{disclaimer}
+			</p>
 		{/if}
 	</div>
 {/if}

@@ -1,7 +1,15 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, afterEach } from 'vitest';
 import { render, screen, within } from '@testing-library/svelte';
 import NutritionDetails from './nutrition-details.svelte';
-import type { NutritionAdvice } from '$lib/server/trenara/types';
+import type { AppConfig, NutritionAdvice } from '$lib/server/trenara/types';
+import { appConfig } from '$lib/stores/app-config.svelte';
+
+const DISCLAIMER = 'Before you start using the nutritional coach, read this.';
+
+/** Only the branch this tab reads; the rest of the config is another screen's. */
+function servedConfig(disclaimer: string): AppConfig {
+	return { nutritional: { disclaimer } } as AppConfig;
+}
 
 function advice(overrides: Partial<NutritionAdvice> = {}): NutritionAdvice {
 	return {
@@ -53,6 +61,9 @@ function renderTab(data: NutritionAdvice | null, isLoading = false) {
 }
 
 describe('NutritionDetails', () => {
+	// The store is module-level, so a config set in one test outlives it.
+	afterEach(() => appConfig.set(null));
+
 	it('leads with the day’s total energy', () => {
 		renderTab(advice());
 		const total = screen.getByText('Total for the day').closest('div')!;
@@ -143,6 +154,29 @@ describe('NutritionDetails', () => {
 	it('says when there is nothing for the day', () => {
 		renderTab(null);
 		expect(screen.getByText('No nutrition data for this day.')).toBeInTheDocument();
+	});
+
+	it('carries the served disclaimer, after the coach’s note', () => {
+		appConfig.set(servedConfig(DISCLAIMER));
+		const { container } = renderTab(advice());
+		const text = container.textContent ?? '';
+		expect(container.querySelector('p.border-t')?.textContent?.trim()).toBe(DISCLAIMER);
+		expect(text.indexOf('Front-load your carbohydrates')).toBeLessThan(text.indexOf(DISCLAIMER));
+	});
+
+	// The config request is streamed and can fail; the day's numbers do not wait
+	// on it, and nothing about the disclaimer is written down here to fall back
+	// to — a paragraph of ours in its place would be the thing this avoids.
+	it('renders the day without a disclaimer when the config never arrived', () => {
+		const { container } = renderTab(advice());
+		expect(container.textContent).toContain('Total for the day');
+		expect(container.textContent).not.toContain(DISCLAIMER);
+	});
+
+	it('leaves out a disclaimer served empty', () => {
+		appConfig.set(servedConfig('   '));
+		const { container } = renderTab(advice());
+		expect(container.querySelector('p.border-t')).toBeNull();
 	});
 
 	it('shows a loading state', () => {

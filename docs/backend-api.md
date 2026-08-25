@@ -83,9 +83,11 @@ enumerations we used to hard-code (`SHOE_TYPES`, `CROSS_TYPES` in
 of truth if they ever change.
 
 Read by `configApi.getAppConfig`, cached for the process and streamed from the
-app layout. The activity picker and shoe labels come from it; the brand list,
-pause reasons, percentage bound and copy are typed but have no screen yet. The
-constants remain as the fallback for a request that failed.
+app layout. The activity picker, the shoe labels and the nutrition tab's
+disclaimer come from it; the brand list, pause reasons, percentage bound and
+the remaining copy are typed but have no screen yet. The constants remain as
+the fallback for a request that failed — except for the copy, which has none
+and is simply left out when the request did not arrive.
 
 ### Notable fields
 
@@ -100,7 +102,9 @@ constants remain as the fallback for a request that failed.
   host) and a `color` per type — worth reusing so cross-training entries match
   the app's colours. `percentage_range: 40` is the ± window allowed on a
   cross-training effort percentage.
-- `nutritional.disclaimer` and `perks.*` are plain copy.
+- `nutritional.disclaimer` and `perks.*` are plain copy. The disclaimer is
+  rendered at the foot of the nutrition tab; `perks.*` waits on a partners
+  screen.
 - `init_popup` is a single string holding three variants separated by blank
   lines and leading `-`, keyed to the onboarding volume choice (starter,
   5–10 km, 10 km+). It is not structured; the app splits it.
