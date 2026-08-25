@@ -13,6 +13,8 @@
 		Newspaper
 	} from 'lucide-svelte';
 	import ChatBubble from '$lib/components/chat/chat-bubble.svelte';
+	import WeekOverview from '$lib/components/stats/week-overview.svelte';
+	import type { WeekProgress } from '$lib/utils/week-progress';
 	import { formatUnread, type UnreadSummary } from '$lib/utils/news-unread';
 	import { appConfig } from '$lib/stores/app-config.svelte';
 
@@ -29,6 +31,11 @@
 	let chatThreads = $state<ChatThread[]>([]);
 	let chatSeen = $state<Record<number, number>>({});
 	const newsBadgeLabel = $derived(newsUnread ? formatUnread(newsUnread) : '');
+
+	// This week's rings, streamed in behind the navbar. Null until it arrives,
+	// and null again if it could not be loaded — both render as nothing, so the
+	// bar does not reflow around a placeholder.
+	let weekProgress = $state<WeekProgress | null>(null);
 
 	// Seeds the served option lists once. Anything that misses them renders from
 	// the constants instead, so there is nothing to wait for here.
@@ -53,6 +60,16 @@
 			})
 			.catch(() => {
 				newsUnread = null;
+			});
+	});
+
+	$effect(() => {
+		data.weekProgress
+			.then((progress) => {
+				weekProgress = progress;
+			})
+			.catch(() => {
+				weekProgress = null;
 			});
 	});
 
@@ -103,6 +120,23 @@
 					</span>
 				</a>
 			</div>
+
+			<!--
+				This week at a glance. Hidden on small screens, where the bar has room
+				for the logo and the menu and nothing else — the dashboard shows the
+				same numbers in full.
+			-->
+			{#if weekProgress}
+				<div class="hidden md:flex md:flex-1 md:justify-center">
+					<a
+						href="/goal"
+						class="rounded-md px-2 py-1 hover:bg-accent"
+						aria-label="This week's training progress"
+					>
+						<WeekOverview progress={weekProgress} compact />
+					</a>
+				</div>
+			{/if}
 
 			<div class="flex items-center gap-2">
 				<!-- User Menu -->

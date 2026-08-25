@@ -1,0 +1,351 @@
+<script lang="ts">
+	import { TrendingUp } from 'lucide-svelte';
+	import { formatKm, type DistanceSeries } from '$lib/utils/distance-graph';
+
+	let {
+		series,
+		emptyMessage = 'No distance data for this period yet'
+	}: {
+		series: DistanceSeries;
+		emptyMessage?: string;
+	} = $props();
+
+	// Layout constants. `right` leaves room for the last x label to sit under
+	// its point without running off the edge.
+	const HEIGHT = 260;
+	const PAD = { top: 16, right: 16, bottom: 52, left: 40 };
+
+	let containerWidth = $state(500);
+
+	const cw = $derived(Math.max(0, containerWidth - PAD.left - PAD.right));
+	const ch = HEIGHT - PAD.top - PAD.bottom;
+
+	const points = $derived(series.points);
+
+	/**
+	 * Both series share one scale, always from zero.
+	 *
+	 * One axis on purpose: done and planned are the same measure in the same
+	 * unit, and the whole point of the graph is that they are directly
+	 * comparable. A second scale would make a shortfall look like a match.
+	 */
+	const maxValue = $derived.by(() => {
+		const vals = points.flatMap((p) => [p.doneKm, p.todoKm]);
+		const max = Math.max(0, ...vals);
+		return max > 0 ? max : 1;
+	});
+
+	function xPos(i: number): number {
+		if (points.length <= 1) return cw / 2;
+		return (i / (points.length - 1)) * cw;
+	}
+
+	function yPos(v: number): number {
+		return ch - (v / maxValue) * ch;
+	}
+
+	function linePath(get: (p: (typeof points)[number]) => number): string {
+		return points.map((p, i) => `${i === 0 ? 'M' : 'L'}${xPos(i)},${yPos(get(p))}`).join(' ');
+	}
+
+	/** The line, closed down to the baseline, so it can be filled. */
+	function areaPath(get: (p: (typeof points)[number]) => number): string {
+		if (points.length === 0) return '';
+		const last = points.length - 1;
+		return `${linePath(get)} L${xPos(last)},${ch} L${xPos(0)},${ch} Z`;
+	}
+
+	const todoLine = $derived(linePath((p) => p.todoKm));
+	const doneLine = $derived(linePath((p) => p.doneKm));
+	const todoArea = $derived(areaPath((p) => p.todoKm));
+
+	/**
+	 * Top of the scale and the baseline, plus the peak actually run.
+	 *
+	 * Three labels rather than an even ladder: the numbers worth reading off
+	 * this graph are the biggest week planned, the biggest week run, and zero.
+	 * The peak is dropped when it would collide with the top label.
+	 */
+	const yTicks = $derived.by(() => {
+		const ticks = [{ value: maxValue, label: round(maxValue) }];
+		const doneMax = Math.max(0, ...points.map((p) => p.doneKm));
+		if (doneMax > 0 && (maxValue - doneMax) / maxValue > 0.08) {
+			ticks.push({ value: doneMax, label: round(doneMax) });
+		}
+		ticks.push({ value: 0, label: '0' });
+		return ticks;
+	});
+
+	function round(v: number): string {
+		return v >= 10 ? String(Math.round(v)) : String(Math.round(v * 10) / 10);
+	}
+
+	/**
+	 * Thin the x labels until they fit.
+	 *
+	 * Seven weekdays always fit; a goal of thirty weeks does not, so every nth
+	 * is drawn — with the last one always kept, because "where does the plan
+	 * end" is a question people ask of this graph.
+	 */
+	const xLabels = $derived.by(() => {
+		if (points.length === 0) return [];
+		const minSpacing = 28;
+		const step = Math.max(1, Math.ceil(points.length / Math.max(1, Math.floor(cw / minSpacing))));
+		const shown = points.map((p, i) => ({ i, label: p.label })).filter(({ i }) => i % step === 0);
+		const last = points.length - 1;
+		if (shown[shown.length - 1]?.i !== last) shown.push({ i: last, label: points[last].label });
+		return shown;
+	});
+
+	// ── Hover ──────────────────────────────────────────────────────
+	let hoverIdx = $state<number | null>(null);
+
+	function handleMove(e: MouseEvent) {
+		if (points.length === 0) return;
+		const svg = (e.currentTarget as SVGElement).closest('svg');
+		if (!svg) return;
+		const mx = e.clientX - svg.getBoundingClientRect().left - PAD.left;
+		if (points.length === 1) {
+			hoverIdx = 0;
+			return;
+		}
+		const seg = cw / (points.length - 1);
+		hoverIdx = Math.max(0, Math.min(points.length - 1, Math.round(mx / seg)));
+	}
+
+	// ── Totals bar ─────────────────────────────────────────────────
+	const completion = $derived(
+		series.totalTodoKm > 0 ? Math.min(1, series.totalDoneKm / series.totalTodoKm) : 0
+	);
+
+	const DONE = '#a855f7';
+	const TODO = '#ef4444';
+	const TOOLTIP_W = 132;
+	const TOOLTIP_H = 58;
+</script>
+
+<div class="w-full" bind:clientWidth={containerWidth}>
+	{#if points.length === 0}
+		<div class="flex flex-col items-center justify-center py-16 text-center">
+			<TrendingUp class="mb-3 h-10 w-10 text-muted-foreground/40" />
+			<p class="text-sm font-medium text-muted-foreground">{emptyMessage}</p>
+		</div>
+	{:else}
+		<!-- Legend -->
+		<div class="mb-1 flex items-center gap-6 text-sm">
+			<span class="flex items-center gap-2">
+				<span class="inline-block h-3 w-3 rounded-full" style="background:{DONE}"></span>
+				<span class="text-muted-foreground">Done</span>
+			</span>
+			<span class="flex items-center gap-2">
+				<span class="inline-block h-3 w-3 rounded-full" style="background:{TODO}"></span>
+				<span class="text-muted-foreground">To do [{series.unit}]</span>
+			</span>
+		</div>
+
+		<svg
+			width={containerWidth}
+			height={HEIGHT}
+			class="select-none"
+			role="img"
+			aria-label="Distance done against distance planned, by {series.axisLabel.toLowerCase()}"
+		>
+			<defs>
+				<linearGradient id="distance-fill" x1="0" y1="0" x2="0" y2="1">
+					<stop offset="0%" stop-color={TODO} stop-opacity="0.28" />
+					<stop offset="100%" stop-color={TODO} stop-opacity="0.02" />
+				</linearGradient>
+			</defs>
+
+			<g transform="translate({PAD.left},{PAD.top})">
+				<!-- Y axis line and its labels -->
+				<line x1={0} y1={0} x2={0} y2={ch} stroke="currentColor" class="text-border" />
+				{#each yTicks as tick}
+					<text
+						x={-8}
+						y={yPos(tick.value)}
+						text-anchor="end"
+						dominant-baseline="middle"
+						class="fill-current text-muted-foreground"
+						style="font-size:11px"
+					>
+						{tick.label}
+					</text>
+				{/each}
+
+				<!-- X axis -->
+				<line x1={0} y1={ch} x2={cw} y2={ch} stroke="currentColor" class="text-border" />
+
+				<!-- Filled area under the planned line -->
+				<path d={todoArea} fill="url(#distance-fill)" stroke="none" />
+
+				<!-- Lines -->
+				<path
+					d={todoLine}
+					fill="none"
+					stroke={TODO}
+					stroke-width="2"
+					stroke-linejoin="round"
+					stroke-linecap="round"
+				/>
+				<path
+					d={doneLine}
+					fill="none"
+					stroke={DONE}
+					stroke-width="2"
+					stroke-linejoin="round"
+					stroke-linecap="round"
+				/>
+
+				<!-- Markers. Drawn after the lines so they sit on top, and ringed in
+				     the surface colour so overlapping points stay countable. -->
+				{#each points as p, i}
+					<circle
+						cx={xPos(i)}
+						cy={yPos(p.todoKm)}
+						r={hoverIdx === i || p.isCurrent ? 6 : 4.5}
+						fill={TODO}
+						class="stroke-card"
+						stroke-width="2"
+					/>
+				{/each}
+				{#each points as p, i}
+					<circle
+						cx={xPos(i)}
+						cy={yPos(p.doneKm)}
+						r={hoverIdx === i || p.isCurrent ? 6 : 4.5}
+						fill={DONE}
+						class="stroke-card"
+						stroke-width="2"
+					/>
+				{/each}
+
+				<!-- X labels -->
+				{#each xLabels as { i, label }}
+					<text
+						x={xPos(i)}
+						y={ch + 20}
+						text-anchor="middle"
+						class="fill-current"
+						class:text-foreground={points[i].isCurrent}
+						class:text-muted-foreground={!points[i].isCurrent}
+						style="font-size:12px;font-weight:{points[i].isCurrent ? 600 : 400}"
+					>
+						{label}
+					</text>
+				{/each}
+
+				<!-- Axis caption -->
+				<text
+					x={cw / 2}
+					y={ch + 40}
+					text-anchor="middle"
+					class="fill-current text-muted-foreground"
+					style="font-size:11px"
+				>
+					{series.axisLabel}
+				</text>
+
+				<!-- Hover surface -->
+				<!-- svelte-ignore a11y_no_static_element_interactions -->
+				<rect
+					x={0}
+					y={0}
+					width={cw}
+					height={ch}
+					fill="transparent"
+					onmousemove={handleMove}
+					onmouseleave={() => (hoverIdx = null)}
+				/>
+
+				{#if hoverIdx !== null && points[hoverIdx]}
+					{@const p = points[hoverIdx]}
+					{@const hx = xPos(hoverIdx)}
+					{@const tx = Math.max(0, Math.min(cw - TOOLTIP_W, hx - TOOLTIP_W / 2))}
+					<line
+						x1={hx}
+						y1={0}
+						x2={hx}
+						y2={ch}
+						stroke="currentColor"
+						class="text-muted-foreground"
+						stroke-dasharray="2,2"
+						opacity="0.5"
+					/>
+					<rect
+						x={tx}
+						y={4}
+						width={TOOLTIP_W}
+						height={TOOLTIP_H}
+						rx="6"
+						class="fill-popover stroke-border"
+						stroke-width="1"
+					/>
+					<text
+						x={tx + 10}
+						y={21}
+						class="fill-current text-popover-foreground"
+						style="font-size:11px;font-weight:600"
+					>
+						{p.fullLabel}
+					</text>
+					<text
+						x={tx + 10}
+						y={38}
+						class="fill-current text-muted-foreground"
+						style="font-size:11px"
+					>
+						Done {formatKm(p.doneKm, series.unit)}
+					</text>
+					<text
+						x={tx + 10}
+						y={53}
+						class="fill-current text-muted-foreground"
+						style="font-size:11px"
+					>
+						To do {formatKm(p.todoKm, series.unit)}
+					</text>
+				{/if}
+			</g>
+		</svg>
+
+		<!--
+			The period total, and how far into it this runner is.
+
+			A read-out, not a control: the knob marks where `done` falls against
+			the plan, so the same pair of numbers that the columns add up to is
+			also legible at a glance.
+		-->
+		<div class="mt-1">
+			<div class="flex items-baseline justify-end">
+				<span class="text-sm font-semibold text-foreground">
+					{formatKm(series.totalTodoKm, series.unit)}
+				</span>
+			</div>
+			<div
+				class="relative mt-1.5 h-2 w-full rounded-full"
+				style="background:linear-gradient(to right,{TODO},{DONE})"
+			>
+				<span
+					class="absolute top-1/2 h-4 w-4 -translate-x-1/2 -translate-y-1/2 rounded-full bg-foreground ring-2 ring-card"
+					style="left:{completion * 100}%"
+					aria-hidden="true"
+				></span>
+			</div>
+			<div class="mt-1 flex text-sm">
+				<span
+					class="whitespace-nowrap font-semibold text-foreground"
+					style="margin-left:calc({completion * 100}% - 2.5rem)"
+				>
+					{formatKm(series.totalDoneKm, series.unit)}
+				</span>
+			</div>
+			<p class="sr-only">
+				{formatKm(series.totalDoneKm, series.unit)} done of {formatKm(
+					series.totalTodoKm,
+					series.unit
+				)} planned.
+			</p>
+		</div>
+	{/if}
+</div>
