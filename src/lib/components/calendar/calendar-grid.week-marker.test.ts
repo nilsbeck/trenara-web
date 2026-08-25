@@ -69,30 +69,38 @@ function renderAugust2026(planWeeks: ReturnType<typeof readPlanWeeks> | null) {
 	});
 }
 
-describe('week bands in the month grid', () => {
-	it('labels the weeks of the plan that are worth noticing', () => {
+/** Every week marker on screen, by the summary it carries. */
+function markerLabels(): string[] {
+	return screen.getAllByRole('img').map((el) => el.getAttribute('aria-label') ?? '');
+}
+
+describe('week markers beside the month grid', () => {
+	it('marks the weeks of the plan that are worth noticing', () => {
 		renderAugust2026(readPlanWeeks(series()));
 
 		// August 2026 starts on a Saturday, so its rows begin on 27 July and run
 		// weekly: the peak (w32, 3 Aug), two step-downs (w33 and w35) and two
 		// build weeks (w34, w36).
-		expect(screen.getAllByText('Peak week')).toHaveLength(1);
-		expect(screen.getAllByText('Recovery week')).toHaveLength(2);
-		expect(screen.getAllByText('Build week')).toHaveLength(2);
+		const labels = markerLabels();
+		expect(labels.filter((l) => l.startsWith('Peak week'))).toHaveLength(1);
+		expect(labels.filter((l) => l.startsWith('Recovery week'))).toHaveLength(2);
+		expect(labels.filter((l) => l.startsWith('Build week'))).toHaveLength(2);
 	});
 
-	it('says which way each one can go wrong', () => {
+	it('keeps the words for the hover rather than the grid', () => {
 		renderAugust2026(readPlanWeeks(series()));
 
-		expect(screen.getAllByText('· complete it').length).toBeGreaterThan(0);
-		expect(screen.getAllByText('· keep it easy').length).toBeGreaterThan(0);
-		expect(screen.getByText('64 km — the biggest week of the plan')).toBeTruthy();
+		// The stripe is the whole signal at a glance; the sentence is there for
+		// the one week someone actually wants to know about.
+		expect(
+			screen.getByTitle('Peak week — complete it. 64 km — the biggest week of the plan.')
+		).toBeTruthy();
+		expect(screen.queryByText('Peak week')).toBeNull();
 	});
 
 	it('renders the plain grid when there is no plan to read', () => {
 		renderAugust2026(null);
 
-		expect(screen.queryByText('Peak week')).toBeNull();
-		expect(screen.queryByText('Recovery week')).toBeNull();
+		expect(screen.queryAllByRole('img')).toHaveLength(0);
 	});
 });

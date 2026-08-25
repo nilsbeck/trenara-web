@@ -3,7 +3,7 @@
 	import type { CalendarStore } from '$lib/stores/calendar.svelte';
 	import { planWeekBand, planWeekFor, type PlanWeeks } from '$lib/utils/plan-weeks';
 	import CalendarCell from './calendar-cell.svelte';
-	import WeekBand from './week-band.svelte';
+	import WeekMarker from './week-marker.svelte';
 
 	let { planWeeks = null }: { planWeeks?: PlanWeeks | null } = $props();
 
@@ -35,7 +35,13 @@
 	});
 </script>
 
-<div class="grid grid-cols-7 gap-1">
+<!--
+	Seven day columns behind a narrow gutter, which stays empty for an ordinary
+	week and for every month outside the plan. The gutter costs half a rem and
+	keeps the day cells the size they were.
+-->
+<div class="grid grid-cols-[0.5rem_repeat(7,minmax(0,1fr))] gap-1">
+	<div></div>
 	{#each DAY_NAMES as dayName}
 		<div class="py-1 text-center text-xs font-medium text-muted-foreground">
 			{dayName}
@@ -43,9 +49,10 @@
 	{/each}
 
 	{#each rows as row, i (i)}
-		<!-- Nothing at all for an ordinary week, and nothing outside the plan. -->
 		{#if row.band}
-			<WeekBand band={row.band} />
+			<WeekMarker band={row.band} />
+		{:else}
+			<div></div>
 		{/if}
 		{#each row.days as day (day)}
 			<CalendarCell {day} />
