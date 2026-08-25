@@ -246,9 +246,9 @@ Trailing slash required.
   believe this one. Its `week[]` entries are `{ day, excel_id, training_id }`
   while `Goal.week[]` is still typed `{ day, prior }` — nothing in the app
   reads `week` today, which is why the drift went unnoticed. The embedded copy
-  also has no `description` or `updated_at`; those may still exist on
-  `/api/goal` proper, since this is a slimmer serialisation, so treat their
-  absence as unconfirmed rather than as removal.
+  also has no `description` or `updated_at` — and neither does `/api/goal`
+  itself, captured a day later, so those two are gone from the API rather than
+  trimmed from this copy.
 - `current_goal.week[]` is the plan's repeating weekly pattern — one entry per
   training day, `number_of_trainings` of them — and it is what the backend
   expands from `start_date` to `end_date` into the dated sessions the calendar
@@ -662,6 +662,83 @@ otherwise verbatim.
 Medal `type` seen so far: `sum_time` (target in seconds) and `sum_distance`
 (target in km). The distance variant carries `target_unit_text` /
 `progress_unit_text` instead of `target_in_sec` / `progress_in_sec`.
+
+---
+
+## GET /api/goal
+
+The current goal: target time and distance, the plan's window, its repeating
+week, and the conditions the goal is run under. `Goal` in `types.ts`, read by
+`trainingApi.getGoal`.
+
+### Notable fields
+
+- `week[]` is the plan's repeating pattern — see `current_goal` under
+  `/api/dashboard/` for what the three fields mean. This response and the
+  dashboard's embedded copy agree field for field, so the pattern is the same
+  object served twice, not two serialisations that might drift.
+- **`description` and `updated_at` are not sent.** Our `Goal` type declared
+  both as required until this capture; they are optional now, and the goal card
+  guards on the description rather than holding an empty paragraph open.
+- `time_in_sec` (3360 here) is the target, and the number worth comparing
+  against `best_times.time_for_goal` — see `/api/me/stats/`.
+- `edit_warning` is copy to show before a change, and is about the team rather
+  than the runner: editing a captain's goal changes it for everyone.
+- `intermediate_goals[]` was empty here; each entry carries its own distance,
+  time, pace and `training_condition`, so a dated milestone is a small goal in
+  its own right.
+- `training_condition.type` is `"Goal"`, distinguishing it from the per-session
+  conditions that share the shape.
+
+### Sample response
+
+Verbatim.
+
+```json
+{
+	"id": 2123705,
+	"name": "15k nocturno",
+	"number_of_trainings": 4,
+	"week": [
+		{ "day": 4, "excel_id": 5, "training_id": 2559 },
+		{ "day": 0, "excel_id": 9, "training_id": 2563 },
+		{ "day": 2, "excel_id": 3, "training_id": 2557 },
+		{ "day": 6, "excel_id": 4, "training_id": 2558 }
+	],
+	"start_date": "2026-06-29",
+	"end_date": "2026-09-27",
+	"training_scheme_type": "ultimate",
+	"time_type_selected": "trenara_time",
+	"overrule_time": false,
+	"can_be_edited": true,
+	"edit_warning": "Watch out! As troop captain, changing the goal will mean everyone's goal will be changed. Are you sure you want to change it?",
+	"created_at": 1782684230,
+	"time": "56:00",
+	"time_in_sec": 3360,
+	"time_value": 3360,
+	"time_unit": "sec",
+	"distance": "15km",
+	"distance_value": 15,
+	"distance_unit": "km",
+	"distance_unit_text": "km",
+	"pace": "03:43 min/km",
+	"pace_value": 223,
+	"pace_unit": "min/km",
+	"intermediate_goals": [],
+	"training_condition": {
+		"id": 3788086,
+		"type": "Goal",
+		"height_difference": "flat",
+		"surface": "road",
+		"intensity": 100,
+		"updated_at": 1782684230,
+		"height": null,
+		"height_value": null,
+		"height_unit": null,
+		"height_unit_text": null
+	}
+}
+```
 
 ---
 

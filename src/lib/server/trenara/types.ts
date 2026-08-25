@@ -902,7 +902,13 @@ export type DateTrainingMap = {
 export interface Goal {
 	id: number;
 	name: string;
-	description: string;
+	/**
+	 * Optional because the API stopped sending it, not because some goals lack
+	 * one: neither a standalone `/api/goal` response nor the copy embedded in
+	 * the dashboard carried the field on 2026-08-25. Kept rather than deleted in
+	 * case it returns for a goal type we have not captured — read it defensively.
+	 */
+	description?: string;
 	start_date: string;
 	end_date: string;
 	can_be_edited: boolean;
@@ -953,7 +959,8 @@ export interface Goal {
 	 * The array arrives **unsorted** — not by `day`, `excel_id` or `training_id`.
 	 * Sort before rendering a week.
 	 *
-	 * Shape recorded from a response captured on 2026-08-24; the older
+	 * Confirmed against a standalone `/api/goal` response on 2026-08-25, which
+	 * matches the copy embedded in the dashboard field for field; the older
 	 * `{ day, prior }` this was typed as is gone. See `docs/backend-api.md`.
 	 */
 	week: Array<{
@@ -973,7 +980,8 @@ export interface Goal {
 		 */
 		training_id: number;
 	}>;
-	updated_at: number;
+	/** Absent from every capture so far — see `description`. */
+	updated_at?: number;
 }
 
 export interface UserStats {
