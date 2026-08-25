@@ -24,6 +24,7 @@
 	import SetupRail from '$lib/components/training/setup-rail.svelte';
 	import SetupRailLoading from '$lib/components/training/setup-rail-loading.svelte';
 	import SessionSetupSheet from '$lib/components/training/session-setup-sheet.svelte';
+	import { trainingLoad } from '$lib/utils/training-load';
 	import { SessionDetailStore } from '$lib/stores/session-detail.svelte';
 	import CooldownBlock from '$lib/components/training/cooldown-block.svelte';
 	import {
@@ -58,6 +59,9 @@
 
 	// True when the entry exists but has no RPE rating yet
 	const needsRating = $derived(entry != null && entry.rpe == null);
+
+	// Null on anything that is not a training notification — see `trainingLoad`.
+	const load = $derived(trainingLoad(entry));
 
 	let deleting = $state(false);
 	let confirmingDelete = $state(false);
@@ -511,6 +515,30 @@
 					</div>
 					<div class="rounded-xl rounded-tl-none bg-muted px-3 py-2">
 						<p class="text-sm text-foreground leading-relaxed">{entry.notification.content}</p>
+						<!--
+							The numbers the message is chosen from, which arrive in the same
+							object and were being dropped. They say what the sentence only
+							implies: whether the day's training load was met.
+						-->
+						{#if load}
+							<div class="mt-2">
+								<div class="flex items-baseline justify-between text-[11px] text-muted-foreground">
+									<span>Training load</span>
+									<span class="tabular-nums">{load.done} of {load.goal}</span>
+								</div>
+								<div
+									class="mt-1 h-1 w-full overflow-hidden rounded-full bg-border"
+									role="img"
+									aria-label="Training load {load.done} of {load.goal} planned"
+								>
+									<!-- Capped at full: over target is a normal day, not an overflow. -->
+									<div
+										class="h-full rounded-full bg-primary"
+										style="width: {Math.min(load.ratio, 1) * 100}%"
+									></div>
+								</div>
+							</div>
+						{/if}
 					</div>
 				</div>
 			{/if}
