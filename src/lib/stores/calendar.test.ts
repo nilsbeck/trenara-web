@@ -1553,3 +1553,55 @@ describe('syncToday', () => {
 		expect(store.getTrainingStatusForDate({ type: 'strength', day: 5 })).toBe('missed');
 	});
 });
+
+// ─────────────────────────────────────────────────────────────
+// getRunColourForDate
+// ─────────────────────────────────────────────────────────────
+describe('getRunColourForDate', () => {
+	/** A scheduled run carrying only the fields the colour index reads. */
+	function runOn(dayLong: string, hexTraining: string | null, hexCompleted: string | null = null) {
+		return {
+			id: 1,
+			day_long: dayLong,
+			title: 'Intervals',
+			type: 'run',
+			hex_training: hexTraining,
+			hex_completed: hexCompleted
+		} as unknown as Schedule['trainings'][number];
+	}
+
+	function storeWith(trainings: Schedule['trainings'], entries: Schedule['entries'] = []) {
+		// A Wednesday, with the 5th in the past and the 20th still ahead.
+		const store = createCalendarStore(new Date('2025-03-12'));
+		store.setSchedule(makeSchedule({ trainings, entries }));
+		return store;
+	}
+
+	it('gives a scheduled session the colour the API chose for it', () => {
+		const store = storeWith([runOn('2025-03-20', '#CC3311')]);
+		expect(store.getRunColourForDate(20, 'scheduled')).toBe('#CC3311');
+	});
+
+	it('leaves a missed session to the status colour', () => {
+		// Missing a session is a fact about the runner, not about the session, so
+		// the theme keeps saying it.
+		const store = storeWith([runOn('2025-03-05', '#CC3311')]);
+		expect(store.getRunColourForDate(5, 'missed')).toBeNull();
+	});
+
+	it('falls back when the API sends no completed colour', () => {
+		const store = storeWith([runOn('2025-03-20', '#CC3311', null)]);
+		expect(store.getRunColourForDate(20, 'completed')).toBeNull();
+	});
+
+	it('uses the completed colour when there is one', () => {
+		const store = storeWith([runOn('2025-03-20', '#CC3311', '#1BB9AA')]);
+		expect(store.getRunColourForDate(20, 'completed')).toBe('#1BB9AA');
+	});
+
+	it('has nothing to say about a day with no session', () => {
+		const store = storeWith([runOn('2025-03-20', '#CC3311')]);
+		expect(store.getRunColourForDate(21, 'scheduled')).toBeNull();
+		expect(store.getRunColourForDate(20, 'none')).toBeNull();
+	});
+});

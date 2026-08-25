@@ -93,6 +93,14 @@ type StatusIndex = {
 	completedRuns: Set<string>;
 	scheduledStrength: Set<string>;
 	completedStrength: Set<string>;
+	/**
+	 * The colours the API picks per session, by date.
+	 *
+	 * Its own taxonomy — intervals come through red, easy runs blue — which is
+	 * worth more than anything we would invent, since it is the same one the
+	 * runner sees in the official app.
+	 */
+	runColours: Map<string, { training: string | null; completed: string | null }>;
 };
 
 /** Build O(1) lookup sets from a schedule. Called once per schedule change. */
@@ -102,8 +110,12 @@ function buildStatusIndex(schedule: Schedule): StatusIndex {
 	const scheduledStrength = new Set<string>();
 	const completedStrength = new Set<string>();
 
+	const runColours = new Map<string, { training: string | null; completed: string | null }>();
+
 	for (const t of schedule.trainings ?? []) {
-		scheduledRuns.add(isoToDateString(t.day_long));
+		const date = isoToDateString(t.day_long);
+		scheduledRuns.add(date);
+		runColours.set(date, { training: t.hex_training ?? null, completed: t.hex_completed ?? null });
 	}
 	for (const s of schedule.strength_trainings ?? []) {
 		scheduledStrength.add(isoToDateString(s.day));
@@ -117,7 +129,7 @@ function buildStatusIndex(schedule: Schedule): StatusIndex {
 		}
 	}
 
-	return { scheduledRuns, completedRuns, scheduledStrength, completedStrength };
+	return { scheduledRuns, completedRuns, scheduledStrength, completedStrength, runColours };
 }
 
 // ── Entry date cache ────────────────────────────────────────
@@ -274,6 +286,26 @@ export function createCalendarStore(initialDate: Date, options: CalendarStoreOpt
 		if (statusIndex.completedRuns.has(calendarDate)) return 'completed';
 		if (statusIndex.scheduledRuns.has(calendarDate)) return isPast ? 'missed' : 'scheduled';
 		return 'none';
+	}
+
+	/**
+	 * The colour to draw a day's run dot in, or null to fall back to the theme.
+	 *
+	 * Only the session's own character is coloured. A missed session keeps the
+	 * status colour, because that is a fact about the runner rather than about
+	 * the session, and a completed one falls back whenever the API sends no
+	 * completed colour — which it usually does.
+	 */
+	function getRunColourForDate(day: number, status: TrainingStatus): string | null {
+		if (!statusIndex || status === 'none' || status === 'missed') return null;
+
+		const year = currentDate.getFullYear();
+		const month = currentDate.getMonth();
+		const date = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+		const colours = statusIndex.runColours.get(date);
+		if (!colours) return null;
+
+		return (status === 'completed' ? colours.completed : colours.training) ?? null;
 	}
 
 	function hasTrainingEntriesForDate(filter: TrainingFilter): boolean {
@@ -631,6 +663,7 @@ export function createCalendarStore(initialDate: Date, options: CalendarStoreOpt
 		},
 
 		getTrainingStatusForDate,
+		getRunColourForDate,
 		hasTrainingEntriesForDate
 	};
 }

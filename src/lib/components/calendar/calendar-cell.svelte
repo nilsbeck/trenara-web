@@ -38,6 +38,10 @@
 		isValidDay ? store.getTrainingStatusForDate({ type: 'strength', day: actualDay }) : 'none'
 	);
 
+	// The API's own colour for this session, when it sent one. Null falls the dot
+	// back to the theme token, which is what a missed session always gets.
+	const runColour = $derived(isValidDay ? store.getRunColourForDate(actualDay, runStatus) : null);
+
 	function handleClick() {
 		if (!isValidDay) return;
 		store.setSelectedDate({
@@ -70,9 +74,10 @@
 			{#if runStatus !== 'none'}
 				<span
 					class="block h-1 w-1 rounded-full"
-					class:bg-dot-scheduled={runStatus === 'scheduled'}
-					class:bg-dot-completed={runStatus === 'completed'}
+					class:bg-dot-scheduled={!runColour && runStatus === 'scheduled'}
+					class:bg-dot-completed={!runColour && runStatus === 'completed'}
 					class:bg-dot-missed={runStatus === 'missed'}
+					style={runColour ? `background-color: ${runColour}` : undefined}
 				></span>
 			{/if}
 			{#if strengthStatus !== 'none'}
