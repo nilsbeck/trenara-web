@@ -148,9 +148,7 @@
 	});
 
 	const chartLines = $derived(
-		raceForecast
-			? [{ label: 'if you follow the plan', colour: '#22c55e', points: raceForecast.points }]
-			: []
+		raceForecast ? [{ label: 'Forecast', colour: '#22c55e', points: raceForecast.points }] : []
 	);
 
 	/**
