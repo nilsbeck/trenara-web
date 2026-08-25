@@ -129,7 +129,11 @@
 		if (data.length === 0) return;
 		const svg = (e.currentTarget as SVGElement).closest('svg');
 		if (!svg) return;
-		const mx = e.clientX - svg.getBoundingClientRect().left - PAD.left;
+		const rect = svg.getBoundingClientRect();
+		// The viewBox can lag the rendered width by a frame after a resize, so
+		// convert the pointer into viewBox units rather than assuming 1:1.
+		const scale = rect.width > 0 ? Math.max(1, containerWidth) / rect.width : 1;
+		const mx = (e.clientX - rect.left) * scale - PAD.left;
 		if (data.length === 1) {
 			hoverIdx = 0;
 			return;
@@ -143,7 +147,7 @@
 	const TOOLTIP_H = 58;
 </script>
 
-<div class="w-full" bind:clientWidth={containerWidth}>
+<div class="w-full min-w-0" bind:clientWidth={containerWidth}>
 	{#if loading}
 		<div class="flex items-center justify-center py-12">
 			<Loader2 class="h-5 w-5 animate-spin text-muted-foreground" />
@@ -177,163 +181,176 @@
 			{/if}
 		</div>
 
-		<svg
-			width={containerWidth}
-			height={HEIGHT}
-			class="select-none"
-			role="img"
-			aria-label="{timeLabel} over time"
-		>
-			<defs>
-				<linearGradient id="prediction-fill" x1="0" y1="0" x2="0" y2="1">
-					<stop offset="0%" stop-color={LINE} stop-opacity="0.28" />
-					<stop offset="100%" stop-color={LINE} stop-opacity="0.02" />
-				</linearGradient>
-			</defs>
+		<!--
+			The plot is absolutely positioned inside a box of fixed height, so it
+			contributes nothing to the card's content width.
 
-			<g transform="translate({PAD.left},{PAD.top})">
-				<line x1={0} y1={0} x2={0} y2={ch} stroke="currentColor" class="text-border" />
-				<line x1={0} y1={ch} x2={cw} y2={ch} stroke="currentColor" class="text-border" />
+			It has to be nothing, not merely "100%": a card sized to its content
+			grows to fit whatever intrinsic width the chart claims, and the chart
+			then measures that new width and claims it again. Both a pixel `width`
+			and a `viewBox` supply such an intrinsic width, which is why setting
+			`width="100%"` alone did not stop the card widening on every switch.
+			Out of flow, the chart can only ever fit the card.
+		-->
+		<div class="relative w-full" style="height:{HEIGHT}px">
+			<svg
+				viewBox="0 0 {Math.max(1, containerWidth)} {HEIGHT}"
+				preserveAspectRatio="xMidYMid meet"
+				class="absolute inset-0 h-full w-full select-none"
+				role="img"
+				aria-label="{timeLabel} over time"
+			>
+				<defs>
+					<linearGradient id="prediction-fill" x1="0" y1="0" x2="0" y2="1">
+						<stop offset="0%" stop-color={LINE} stop-opacity="0.28" />
+						<stop offset="100%" stop-color={LINE} stop-opacity="0.02" />
+					</linearGradient>
+				</defs>
 
-				<!-- Time on the left, and the very same gridline read as a pace on
+				<g transform="translate({PAD.left},{PAD.top})">
+					<line x1={0} y1={0} x2={0} y2={ch} stroke="currentColor" class="text-border" />
+					<line x1={0} y1={ch} x2={cw} y2={ch} stroke="currentColor" class="text-border" />
+
+					<!-- Time on the left, and the very same gridline read as a pace on
 				     the right. Two units, one scale — never two scales. -->
-				{#each yTicks as tick}
-					{@const y = yPos(tick)}
-					<text
-						x={-8}
-						{y}
-						text-anchor="end"
-						dominant-baseline="middle"
-						class="fill-current text-muted-foreground"
-						style="font-size:10px"
-					>
-						{secondsToTimeString(tick)}
-					</text>
-					{#if ratio !== null}
+					{#each yTicks as tick}
+						{@const y = yPos(tick)}
 						<text
-							x={cw + 8}
+							x={-8}
 							{y}
-							text-anchor="start"
+							text-anchor="end"
 							dominant-baseline="middle"
 							class="fill-current text-muted-foreground"
 							style="font-size:10px"
 						>
-							{secondsToPaceString(tick * ratio)}
+							{secondsToTimeString(tick)}
+						</text>
+						{#if ratio !== null}
+							<text
+								x={cw + 8}
+								{y}
+								text-anchor="start"
+								dominant-baseline="middle"
+								class="fill-current text-muted-foreground"
+								style="font-size:10px"
+							>
+								{secondsToPaceString(tick * ratio)}
+							</text>
+						{/if}
+					{/each}
+
+					<path d={areaPath} fill="url(#prediction-fill)" stroke="none" />
+
+					{#if data.length > 1}
+						<path
+							d={linePath}
+							fill="none"
+							stroke={LINE}
+							stroke-width="2"
+							stroke-linejoin="round"
+							stroke-linecap="round"
+						/>
+					{/if}
+
+					{#each data as d, i}
+						{@const isLatest = i === data.length - 1}
+						<circle
+							cx={xPos(i)}
+							cy={yPos(d.predictedTime)}
+							r={hoverIdx === i || isLatest ? 5 : 3.5}
+							fill={LINE}
+							class="stroke-card"
+							stroke-width="2"
+						/>
+					{/each}
+
+					{#each xLabels as { i, label }}
+						{@const isLatest = i === data.length - 1}
+						<text
+							x={xPos(i)}
+							y={ch + 17}
+							text-anchor="middle"
+							class="fill-current"
+							class:text-foreground={isLatest}
+							class:text-muted-foreground={!isLatest}
+							style="font-size:11px;font-weight:{isLatest ? 600 : 400}"
+						>
+							{label}
+						</text>
+					{/each}
+
+					<text
+						x={cw / 2}
+						y={ch + 34}
+						text-anchor="middle"
+						class="fill-current text-muted-foreground"
+						style="font-size:11px"
+					>
+						Date recorded
+					</text>
+
+					<!-- svelte-ignore a11y_no_static_element_interactions -->
+					<rect
+						x={0}
+						y={0}
+						width={cw}
+						height={ch}
+						fill="transparent"
+						onmousemove={handleMove}
+						onmouseleave={() => (hoverIdx = null)}
+					/>
+
+					{#if hoverIdx !== null && data[hoverIdx]}
+						{@const d = data[hoverIdx]}
+						{@const hx = xPos(hoverIdx)}
+						{@const tx = Math.max(0, Math.min(cw - TOOLTIP_W, hx - TOOLTIP_W / 2))}
+						<line
+							x1={hx}
+							y1={0}
+							x2={hx}
+							y2={ch}
+							stroke="currentColor"
+							class="text-muted-foreground"
+							stroke-dasharray="2,2"
+							opacity="0.5"
+						/>
+						<rect
+							x={tx}
+							y={4}
+							width={TOOLTIP_W}
+							height={TOOLTIP_H}
+							rx="6"
+							class="fill-popover stroke-border"
+							stroke-width="1"
+						/>
+						<text
+							x={tx + 10}
+							y={21}
+							class="fill-current text-popover-foreground"
+							style="font-size:11px;font-weight:600"
+						>
+							{formatDateShort(d.date)}
+						</text>
+						<text
+							x={tx + 10}
+							y={38}
+							class="fill-current text-muted-foreground"
+							style="font-size:11px"
+						>
+							Time {d.formattedTime}
+						</text>
+						<text
+							x={tx + 10}
+							y={53}
+							class="fill-current text-muted-foreground"
+							style="font-size:11px"
+						>
+							Pace {d.formattedPace}
 						</text>
 					{/if}
-				{/each}
-
-				<path d={areaPath} fill="url(#prediction-fill)" stroke="none" />
-
-				{#if data.length > 1}
-					<path
-						d={linePath}
-						fill="none"
-						stroke={LINE}
-						stroke-width="2"
-						stroke-linejoin="round"
-						stroke-linecap="round"
-					/>
-				{/if}
-
-				{#each data as d, i}
-					{@const isLatest = i === data.length - 1}
-					<circle
-						cx={xPos(i)}
-						cy={yPos(d.predictedTime)}
-						r={hoverIdx === i || isLatest ? 5 : 3.5}
-						fill={LINE}
-						class="stroke-card"
-						stroke-width="2"
-					/>
-				{/each}
-
-				{#each xLabels as { i, label }}
-					{@const isLatest = i === data.length - 1}
-					<text
-						x={xPos(i)}
-						y={ch + 17}
-						text-anchor="middle"
-						class="fill-current"
-						class:text-foreground={isLatest}
-						class:text-muted-foreground={!isLatest}
-						style="font-size:11px;font-weight:{isLatest ? 600 : 400}"
-					>
-						{label}
-					</text>
-				{/each}
-
-				<text
-					x={cw / 2}
-					y={ch + 34}
-					text-anchor="middle"
-					class="fill-current text-muted-foreground"
-					style="font-size:11px"
-				>
-					Date recorded
-				</text>
-
-				<!-- svelte-ignore a11y_no_static_element_interactions -->
-				<rect
-					x={0}
-					y={0}
-					width={cw}
-					height={ch}
-					fill="transparent"
-					onmousemove={handleMove}
-					onmouseleave={() => (hoverIdx = null)}
-				/>
-
-				{#if hoverIdx !== null && data[hoverIdx]}
-					{@const d = data[hoverIdx]}
-					{@const hx = xPos(hoverIdx)}
-					{@const tx = Math.max(0, Math.min(cw - TOOLTIP_W, hx - TOOLTIP_W / 2))}
-					<line
-						x1={hx}
-						y1={0}
-						x2={hx}
-						y2={ch}
-						stroke="currentColor"
-						class="text-muted-foreground"
-						stroke-dasharray="2,2"
-						opacity="0.5"
-					/>
-					<rect
-						x={tx}
-						y={4}
-						width={TOOLTIP_W}
-						height={TOOLTIP_H}
-						rx="6"
-						class="fill-popover stroke-border"
-						stroke-width="1"
-					/>
-					<text
-						x={tx + 10}
-						y={21}
-						class="fill-current text-popover-foreground"
-						style="font-size:11px;font-weight:600"
-					>
-						{formatDateShort(d.date)}
-					</text>
-					<text
-						x={tx + 10}
-						y={38}
-						class="fill-current text-muted-foreground"
-						style="font-size:11px"
-					>
-						Time {d.formattedTime}
-					</text>
-					<text
-						x={tx + 10}
-						y={53}
-						class="fill-current text-muted-foreground"
-						style="font-size:11px"
-					>
-						Pace {d.formattedPace}
-					</text>
-				{/if}
-			</g>
-		</svg>
+				</g>
+			</svg>
+		</div>
 
 		<!--
 			Where the prediction stands, and how far it has come — the read-out the

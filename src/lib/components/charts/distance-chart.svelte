@@ -108,7 +108,11 @@
 		if (points.length === 0) return;
 		const svg = (e.currentTarget as SVGElement).closest('svg');
 		if (!svg) return;
-		const mx = e.clientX - svg.getBoundingClientRect().left - PAD.left;
+		const rect = svg.getBoundingClientRect();
+		// The viewBox can lag the rendered width by a frame after a resize, so
+		// convert the pointer into viewBox units rather than assuming 1:1.
+		const scale = rect.width > 0 ? Math.max(1, containerWidth) / rect.width : 1;
+		const mx = (e.clientX - rect.left) * scale - PAD.left;
 		if (points.length === 1) {
 			hoverIdx = 0;
 			return;
@@ -128,7 +132,7 @@
 	const TOOLTIP_H = 58;
 </script>
 
-<div class="w-full" bind:clientWidth={containerWidth}>
+<div class="w-full min-w-0" bind:clientWidth={containerWidth}>
 	{#if points.length === 0}
 		<div class="flex flex-col items-center justify-center py-16 text-center">
 			<TrendingUp class="mb-3 h-10 w-10 text-muted-foreground/40" />
@@ -147,171 +151,184 @@
 			</span>
 		</div>
 
-		<svg
-			width={containerWidth}
-			height={HEIGHT}
-			class="select-none"
-			role="img"
-			aria-label="Distance done against distance planned, by {series.axisLabel.toLowerCase()}"
-		>
-			<defs>
-				<linearGradient id="distance-fill" x1="0" y1="0" x2="0" y2="1">
-					<stop offset="0%" stop-color={TODO} stop-opacity="0.28" />
-					<stop offset="100%" stop-color={TODO} stop-opacity="0.02" />
-				</linearGradient>
-			</defs>
+		<!--
+			The plot is absolutely positioned inside a box of fixed height, so it
+			contributes nothing to the card's content width.
 
-			<g transform="translate({PAD.left},{PAD.top})">
-				<!-- Y axis line and its labels -->
-				<line x1={0} y1={0} x2={0} y2={ch} stroke="currentColor" class="text-border" />
-				{#each yTicks as tick}
-					<text
-						x={-8}
-						y={yPos(tick.value)}
-						text-anchor="end"
-						dominant-baseline="middle"
-						class="fill-current text-muted-foreground"
-						style="font-size:11px"
-					>
-						{tick.label}
-					</text>
-				{/each}
+			It has to be nothing, not merely "100%": a card sized to its content
+			grows to fit whatever intrinsic width the chart claims, and the chart
+			then measures that new width and claims it again. Both a pixel `width`
+			and a `viewBox` supply such an intrinsic width, which is why setting
+			`width="100%"` alone did not stop the card widening on every switch.
+			Out of flow, the chart can only ever fit the card.
+		-->
+		<div class="relative w-full" style="height:{HEIGHT}px">
+			<svg
+				viewBox="0 0 {Math.max(1, containerWidth)} {HEIGHT}"
+				preserveAspectRatio="xMidYMid meet"
+				class="absolute inset-0 h-full w-full select-none"
+				role="img"
+				aria-label="Distance done against distance planned, by {series.axisLabel.toLowerCase()}"
+			>
+				<defs>
+					<linearGradient id="distance-fill" x1="0" y1="0" x2="0" y2="1">
+						<stop offset="0%" stop-color={TODO} stop-opacity="0.28" />
+						<stop offset="100%" stop-color={TODO} stop-opacity="0.02" />
+					</linearGradient>
+				</defs>
 
-				<!-- X axis -->
-				<line x1={0} y1={ch} x2={cw} y2={ch} stroke="currentColor" class="text-border" />
+				<g transform="translate({PAD.left},{PAD.top})">
+					<!-- Y axis line and its labels -->
+					<line x1={0} y1={0} x2={0} y2={ch} stroke="currentColor" class="text-border" />
+					{#each yTicks as tick}
+						<text
+							x={-8}
+							y={yPos(tick.value)}
+							text-anchor="end"
+							dominant-baseline="middle"
+							class="fill-current text-muted-foreground"
+							style="font-size:11px"
+						>
+							{tick.label}
+						</text>
+					{/each}
 
-				<!-- Filled area under the planned line -->
-				<path d={todoArea} fill="url(#distance-fill)" stroke="none" />
+					<!-- X axis -->
+					<line x1={0} y1={ch} x2={cw} y2={ch} stroke="currentColor" class="text-border" />
 
-				<!-- Lines -->
-				<path
-					d={todoLine}
-					fill="none"
-					stroke={TODO}
-					stroke-width="2"
-					stroke-linejoin="round"
-					stroke-linecap="round"
-				/>
-				<path
-					d={doneLine}
-					fill="none"
-					stroke={DONE}
-					stroke-width="2"
-					stroke-linejoin="round"
-					stroke-linecap="round"
-				/>
+					<!-- Filled area under the planned line -->
+					<path d={todoArea} fill="url(#distance-fill)" stroke="none" />
 
-				<!-- Markers. Drawn after the lines so they sit on top, and ringed in
+					<!-- Lines -->
+					<path
+						d={todoLine}
+						fill="none"
+						stroke={TODO}
+						stroke-width="2"
+						stroke-linejoin="round"
+						stroke-linecap="round"
+					/>
+					<path
+						d={doneLine}
+						fill="none"
+						stroke={DONE}
+						stroke-width="2"
+						stroke-linejoin="round"
+						stroke-linecap="round"
+					/>
+
+					<!-- Markers. Drawn after the lines so they sit on top, and ringed in
 				     the surface colour so overlapping points stay countable. -->
-				{#each points as p, i}
-					<circle
-						cx={xPos(i)}
-						cy={yPos(p.todoKm)}
-						r={hoverIdx === i || p.isCurrent ? 5 : 3.5}
-						fill={TODO}
-						class="stroke-card"
-						stroke-width="2"
-					/>
-				{/each}
-				{#each points as p, i}
-					<circle
-						cx={xPos(i)}
-						cy={yPos(p.doneKm)}
-						r={hoverIdx === i || p.isCurrent ? 5 : 3.5}
-						fill={DONE}
-						class="stroke-card"
-						stroke-width="2"
-					/>
-				{/each}
+					{#each points as p, i}
+						<circle
+							cx={xPos(i)}
+							cy={yPos(p.todoKm)}
+							r={hoverIdx === i || p.isCurrent ? 5 : 3.5}
+							fill={TODO}
+							class="stroke-card"
+							stroke-width="2"
+						/>
+					{/each}
+					{#each points as p, i}
+						<circle
+							cx={xPos(i)}
+							cy={yPos(p.doneKm)}
+							r={hoverIdx === i || p.isCurrent ? 5 : 3.5}
+							fill={DONE}
+							class="stroke-card"
+							stroke-width="2"
+						/>
+					{/each}
 
-				<!-- X labels -->
-				{#each xLabels as { i, label }}
+					<!-- X labels -->
+					{#each xLabels as { i, label }}
+						<text
+							x={xPos(i)}
+							y={ch + 17}
+							text-anchor="middle"
+							class="fill-current"
+							class:text-foreground={points[i].isCurrent}
+							class:text-muted-foreground={!points[i].isCurrent}
+							style="font-size:11px;font-weight:{points[i].isCurrent ? 600 : 400}"
+						>
+							{label}
+						</text>
+					{/each}
+
+					<!-- Axis caption -->
 					<text
-						x={xPos(i)}
-						y={ch + 17}
+						x={cw / 2}
+						y={ch + 34}
 						text-anchor="middle"
-						class="fill-current"
-						class:text-foreground={points[i].isCurrent}
-						class:text-muted-foreground={!points[i].isCurrent}
-						style="font-size:11px;font-weight:{points[i].isCurrent ? 600 : 400}"
+						class="fill-current text-muted-foreground"
+						style="font-size:11px"
 					>
-						{label}
+						{series.axisLabel}
 					</text>
-				{/each}
 
-				<!-- Axis caption -->
-				<text
-					x={cw / 2}
-					y={ch + 34}
-					text-anchor="middle"
-					class="fill-current text-muted-foreground"
-					style="font-size:11px"
-				>
-					{series.axisLabel}
-				</text>
-
-				<!-- Hover surface -->
-				<!-- svelte-ignore a11y_no_static_element_interactions -->
-				<rect
-					x={0}
-					y={0}
-					width={cw}
-					height={ch}
-					fill="transparent"
-					onmousemove={handleMove}
-					onmouseleave={() => (hoverIdx = null)}
-				/>
-
-				{#if hoverIdx !== null && points[hoverIdx]}
-					{@const p = points[hoverIdx]}
-					{@const hx = xPos(hoverIdx)}
-					{@const tx = Math.max(0, Math.min(cw - TOOLTIP_W, hx - TOOLTIP_W / 2))}
-					<line
-						x1={hx}
-						y1={0}
-						x2={hx}
-						y2={ch}
-						stroke="currentColor"
-						class="text-muted-foreground"
-						stroke-dasharray="2,2"
-						opacity="0.5"
-					/>
+					<!-- Hover surface -->
+					<!-- svelte-ignore a11y_no_static_element_interactions -->
 					<rect
-						x={tx}
-						y={4}
-						width={TOOLTIP_W}
-						height={TOOLTIP_H}
-						rx="6"
-						class="fill-popover stroke-border"
-						stroke-width="1"
+						x={0}
+						y={0}
+						width={cw}
+						height={ch}
+						fill="transparent"
+						onmousemove={handleMove}
+						onmouseleave={() => (hoverIdx = null)}
 					/>
-					<text
-						x={tx + 10}
-						y={21}
-						class="fill-current text-popover-foreground"
-						style="font-size:11px;font-weight:600"
-					>
-						{p.fullLabel}
-					</text>
-					<text
-						x={tx + 10}
-						y={38}
-						class="fill-current text-muted-foreground"
-						style="font-size:11px"
-					>
-						Done {formatKm(p.doneKm, series.unit)}
-					</text>
-					<text
-						x={tx + 10}
-						y={53}
-						class="fill-current text-muted-foreground"
-						style="font-size:11px"
-					>
-						To do {formatKm(p.todoKm, series.unit)}
-					</text>
-				{/if}
-			</g>
-		</svg>
+
+					{#if hoverIdx !== null && points[hoverIdx]}
+						{@const p = points[hoverIdx]}
+						{@const hx = xPos(hoverIdx)}
+						{@const tx = Math.max(0, Math.min(cw - TOOLTIP_W, hx - TOOLTIP_W / 2))}
+						<line
+							x1={hx}
+							y1={0}
+							x2={hx}
+							y2={ch}
+							stroke="currentColor"
+							class="text-muted-foreground"
+							stroke-dasharray="2,2"
+							opacity="0.5"
+						/>
+						<rect
+							x={tx}
+							y={4}
+							width={TOOLTIP_W}
+							height={TOOLTIP_H}
+							rx="6"
+							class="fill-popover stroke-border"
+							stroke-width="1"
+						/>
+						<text
+							x={tx + 10}
+							y={21}
+							class="fill-current text-popover-foreground"
+							style="font-size:11px;font-weight:600"
+						>
+							{p.fullLabel}
+						</text>
+						<text
+							x={tx + 10}
+							y={38}
+							class="fill-current text-muted-foreground"
+							style="font-size:11px"
+						>
+							Done {formatKm(p.doneKm, series.unit)}
+						</text>
+						<text
+							x={tx + 10}
+							y={53}
+							class="fill-current text-muted-foreground"
+							style="font-size:11px"
+						>
+							To do {formatKm(p.todoKm, series.unit)}
+						</text>
+					{/if}
+				</g>
+			</svg>
+		</div>
 
 		<!--
 			The period total, and how far into it this runner is.
