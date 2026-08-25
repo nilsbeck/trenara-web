@@ -15,6 +15,8 @@ const { mockSingle, mockChain, mockFrom } = vi.hoisted(() => {
 		lte: vi.fn().mockReturnThis(),
 		lt: vi.fn().mockReturnThis(),
 		upsert: vi.fn().mockReturnThis(),
+		update: vi.fn().mockReturnThis(),
+		is: vi.fn().mockReturnThis(),
 		delete: vi.fn().mockReturnThis(),
 		single: mockSingle
 	};
@@ -528,5 +530,59 @@ describe('PredictionHistoryDAO — null-data defensive branches', () => {
 
 		const records = await dao.getUserPredictionHistory(1);
 		expect(records).toEqual([]);
+	});
+});
+
+// ─────────────────────────────────────────────────────────────
+// backfillDerivedTenK
+// ─────────────────────────────────────────────────────────────
+describe('backfillDerivedTenK', () => {
+	const dao = PredictionHistoryDAO.getInstance();
+
+	beforeEach(() => {
+		vi.clearAllMocks();
+		mockFrom.mockReturnValue(mockChain);
+	});
+
+	/** Make the next awaited query resolve with these rows. */
+	function rowsFound(rows: unknown[]) {
+		(mockChain as Record<string, unknown>)['then'] = vi.fn((resolve: (v: unknown) => void) =>
+			Promise.resolve({ data: rows, error: null }).then(resolve)
+		);
+	}
+
+	it('only looks at rows that have neither a recorded nor a derived value', async () => {
+		rowsFound([]);
+		await dao.backfillDerivedTenK(1);
+
+		// Both nulls, or the back-fill would overwrite what the API recorded.
+		expect(mockChain.is).toHaveBeenCalledWith('predicted_time_10k', null);
+		expect(mockChain.is).toHaveBeenCalledWith('derived_time_10k', null);
+	});
+
+	it('writes the equivalent into the derived columns', async () => {
+		rowsFound([{ id: 7, predicted_time: '01:03:12', predicted_pace: '04:12' }]);
+
+		const filled = await dao.backfillDerivedTenK(1);
+
+		expect(filled).toBe(1);
+		// A 15km prediction of 1:03:12 is the 40:56 the API gives for 10km.
+		expect(mockChain.update).toHaveBeenCalledWith({
+			derived_time_10k: '0:40:56',
+			derived_pace_10k: '4:06'
+		});
+	});
+
+	it('leaves a row it cannot convert alone', async () => {
+		rowsFound([{ id: 8, predicted_time: '01:03:12', predicted_pace: '00:00' }]);
+
+		expect(await dao.backfillDerivedTenK(1)).toBe(0);
+		expect(mockChain.update).not.toHaveBeenCalled();
+	});
+
+	it('has nothing to do once it has caught up', async () => {
+		rowsFound([]);
+		expect(await dao.backfillDerivedTenK(1)).toBe(0);
+		expect(mockChain.update).not.toHaveBeenCalled();
 	});
 });

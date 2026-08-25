@@ -1,4 +1,6 @@
 import { supabase } from './client';
+import { raceEquivalent } from '$lib/utils/race-equivalent';
+import { secondsToTimeString, secondsToPaceString } from '$lib/utils/format';
 
 export interface PredictionRecord {
 	id: number;
@@ -12,6 +14,19 @@ export interface PredictionRecord {
 	 */
 	predicted_time_10k: string | null;
 	predicted_pace_10k: string | null;
+	/**
+	 * The 10K equivalent computed from this row's own goal-distance prediction.
+	 *
+	 * Filled in for rows written before the API's 10K figure was recorded, so
+	 * the all-time series is not four points long. Kept apart from the recorded
+	 * columns on purpose: a derived value that has been mixed in with a measured
+	 * one cannot be told from it afterwards.
+	 *
+	 * Null on a row that has a recorded 10K — there is nothing to derive — and
+	 * on one whose stored pair implies no usable distance.
+	 */
+	derived_time_10k: string | null;
+	derived_pace_10k: string | null;
 	recorded_at: string;
 	created_at: string;
 }
@@ -101,6 +116,58 @@ export class PredictionHistoryDAO {
 			return [];
 		}
 		return (data ?? []) as PredictionRecord[];
+	}
+
+	/**
+	 * Fill in the 10K equivalent for rows that never recorded one.
+	 *
+	 * A back-fill rather than a conversion on read: the value belongs to the row
+	 * it was computed from, and converting again on every page load would put
+	 * the same arithmetic behind every chart that ever wants the series.
+	 *
+	 * Idempotent and best-effort — it only ever touches rows where both the
+	 * recorded and the derived 10K are missing, so a second run does nothing,
+	 * and a failure leaves the caller with whatever was already there.
+	 */
+	async backfillDerivedTenK(userId: number, limit = 500): Promise<number> {
+		const { data, error } = await supabase
+			.from('prediction_history')
+			.select('id, predicted_time, predicted_pace')
+			.eq('user_id', userId)
+			.is('predicted_time_10k', null)
+			.is('derived_time_10k', null)
+			.limit(limit);
+
+		if (error || !data?.length) {
+			if (error) console.error('Failed to read rows to back-fill:', error.message);
+			return 0;
+		}
+
+		let filled = 0;
+		for (const row of data as Array<{
+			id: number;
+			predicted_time: string;
+			predicted_pace: string;
+		}>) {
+			const equivalent = raceEquivalent(row.predicted_time, row.predicted_pace);
+			if (!equivalent) continue;
+
+			const { error: writeError } = await supabase
+				.from('prediction_history')
+				.update({
+					derived_time_10k: secondsToTimeString(Math.round(equivalent.seconds)),
+					derived_pace_10k: secondsToPaceString(Math.round(equivalent.paceSeconds))
+				})
+				.eq('id', row.id);
+
+			if (writeError) {
+				console.error('Failed to back-fill a prediction row:', writeError.message);
+				continue;
+			}
+			filled++;
+		}
+
+		return filled;
 	}
 
 	async storeIfChanged(

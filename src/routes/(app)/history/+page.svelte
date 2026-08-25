@@ -16,48 +16,63 @@
 		predicted_pace: string;
 		predicted_time_10k: string | null;
 		predicted_pace_10k: string | null;
+		derived_time_10k: string | null;
+		derived_pace_10k: string | null;
 		recorded_at: string;
 		created_at: string;
 	}
 
 	const records = $derived(data.records as PredictionRecord[]);
 
-	// This chart spans every goal the user has ever trained for, so it plots the
-	// 10K prediction rather than the goal-distance one: the goal distance changes
-	// between training blocks and would make the series incomparable. Rows
-	// recorded before 10K tracking existed have no value here and are skipped.
-	type TrackedRecord = PredictionRecord & {
-		predicted_time_10k: string;
-		predicted_pace_10k: string;
-	};
+	/**
+	 * Every row as a 10K time, recorded where the API gave one and derived where
+	 * it did not.
+	 *
+	 * This chart spans every goal the runner has ever trained for, so it cannot
+	 * plot the goal-distance prediction: a switch from a 15 km goal to a marathon
+	 * would read as a collapse in fitness. The 10K column exists for that, but it
+	 * only started recording recently, which left four comparable points against
+	 * a hundred and sixty rows.
+	 *
+	 * The derived values are back-filled server-side into columns of their own,
+	 * so which is which survives the trip here and can be said on screen.
+	 */
+	interface Point extends ChartDataPoint {
+		derived: boolean;
+	}
 
-	const trackedRecords = $derived(
-		records.filter(
-			(r): r is TrackedRecord => r.predicted_time_10k !== null && r.predicted_pace_10k !== null
-		)
+	function toPoint(r: PredictionRecord): Point | null {
+		const recorded = r.predicted_time_10k !== null && r.predicted_pace_10k !== null;
+		const time = recorded ? r.predicted_time_10k : r.derived_time_10k;
+		const pace = recorded ? r.predicted_pace_10k : r.derived_pace_10k;
+		if (time === null || pace === null) return null;
+
+		try {
+			return {
+				date: r.recorded_at,
+				predictedTime: timeStringToSeconds(time),
+				predictedPace: paceStringToSeconds(pace),
+				formattedTime: time,
+				formattedPace: pace,
+				derived: !recorded
+			};
+		} catch {
+			return null;
+		}
+	}
+
+	const points = $derived(
+		records.map(toPoint).filter((p): p is Point => p !== null && Number.isFinite(p.predictedTime))
 	);
-	const untrackedCount = $derived(records.length - trackedRecords.length);
+	const derivedCount = $derived(points.filter((p) => p.derived).length);
+	const unreadableCount = $derived(records.length - points.length);
 
 	// Defer chart rendering to after mount so the page shell paints instantly
 	let chartReady = $state(false);
 	let chartData = $state<ChartDataPoint[]>([]);
 
 	onMount(() => {
-		chartData = trackedRecords
-			.map((r) => {
-				try {
-					return {
-						date: r.recorded_at,
-						predictedTime: timeStringToSeconds(r.predicted_time_10k),
-						predictedPace: paceStringToSeconds(r.predicted_pace_10k),
-						formattedTime: r.predicted_time_10k,
-						formattedPace: r.predicted_pace_10k
-					};
-				} catch {
-					return null;
-				}
-			})
-			.filter((d): d is ChartDataPoint => d !== null);
+		chartData = points;
 		chartReady = true;
 	});
 </script>
@@ -75,7 +90,7 @@
 		<History class="h-6 w-6 text-primary" />
 		<h1 class="text-2xl font-semibold text-foreground">Prediction History</h1>
 		<span class="ml-auto text-sm text-muted-foreground">
-			{trackedRecords.length} record{trackedRecords.length !== 1 ? 's' : ''}
+			{points.length} record{points.length !== 1 ? 's' : ''}
 		</span>
 	</div>
 
@@ -84,6 +99,10 @@
 		<h2 class="text-sm font-medium text-muted-foreground">All-Time 10K Prediction Progress</h2>
 		<p class="mb-4 mt-1 text-xs text-muted-foreground">
 			Measured against a fixed 10K distance so progress stays comparable across goals.
+			{#if derivedCount > 0}
+				{derivedCount} of these {derivedCount === 1 ? 'was' : 'were'} converted from the goal-distance
+				prediction recorded that day, rather than a 10K the API gave us.
+			{/if}
 		</p>
 		{#if chartReady}
 			<PredictionChart
@@ -106,11 +125,11 @@
 				Predictions are recorded automatically when you visit your dashboard.
 			</p>
 		</div>
-	{:else if untrackedCount > 0}
+	{:else if unreadableCount > 0}
 		<div class="rounded-lg border border-border bg-card p-4 text-center shadow-sm mt-6">
 			<p class="text-sm text-muted-foreground">
-				{untrackedCount} earlier record{untrackedCount !== 1 ? 's are' : ' is'} not shown: they were recorded
-				against the goal distance of the time, before 10K tracking started.
+				{unreadableCount} record{unreadableCount !== 1 ? 's are' : ' is'} not shown: the time and pace
+				stored do not imply a distance to convert from.
 			</p>
 		</div>
 	{/if}
