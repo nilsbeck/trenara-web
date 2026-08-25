@@ -2,8 +2,15 @@
 	import type { Goal, UserStats } from '$lib/server/trenara/types';
 	import { onMount } from 'svelte';
 	import { Trophy, Calendar, Target } from 'lucide-svelte';
-	import { linearTrend, project, complianceRate, MIN_FIT } from '$lib/utils/projection';
+	import {
+		linearTrend,
+		project,
+		complianceRate,
+		planTrajectory,
+		MIN_FIT
+	} from '$lib/utils/projection';
 	import { readPlanWeeks } from '$lib/utils/plan-weeks';
+	import { mondayOf } from '$lib/utils/date';
 	import PredictionChart, {
 		type ChartDataPoint
 	} from '$lib/components/charts/prediction-chart.svelte';
@@ -77,6 +84,50 @@
 	 */
 	const raceDay = $derived(goal.end_date ? new Date(goal.end_date) : null);
 
+	/**
+	 * What following the plan asks for, week by week.
+	 *
+	 * A reading of the plan rather than a forecast of a body: the plan exists to
+	 * put a runner on their goal on race day, and the weeks between here and
+	 * there have known loads, so the improvement it is asking for can be said in
+	 * seconds — unevenly, since a 56 km week is asked for more than a 37 km one.
+	 *
+	 * It does not depend on the recorded predictions having gone anywhere, which
+	 * is the point: a runner who has stalled still has a plan in front of them.
+	 */
+	const planAsk = $derived.by(() => {
+		const predicted = userStats?.best_times?.time_for_goal;
+		if (!raceDay || isPast || !predicted || !goal.time_in_sec || !goal.distance_value) return null;
+
+		const plan = readPlanWeeks(userStats?.graph_stats?.goal);
+		const thisMonday = mondayOf(now).getTime();
+		const remaining = plan.weeks
+			.filter((w) => w.startsOn.getTime() >= thisMonday)
+			.map((w) => ({ startsOn: w.startsOn, plannedKm: w.plannedKm }));
+
+		return planTrajectory({
+			from: timeStringToSeconds(predicted),
+			fromDate: now,
+			goalSeconds: goal.time_in_sec,
+			weeks: remaining,
+			distanceKm: goal.distance_value
+		});
+	});
+
+	/** The ask in a sentence: what a typical week wants, and the range across them. */
+	const planAskSummary = $derived.by(() => {
+		if (!planAsk || planAsk.steps.length === 0) return null;
+
+		const perWeek = planAsk.steps.map((s) => s.gainPaceSeconds);
+		const low = Math.round(Math.min(...perWeek));
+		const high = Math.round(Math.max(...perWeek));
+		const weeks = planAsk.steps.length;
+
+		return low === high
+			? `Following the plan asks for ${high}s/km a week over the ${weeks} weeks that still count.`
+			: `Following the plan asks for ${low}–${high}s/km a week over the ${weeks} weeks that still count — most in the big weeks, none in race week.`;
+	});
+
 	const projections = $derived.by(() => {
 		if (!raceDay || isPast || chartData.length === 0) return [];
 
@@ -107,6 +158,18 @@
 				: [])
 		];
 	});
+
+	/**
+	 * The plan's ask first, the trend behind it.
+	 *
+	 * The ask is drawn whenever there is a plan left to follow. The trend only
+	 * when the recorded predictions have actually done something — see
+	 * `MIN_FIT`.
+	 */
+	const chartLines = $derived([
+		...(planAsk ? [{ label: 'the plan asks', colour: '#22c55e', points: planAsk.points }] : []),
+		...projections
+	]);
 
 	const goalReference = $derived(
 		goal.time_in_sec ? { seconds: goal.time_in_sec, label: `Goal ${goal.time}` } : null
@@ -411,10 +474,13 @@
 				loading={chartLoading}
 				error={chartError}
 				domainEnd={raceDay}
-				{projections}
+				projections={chartLines}
 				reference={goalReference}
 				distanceKm={goal.distance_value}
 			/>
+			{#if planAskSummary}
+				<p class="mt-2 text-xs leading-relaxed text-muted-foreground">{planAskSummary}</p>
+			{/if}
 		</div>
 	{/if}
 </div>

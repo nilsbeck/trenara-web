@@ -6,6 +6,7 @@ import {
 	complianceRate,
 	MIN_SAMPLES,
 	MIN_FIT,
+	planTrajectory,
 	type Sample
 } from './projection';
 
@@ -136,5 +137,62 @@ describe('complianceRate', () => {
 	it('claims nothing when there is nothing to compare', () => {
 		expect(complianceRate(0, 100)).toBe(1);
 		expect(complianceRate(50, 0)).toBe(1);
+	});
+});
+
+describe('planTrajectory', () => {
+	const fromDate = new Date(Date.UTC(2026, 7, 24));
+	const weeks = [
+		{ startsOn: new Date(Date.UTC(2026, 7, 24)), plannedKm: 36.94 },
+		{ startsOn: new Date(Date.UTC(2026, 7, 31)), plannedKm: 55.57 },
+		{ startsOn: new Date(Date.UTC(2026, 8, 7)), plannedKm: 55.85 },
+		{ startsOn: new Date(Date.UTC(2026, 8, 14)), plannedKm: 52.08 },
+		{ startsOn: new Date(Date.UTC(2026, 8, 21)), plannedKm: 35.25 }
+	];
+
+	/** 1:03:12 predicted against a 56:00 goal over 15 km — a 7:12 gap. */
+	const args = { from: 3792, fromDate, goalSeconds: 3360, weeks, distanceKm: 15 };
+
+	it('asks each week for its share of the work', () => {
+		const trajectory = planTrajectory(args)!;
+
+		// Four earning weeks, and the biggest of them is asked for the most.
+		expect(trajectory.steps).toHaveLength(4);
+		expect(trajectory.steps[1].gainSeconds).toBeGreaterThan(trajectory.steps[0].gainSeconds);
+		expect(trajectory.totalGainSeconds).toBe(432);
+	});
+
+	it('gives the ask in the unit a runner runs in', () => {
+		const trajectory = planTrajectory(args)!;
+		const week = trajectory.steps[1];
+
+		// 55.57 of 200.44 earning km, so 120s of the 432s gap — 8s/km.
+		expect(week.gainPaceSeconds).toBeCloseTo(week.gainSeconds / 15, 6);
+		expect(Math.round(week.gainPaceSeconds)).toBe(8);
+	});
+
+	it('asks nothing of race week', () => {
+		const trajectory = planTrajectory(args)!;
+
+		// Fitness from a session lands ten days later, so work in the last week
+		// changes freshness, not speed.
+		expect(trajectory.steps.some((s) => s.startsOn.getTime() === weeks[4].startsOn.getTime())).toBe(
+			false
+		);
+	});
+
+	it('lands on the goal by race day', () => {
+		const trajectory = planTrajectory(args)!;
+		const last = trajectory.points[trajectory.points.length - 1];
+
+		expect(Math.round(last.seconds)).toBe(3360);
+	});
+
+	it('has nothing to ask of a runner already there', () => {
+		expect(planTrajectory({ ...args, from: 3300 })).toBeNull();
+	});
+
+	it('has nothing to ask when only race week is left', () => {
+		expect(planTrajectory({ ...args, weeks: weeks.slice(-1) })).toBeNull();
 	});
 });

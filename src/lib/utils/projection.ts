@@ -180,3 +180,92 @@ export function complianceRate(completedKm: number, plannedKm: number, cap = 1.5
 	const ratio = plannedKm / completedKm;
 	return Math.min(Math.max(ratio, 1), cap);
 }
+
+/** One week of the plan, and what following it is asking for. */
+export interface PlanStep {
+	/** Monday of the week. */
+	startsOn: Date;
+	plannedKm: number;
+	/** Seconds off the goal-distance prediction this week is asked to buy. */
+	gainSeconds: number;
+	/** The same, per kilometre — the number a runner actually reads. */
+	gainPaceSeconds: number;
+	/** Where the prediction stands once this week has been done. */
+	endSeconds: number;
+}
+
+export interface PlanTrajectory {
+	steps: PlanStep[];
+	/** Two or more points for drawing: today, then each week's end. */
+	points: Sample[];
+	/** Seconds of improvement the whole run asks for. */
+	totalGainSeconds: number;
+}
+
+/**
+ * What following the plan asks for, week by week.
+ *
+ * Not a forecast of a body — a reading of the plan. The plan exists to put a
+ * runner on their goal time on race day, so the improvement it asks for is the
+ * gap between today's prediction and that goal, spread over the weeks left.
+ *
+ * Spread by planned distance rather than evenly, because the weeks are not
+ * equal: a 64 km week is asked to buy more than a 37 km one, and that is what
+ * makes the numbers worth reading rather than an average nobody trains at.
+ *
+ * The last week earns nothing. Fitness from a session takes ten days or so to
+ * arrive, so work in race week changes how fresh a runner is, not how fast —
+ * and a plan that promised otherwise would be telling them to train through
+ * the taper.
+ *
+ * Null when the goal is already in reach, or when there are no weeks left to
+ * ask anything of.
+ */
+export function planTrajectory({
+	from,
+	fromDate,
+	goalSeconds,
+	weeks,
+	distanceKm
+}: {
+	/** Today's predicted time in seconds. */
+	from: number;
+	fromDate: Date;
+	goalSeconds: number;
+	/** Remaining weeks of the plan, in order, Monday-dated. */
+	weeks: { startsOn: Date; plannedKm: number }[];
+	distanceKm: number;
+}): PlanTrajectory | null {
+	const gap = from - goalSeconds;
+	if (!(gap > 0) || !(distanceKm > 0)) return null;
+
+	// Everything but the last week, which arrives too late to count.
+	const earning = weeks.slice(0, -1).filter((w) => w.plannedKm > 0);
+	const totalKm = earning.reduce((sum, w) => sum + w.plannedKm, 0);
+	if (earning.length === 0 || totalKm <= 0) return null;
+
+	let standing = from;
+	const steps: PlanStep[] = earning.map((week) => {
+		const gainSeconds = (gap * week.plannedKm) / totalKm;
+		standing -= gainSeconds;
+		return {
+			startsOn: week.startsOn,
+			plannedKm: week.plannedKm,
+			gainSeconds,
+			gainPaceSeconds: gainSeconds / distanceKm,
+			endSeconds: standing
+		};
+	});
+
+	const iso = (d: Date) => d.toISOString().slice(0, 10);
+	const weekEnd = (d: Date) => new Date(d.getTime() + 6 * DAY_MS);
+
+	return {
+		steps,
+		points: [
+			{ date: iso(fromDate), seconds: from },
+			...steps.map((step) => ({ date: iso(weekEnd(step.startsOn)), seconds: step.endSeconds }))
+		],
+		totalGainSeconds: gap
+	};
+}
