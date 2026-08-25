@@ -43,9 +43,14 @@
 		 */
 		domainEnd?: Date | null;
 		/**
-		 * Lines drawn past the recorded history, dashed and named on the line
-		 * itself rather than in the legend — the legend describes what the chart
-		 * measures, and a projection is not a measurement.
+		 * Lines drawn past the recorded history, dashed, and named in the legend
+		 * alongside the measured series.
+		 *
+		 * The dashes carry the distinction that matters — measured behind,
+		 * projected ahead — and the legend is where a reader already looks to
+		 * find out what a colour means. Labelling these at the end of the line
+		 * instead put them in the one place the chart is most crowded, against
+		 * the right edge where the goal reference is already labelled.
 		 *
 		 * Time series only: a projected pace would be the same claim twice, and
 		 * the second one is not worth the ink.
@@ -231,32 +236,6 @@
 			.map((p, i) => `${i === 0 ? 'M' : 'L'}${xAt(new Date(p.date).getTime())},${timeY(p.seconds)}`)
 			.join(' ');
 	}
-
-	/**
-	 * Where each projection's label sits: at its far end, clear of the line and
-	 * of the label before it.
-	 *
-	 * Two projections that end close together would otherwise print on top of
-	 * each other, which is how a label meant to remove doubt creates it.
-	 */
-	const labelPositions = $derived.by(() => {
-		const placed: { x: number; y: number }[] = [];
-
-		for (const series of projections) {
-			const last = series.points[series.points.length - 1];
-			const x = xAt(new Date(last.date).getTime());
-			let y = timeY(last.seconds) - 6;
-
-			// Push down past anything already sitting at this height.
-			for (const other of placed) {
-				if (Math.abs(other.y - y) < 12) y = other.y + 12;
-			}
-
-			placed.push({ x, y });
-		}
-
-		return placed;
-	});
 </script>
 
 <div class="w-full" bind:clientWidth={containerWidth}>
@@ -279,8 +258,12 @@
 			</p>
 		</div>
 	{:else}
-		<!-- Legend -->
-		<div class="mb-2 flex items-center justify-center gap-6 text-xs">
+		<!--
+			Legend. Wraps rather than overflowing: a third entry is one more than
+			the row was built for, and on a narrow phone the measured series would
+			otherwise be pushed off the side by the projection describing them.
+		-->
+		<div class="mb-2 flex flex-wrap items-center justify-center gap-x-4 gap-y-1 text-xs">
 			<span class="flex items-center gap-1.5">
 				<span class="inline-block h-0.5 w-4 rounded" style="background:{BLUE}"></span>
 				<span class="text-muted-foreground">{timeLabel}</span>
@@ -289,6 +272,23 @@
 				<span class="inline-block h-0.5 w-4 rounded" style="background:{RED}"></span>
 				<span class="text-muted-foreground">{paceLabel}</span>
 			</span>
+			<!-- Dashed swatch, so the legend says which lines are arithmetic. -->
+			{#each projections as series (series.label)}
+				<span class="flex items-center gap-1.5">
+					<svg width="16" height="2" aria-hidden="true" class="shrink-0">
+						<line
+							x1="0"
+							y1="1"
+							x2="16"
+							y2="1"
+							stroke={series.colour}
+							stroke-width="2"
+							stroke-dasharray="4,3"
+						/>
+					</svg>
+					<span class="text-muted-foreground">{series.label}</span>
+				</span>
+			{/each}
 		</div>
 
 		<!-- SVG Chart -->
@@ -389,12 +389,10 @@
 				{/if}
 
 				<!--
-					Projections, under the recorded line so they never obscure it, and
-					named on the line: dashes say "different", they do not say "this
-					one is our arithmetic rather than a figure anybody measured".
+					Projections, under the recorded line so they never obscure it.
+					Named in the legend — see the `projections` prop.
 				-->
-				{#each projections as series, i (series.label)}
-					{@const end = labelPositions[i]}
+				{#each projections as series (series.label)}
 					<path
 						d={projectionPath(series)}
 						fill="none"
@@ -404,9 +402,6 @@
 						stroke-linecap="round"
 						opacity="0.9"
 					/>
-					<text x={end.x} y={end.y} text-anchor="end" style="font-size:9px;fill:{series.colour}">
-						{series.label}
-					</text>
 				{/each}
 
 				<!-- Time line -->
