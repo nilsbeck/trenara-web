@@ -73,13 +73,38 @@ export function readWeekProgress(
 }
 
 /**
+ * Whether a ring has anything to say.
+ *
+ * `0 / 0` is not a state worth a ring: a week with no strength work scheduled
+ * and none done has nothing to report, and an empty circle beside two full
+ * ones reads as a failure rather than an absence. Anything done counts even
+ * with nothing planned — an unplanned run is still a run.
+ */
+export function hasRing(done: number, planned: number): boolean {
+	return done > 0 || planned > 0;
+}
+
+/** True when any of the three rings has something to show. */
+export function hasAnyRing(progress: WeekProgress | null | undefined): progress is WeekProgress {
+	if (!progress) return false;
+	return (
+		hasRing(progress.sessions.done, progress.sessions.planned) ||
+		hasRing(progress.distance.doneKm, progress.distance.plannedKm) ||
+		hasRing(progress.strength.done, progress.strength.planned)
+	);
+}
+
+/**
  * How full a ring is, 0–1.
  *
- * Nothing planned reads as empty rather than complete: a week with no strength
- * work scheduled has not "finished" its strength work, and a full ring against
- * `0 / 0` would say it had. Over-delivery clamps at full.
+ * Work done against no plan reads as full: a run filed in a week that asked
+ * for nothing has met everything that was asked of it, and an empty ring
+ * beside a real distance would say the opposite. The `0 / 0` case never
+ * reaches here — `hasRing` drops that ring instead of drawing it either way.
+ *
+ * Over-delivery clamps at full.
  */
 export function ringFraction(done: number, planned: number): number {
-	if (planned <= 0) return 0;
+	if (planned <= 0) return done > 0 ? 1 : 0;
 	return Math.min(1, Math.max(0, done / planned));
 }

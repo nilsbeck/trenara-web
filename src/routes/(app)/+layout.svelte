@@ -14,7 +14,7 @@
 	} from 'lucide-svelte';
 	import ChatBubble from '$lib/components/chat/chat-bubble.svelte';
 	import WeekOverview from '$lib/components/stats/week-overview.svelte';
-	import type { WeekProgress } from '$lib/utils/week-progress';
+	import { hasAnyRing, type WeekProgress } from '$lib/utils/week-progress';
 	import { formatUnread, type UnreadSummary } from '$lib/utils/news-unread';
 	import { appConfig } from '$lib/stores/app-config.svelte';
 
@@ -126,7 +126,7 @@
 				for the logo and the menu and nothing else — the dashboard shows the
 				same numbers in full.
 			-->
-			{#if weekProgress}
+			{#if hasAnyRing(weekProgress)}
 				<div class="hidden md:flex md:flex-1 md:justify-center">
 					<a
 						href="/goal"

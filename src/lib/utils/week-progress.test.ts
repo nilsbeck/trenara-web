@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { readWeekProgress, ringFraction } from './week-progress';
+import { hasAnyRing, hasRing, readWeekProgress, ringFraction } from './week-progress';
 import type { Entry, Schedule, StrengthTraining, UserStats } from '$lib/server/trenara/types';
 
 type WeekSeries = UserStats['graph_stats']['weeks'];
@@ -130,8 +130,12 @@ describe('readWeekProgress', () => {
 });
 
 describe('ringFraction', () => {
-	it('is empty when nothing is planned, never full', () => {
+	it('is empty when nothing is planned and nothing done', () => {
 		expect(ringFraction(0, 0)).toBe(0);
+	});
+
+	it('is full for work done against no plan', () => {
+		expect(ringFraction(2, 0)).toBe(1);
 	});
 
 	it('clamps over-delivery at full', () => {
@@ -140,5 +144,45 @@ describe('ringFraction', () => {
 
 	it('is the plain ratio in between', () => {
 		expect(ringFraction(1, 4)).toBe(0.25);
+	});
+});
+
+describe('hasRing', () => {
+	it('drops a ring with nothing planned and nothing done', () => {
+		expect(hasRing(0, 0)).toBe(false);
+	});
+
+	it('keeps a ring with work planned, even before any of it is done', () => {
+		expect(hasRing(0, 4)).toBe(true);
+	});
+
+	it('keeps a ring for an unplanned session — a run off the plan is still a run', () => {
+		expect(hasRing(1, 0)).toBe(true);
+	});
+
+	it('keeps a fractional distance below one', () => {
+		expect(hasRing(0, 0.4)).toBe(true);
+	});
+});
+
+describe('hasAnyRing', () => {
+	const empty = {
+		sessions: { done: 0, planned: 0 },
+		distance: { doneKm: 0, plannedKm: 0, unit: 'km' },
+		strength: { done: 0, planned: 0 }
+	};
+
+	it('is false for a week with nothing at all, so the navbar shows nothing', () => {
+		expect(hasAnyRing(empty)).toBe(false);
+	});
+
+	it('is false for no progress at all', () => {
+		expect(hasAnyRing(null)).toBe(false);
+		expect(hasAnyRing(undefined)).toBe(false);
+	});
+
+	it('is true when a single ring survives', () => {
+		expect(hasAnyRing({ ...empty, strength: { done: 0, planned: 2 } })).toBe(true);
+		expect(hasAnyRing({ ...empty, distance: { doneKm: 8, plannedKm: 0, unit: 'km' } })).toBe(true);
 	});
 });

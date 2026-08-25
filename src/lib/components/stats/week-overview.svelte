@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { Footprints, Ruler, Dumbbell } from 'lucide-svelte';
-	import { ringFraction, type WeekProgress } from '$lib/utils/week-progress';
+	import { hasRing, ringFraction, type WeekProgress } from '$lib/utils/week-progress';
 	import { formatKm } from '$lib/utils/distance-graph';
 
 	let {
@@ -17,35 +17,58 @@
 	const radius = $derived((size - stroke) / 2);
 	const circumference = $derived(2 * Math.PI * radius);
 
-	const rings = $derived([
-		{
-			key: 'sessions',
-			icon: Footprints,
-			fraction: ringFraction(progress.sessions.done, progress.sessions.planned),
-			done: String(progress.sessions.done),
-			planned: String(progress.sessions.planned),
-			label: `${progress.sessions.done} of ${progress.sessions.planned} run sessions done this week`
-		},
-		{
-			key: 'distance',
-			icon: Ruler,
-			fraction: ringFraction(progress.distance.doneKm, progress.distance.plannedKm),
-			done: formatKm(progress.distance.doneKm, progress.distance.unit),
-			planned: formatKm(progress.distance.plannedKm, progress.distance.unit),
-			label: `${formatKm(progress.distance.doneKm, progress.distance.unit)} of ${formatKm(
-				progress.distance.plannedKm,
-				progress.distance.unit
-			)} done this week`
-		},
-		{
-			key: 'strength',
-			icon: Dumbbell,
-			fraction: ringFraction(progress.strength.done, progress.strength.planned),
-			done: String(progress.strength.done),
-			planned: String(progress.strength.planned),
-			label: `${progress.strength.done} of ${progress.strength.planned} strength sessions done this week`
-		}
-	]);
+	/** Reads the same as the ring: no "of 0" when nothing was planned. */
+	function countLabel(done: number, planned: number, noun: string): string {
+		return planned > 0
+			? `${done} of ${planned} ${noun} done this week`
+			: `${done} unplanned ${noun} done this week`;
+	}
+
+	function distanceLabel(distance: WeekProgress['distance']): string {
+		const done = formatKm(distance.doneKm, distance.unit);
+		return distance.plannedKm > 0
+			? `${done} of ${formatKm(distance.plannedKm, distance.unit)} done this week`
+			: `${done} done this week, none planned`;
+	}
+
+	const rings = $derived(
+		[
+			{
+				key: 'sessions',
+				icon: Footprints,
+				fraction: ringFraction(progress.sessions.done, progress.sessions.planned),
+				done: String(progress.sessions.done),
+				planned: String(progress.sessions.planned),
+				label: countLabel(progress.sessions.done, progress.sessions.planned, 'run sessions'),
+				doneValue: progress.sessions.done,
+				plannedValue: progress.sessions.planned
+			},
+			{
+				key: 'distance',
+				icon: Ruler,
+				fraction: ringFraction(progress.distance.doneKm, progress.distance.plannedKm),
+				done: formatKm(progress.distance.doneKm, progress.distance.unit),
+				planned: formatKm(progress.distance.plannedKm, progress.distance.unit),
+				label: `${formatKm(progress.distance.doneKm, progress.distance.unit)} of ${formatKm(
+					progress.distance.plannedKm,
+					progress.distance.unit
+				)} done this week`,
+				doneValue: progress.distance.doneKm,
+				plannedValue: progress.distance.plannedKm
+			},
+			{
+				key: 'strength',
+				icon: Dumbbell,
+				fraction: ringFraction(progress.strength.done, progress.strength.planned),
+				done: String(progress.strength.done),
+				planned: String(progress.strength.planned),
+				label: countLabel(progress.strength.done, progress.strength.planned, 'strength sessions'),
+				doneValue: progress.strength.done,
+				plannedValue: progress.strength.planned
+			}
+			// A `0 / 0` ring is dropped rather than drawn empty — see `hasRing`.
+		].filter((ring) => hasRing(ring.doneValue, ring.plannedValue))
+	);
 </script>
 
 <div class="flex items-center {compact ? 'gap-3 sm:gap-5' : 'gap-6'}" aria-label="This week">
@@ -86,8 +109,13 @@
 			</span>
 			<span class="leading-tight whitespace-nowrap">
 				<span class="{compact ? 'text-sm' : 'text-lg'} font-bold text-foreground">{ring.done}</span>
-				<span class="{compact ? 'text-xs' : 'text-sm'} text-muted-foreground">/ {ring.planned}</span
-				>
+				<!-- Nothing planned means no denominator to show: "14.2 km / 0 km"
+				     reads as a shortfall when it is the opposite. -->
+				{#if ring.plannedValue > 0}
+					<span class="{compact ? 'text-xs' : 'text-sm'} text-muted-foreground"
+						>/ {ring.planned}</span
+					>
+				{/if}
 			</span>
 			<span class="sr-only">{ring.label}</span>
 		</div>
