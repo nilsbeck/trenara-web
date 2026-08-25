@@ -16,7 +16,9 @@
 	// Deliberately shorter than the prediction chart it shares a slot with: two
 	// series over seven days does not need the height a continuous prediction
 	// trend does, and the card should not jump taller when the picker changes.
-	const HEIGHT = 196;
+	// Shared with the prediction chart in the same picker — see the note there
+	// on why they are both this tall.
+	const HEIGHT = 260;
 	const PAD = { top: 14, right: 16, bottom: 44, left: 34 };
 
 	let containerWidth = $state(500);
@@ -139,8 +141,14 @@
 			<p class="text-sm font-medium text-muted-foreground">{emptyMessage}</p>
 		</div>
 	{:else}
-		<!-- Legend -->
-		<div class="mb-0.5 flex items-center gap-5 text-xs">
+		<!--
+			Legend, with two lines of room whether or not two are used. The
+			prediction chart in the same picker carries a third entry when a
+			forecast is drawn and wraps; this one never does. Letting each row size
+			itself makes the card jump by a line every time the picker moves
+			between them.
+		-->
+		<div class="mb-0.5 flex min-h-[2.25rem] flex-wrap items-center gap-5 text-xs">
 			<span class="flex items-center gap-2">
 				<span class="inline-block h-2.5 w-2.5 rounded-full" style="background:{DONE}"></span>
 				<span class="text-muted-foreground">Done</span>

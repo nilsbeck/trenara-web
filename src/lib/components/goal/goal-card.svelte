@@ -575,16 +575,25 @@
 			projections={chartLines}
 			reference={goalReference}
 		/>
-		<!--
-			Only under the prediction graph. The distance graphs answer a different
-			question, and a forecast of race-day time sitting under a bar chart of
-			kilometres would read as a caption for it.
-		-->
-		{#if raceForecast}
-			<p class="mt-2 text-xs leading-relaxed text-card-foreground">{shortfallNote}</p>
-			<p class="mt-1 text-xs leading-relaxed text-muted-foreground">{forecastBasis}</p>
-		{:else if noForecastReason}
-			<p class="mt-2 text-xs leading-relaxed text-muted-foreground">{noForecastReason}</p>
-		{/if}
 	{/if}
+
+	<!--
+		The forecast note reads only under the prediction graph — the distance
+		graphs answer a different question, and a race-day time sitting under a
+		chart of kilometres would read as a caption for it.
+
+		Its room is kept under all three. Letting it appear and vanish resized the
+		card every time the picker moved, which is the jump this box exists to
+		absorb.
+	-->
+	<div class="min-h-[3.75rem]">
+		{#if graphView === 'prediction'}
+			{#if raceForecast}
+				<p class="mt-2 text-xs leading-relaxed text-card-foreground">{shortfallNote}</p>
+				<p class="mt-1 text-xs leading-relaxed text-muted-foreground">{forecastBasis}</p>
+			{:else if noForecastReason}
+				<p class="mt-2 text-xs leading-relaxed text-muted-foreground">{noForecastReason}</p>
+			{/if}
+		{/if}
+	</div>
 {/snippet}

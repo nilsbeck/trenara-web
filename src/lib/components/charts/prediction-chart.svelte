@@ -56,7 +56,12 @@
 
 	// Shared with the distance charts this sits beside in the picker, so the
 	// card keeps its height when the view changes.
-	const HEIGHT = 196;
+	//
+	// Taller than the distance graphs used to be because this one is asked to
+	// hold more: the goal reference and the forecast both stretch the vertical
+	// range well past the readings themselves, and at the old height that
+	// squeezed a block's worth of progress into a band a few pixels deep.
+	const HEIGHT = 260;
 	const DAY_MS = 86_400_000;
 	const PAD = { top: 14, right: 46, bottom: 44, left: 54 };
 
@@ -265,7 +270,13 @@
 			One series, so no legend box: the axis captions name both readings of
 			the line, which a legend of one entry could not do.
 		-->
-		<div class="mb-0.5 flex flex-wrap items-center gap-x-4 gap-y-0.5 text-xs">
+		<!--
+			Two lines of room whether or not two are used. The prediction chart
+			carries a third entry when a forecast is drawn and wraps; the distance
+			charts never do. Letting the row size itself makes the card jump by a
+			line every time the picker moves between them.
+		-->
+		<div class="mb-0.5 flex min-h-[2.25rem] flex-wrap items-center gap-x-4 gap-y-0.5 text-xs">
 			<span class="flex items-center gap-2">
 				<span class="inline-block h-2.5 w-2.5 rounded-full" style="background:{LINE}"></span>
 				<span class="text-muted-foreground">{timeLabel}</span>
