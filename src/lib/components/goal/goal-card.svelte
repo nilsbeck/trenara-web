@@ -2,23 +2,17 @@
 	import type { Goal, UserStats } from '$lib/server/trenara/types';
 	import { onMount } from 'svelte';
 	import { Trophy, Calendar, Target } from 'lucide-svelte';
-	import {
-		linearTrend,
-		project,
-		complianceRate,
-		planTrajectory,
-		planEarnRate,
-		MIN_FIT
-	} from '$lib/utils/projection';
+	import { forecast, earnCutoff } from '$lib/utils/forecast';
 	import { readPlanWeeks } from '$lib/utils/plan-weeks';
-	import { mondayOf } from '$lib/utils/date';
 	import PredictionChart, {
 		type ChartDataPoint
 	} from '$lib/components/charts/prediction-chart.svelte';
 	import {
 		timeStringToSeconds,
 		paceStringToSeconds,
-		formatSignedDuration
+		formatSignedDuration,
+		secondsToTimeString,
+		secondsToPaceString
 	} from '$lib/utils/format';
 
 	let { goal, userStats }: { goal: Goal; userStats: UserStats } = $props();
@@ -73,126 +67,116 @@
 	});
 
 	/**
-	 * Where the prediction lands on race day, drawn two ways.
+	 * Where this runner lands on race day, given what they have actually done.
 	 *
-	 * Both are arithmetic on past behaviour rather than a figure the API gives,
-	 * and each line says so where it ends. Nothing is drawn at all below a real
-	 * stretch of history — see `linearTrend`.
+	 * One line, not three. The earlier version drew a trend through the recorded
+	 * predictions and a second, brighter copy of it scaled up for "if you had
+	 * followed the plan" — two lines about the past, neither of which answered
+	 * the only question worth asking on a goal card, which is where the training
+	 * still ahead can get to.
 	 *
-	 * The gap between the two is what the missed weeks cost: one carries the rate
-	 * the runner has actually managed, the other the rate that completing the
-	 * rest of the plan might buy.
+	 * The live prediction is the starting point because it has already absorbed
+	 * every session run and skipped; the remaining plan supplies the volume; the
+	 * rate is what a kilometre has been worth to this runner, or what the plan
+	 * intends one to be worth when there is not enough history to measure. See
+	 * `forecast`.
 	 */
 	const raceDay = $derived(goal.end_date ? new Date(goal.end_date) : null);
 
-	/**
-	 * What following the plan asks for, week by week.
-	 *
-	 * A reading of the plan rather than a forecast of a body: the plan exists to
-	 * put a runner on their goal on race day, and the weeks between here and
-	 * there have known loads, so the improvement it is asking for can be said in
-	 * seconds — unevenly, since a 56 km week is asked for more than a 37 km one.
-	 *
-	 * It does not depend on the recorded predictions having gone anywhere, which
-	 * is the point: a runner who has stalled still has a plan in front of them.
-	 */
-	const planAsk = $derived.by(() => {
+	const raceForecast = $derived.by(() => {
 		const predicted = userStats?.best_times?.time_for_goal;
-		if (!raceDay || isPast || !predicted || !goal.time_in_sec || !goal.distance_value) return null;
-		if (chartData.length === 0) return null;
+		if (!raceDay || isPast || !predicted || !goal.time_in_sec) return null;
 
 		const plan = readPlanWeeks(userStats?.graph_stats?.goal);
+		if (plan.weeks.length === 0) return null;
 
-		// What this plan meant a kilometre to be worth: the gap it set out to
-		// close, over the whole distance it asked for. Read off the first
-		// prediction recorded under this goal rather than assumed.
-		const rate = planEarnRate(chartData[0].predictedTime - goal.time_in_sec, plan.totalPlannedKm);
-		if (rate === null) return null;
-
-		const thisMonday = mondayOf(now).getTime();
-		const remaining = plan.weeks
-			.filter((w) => w.startsOn.getTime() >= thisMonday)
-			.map((w) => ({ startsOn: w.startsOn, plannedKm: w.plannedKm }));
-
-		return planTrajectory({
-			from: timeStringToSeconds(predicted),
-			fromDate: now,
+		// `completedKm` is null for "no data" as well as for a week that has not
+		// happened, and the two are not the same thing. Reading null as zero is
+		// the conservative way round: an unsynced week looks like a missed one,
+		// which can only make the measured rate fail its own fit test and hand
+		// the forecast back to the plan's design rate. The opposite mistake would
+		// credit training nobody did.
+		return forecast({
+			nowSeconds: timeStringToSeconds(predicted),
+			now,
 			goalSeconds: goal.time_in_sec,
-			weeks: remaining,
-			distanceKm: goal.distance_value,
-			secondsPerKm: rate
+			raceDay,
+			planned: plan.weeks.map((w) => ({ startsOn: w.startsOn, km: w.plannedKm })),
+			done: plan.weeks.map((w) => ({ startsOn: w.startsOn, km: w.completedKm ?? 0 })),
+			samples: chartData.map((d) => ({ date: d.date, seconds: d.predictedTime })),
+			goalStart: startDate
 		});
 	});
 
 	/**
-	 * The ask in a sentence — and what it does not reach.
+	 * What the forecast rests on, said plainly.
 	 *
-	 * Missed weeks took their kilometres with them, so the honest version says
-	 * both what the rest of the plan is worth and how far short of the goal that
-	 * leaves. Silence about the shortfall would be the same overpromise as a
-	 * line drawn to the goal.
+	 * A projected time with nothing behind it is a number to be believed or
+	 * disbelieved and nothing else. These are the three things that decide
+	 * whether it is worth believing: how much training is left that can still
+	 * change it, what a kilometre of it is being priced at, and how that price
+	 * was arrived at.
 	 */
-	const planAskSummary = $derived.by(() => {
-		if (!planAsk || planAsk.steps.length === 0) return null;
+	const forecastBasis = $derived.by(() => {
+		if (!raceForecast) return null;
+		const { rate, remainingKm, askedToDateKm, doneToDateKm } = raceForecast;
 
-		const perWeek = planAsk.steps.map((s) => s.gainPaceSeconds);
-		const low = Math.round(Math.min(...perWeek));
-		const high = Math.round(Math.max(...perWeek));
-		const weeks = planAsk.steps.length;
-		const each = low === high ? `${high}s/km` : `${low}–${high}s/km`;
+		const basis =
+			rate.source === 'observed'
+				? `your own rate of ${rate.secondsPerKm.toFixed(2)}s per km over ${rate.intervals} measured stretches`
+				: `the plan's own rate of ${rate.secondsPerKm.toFixed(2)}s per km, for want of enough history to measure yours`;
 
-		const worth = `The ${weeks} weeks that still count are worth about ${each} each.`;
+		const compliance =
+			askedToDateKm > 0
+				? ` So far you have run ${Math.round(doneToDateKm)} of the ${Math.round(askedToDateKm)} km the plan asked for.`
+				: '';
 
-		if (planAsk.shortfallSeconds > 30) {
-			return `${worth} That lands about ${formatSignedDuration(planAsk.shortfallSeconds).replace('+', '')} short of the goal — the weeks already missed cannot be run again.`;
+		return `Based on ${Math.round(remainingKm)} km still to run that can change race-day fitness, at ${basis}.${compliance}`;
+	});
+
+	/** How far short the remaining work lands, once it is worth mentioning. */
+	const shortfallNote = $derived.by(() => {
+		if (!raceForecast) return null;
+		const short = raceForecast.shortfallSeconds;
+		if (short > 30) {
+			return `That is ${formatSignedDuration(short).replace('+', '')} short of the goal — the weeks already missed cannot be run again.`;
 		}
-		return `${worth} That is enough to reach the goal.`;
+		if (short < -30) {
+			return `That is ${formatSignedDuration(-short).replace('+', '')} inside the goal, if the rest of the plan is followed.`;
+		}
+		return 'That lands on the goal, if the rest of the plan is followed.';
 	});
 
-	const projections = $derived.by(() => {
-		if (!raceDay || isPast || chartData.length === 0) return [];
-
-		const trend = linearTrend(chartData.map((d) => ({ date: d.date, seconds: d.predictedTime })));
-		// Enough history is not the same as a trend. A prediction that has wandered
-		// around one value all block explains nothing, and a line drawn through it
-		// would read as a finding rather than as the noise it is.
-		if (!trend || trend.rSquared < MIN_FIT) return [];
-
-		const plan = readPlanWeeks(userStats?.graph_stats?.goal);
-		const rate = complianceRate(plan.totalCompletedKm, plan.totalPlannedKm);
-
-		const asIs = project(trend, raceDay, { label: 'projected · current rate' });
-		if (!asIs) return [];
-
-		const asPlanned =
-			rate > 1 ? project(trend, raceDay, { label: 'projected · plan completed', rate }) : null;
-
-		// Two lines are only worth two lines when they end up somewhere different.
-		// Below half a minute apart they overlay each other, and the only thing
-		// the second one adds is a second label in the same place.
-		const worthBoth = asPlanned !== null && Math.abs(asPlanned.endSeconds - asIs.endSeconds) >= 30;
-
-		return [
-			{ label: asIs.label, colour: '#94a3b8', points: asIs.points },
-			...(worthBoth && asPlanned
-				? [{ label: asPlanned.label, colour: '#22c55e', points: asPlanned.points }]
-				: [])
-		];
-	});
+	const chartLines = $derived(
+		raceForecast
+			? [{ label: 'if you follow the plan', colour: '#22c55e', points: raceForecast.points }]
+			: []
+	);
 
 	/**
-	 * The plan's ask first, the trend behind it.
+	 * Why there is no line, when there is no line.
 	 *
-	 * The ask is drawn whenever there is a plan left to follow. The trend only
-	 * when the recorded predictions have actually done something — see
-	 * `MIN_FIT`.
+	 * A chart that silently declines to forecast is indistinguishable from one
+	 * that is broken. Every reason below is a real state with a real remedy, and
+	 * saying which one applies is the difference between waiting for something
+	 * and wondering whether it works.
 	 */
-	const chartLines = $derived([
-		...(planAsk
-			? [{ label: 'the plan from here', colour: '#22c55e', points: planAsk.points }]
-			: []),
-		...projections
-	]);
+	const noForecastReason = $derived.by(() => {
+		if (raceForecast || isPast || chartLoading || chartError) return null;
+		if (!userStats?.best_times?.time_for_goal || !goal.time_in_sec) {
+			return 'No prediction to forecast from yet.';
+		}
+		if (readPlanWeeks(userStats?.graph_stats?.goal).weeks.length === 0) {
+			return 'No plan weeks to forecast against yet.';
+		}
+		if (chartData.length === 0) {
+			return 'No prediction recorded yet for this goal — the forecast needs at least one earlier reading to price the plan against.';
+		}
+		if (raceDay && earnCutoff(raceDay) <= now) {
+			return 'Race week: training from here changes how fresh you are, not how fast, so there is nothing left to forecast.';
+		}
+		return 'Not enough of this block on record yet to forecast — the earliest reading is too recent to tell whether you are keeping pace.';
+	});
 
 	const goalReference = $derived(
 		goal.time_in_sec ? { seconds: goal.time_in_sec, label: `Goal ${goal.time}` } : null
@@ -450,7 +434,10 @@
 							as good news rather than treated as an anomaly.
 						-->
 						{#if gap}
-							<tr>
+							<tr
+								class:border-b={raceForecast !== null}
+								class:border-border={raceForecast !== null}
+							>
 								<td class="px-4 py-2 font-medium text-muted-foreground">
 									{gap.ahead ? 'Ahead by' : 'To find'}
 								</td>
@@ -459,6 +446,26 @@
 								</td>
 								<td class="px-4 py-2 tabular-nums text-muted-foreground">
 									{gap.pace === null ? '' : `${formatSignedDuration(gap.pace)} /km`}
+								</td>
+							</tr>
+						{/if}
+						<!--
+							The number the card exists to give: not where the prediction is
+							today, but where the training still left can carry it by race
+							day. Highlighted when that reaches the goal, because reaching it
+							is the whole point of the plan and worth seeing at a glance.
+						-->
+						{#if raceForecast}
+							{@const onGoal = raceForecast.shortfallSeconds <= 30}
+							<tr>
+								<td class="px-4 py-2 font-medium text-card-foreground">Projected on race day</td>
+								<td class="px-4 py-2 font-medium tabular-nums" class:text-primary={onGoal}>
+									{secondsToTimeString(Math.round(raceForecast.endSeconds))}
+								</td>
+								<td class="px-4 py-2 tabular-nums text-muted-foreground">
+									{goal.distance_value
+										? `${secondsToPaceString(Math.round(raceForecast.endSeconds / goal.distance_value))} /km`
+										: ''}
 								</td>
 							</tr>
 						{/if}
@@ -506,8 +513,11 @@
 				reference={goalReference}
 				distanceKm={goal.distance_value}
 			/>
-			{#if planAskSummary}
-				<p class="mt-2 text-xs leading-relaxed text-muted-foreground">{planAskSummary}</p>
+			{#if raceForecast}
+				<p class="mt-2 text-xs leading-relaxed text-card-foreground">{shortfallNote}</p>
+				<p class="mt-1 text-xs leading-relaxed text-muted-foreground">{forecastBasis}</p>
+			{:else if noForecastReason}
+				<p class="mt-2 text-xs leading-relaxed text-muted-foreground">{noForecastReason}</p>
 			{/if}
 		</div>
 	{/if}
