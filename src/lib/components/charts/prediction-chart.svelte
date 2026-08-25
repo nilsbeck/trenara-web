@@ -15,7 +15,8 @@
 		loading = false,
 		error = null,
 		timeLabel = 'Predicted Time',
-		paceLabel = 'Predicted Pace'
+		paceLabel = 'Predicted Pace',
+		domainEnd = null
 	}: {
 		data: ChartDataPoint[];
 		loading?: boolean;
@@ -23,9 +24,18 @@
 		/** Legend labels — the series differs per chart (goal distance vs. 10K). */
 		timeLabel?: string;
 		paceLabel?: string;
+		/**
+		 * Push the x axis out to this date, past the last sample.
+		 *
+		 * For anything that has to be drawn beyond the recorded history — a race
+		 * date, a projection — so the extension lives in the caller rather than
+		 * here.
+		 */
+		domainEnd?: Date | null;
 	} = $props();
 
 	// Layout constants
+	const DAY_MS = 86_400_000;
 	const HEIGHT = 300;
 	const PAD = { top: 24, right: 64, bottom: 44, left: 64 };
 
@@ -55,9 +65,30 @@
 	});
 
 	// ── Scale functions ────────────────────────────────────────────
+	//
+	// x is a time scale, not a sample index. Samples are only recorded when a
+	// value changes, so three days and five weeks are the same gap by index —
+	// which draws a straight line through a month of nothing and makes any date
+	// past the last sample unplaceable.
+	const stamps = $derived(data.map((d) => new Date(d.date).getTime()));
+
+	const xDomain = $derived.by(() => {
+		if (stamps.length === 0) return { min: 0, max: 1 };
+		const min = Math.min(...stamps);
+		const last = Math.max(...stamps);
+		const max = Math.max(last, domainEnd?.getTime() ?? -Infinity);
+		// One point, or several on the same day: give the axis a day of width so
+		// the sample lands mid-chart rather than dividing by zero.
+		return max > min ? { min, max } : { min: min - DAY_MS / 2, max: min + DAY_MS / 2 };
+	});
+
+	function xAt(stamp: number): number {
+		const { min, max } = xDomain;
+		return ((stamp - min) / (max - min)) * cw;
+	}
+
 	function xPos(i: number): number {
-		if (data.length <= 1) return cw / 2;
-		return (i / (data.length - 1)) * cw;
+		return xAt(stamps[i] ?? xDomain.min);
 	}
 
 	function timeY(v: number): number {
@@ -90,17 +121,20 @@
 	const timeTicks = $derived(ticks(timeExtent.min, timeExtent.max, 5));
 	const paceTicks = $derived(ticks(paceExtent.min, paceExtent.max, 5));
 
+	/**
+	 * Evenly spaced dates across the axis, not every nth sample.
+	 *
+	 * A sample-derived label bunches up wherever the recording did, which is
+	 * exactly where the axis is now least evenly spaced.
+	 */
 	const xLabels = $derived.by(() => {
 		if (data.length === 0) return [];
-		if (data.length <= 6) return data.map((d, i) => ({ i, label: formatDateShort(d.date) }));
-		const step = Math.ceil(data.length / 5);
-		const labels: { i: number; label: string }[] = [];
-		for (let idx = 0; idx < data.length; idx += step) {
-			labels.push({ i: idx, label: formatDateShort(data[idx].date) });
-		}
-		const lastIdx = data.length - 1;
-		if (labels[labels.length - 1]?.i !== lastIdx) {
-			labels.push({ i: lastIdx, label: formatDateShort(data[lastIdx].date) });
+		const { min, max } = xDomain;
+		const count = 5;
+		const labels: { x: number; label: string }[] = [];
+		for (let i = 0; i < count; i++) {
+			const stamp = min + ((max - min) * i) / (count - 1);
+			labels.push({ x: xAt(stamp), label: formatDateShort(new Date(stamp).toISOString()) });
 		}
 		return labels;
 	});
@@ -114,13 +148,19 @@
 		if (!svg) return;
 		const rect = svg.getBoundingClientRect();
 		const mx = e.clientX - rect.left - PAD.left;
-		if (data.length === 1) {
-			hoverIdx = 0;
-			return;
+
+		// Nearest sample by position: with a time axis the samples are no longer
+		// evenly spaced, so there is no segment width to divide by.
+		let nearest = 0;
+		let best = Infinity;
+		for (let i = 0; i < data.length; i++) {
+			const distance = Math.abs(xPos(i) - mx);
+			if (distance < best) {
+				best = distance;
+				nearest = i;
+			}
 		}
-		const segWidth = cw / (data.length - 1);
-		const idx = Math.round(mx / segWidth);
-		hoverIdx = Math.max(0, Math.min(data.length - 1, idx));
+		hoverIdx = nearest;
 	}
 
 	function handleMouseLeave() {
@@ -224,9 +264,9 @@
 				<text x={cw + 8} y={-12} text-anchor="start" style="font-size:9px;fill:{RED}"> Pace </text>
 
 				<!-- X labels -->
-				{#each xLabels as { i, label }}
+				{#each xLabels as { x, label }}
 					<text
-						x={xPos(i)}
+						{x}
 						y={ch + 20}
 						text-anchor="middle"
 						class="fill-current text-muted-foreground"
