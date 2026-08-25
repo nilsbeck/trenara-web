@@ -53,13 +53,23 @@ export function readWeekProgress(
 	const runsDone = entries.filter((e) => e.type === 'run').length;
 	const strengthDone = entries.filter((e) => e.type === 'strength').length;
 
+	// Without a schedule there is nothing to count, and reporting `0 / 0` beside
+	// a real distance would read as "you did nothing" rather than "this did not
+	// load". The stats series covers it: a day with a `todo` is a planned run
+	// day, a day with a `done` is a day one was run. Day granularity, so two
+	// runs on one day read as one — close enough to keep the ring honest, and
+	// only ever used when the exact counts are unavailable.
+	const sessions = schedule
+		? {
+				// A run filed against a week that planned fewer still counts: an extra
+				// session is over-delivery, not a reason to report fewer than were run.
+				done: runsDone,
+				planned: Math.max(trainings.length, runsDone)
+			}
+		: runDaysFrom(weeks);
+
 	return {
-		sessions: {
-			// A run filed against a week that planned fewer still counts: an extra
-			// session is over-delivery, not a reason to report fewer than were run.
-			done: runsDone,
-			planned: Math.max(trainings.length, runsDone)
-		},
+		sessions,
 		distance: {
 			doneKm: weeks?.done_value ?? 0,
 			plannedKm: weeks?.todo_value ?? 0,
@@ -70,6 +80,17 @@ export function readWeekProgress(
 			planned: Math.max(strength.length, strengthDone)
 		}
 	};
+}
+
+/**
+ * Planned and run *days* from the stats week series — the fallback for a
+ * missing schedule. See its use in `readWeekProgress`.
+ */
+function runDaysFrom(weeks: UserStats['graph_stats']['weeks'] | null | undefined): RingProgress {
+	const rows = weeks?.data ?? [];
+	const done = rows.filter((r) => (r.done_value ?? 0) > 0).length;
+	const planned = rows.filter((r) => (r.todo_value ?? 0) > 0).length;
+	return { done, planned: Math.max(planned, done) };
 }
 
 /**

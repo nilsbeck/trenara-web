@@ -41,17 +41,14 @@
 
 	type GraphView = 'prediction' | 'week' | 'goal';
 
-	const GRAPH_VIEWS: { value: GraphView; label: string; heading: string }[] = [
-		{ value: 'prediction', label: 'Prediction', heading: 'Prediction Progress' },
-		{ value: 'week', label: 'This week', heading: 'Distance This Week' },
-		{ value: 'goal', label: 'By week', heading: 'Distance By Week' }
+	// The picker is the heading — these read as titles, not as verbs.
+	const GRAPH_VIEWS: { value: GraphView; label: string }[] = [
+		{ value: 'prediction', label: 'Prediction Progress' },
+		{ value: 'week', label: 'Distance This Week' },
+		{ value: 'goal', label: 'Distance By Week' }
 	];
 
 	let graphView = $state<GraphView>('prediction');
-
-	const graphHeading = $derived(
-		GRAPH_VIEWS.find((v) => v.value === graphView)?.heading ?? 'Prediction Progress'
-	);
 
 	// Both distance graphs read the stats this card already has — no fetch, so
 	// switching between them costs nothing and there is no loading state.
@@ -231,7 +228,7 @@
 
 		<!-- Historical chart for completed goals -->
 		<div class="mt-6">
-			{@render graphPicker('Historical ' + graphHeading)}
+			{@render graphPicker()}
 			{@render graph()}
 		</div>
 	{:else}
@@ -315,20 +312,24 @@
 
 		<!-- Prediction / distance chart -->
 		<div>
-			{@render graphPicker(graphHeading)}
+			{@render graphPicker()}
 			{@render graph()}
 		</div>
 	{/if}
 </div>
 
-{#snippet graphPicker(heading: string)}
-	<div class="mb-2 flex flex-wrap items-center justify-between gap-2">
-		<h3 class="text-sm font-medium text-muted-foreground">{heading}</h3>
-		<label class="flex items-center gap-2">
-			<span class="sr-only">Graph</span>
+<!--
+	The card's own heading, which is also the control that swaps the graph under
+	it. One element rather than a title beside a picker: they said the same
+	thing, and the native select carries its own affordance.
+-->
+{#snippet graphPicker()}
+	<div class="mb-2">
+		<label>
+			<span class="sr-only">Which graph to show</span>
 			<select
 				bind:value={graphView}
-				class="rounded-md border border-border bg-background px-2 py-1 text-xs text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+				class="-ml-1 cursor-pointer rounded-md border-0 bg-transparent py-0.5 pl-1 pr-6 text-sm font-medium text-muted-foreground hover:text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
 			>
 				{#each GRAPH_VIEWS as view}
 					<option value={view.value}>{view.label}</option>

@@ -12,8 +12,12 @@
 
 	// Layout constants. `right` leaves room for the last x label to sit under
 	// its point without running off the edge.
-	const HEIGHT = 260;
-	const PAD = { top: 16, right: 16, bottom: 52, left: 40 };
+	//
+	// Deliberately shorter than the prediction chart it shares a slot with: two
+	// series over seven days does not need the height a continuous prediction
+	// trend does, and the card should not jump taller when the picker changes.
+	const HEIGHT = 196;
+	const PAD = { top: 14, right: 16, bottom: 44, left: 34 };
 
 	let containerWidth = $state(500);
 
@@ -132,13 +136,13 @@
 		</div>
 	{:else}
 		<!-- Legend -->
-		<div class="mb-1 flex items-center gap-6 text-sm">
+		<div class="mb-0.5 flex items-center gap-5 text-xs">
 			<span class="flex items-center gap-2">
-				<span class="inline-block h-3 w-3 rounded-full" style="background:{DONE}"></span>
+				<span class="inline-block h-2.5 w-2.5 rounded-full" style="background:{DONE}"></span>
 				<span class="text-muted-foreground">Done</span>
 			</span>
 			<span class="flex items-center gap-2">
-				<span class="inline-block h-3 w-3 rounded-full" style="background:{TODO}"></span>
+				<span class="inline-block h-2.5 w-2.5 rounded-full" style="background:{TODO}"></span>
 				<span class="text-muted-foreground">To do [{series.unit}]</span>
 			</span>
 		</div>
@@ -203,7 +207,7 @@
 					<circle
 						cx={xPos(i)}
 						cy={yPos(p.todoKm)}
-						r={hoverIdx === i || p.isCurrent ? 6 : 4.5}
+						r={hoverIdx === i || p.isCurrent ? 5 : 3.5}
 						fill={TODO}
 						class="stroke-card"
 						stroke-width="2"
@@ -213,7 +217,7 @@
 					<circle
 						cx={xPos(i)}
 						cy={yPos(p.doneKm)}
-						r={hoverIdx === i || p.isCurrent ? 6 : 4.5}
+						r={hoverIdx === i || p.isCurrent ? 5 : 3.5}
 						fill={DONE}
 						class="stroke-card"
 						stroke-width="2"
@@ -224,12 +228,12 @@
 				{#each xLabels as { i, label }}
 					<text
 						x={xPos(i)}
-						y={ch + 20}
+						y={ch + 17}
 						text-anchor="middle"
 						class="fill-current"
 						class:text-foreground={points[i].isCurrent}
 						class:text-muted-foreground={!points[i].isCurrent}
-						style="font-size:12px;font-weight:{points[i].isCurrent ? 600 : 400}"
+						style="font-size:11px;font-weight:{points[i].isCurrent ? 600 : 400}"
 					>
 						{label}
 					</text>
@@ -238,7 +242,7 @@
 				<!-- Axis caption -->
 				<text
 					x={cw / 2}
-					y={ch + 40}
+					y={ch + 34}
 					text-anchor="middle"
 					class="fill-current text-muted-foreground"
 					style="font-size:11px"
@@ -316,29 +320,26 @@
 			the plan, so the same pair of numbers that the columns add up to is
 			also legible at a glance.
 		-->
-		<div class="mt-1">
-			<div class="flex items-baseline justify-end">
-				<span class="text-sm font-semibold text-foreground">
-					{formatKm(series.totalTodoKm, series.unit)}
+		<div class="mt-0.5">
+			<!-- Both totals on one line, so the read-out costs one row rather than
+			     three. The bar underneath places `done` against the plan. -->
+			<div class="flex items-baseline justify-between text-xs">
+				<span class="font-semibold text-foreground">
+					{formatKm(series.totalDoneKm, series.unit)}
+				</span>
+				<span class="text-muted-foreground">
+					of {formatKm(series.totalTodoKm, series.unit)}
 				</span>
 			</div>
 			<div
-				class="relative mt-1.5 h-2 w-full rounded-full"
+				class="relative mt-1 h-1.5 w-full rounded-full"
 				style="background:linear-gradient(to right,{TODO},{DONE})"
 			>
 				<span
-					class="absolute top-1/2 h-4 w-4 -translate-x-1/2 -translate-y-1/2 rounded-full bg-foreground ring-2 ring-card"
+					class="absolute top-1/2 h-3 w-3 -translate-x-1/2 -translate-y-1/2 rounded-full bg-foreground ring-2 ring-card"
 					style="left:{completion * 100}%"
 					aria-hidden="true"
 				></span>
-			</div>
-			<div class="mt-1 flex text-sm">
-				<span
-					class="whitespace-nowrap font-semibold text-foreground"
-					style="margin-left:calc({completion * 100}% - 2.5rem)"
-				>
-					{formatKm(series.totalDoneKm, series.unit)}
-				</span>
 			</div>
 			<p class="sr-only">
 				{formatKm(series.totalDoneKm, series.unit)} done of {formatKm(

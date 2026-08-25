@@ -122,19 +122,13 @@
 			</div>
 
 			<!--
-				This week at a glance. Hidden on small screens, where the bar has room
-				for the logo and the menu and nothing else — the dashboard shows the
-				same numbers in full.
+				This week at a glance, in the middle of the bar. Below `md` the bar
+				has room for the logo and the menu and nothing else, so it moves to
+				its own row underneath rather than disappearing.
 			-->
 			{#if hasAnyRing(weekProgress)}
 				<div class="hidden md:flex md:flex-1 md:justify-center">
-					<a
-						href="/goal"
-						class="rounded-md px-2 py-1 hover:bg-accent"
-						aria-label="This week's training progress"
-					>
-						<WeekOverview progress={weekProgress} compact />
-					</a>
+					{@render weekRings()}
 				</div>
 			{/if}
 
@@ -258,6 +252,12 @@
 				</div>
 			</div>
 		</div>
+
+		{#if hasAnyRing(weekProgress)}
+			<div class="flex justify-center border-t border-border px-4 py-2 md:hidden">
+				{@render weekRings()}
+			</div>
+		{/if}
 	</nav>
 
 	<!-- Main Content -->
@@ -271,3 +271,13 @@
 	initialThreads={chatThreads}
 	initialSeen={chatSeen}
 />
+
+{#snippet weekRings()}
+	<a
+		href="/goal"
+		class="rounded-md px-2 py-1 hover:bg-accent"
+		aria-label="This week's training progress"
+	>
+		<WeekOverview progress={weekProgress!} compact />
+	</a>
+{/snippet}

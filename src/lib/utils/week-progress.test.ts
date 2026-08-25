@@ -33,6 +33,23 @@ function schedule(partial: Partial<Schedule>): Schedule {
 	};
 }
 
+function dayRow(order: number, day: string, todo: number | null, done: number | null) {
+	return {
+		order,
+		day,
+		date: `2026-08-${24 + order}`,
+		is_today: order === 0,
+		done: done === null ? null : `${done}km`,
+		done_value: done,
+		done_unit: 'km',
+		done_unit_text: 'km',
+		todo: todo === null ? null : `${todo}km`,
+		todo_value: todo,
+		todo_unit: 'km',
+		todo_unit_text: 'km'
+	};
+}
+
 const weekSeries = {
 	data: [],
 	done: '8km',
@@ -114,6 +131,44 @@ describe('readWeekProgress', () => {
 	it('takes distance from the stats totals, not from the schedule', () => {
 		const progress = readWeekProgress(schedule({}), weekSeries, MONDAY);
 		expect(progress.distance).toEqual({ doneKm: 8, plannedKm: 36.94, unit: 'km' });
+	});
+
+	it('falls back to stats day counts when the schedule could not be loaded', () => {
+		const withDays = {
+			...weekSeries,
+			data: [
+				dayRow(0, 'Monday', 9.5, 8),
+				dayRow(1, 'Tuesday', null, null),
+				dayRow(2, 'Wednesday', 6.5, null),
+				dayRow(4, 'Friday', 12, null),
+				dayRow(6, 'Sunday', 8.94, null)
+			]
+		} as WeekSeries;
+		// Four days carry a planned distance, one carries a completed one.
+		expect(readWeekProgress(null, withDays, MONDAY).sessions).toEqual({ done: 1, planned: 4 });
+	});
+
+	it('prefers the schedule over the fallback when both are available', () => {
+		const withDays = { ...weekSeries, data: [dayRow(0, 'Monday', 9.5, 8)] } as WeekSeries;
+		const progress = readWeekProgress(
+			schedule({
+				trainings: [training('2026-08-24'), training('2026-08-26'), training('2026-08-28')],
+				entries: [entry('2026-08-24', 'run')]
+			}),
+			withDays,
+			MONDAY
+		);
+		// The schedule says three planned; the day counts would have said one.
+		expect(progress.sessions).toEqual({ done: 1, planned: 3 });
+	});
+
+	it('counts an empty schedule as an answer, not as a missing one', () => {
+		const withDays = { ...weekSeries, data: [dayRow(0, 'Monday', 9.5, 8)] } as WeekSeries;
+		// A week the plan genuinely has nothing in is 0/0, not the fallback's 1/1.
+		expect(readWeekProgress(schedule({}), withDays, MONDAY).sessions).toEqual({
+			done: 0,
+			planned: 0
+		});
 	});
 
 	it('reads a week with nothing at all as all zeroes', () => {
