@@ -289,6 +289,12 @@ describe('getTrainingStatusForDate', () => {
 						gps_media: [],
 						notification: null,
 						laps: [],
+						allow_shoe: true,
+						ask_feedback: false,
+						cross_type: null,
+						cross_percentage: null,
+						cross_percentage_min: null,
+						cross_percentage_max: null,
 						splits: []
 					}
 				]
@@ -330,6 +336,12 @@ describe('getTrainingStatusForDate', () => {
 						gps_media: [],
 						notification: null,
 						laps: [],
+						allow_shoe: true,
+						ask_feedback: false,
+						cross_type: null,
+						cross_percentage: null,
+						cross_percentage_min: null,
+						cross_percentage_max: null,
 						splits: []
 					}
 				]
@@ -526,6 +538,12 @@ describe('selectedRunEntries', () => {
 			gps_media: [],
 			notification: null,
 			laps: [],
+			allow_shoe: true,
+			ask_feedback: false,
+			cross_type: null,
+			cross_percentage: null,
+			cross_percentage_min: null,
+			cross_percentage_max: null,
 			splits: []
 		};
 	}
@@ -624,6 +642,12 @@ describe('getTrainingStatusForDate — strength and missed', () => {
 						gps_media: [],
 						notification: null,
 						laps: [],
+						allow_shoe: true,
+						ask_feedback: false,
+						cross_type: null,
+						cross_percentage: null,
+						cross_percentage_min: null,
+						cross_percentage_max: null,
 						splits: []
 					}
 				]
@@ -804,6 +828,12 @@ describe('selectedStrengthEntries', () => {
 			gps_media: [],
 			notification: null,
 			laps: [],
+			allow_shoe: true,
+			ask_feedback: false,
+			cross_type: null,
+			cross_percentage: null,
+			cross_percentage_min: null,
+			cross_percentage_max: null,
 			splits: []
 		};
 	}
@@ -891,6 +921,12 @@ describe('selectedRunEntries — no date selected', () => {
 						gps_media: [],
 						notification: null,
 						laps: [],
+						allow_shoe: true,
+						ask_feedback: false,
+						cross_type: null,
+						cross_percentage: null,
+						cross_percentage_min: null,
+						cross_percentage_max: null,
 						splits: []
 					}
 				]

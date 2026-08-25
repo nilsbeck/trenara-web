@@ -1,8 +1,14 @@
 import { describe, it, expect } from 'vitest';
-import { TRAINING_SURFACES, type ScheduledTraining, type Shoe } from '$lib/server/trenara/types';
+import {
+	TRAINING_SURFACES,
+	type AppConfig,
+	type ScheduledTraining,
+	type Shoe
+} from '$lib/server/trenara/types';
 import {
 	ACTIVITIES,
 	SURFACES,
+	activities,
 	activityIcon,
 	activityLabel,
 	setupHeading,
@@ -193,6 +199,25 @@ describe('labels', () => {
 		expect(activityLabel('open_water')).toBe('Open water');
 		expect(surfaceLabel('gravel_path')).toBe('Gravel path');
 		expect(shoeTypeLabel('carbon_plate')).toBe('Carbon plate');
+	});
+
+	it('takes a name from the config over its own', () => {
+		const config = {
+			cross_training: {
+				percentage_range: 40,
+				types: [{ type: 'road_bike', name: 'Road cycling', icon_path: '', color: '' }]
+			},
+			shoes: {
+				brands: [],
+				types: [{ tag: 'supershoe', name: 'Super shoe', changes_intensity: false }]
+			}
+		} as unknown as AppConfig;
+
+		expect(activityLabel('road_bike', config)).toBe('Road cycling');
+		expect(shoeTypeLabel('supershoe', config)).toBe('Super shoe');
+		// Still ours when the served list has nothing to say about the value.
+		expect(activityLabel('swimming', config)).toBe('Swimming');
+		expect(shoeTypeLabel('trail', config)).toBe('Trail');
 	});
 
 	it('returns null for an unset surface or elevation', () => {
@@ -853,6 +878,33 @@ describe('activities', () => {
 			'crosstrainer',
 			'elliptical'
 		]);
+	});
+
+	it('prefers the served list, keeping Run at its head', () => {
+		const config = {
+			cross_training: {
+				percentage_range: 40,
+				types: [
+					{ type: 'swimming', name: 'Swimming', icon_path: '/swim.svg', color: '#00ACC1' },
+					{ type: 'open_water', name: 'Open water', icon_path: '/ow.svg', color: '#123456' }
+				]
+			}
+		} as unknown as AppConfig;
+
+		const choices = activities(config);
+
+		// Run leads because it is how a runner reverts, and the config does not
+		// enumerate it.
+		expect(choices.map((a) => a.crossType)).toEqual([null, 'swimming', 'open_water']);
+		expect(choices[2].label).toBe('Open water');
+		expect(choices[1].color).toBe('#00ACC1');
+	});
+
+	it('falls back to our own list when there is no config', () => {
+		expect(activities(null).map((a) => a.crossType)).toEqual(ACTIVITIES.map((a) => a.crossType));
+		expect(
+			activities({ cross_training: { percentage_range: 40, types: [] } } as unknown as AppConfig)
+		).toHaveLength(ACTIVITIES.length);
 	});
 
 	it('picks the bike icon only for activities actually on a bike', () => {

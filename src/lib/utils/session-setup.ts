@@ -1,4 +1,5 @@
 import type {
+	AppConfig,
 	ChangePackage,
 	ChangeStep,
 	PacingPlanOption,
@@ -145,6 +146,38 @@ export const ACTIVITIES = [
 	{ crossType: 'elliptical', label: 'Elliptical bike' }
 ] as const;
 
+/** One choice in the activity picker, from the config or from `ACTIVITIES`. */
+export interface Activity {
+	crossType: string | null;
+	label: string;
+	/** Served config only: an SVG on the API host, and the colour that goes with it. */
+	iconPath?: string;
+	color?: string;
+}
+
+/**
+ * The activity choices, preferring the served list to ours.
+ *
+ * The API knows about activities we do not, and orders them; `ACTIVITIES` is
+ * what is left when the config could not be fetched. Either way "Run" leads,
+ * because reverting is the choice a runner looking at this list most often
+ * wants and it is not an activity the config enumerates.
+ */
+export function activities(config: AppConfig | null | undefined): Activity[] {
+	const served = config?.cross_training?.types;
+	if (!served?.length) return ACTIVITIES.map((a) => ({ crossType: a.crossType, label: a.label }));
+
+	return [
+		{ crossType: null, label: 'Run' },
+		...served.map((t) => ({
+			crossType: t.type,
+			label: t.name,
+			iconPath: t.icon_path,
+			color: t.color
+		}))
+	];
+}
+
 const SHOE_TYPE_LABELS: Record<string, string> = {
 	supertrainer: 'Supertrainer',
 	supershoe: 'Race shoe',
@@ -168,11 +201,19 @@ export function heightLabel(height: string | null | undefined): string | null {
 	return HEIGHT_DIFFERENCES.find((h) => h.value === height)?.label ?? humanise(height);
 }
 
-export function activityLabel(crossType: string | null | undefined): string {
-	return ACTIVITIES.find((a) => a.crossType === (crossType ?? null))?.label ?? humanise(crossType!);
+export function activityLabel(
+	crossType: string | null | undefined,
+	config?: AppConfig | null
+): string {
+	const wanted = crossType ?? null;
+	const served = config?.cross_training?.types?.find((t) => t.type === wanted);
+	if (served) return served.name;
+	return ACTIVITIES.find((a) => a.crossType === wanted)?.label ?? humanise(crossType!);
 }
 
-export function shoeTypeLabel(type: string): string {
+export function shoeTypeLabel(type: string, config?: AppConfig | null): string {
+	const served = config?.shoes?.types?.find((t) => t.tag === type);
+	if (served) return served.name;
 	return SHOE_TYPE_LABELS[type] ?? humanise(type);
 }
 

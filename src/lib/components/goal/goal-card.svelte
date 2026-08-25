@@ -216,7 +216,11 @@
 			<h2 class="text-xl font-semibold text-card-foreground">{goal.name}</h2>
 		</div>
 
-		<p class="text-sm text-muted-foreground mb-4">{goal.description}</p>
+		<!-- Guarded because the API no longer sends a description: an unguarded
+		     paragraph was an empty block holding a margin open under the name. -->
+		{#if goal.description}
+			<p class="text-sm text-muted-foreground mb-4">{goal.description}</p>
+		{/if}
 
 		<!-- Event info -->
 		<div class="flex items-center gap-2 text-sm text-muted-foreground mb-6">

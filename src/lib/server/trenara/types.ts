@@ -1,3 +1,70 @@
+/**
+ * An uploaded file as the API returns it — profile pictures, medal art, the
+ * recorded activity track.
+ *
+ * `meta` and `custom_properties` carry the same object as each other wherever
+ * both have been seen populated; on an activity track they describe what the
+ * file contains (`gps`, `heartbeat`, point counts) before you download it.
+ */
+export interface MediaFile {
+	id: number;
+	path: string;
+	original_path: string;
+	meta: Record<string, unknown> | null;
+	size_in_kb: number;
+	/** Unix seconds. */
+	created_at: number;
+	custom_properties: Record<string, unknown> | unknown[];
+}
+
+/**
+ * One row of the account's notification preferences.
+ *
+ * `type` is the wire key: `global`, `training_reminder`, `feedback`,
+ * `strength`, `scheme`, `calibration`, `rpe`, `sleep`. `global` gates all the
+ * others. `allow_time` says whether `time` (`"HH:MM"`) applies to this row —
+ * it is null on the ones that fire when the API decides rather than on a clock.
+ */
+export interface NotificationSetting {
+	type: string;
+	checked: boolean;
+	title: string;
+	icon_path: string;
+	allow_time: boolean;
+	time: string | null;
+}
+
+/** A team, as embedded in `captains_team`, `teams[]` and `teams_awaiting_approval[]`. */
+export interface Team {
+	id: number;
+	name: string;
+	awaiting_approval: boolean;
+	status_update: string | null;
+	nr_of_members: number;
+	nr_of_members_activated: number;
+	scheme_activated: boolean;
+	user_is_captain: boolean;
+	/** Unix seconds, null while no invitation is outstanding. */
+	invite_received_at: number | null;
+	/** Unix seconds. */
+	member_since: number;
+	/** Unix seconds. */
+	created_at: number;
+	nr_of_waiting_members: number;
+	/**
+	 * The invite code. Anyone holding it can join the team, so keep it out of
+	 * logs, error messages and screenshots.
+	 */
+	join_code: string;
+	captain: {
+		id: number;
+		name: string;
+		picture?: MediaFile | null;
+		profile_picture: MediaFile | null;
+	};
+	picture: MediaFile | null;
+}
+
 export interface User {
 	id: number;
 	account_created_at: number;
@@ -37,6 +104,47 @@ export interface User {
 	nationality_id: number;
 	pause_cause: string | null;
 	paused_since: number | null;
+	/** Stable public id, distinct from the numeric `id`. */
+	uuid: string;
+	/**
+	 * Selects which of a training block's two readings to show: `pace`
+	 * (min/km) or `pace_per_hour` (km/h). Blocks carry both.
+	 */
+	uses_pace_per_hour: boolean;
+	/** Spelled-out unit names — `"kilograms"`, `"centimeters"`. */
+	weight_unit_lang: string;
+	height_unit_lang: string;
+	/** True when the plan is driven by heart rate rather than pace. */
+	hr_prior: boolean;
+	/** Heart-rate thresholds, null until calibrated. */
+	hr_lt1: number | null;
+	hr_lt2: number | null;
+	has_pace_lts: boolean;
+	/**
+	 * Pace thresholds. `_value` is seconds per kilometre and `_unit` says so
+	 * (`"sec_km"`); `_unit_trans` is the label to print (`"min/km"`).
+	 *
+	 * These are what a completed session's training load is scored against —
+	 * see `docs/backend-api.md`.
+	 */
+	pace_lt1_value: number;
+	pace_lt1_unit: string;
+	pace_lt1_unit_trans: string;
+	pace_lt2_value: number;
+	pace_lt2_unit: string;
+	pace_lt2_unit_trans: string;
+	has_expired_trial: boolean;
+	premium_trial: boolean;
+	premium_trial_reminder: boolean;
+	/** Coach-account fields. Null on an ordinary account. */
+	trainer: unknown | null;
+	coupled_trainees: unknown[] | null;
+	max_trainees: number | null;
+	notification_settings: NotificationSetting[];
+	/** The team this account captains, repeated in full inside `teams`. */
+	captains_team: Team | null;
+	teams: Team[];
+	teams_awaiting_approval: Team[];
 	preferred_distance_unit_large: string;
 	preferred_distance_unit_large_text: string;
 	preferred_distance_unit_small: string;
@@ -46,13 +154,7 @@ export interface User {
 	premium_total_time: string;
 	premium_type: string;
 	premium_until: number;
-	profile_picture: {
-		id: number;
-		path: string;
-		original_path: string;
-		size_in_kb: number;
-		created_at: number;
-	};
+	profile_picture: MediaFile | null;
 	qr_code_url: string | null;
 	strength_calibration_notification_at: number | null;
 	strength_calibrated: boolean;
@@ -67,14 +169,67 @@ export interface User {
 }
 
 /**
+ * Static configuration served by `GET /api/config/app`.
+ *
+ * The option lists a client builds its pickers from, plus copy. No user data,
+ * identical for everyone, and the source of truth for enumerations this file
+ * also spells out as constants — where the two disagree, the served list wins
+ * and the constant is only a fallback for a failed request.
+ */
+export interface AppConfig {
+	perks: { title: string; description: string };
+	nutritional: { disclaimer: string };
+	/** Reasons a plan can be paused, in display `order`. */
+	pause_types: Array<{
+		order: number;
+		type: string;
+		title: string;
+		/** True on the reasons that want a free-text follow-up. */
+		ask_extra_input: boolean;
+	}>;
+	/**
+	 * Onboarding copy: three variants in one string, separated by blank lines
+	 * and a leading `-`, keyed to the starting-volume choice. Not structured.
+	 */
+	init_popup: string;
+	shoes: {
+		/** `"Other"` is served last and is a sentinel — the real make goes in the name. */
+		brands: string[];
+		types: Array<{
+			/** The wire value, matching a `Shoe`'s `type`. */
+			tag: string;
+			name: string;
+			/**
+			 * `false` on every type seen so far, but a real flag rather than a
+			 * constant — do not collapse it away.
+			 */
+			changes_intensity: boolean;
+		}>;
+	};
+	cross_training: {
+		/** The ± window allowed on a cross-training effort percentage. */
+		percentage_range: number;
+		types: Array<{
+			/** The wire value, matching a session's `cross_type`. */
+			type: string;
+			name: string;
+			/** Absolute URL of an SVG on the API host. */
+			icon_path: string;
+			color: string;
+		}>;
+	};
+}
+
+/**
  * The body `PUT /api/me` accepts.
  *
  * Not `Partial<User>`: the write side is a small, differently-shaped subset of
  * what the read side answers with. Weight and height are sent as numbers with
  * their unit alongside, and the lactate thresholds are sent flat
- * (`pace_lt1_value` + `pace_lt1_unit`) — fields the `User` type does not even
- * declare. Everything else on the account (premium state, teams, notification
- * settings, the derived `*_lang` and `*_unit_trans` labels) is read-only here.
+ * (`pace_lt1_value` + `pace_lt1_unit`) — the same names `User` reads back, but
+ * only these few of them are writable. Everything else on the account (premium
+ * state, teams, notification settings, the derived `*_lang` and `*_unit_trans`
+ * labels) is read-only here.
  *
  * The profile block is sent whole by the captures we have, so it is typed as
  * required: a partial PUT has not been tried and may well blank what it omits.
@@ -148,7 +303,26 @@ export interface Entry {
 	pace: string;
 	pace_value: number;
 	pace_unit: string;
-	gps_media: object[];
+	/** Whether a shoe can be attached to this entry. */
+	allow_shoe: boolean;
+	/** Whether the client should prompt for feedback on this entry. */
+	ask_feedback: boolean;
+	/** The activity when the session was swapped away from running. `null` for a run. See `CROSS_TYPES`. */
+	cross_type: string | null;
+	/**
+	 * How a cross-trained session's load appears to be accounted for: an
+	 * activity with no pace to score against a threshold is expressed as a
+	 * share of what was planned, bounded by `percentage_range` from the app
+	 * config.
+	 *
+	 * Inferred from the field names and that bound — every capture so far is a
+	 * run, where all three are `null`. One capture after a logged swim or ride
+	 * would confirm it.
+	 */
+	cross_percentage: number | null;
+	cross_percentage_min: number | null;
+	cross_percentage_max: number | null;
+	gps_media: MediaFile[];
 	notification: {
 		id: number;
 		title: string;
@@ -769,7 +943,13 @@ export type DateTrainingMap = {
 export interface Goal {
 	id: number;
 	name: string;
-	description: string;
+	/**
+	 * Optional because the API stopped sending it, not because some goals lack
+	 * one: neither a standalone `/api/goal` response nor the copy embedded in
+	 * the dashboard carried the field on 2026-08-25. Kept rather than deleted in
+	 * case it returns for a goal type we have not captured — read it defensively.
+	 */
+	description?: string;
 	start_date: string;
 	end_date: string;
 	can_be_edited: boolean;
@@ -808,11 +988,41 @@ export interface Goal {
 	time_type_selected: string;
 	training_condition: TrainingCondition;
 	training_scheme_type: string;
+	/**
+	 * The plan's repeating week: one entry per training day, `number_of_trainings`
+	 * of them. The backend expands it from `start_date` to `end_date` into the
+	 * dated sessions the calendar shows.
+	 *
+	 * A skeleton, not a display payload — there is no title, type, distance or
+	 * colour here, so this says a session falls on Friday but never that Friday
+	 * is a long run. For that, read `/api/schedule/week/`.
+	 *
+	 * The array arrives **unsorted** — not by `day`, `excel_id` or `training_id`.
+	 * Sort before rendering a week.
+	 *
+	 * Confirmed against a standalone `/api/goal` response on 2026-08-25, which
+	 * matches the copy embedded in the dashboard field for field; the older
+	 * `{ day, prior }` this was typed as is gone. See `docs/backend-api.md`.
+	 */
 	week: Array<{
+		/**
+		 * `0` = Monday. Established by lining a capture's `{0, 2, 4, 6}` up with
+		 * the four days the stats response gives a planned distance. That account
+		 * starts its week on Monday, so "0 = Monday" and "0 = the user's own start
+		 * of week" both fit the evidence — an account starting on Sunday would
+		 * tell them apart.
+		 */
 		day: number;
-		prior: number;
+		/** The row in the plan's source sheet. Tracks `training_id` at a constant offset. */
+		excel_id: number;
+		/**
+		 * A plan **template**, not a scheduled session — four digits here against
+		 * nine for a dated one. Nothing captured so far resolves it to details.
+		 */
+		training_id: number;
 	}>;
-	updated_at: number;
+	/** Absent from every capture so far — see `description`. */
+	updated_at?: number;
 }
 
 export interface UserStats {
