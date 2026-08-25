@@ -201,11 +201,31 @@
 			.join(' ');
 	}
 
-	/** Where a projection's label sits: at its far end, clear of the line. */
-	function labelAt(series: ProjectionSeries) {
-		const last = series.points[series.points.length - 1];
-		return { x: xAt(new Date(last.date).getTime()), y: timeY(last.seconds) };
-	}
+	/**
+	 * Where each projection's label sits: at its far end, clear of the line and
+	 * of the label before it.
+	 *
+	 * Two projections that end close together would otherwise print on top of
+	 * each other, which is how a label meant to remove doubt creates it.
+	 */
+	const labelPositions = $derived.by(() => {
+		const placed: { x: number; y: number }[] = [];
+
+		for (const series of projections) {
+			const last = series.points[series.points.length - 1];
+			const x = xAt(new Date(last.date).getTime());
+			let y = timeY(last.seconds) - 6;
+
+			// Push down past anything already sitting at this height.
+			for (const other of placed) {
+				if (Math.abs(other.y - y) < 12) y = other.y + 12;
+			}
+
+			placed.push({ x, y });
+		}
+
+		return placed;
+	});
 </script>
 
 <div class="w-full" bind:clientWidth={containerWidth}>
@@ -342,8 +362,8 @@
 					named on the line: dashes say "different", they do not say "this
 					one is our arithmetic rather than a figure anybody measured".
 				-->
-				{#each projections as series (series.label)}
-					{@const end = labelAt(series)}
+				{#each projections as series, i (series.label)}
+					{@const end = labelPositions[i]}
 					<path
 						d={projectionPath(series)}
 						fill="none"
@@ -353,12 +373,7 @@
 						stroke-linecap="round"
 						opacity="0.9"
 					/>
-					<text
-						x={end.x}
-						y={end.y - 6}
-						text-anchor="end"
-						style="font-size:9px;fill:{series.colour}"
-					>
+					<text x={end.x} y={end.y} text-anchor="end" style="font-size:9px;fill:{series.colour}">
 						{series.label}
 					</text>
 				{/each}

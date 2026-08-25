@@ -5,6 +5,7 @@ import {
 	easedGain,
 	complianceRate,
 	MIN_SAMPLES,
+	MIN_FIT,
 	type Sample
 } from './projection';
 
@@ -44,6 +45,31 @@ describe('linearTrend', () => {
 		expect(MIN_SAMPLES).toBeGreaterThan(1);
 	});
 
+	it('reports how much of the movement the line explains', () => {
+		// A clean straight line explains all of it.
+		expect(linearTrend(series([0, 14, 28, 42, 56, 70]))!.rSquared).toBeCloseTo(1, 6);
+	});
+
+	it('explains nothing of a series that wanders and goes nowhere', () => {
+		// Three months of movement with no direction — the case that was drawing a
+		// confident flat line across the chart as though it were a finding.
+		const wandering: Sample[] = [0, 14, 28, 42, 56, 70, 84].map((d, i) => ({
+			date: new Date(Date.UTC(2026, 4, 1 + d)).toISOString().slice(0, 10),
+			seconds: 3790 + [0, 40, -30, 25, -35, 30, -5][i]
+		}));
+
+		expect(linearTrend(wandering)!.rSquared).toBeLessThan(MIN_FIT);
+	});
+
+	it('starts a projection where the recorded line ends', () => {
+		const samples = series([0, 14, 28, 42, 56, 70]);
+		const trend = linearTrend(samples)!;
+
+		// Not the fitted value: a dashed line beginning a few pixels off the end
+		// of the solid one reads as a mistake whatever the arithmetic says.
+		expect(trend.lastSeconds).toBe(samples[samples.length - 1].seconds);
+	});
+
 	it('refuses a series that never moves in time', () => {
 		const sameDay = Array.from({ length: 8 }, () => ({ date: '2026-05-01', seconds: 3600 }));
 		expect(linearTrend(sameDay)).toBeNull();
@@ -72,6 +98,7 @@ describe('project', () => {
 		const projection = project(trend, raceDay, { label: 'Current trend' })!;
 
 		expect(projection.points).toHaveLength(2);
+		expect(projection.points[0].seconds).toBe(trend.lastSeconds);
 		expect(projection.points[1].date).toBe('2026-07-20');
 		expect(projection.endSeconds).toBeLessThan(projection.points[0].seconds);
 	});

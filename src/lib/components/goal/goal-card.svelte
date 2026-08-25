@@ -2,7 +2,7 @@
 	import type { Goal, UserStats } from '$lib/server/trenara/types';
 	import { onMount } from 'svelte';
 	import { Trophy, Calendar, Target } from 'lucide-svelte';
-	import { linearTrend, project, complianceRate } from '$lib/utils/projection';
+	import { linearTrend, project, complianceRate, MIN_FIT } from '$lib/utils/projection';
 	import { readPlanWeeks } from '$lib/utils/plan-weeks';
 	import PredictionChart, {
 		type ChartDataPoint
@@ -81,18 +81,28 @@
 		if (!raceDay || isPast || chartData.length === 0) return [];
 
 		const trend = linearTrend(chartData.map((d) => ({ date: d.date, seconds: d.predictedTime })));
-		if (!trend) return [];
+		// Enough history is not the same as a trend. A prediction that has wandered
+		// around one value all block explains nothing, and a line drawn through it
+		// would read as a finding rather than as the noise it is.
+		if (!trend || trend.rSquared < MIN_FIT) return [];
 
 		const plan = readPlanWeeks(userStats?.graph_stats?.goal);
 		const rate = complianceRate(plan.totalCompletedKm, plan.totalPlannedKm);
 
 		const asIs = project(trend, raceDay, { label: 'projected · current rate' });
+		if (!asIs) return [];
+
 		const asPlanned =
 			rate > 1 ? project(trend, raceDay, { label: 'projected · plan completed', rate }) : null;
 
+		// Two lines are only worth two lines when they end up somewhere different.
+		// Below half a minute apart they overlay each other, and the only thing
+		// the second one adds is a second label in the same place.
+		const worthBoth = asPlanned !== null && Math.abs(asPlanned.endSeconds - asIs.endSeconds) >= 30;
+
 		return [
-			...(asIs ? [{ label: asIs.label, colour: '#94a3b8', points: asIs.points }] : []),
-			...(asPlanned
+			{ label: asIs.label, colour: '#94a3b8', points: asIs.points },
+			...(worthBoth && asPlanned
 				? [{ label: asPlanned.label, colour: '#22c55e', points: asPlanned.points }]
 				: [])
 		];

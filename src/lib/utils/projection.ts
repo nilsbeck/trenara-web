@@ -7,6 +7,16 @@ export const MIN_SAMPLES = 6;
 export const MIN_SPAN_DAYS = 21;
 
 /**
+ * How much of the movement the line has to explain to be worth drawing.
+ *
+ * Enough history is not the same as a trend. A prediction that wanders around
+ * one value for three months fits a flat line perfectly well, and drawing it
+ * invents a direction the data never had — which is worse than drawing
+ * nothing, because it looks like a finding.
+ */
+export const MIN_FIT = 0.25;
+
+/**
  * How long improvement keeps arriving at its current rate before easing off.
  *
  * Fitness does not improve in a straight line — it plateaus — so a slope
@@ -31,7 +41,16 @@ export interface Trend {
 	at: (stamp: number) => number;
 	firstStamp: number;
 	lastStamp: number;
+	/** The last value actually recorded — where a projection should start from. */
+	lastSeconds: number;
 	samples: number;
+	/**
+	 * How much of the movement the line explains, 0 to 1.
+	 *
+	 * Near zero on a series that wanders without going anywhere, which is
+	 * exactly when a projection would be reading a direction into noise.
+	 */
+	rSquared: number;
 }
 
 /**
@@ -71,13 +90,23 @@ export function linearTrend(samples: Sample[]): Trend | null {
 
 	const slopePerDay = numerator / denominator;
 	const intercept = meanY - slopePerDay * meanX;
+	const fitted = (x: number) => intercept + slopePerDay * x;
+
+	let residual = 0;
+	let total = 0;
+	for (let i = 0; i < n; i++) {
+		residual += (ys[i] - fitted(xs[i])) ** 2;
+		total += (ys[i] - meanY) ** 2;
+	}
 
 	return {
 		slopePerDay,
-		at: (stamp: number) => intercept + slopePerDay * ((stamp - firstStamp) / DAY_MS),
+		at: (stamp: number) => fitted((stamp - firstStamp) / DAY_MS),
 		firstStamp,
 		lastStamp,
-		samples: n
+		lastSeconds: points[points.length - 1].seconds,
+		samples: n,
+		rSquared: total === 0 ? 0 : Math.max(0, 1 - residual / total)
 	};
 }
 
@@ -116,7 +145,10 @@ export function project(
 	if (!Number.isFinite(untilStamp) || untilStamp <= trend.lastStamp) return null;
 
 	const days = (untilStamp - trend.lastStamp) / DAY_MS;
-	const from = trend.at(trend.lastStamp);
+	// From the last value actually recorded, not the fitted one: a dashed line
+	// that starts a few pixels off the end of the solid one reads as a mistake,
+	// whatever it is doing arithmetically.
+	const from = trend.lastSeconds;
 	const endSeconds = from + easedGain(trend.slopePerDay * rate, days);
 
 	const iso = (stamp: number) => new Date(stamp).toISOString().slice(0, 10);
