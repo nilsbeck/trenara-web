@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import type {
 	ChatMessagesResponse,
+	ProfileUpdate,
 	ExchangeCandidate,
 	NewsResponse,
 	ScheduledTrainingDetail,
@@ -1093,6 +1094,34 @@ const chatMessages = {
 } satisfies ChatMessagesResponse;
 
 // ─────────────────────────────────────────────────────────────
+// The two bodies `PUT /api/me` was captured with: the profile
+// block on its own, and the same block carrying the lactate
+// thresholds. Both were accepted.
+// ─────────────────────────────────────────────────────────────
+const profileUpdate = {
+	email: 'user@example.com',
+	first_name: 'Nils',
+	last_name: 'Beckmann',
+	date_of_birth: '1985-07-29',
+	nationality_id: 276,
+	gender: 'm',
+	uses_imperial: false,
+	weight: 73.0,
+	weight_unit: 'kg',
+	height: 188.0,
+	height_unit: 'cm'
+} satisfies ProfileUpdate;
+
+const profileUpdateWithThresholds = {
+	...profileUpdate,
+	hr_prior: false,
+	pace_lt1_value: 291,
+	pace_lt1_unit: 'sec_km',
+	pace_lt2_value: 244,
+	pace_lt2_unit: 'sec_km'
+} satisfies ProfileUpdate;
+
+// ─────────────────────────────────────────────────────────────
 // The assertions below are incidental — they keep vitest happy and
 // document a few quirks. The compile-time `satisfies` above is the
 // real test.
@@ -1105,6 +1134,25 @@ describe('captured payloads', () => {
 		const [newest, older] = chatMessages.data;
 		expect(newest.created_at).toBeGreaterThan(older.created_at);
 		expect(chatMessages.pagination.links.next).toContain('page=2');
+	});
+
+	// The write body is a different shape from the account it answers with:
+	// the thresholds are flat here, and `pace_lt1_unit_trans` — the label the
+	// read side carries next to them — is not ours to send.
+	it('sends lactate thresholds flat, without the read-side labels', () => {
+		expect(profileUpdateWithThresholds.pace_lt1_value).toBe(291);
+		expect(profileUpdateWithThresholds.pace_lt1_unit).toBe('sec_km');
+		expect(profileUpdateWithThresholds).not.toHaveProperty('pace_lt1_unit_trans');
+		expect(profileUpdate).not.toHaveProperty('pace_lt1_value');
+	});
+
+	// LT1 is the aerobic threshold and LT2 the anaerobic one, so in seconds
+	// per kilometre LT1 is the larger number. Swapping them would be accepted
+	// by the backend and silently wrong.
+	it('orders the thresholds LT1 slower than LT2', () => {
+		expect(profileUpdateWithThresholds.pace_lt1_value).toBeGreaterThan(
+			profileUpdateWithThresholds.pace_lt2_value
+		);
 	});
 
 	it('models a cross-trained session as duration-only', () => {

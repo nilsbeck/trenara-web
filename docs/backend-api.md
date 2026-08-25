@@ -47,8 +47,8 @@ Endpoints the app already calls live in `src/lib/server/trenara/`:
 
 | Method      | Path                                                                                                                   | Wrapper                                                  |
 | ----------- | ---------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------- |
-| GET         | `/api/me`                                                                                                              | `userApi.getUser`                                        |
-| PUT         | `/api/me`                                                                                                              | `userApi.updateUser`                                     |
+| GET         | `/api/me`                                                                                                              | `userApi.getCurrentUser`                                 |
+| PUT         | `/api/me`                                                                                                              | `userApi.updateProfile`                                  |
 | GET         | `/api/me/stats`                                                                                                        | `userApi.getUserStats`                                   |
 | GET         | `/api/me/shoes`                                                                                                        | `userApi.getShoes`                                       |
 | GET         | `/api/goal`                                                                                                            | `trainingApi.getGoal`                                    |
@@ -747,8 +747,9 @@ Verbatim.
 The account: profile, units, premium state, integration flags, lactate
 thresholds, notification settings and teams.
 
-Used by `userApi.getUser`, typed as `User` in `src/lib/server/trenara/types.ts`.
-**Our `User` type is a subset** — these fields come back but are not declared:
+Used by `userApi.getCurrentUser`, typed as `User` in `src/lib/server/trenara/types.ts`.
+The fields below went undeclared for a long time and are the ones worth knowing
+about, since none of them appear anywhere in the UI yet:
 
 | Field                                                          | Notes                                                                                     |
 | -------------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
@@ -762,8 +763,9 @@ Used by `userApi.getUser`, typed as `User` in `src/lib/server/trenara/types.ts`.
 | `notification_settings[]`                                      | per-channel toggles, some with a time                                                     |
 | `captains_team`, `teams[]`, `teams_awaiting_approval[]`        | team membership                                                                           |
 
-Worth adding if we build settings or team UI; leaving them off the type is
-what stops us using them today.
+All of them are declared now. What is left is finding them a screen: the
+thresholds explain how a session is scored, and the notification and team
+blocks are settings UI waiting to happen.
 
 - `notification_settings[]` — `type` is the wire key (`global`,
   `training_reminder`, `feedback`, `strength`, `scheme`, `calibration`, `rpe`,
@@ -962,6 +964,91 @@ Identifiers redacted; otherwise verbatim.
 	"teams_awaiting_approval": []
 }
 ```
+
+---
+
+## PUT /api/me
+
+Writes the profile: name, e-mail, date of birth, nationality, gender, units,
+weight and height — plus, optionally, the lactate thresholds. Everything else
+the account carries (premium state, teams, notification settings, integration
+flags) is read-only here.
+
+Used by `userApi.updateProfile`, body typed as `ProfileUpdate` in
+`src/lib/server/trenara/types.ts`. Nothing in the app calls it yet.
+
+**The body is not a `Partial<User>`.** It is a differently-shaped subset: the
+thresholds go flat (`pace_lt1_value` + `pace_lt1_unit`) — the same names the
+read side answers with, but only these few of the account's fields are
+writable — and the derived read-side labels (`weight_unit_lang`,
+`pace_lt1_unit_trans`, `active_measurement_system`) are not sent.
+
+### Request
+
+Both captures send the profile block **whole**, so a partial write is untested
+— assume it blanks what it omits until someone tries it. The threshold block is
+the only part seen to come and go.
+
+```json
+{
+	"email": "user@example.com",
+	"first_name": "Nils",
+	"last_name": "Beckmann",
+	"date_of_birth": "1985-07-29",
+	"nationality_id": 276,
+	"gender": "m",
+	"uses_imperial": false,
+	"weight": 73.0,
+	"weight_unit": "kg",
+	"height": 188.0,
+	"height_unit": "cm"
+}
+```
+
+With the thresholds, four more fields and the flag that ranks them against
+heart rate:
+
+```json
+{
+	"…": "same eleven fields as above",
+	"hr_prior": false,
+	"pace_lt1_value": 291,
+	"pace_lt1_unit": "sec_km",
+	"pace_lt2_value": 244,
+	"pace_lt2_unit": "sec_km"
+}
+```
+
+### Notable fields
+
+- `weight` and `height` are sent as floats (`73.0`) and come back as JSON
+  integers (`73`) — the backend does not preserve the notation, so do not
+  round-trip on string equality.
+- `weight_unit`/`height_unit` are sent alongside the values rather than
+  inferred from `uses_imperial`. Only `"kg"` and `"cm"` have been captured;
+  what the imperial pair sends is unknown.
+- `pace_lt*_value` is seconds per kilometre when `pace_lt*_unit` is
+  `"sec_km"` — 291 is 4:51 min/km. LT1 is the slower of the two.
+- `hr_prior` decides whether heart-rate thresholds outrank pace ones. It is
+  sent with the pace block even when false.
+- `nationality_id` is the id alone; the response expands it into the full
+  `nationality` object.
+
+### Response
+
+The complete user object — byte for byte the shape of `GET /api/me`, with the
+written values applied. Worth using directly: a successful write can replace a
+cached `getCurrentUser` result rather than triggering a re-fetch.
+
+Two things the response does **not** do:
+
+- `has_pace_lts` stays `false` after a write that sets both pace thresholds,
+  while `pace_lt1_value` / `pace_lt2_value` come back with the new numbers. So
+  the flag does not mean "thresholds are set" — read the values, and do not
+  gate threshold UI on it.
+- Nothing echoes which fields were accepted. A field the backend ignores is
+  indistinguishable from one it applied, except by comparing the response's
+  values with what was sent.
 
 ---
 

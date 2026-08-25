@@ -126,6 +126,72 @@ describe('userApi.getShoes', () => {
 });
 
 // ─────────────────────────────────────────────────────────────
+describe('userApi.updateProfile', () => {
+	const profile = {
+		email: 'user@example.com',
+		first_name: 'Nils',
+		last_name: 'Beckmann',
+		date_of_birth: '1985-07-29',
+		nationality_id: 276,
+		gender: 'm',
+		uses_imperial: false,
+		weight: 73,
+		weight_unit: 'kg',
+		height: 188,
+		height_unit: 'cm'
+	};
+
+	it('PUTs the profile to /api/me', async () => {
+		fetchMock().mockResolvedValue(mockResponse({ id: 56540 }));
+		await userApi.updateProfile(cookies, profile);
+
+		const req = lastRequest();
+		expect(req.url).toBe('https://backend-prod.trenara.com/api/me');
+		expect(req.method).toBe('PUT');
+		expect(req.body).toEqual(profile);
+	});
+
+	// The thresholds ride along flat, not nested under a `pace_lts` object —
+	// and `*_unit` travels with each value, so sending the number alone is
+	// silently wrong.
+	it('sends the lactate thresholds as flat value/unit pairs', async () => {
+		fetchMock().mockResolvedValue(mockResponse({ id: 56540 }));
+		await userApi.updateProfile(cookies, {
+			...profile,
+			hr_prior: false,
+			pace_lt1_value: 291,
+			pace_lt1_unit: 'sec_km',
+			pace_lt2_value: 244,
+			pace_lt2_unit: 'sec_km'
+		});
+
+		const req = lastRequest();
+		expect(req.body).toMatchObject({
+			hr_prior: false,
+			pace_lt1_value: 291,
+			pace_lt1_unit: 'sec_km',
+			pace_lt2_value: 244,
+			pace_lt2_unit: 'sec_km'
+		});
+	});
+
+	it('returns the whole account, not just what was written', async () => {
+		fetchMock().mockResolvedValue(mockResponse({ id: 56540, weight: 73, has_premium: true }));
+
+		const user = await userApi.updateProfile(cookies, profile);
+		expect(user.id).toBe(56540);
+		expect(user.has_premium).toBe(true);
+	});
+
+	it('surfaces a 401 as AuthenticationError', async () => {
+		fetchMock().mockResolvedValue(mockResponse({}, 401));
+		await expect(userApi.updateProfile(cookies, profile)).rejects.toBeInstanceOf(
+			AuthenticationError
+		);
+	});
+});
+
+// ─────────────────────────────────────────────────────────────
 describe('chatApi.sendMessage', () => {
 	// Trenara names this field `body`, matching the messages it returns.
 	// Sending `content` instead is silently wrong, so pin it down.
