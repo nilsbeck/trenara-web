@@ -127,46 +127,83 @@
 	});
 
 	/**
-	 * What the forecast rests on, said plainly.
+	 * What the forecast rests on, in as few words as it can be said.
 	 *
 	 * A projected time with nothing behind it is a number to be believed or
-	 * disbelieved and nothing else. These are the things that decide whether it
-	 * is worth believing: how much training is left that can still change it,
-	 * what a kilometre of it is being priced at, and how that price was arrived
-	 * at.
+	 * disbelieved and nothing else. Three things decide whether it is worth
+	 * believing — how much training is left that still counts, what a kilometre
+	 * of it is priced at, and whether that price was measured or assumed — and
+	 * none of them needs a clause to carry it.
 	 */
 	const forecastBasis = $derived.by(() => {
 		if (!raceForecast) return null;
 		const { rate, remainingKm, askedToDateKm, doneToDateKm } = raceForecast;
 
+		const price = `${rate.secondsPerKm.toFixed(2)}s/km`;
 		const basis =
 			rate.source === 'observed'
-				? `your own rate of ${rate.secondsPerKm.toFixed(2)}s per km over ${rate.intervals} measured stretches`
-				: `the plan's own rate of ${rate.secondsPerKm.toFixed(2)}s per km, for want of enough history to measure yours`;
+				? `your measured ${price}`
+				: `the plan's ${price} (not enough history for yours)`;
 
-		const compliance =
+		const done =
 			askedToDateKm > 0
-				? ` So far you have run ${Math.round(doneToDateKm)} of the ${Math.round(askedToDateKm)} km the plan asked for.`
+				? ` ${Math.round(doneToDateKm)} of ${Math.round(askedToDateKm)} km run so far.`
 				: '';
 
-		return `Based on ${Math.round(remainingKm)} km still to run that can change race-day fitness, at ${basis}.${compliance}`;
+		return `${Math.round(remainingKm)} km left that still counts, at ${basis}.${done}`;
 	});
+
+	/**
+	 * The shortfall as a pace.
+	 *
+	 * A finish time is what the goal is written in, but it is not what anybody
+	 * runs. "4:31 short" over a whole race is a number you have to divide before
+	 * it means anything; the seconds per kilometre behind it is the thing a
+	 * runner can feel on the next rep.
+	 *
+	 * Null when the goal carries no distance, and there is nothing to divide by.
+	 */
+	const shortfallPerKm = $derived(
+		raceForecast && goal.distance_value ? raceForecast.shortfallSeconds / goal.distance_value : null
+	);
+
+	/** A second per kilometre either way is the goal, not a miss. */
+	const ON_GOAL_PER_KM = 1;
+
+	const onGoalPace = $derived(
+		shortfallPerKm === null
+			? (raceForecast?.shortfallSeconds ?? 0) <= 30
+			: shortfallPerKm <= ON_GOAL_PER_KM
+	);
+
+	/** `18s/km`, or `1:05/km` once it runs past a minute. */
+	function perKm(seconds: number): string {
+		const total = Math.round(Math.abs(seconds));
+		return total >= 60
+			? `${Math.floor(total / 60)}:${String(total % 60).padStart(2, '0')}/km`
+			: `${total}s/km`;
+	}
 
 	/** How far short the remaining work lands, once it is worth mentioning. */
 	const shortfallNote = $derived.by(() => {
 		if (!raceForecast) return null;
-		const short = raceForecast.shortfallSeconds;
-		if (short > 30) {
-			return `That is ${formatSignedDuration(short).replace('+', '')} short of the goal — the weeks already missed cannot be run again.`;
+
+		// No distance to divide by: fall back to the finish time, which is at
+		// least a number, rather than saying nothing.
+		if (shortfallPerKm === null) {
+			const short = raceForecast.shortfallSeconds;
+			if (short > 30) return `${formatSignedDuration(short).replace('+', '')} short of the goal.`;
+			if (short < -30) return `${formatSignedDuration(-short).replace('+', '')} inside the goal.`;
+			return 'On the goal, if you follow the rest of the plan.';
 		}
-		if (short < -30) {
-			return `That is ${formatSignedDuration(-short).replace('+', '')} inside the goal, if the rest of the plan is followed.`;
-		}
-		return 'That lands on the goal, if the rest of the plan is followed.';
+
+		if (shortfallPerKm > ON_GOAL_PER_KM) return `${perKm(shortfallPerKm)} short of goal pace.`;
+		if (shortfallPerKm < -ON_GOAL_PER_KM) return `${perKm(shortfallPerKm)} inside goal pace.`;
+		return 'On goal pace, if you follow the rest of the plan.';
 	});
 
 	const chartLines = $derived(
-		raceForecast ? [{ label: 'Forecast', colour: '#22c55e', points: raceForecast.points }] : []
+		raceForecast ? [{ label: 'Forecast', colour: '#ec4899', points: raceForecast.points }] : []
 	);
 
 	const goalReference = $derived(
@@ -452,7 +489,7 @@
 							is the whole point of the plan and worth seeing at a glance.
 						-->
 						{#if raceForecast}
-							{@const onGoal = raceForecast.shortfallSeconds <= 30}
+							{@const onGoal = onGoalPace}
 							<tr>
 								<td class="px-4 py-2 font-medium text-card-foreground">Projected on race day</td>
 								<td class="px-4 py-2 font-medium tabular-nums" class:text-primary={onGoal}>
