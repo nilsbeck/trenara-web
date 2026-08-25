@@ -66,6 +66,46 @@ export interface User {
 	trainer_picture_url: string;
 }
 
+/**
+ * The body `PUT /api/me` accepts.
+ *
+ * Not `Partial<User>`: the write side is a small, differently-shaped subset of
+ * what the read side answers with. Weight and height are sent as numbers with
+ * their unit alongside, and the lactate thresholds are sent flat
+ * (`pace_lt1_value` + `pace_lt1_unit`) — fields the `User` type does not even
+ * declare. Everything else on the account (premium state, teams, notification
+ * settings, the derived `*_lang` and `*_unit_trans` labels) is read-only here.
+ *
+ * The profile block is sent whole by the captures we have, so it is typed as
+ * required: a partial PUT has not been tried and may well blank what it omits.
+ * The threshold block only appears when thresholds are being edited.
+ *
+ * Responds with the full user object — the same shape as `GET /api/me`.
+ */
+export interface ProfileUpdate {
+	email: string;
+	first_name: string;
+	last_name: string;
+	/** Plain date, `YYYY-MM-DD`. */
+	date_of_birth: string;
+	nationality_id: number;
+	gender: string;
+	uses_imperial: boolean;
+	weight: number;
+	/** `"kg"` observed; the imperial counterpart has not been captured. */
+	weight_unit: string;
+	height: number;
+	/** `"cm"` observed; the imperial counterpart has not been captured. */
+	height_unit: string;
+	/** Whether heart-rate thresholds take priority over pace ones. */
+	hr_prior?: boolean;
+	/** Seconds per kilometre when `pace_lt1_unit` is `"sec_km"`. */
+	pace_lt1_value?: number;
+	pace_lt1_unit?: string;
+	pace_lt2_value?: number;
+	pace_lt2_unit?: string;
+}
+
 export interface AuthResponse {
 	access_token: string;
 	refresh_token: string;

@@ -1,5 +1,5 @@
 import type { Cookies } from '@sveltejs/kit';
-import type { User, UserStats, Shoe } from './types';
+import type { User, UserStats, Shoe, ProfileUpdate } from './types';
 import { fetchClient } from './client';
 import { TokenType } from '$lib/server/auth/types';
 
@@ -22,7 +22,14 @@ export const userApi = {
 		});
 	},
 
-	async updateProfile(cookies: Cookies, data: Partial<User>): Promise<User> {
+	/**
+	 * Writes the profile block, and optionally the lactate thresholds.
+	 *
+	 * The body is `ProfileUpdate`, not `Partial<User>` — see that type for why
+	 * the two differ. Answers with the whole account, so the result can replace
+	 * a cached `getCurrentUser`.
+	 */
+	async updateProfile(cookies: Cookies, data: ProfileUpdate): Promise<User> {
 		return fetchClient.put<User>('/api/me', data, {
 			headers: bearerHeader(cookies),
 			cookies
