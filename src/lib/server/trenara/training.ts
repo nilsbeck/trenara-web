@@ -10,7 +10,15 @@ import type {
 	ExchangeCandidate,
 	TrainingSurface,
 	TrainingHeightDifference,
-	PacingPlan
+	PacingPlan,
+	SetTrainingConditionRequest,
+	SetIntensityRequest,
+	SetDistanceRequest,
+	ToggleCooldownRequest,
+	SetSuggestedShoeRequest,
+	CrossTrainRequest,
+	SetPacingPlanRequest,
+	ExchangeTrainingRequest
 } from './types';
 import { fetchClient } from './client';
 import { TokenType } from '$lib/server/auth/types';
@@ -155,7 +163,7 @@ export const trainingApi = {
 				surface: condition.surface,
 				height_value: condition.heightValue ?? 0,
 				height_unit: condition.heightUnit ?? 'm'
-			},
+			} satisfies SetTrainingConditionRequest,
 			{ headers: bearerHeader(cookies), cookies }
 		);
 	},
@@ -176,7 +184,7 @@ export const trainingApi = {
 	): Promise<ScheduledTrainingDetail> {
 		return fetchClient.put<ScheduledTrainingDetail>(
 			`/api/schedule/trainings/${trainingId}/intensity`,
-			{ intensity_value: intensityValue },
+			{ intensity_value: intensityValue } satisfies SetIntensityRequest,
 			{ headers: bearerHeader(cookies), cookies }
 		);
 	},
@@ -196,7 +204,7 @@ export const trainingApi = {
 	): Promise<ScheduledTrainingDetail> {
 		return fetchClient.put<ScheduledTrainingDetail>(
 			`/api/schedule/trainings/${trainingId}/distance`,
-			{ distance_value: distanceValue },
+			{ distance_value: distanceValue } satisfies SetDistanceRequest,
 			{ headers: bearerHeader(cookies), cookies }
 		);
 	},
@@ -221,7 +229,7 @@ export const trainingApi = {
 	): Promise<ScheduledTrainingDetail> {
 		return fetchClient.put<ScheduledTrainingDetail>(
 			`/api/schedule/trainings/${trainingId}/cooldown`,
-			{ cooldown_toggle: hasCooldown },
+			{ cooldown_toggle: hasCooldown } satisfies ToggleCooldownRequest,
 			{ headers: bearerHeader(cookies), cookies }
 		);
 	},
@@ -234,7 +242,7 @@ export const trainingApi = {
 	): Promise<ScheduledTrainingDetail> {
 		return fetchClient.put<ScheduledTrainingDetail>(
 			`/api/schedule/trainings/${trainingId}/suggested_shoe`,
-			{ shoe_id: shoeId },
+			{ shoe_id: shoeId } satisfies SetSuggestedShoeRequest,
 			{ headers: bearerHeader(cookies), cookies }
 		);
 	},
@@ -257,7 +265,7 @@ export const trainingApi = {
 	): Promise<ScheduledTrainingDetail> {
 		return fetchClient.put<ScheduledTrainingDetail>(
 			`/api/schedule/trainings/${trainingId}/cross_train`,
-			{ cross_type: crossType },
+			{ cross_type: crossType } satisfies CrossTrainRequest,
 			{ headers: bearerHeader(cookies), cookies }
 		);
 	},
@@ -277,7 +285,7 @@ export const trainingApi = {
 	): Promise<ScheduledTrainingDetail> {
 		return fetchClient.put<ScheduledTrainingDetail>(
 			`/api/schedule/trainings/${trainingId}/pacing_plan`,
-			{ pacing_plan: pacingPlan },
+			{ pacing_plan: pacingPlan } satisfies SetPacingPlanRequest,
 			{ headers: bearerHeader(cookies), cookies }
 		);
 	},
@@ -305,7 +313,7 @@ export const trainingApi = {
 	): Promise<ScheduledTrainingDetail> {
 		return fetchClient.put<ScheduledTrainingDetail>(
 			`/api/schedule/trainings/${trainingId}/exchange`,
-			{ training_id: candidateId },
+			{ training_id: candidateId } satisfies ExchangeTrainingRequest,
 			{ headers: bearerHeader(cookies), cookies }
 		);
 	}

@@ -1,6 +1,5 @@
 import type {
 	ExchangeCandidate,
-	ScheduledTraining,
 	ScheduledTrainingDetail,
 	Shoe,
 	TrainingHeightDifference,
@@ -302,15 +301,4 @@ export class SessionDetailStore {
 	dismissError(): void {
 		this.error = null;
 	}
-}
-
-/**
- * The training the setup UI should describe: the detail once it has arrived,
- * the week's copy until then.
- */
-export function effectiveTraining(
-	store: SessionDetailStore,
-	fallback: ScheduledTraining | null
-): ScheduledTraining | null {
-	return store.detail ?? fallback;
 }

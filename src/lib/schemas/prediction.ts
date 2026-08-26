@@ -26,4 +26,3 @@ export const predictionHistoryQuerySchema = z.object({
 });
 
 export type PredictionRecord = z.infer<typeof predictionRecordSchema>;
-export type PredictionHistoryQuery = z.infer<typeof predictionHistoryQuerySchema>;

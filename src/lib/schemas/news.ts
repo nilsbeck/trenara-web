@@ -20,5 +20,3 @@ export const newsMarkReadSchema = z.object({
 
 /** Page of the news feed to fetch. Ten items to a page, newest first. */
 export const newsPageSchema = z.coerce.number().int().positive().max(1000).default(1);
-
-export type NewsMarkReadData = z.infer<typeof newsMarkReadSchema>;

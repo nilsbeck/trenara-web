@@ -5,11 +5,6 @@ import {
 	PACING_PLANS
 } from '$lib/server/trenara/types';
 
-export const feedbackSchema = z.object({
-	entryId: z.number().int().positive(),
-	feedback: z.number().int().min(1).max(10)
-});
-
 export const changeDateSchema = z.object({
 	entryId: z.number().int().positive(),
 	newDate: z.string(),
@@ -85,14 +80,3 @@ export const exchangeTrainingSchema = z.object({ candidateId: z.number().int().p
 export const setPacingPlanSchema = z.object({
 	pacingPlan: z.enum(PACING_PLANS).nullable()
 });
-
-export type FeedbackData = z.infer<typeof feedbackSchema>;
-export type ChangeDateData = z.infer<typeof changeDateSchema>;
-export type TrainingConditionData = z.infer<typeof trainingConditionSchema>;
-export type SetIntensityData = z.infer<typeof setIntensitySchema>;
-export type SetDistanceData = z.infer<typeof setDistanceSchema>;
-export type SetShoeData = z.infer<typeof setShoeSchema>;
-export type SetCooldownData = z.infer<typeof setCooldownSchema>;
-export type CrossTrainData = z.infer<typeof crossTrainSchema>;
-export type ExchangeTrainingData = z.infer<typeof exchangeTrainingSchema>;
-export type SetPacingPlanData = z.infer<typeof setPacingPlanSchema>;

@@ -439,7 +439,6 @@ export const CROSS_TYPES = [
 	'crosstrainer',
 	'elliptical'
 ] as const;
-export type CrossType = (typeof CROSS_TYPES)[number];
 
 /**
  * One step of a training.
@@ -684,7 +683,6 @@ export interface TeamData {
 
 /** Known shoe `type` values. Typed loosely on read, see `TRAINING_SURFACES` for why. */
 export const SHOE_TYPES = ['supertrainer', 'supershoe', 'long_run', 'trail'] as const;
-export type ShoeType = (typeof SHOE_TYPES)[number];
 
 /** A shoe in the user's locker, and the shape embedded as `suggested_shoe`. */
 export interface Shoe {
@@ -932,14 +930,6 @@ export interface Schedule {
 	entries: Entry[];
 }
 
-export type DateTrainingMap = {
-	[date: `${number}-${number}-${number}`]: {
-		training?: ScheduledTraining;
-		strengthTraining?: StrengthTraining;
-		entry?: Entry;
-	};
-};
-
 export interface Goal {
 	id: number;
 	name: string;
@@ -1140,15 +1130,6 @@ export interface Thread {
 		picture_url: string;
 		created_at: number;
 	};
-}
-
-export interface Message {
-	id: number;
-	thread_id: number;
-	sender_id: number;
-	content: string;
-	created_at: string;
-	read_at?: string;
 }
 
 export interface TestScheduleResponse {

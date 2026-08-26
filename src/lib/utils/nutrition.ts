@@ -1,7 +1,6 @@
 import type { NutritionAdvice } from '$lib/server/trenara/types';
 
 export type NutritionMeal = NutritionAdvice['plan'][number];
-export type NutritionValue = NutritionMeal['values'][number];
 
 /*
 	The plan comes straight from the API and is trusted for its shape only as
