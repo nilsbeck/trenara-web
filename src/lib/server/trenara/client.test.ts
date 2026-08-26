@@ -254,3 +254,49 @@ describe('cookie forwarding', () => {
 		expect(headers['Cookie']).toContain('refresh-token=def');
 	});
 });
+
+// ─────────────────────────────────────────────────────────────
+// Answer format
+// ─────────────────────────────────────────────────────────────
+describe('answer format', () => {
+	it('asks for JSON, so a refusal comes back as one', async () => {
+		vi.mocked(fetch).mockResolvedValueOnce(mockResponse({}));
+
+		await fetchClient.put('/api/entries/1/rpe', { rpe: 5 });
+
+		const [, init] = vi.mocked(fetch).mock.calls[0];
+		const headers = init?.headers as Record<string, string>;
+		expect(headers['Accept']).toBe('application/json');
+	});
+
+	it('does not follow redirects', async () => {
+		vi.mocked(fetch).mockResolvedValueOnce(mockResponse({}));
+
+		await fetchClient.put('/api/entries/1/rpe', { rpe: 5 });
+
+		const [, init] = vi.mocked(fetch).mock.calls[0];
+		expect(init?.redirect).toBe('manual');
+	});
+
+	it('fails a redirect rather than reporting it as a result', async () => {
+		vi.mocked(fetch).mockResolvedValueOnce(
+			mockResponse('', { status: 302, statusText: 'Found', headers: { location: '/login' } })
+		);
+
+		await expect(fetchClient.put('/api/entries/1/rpe', { rpe: 5 })).rejects.toMatchObject({
+			name: 'HttpError',
+			status: 302
+		});
+	});
+
+	it('does not retry a redirect', async () => {
+		vi.mocked(fetch).mockResolvedValue(
+			mockResponse('', { status: 302, statusText: 'Found', headers: { location: '/login' } })
+		);
+
+		await expect(fetchClient.put('/api/entries/1/rpe', { rpe: 5 }, { retries: 2 })).rejects.toThrow(
+			HttpError
+		);
+		expect(fetch).toHaveBeenCalledTimes(1);
+	});
+});

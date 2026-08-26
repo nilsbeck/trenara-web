@@ -669,6 +669,50 @@ Medal `type` seen so far: `sum_time` (target in seconds) and `sum_distance`
 
 ---
 
+## PUT /api/entries/{id}/rpe
+
+Rates how hard a finished session felt, 1–10. Used by `trainingApi.putFeedback`
+behind `PUT /api/v1/feedback`, and it is the write behind the star on a
+training card and the rating card that covers a session the runner has not
+scored yet.
+
+`{id}` is the entry's own `id` — the same number `notification.entry_id`
+carries on that entry, not the scheduled training's id.
+
+### Request
+
+```json
+{ "rpe": 7 }
+```
+
+Unverified, and the only mutation body in the app with no capture behind it.
+The field name is what the app has always sent; nothing has confirmed the API
+still reads it under that name.
+
+### Response
+
+**Unobserved.** The route hands whatever comes back to the caller so that a
+rating can be read off it and checked, and `rateEntry` in
+`src/lib/api/rate-entry.ts` looks for an `rpe` at the top level or one level in
+under `entry`. If a capture shows a different shape, that is the one function
+to teach it to.
+
+Why the caller checks at all: a rating was reported as saved on the strength of
+a 2xx, and the same rating was asked for again on the next reload — the write
+was accepted and nothing was stored. `PUT /api/me` has the same hazard written
+down under its own Response heading: a field this API ignores looks exactly
+like one it applied. So a 2xx is not treated as proof here.
+
+What would settle it, in one capture each:
+
+- the answer to a successful rating — whether it is the entry, a wrapper, or an
+  acknowledgement with nothing to check;
+- an entry rated in the mobile app, read back through `/api/schedule/week/` —
+  whether the week's copy of an entry carries `rpe` at all, or only
+  `/api/me/stats`'s `last_entry` does.
+
+---
+
 ## GET /api/goal
 
 The current goal: target time and distance, the plan's window, its repeating

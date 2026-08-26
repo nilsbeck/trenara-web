@@ -96,6 +96,16 @@ class FetchClient {
 
 		const headers: Record<string, string> = {
 			'Content-Type': 'application/json',
+			/*
+				Say what we are able to read back.
+
+				Without this the API is left to infer it, and one that infers
+				"browser" answers a rejected write with a redirect to a page
+				rather than a status carrying the field that failed. Followed,
+				such a redirect lands on a 200 and the write reads as having
+				succeeded. Asking for JSON keeps a refusal a refusal.
+			*/
+			Accept: 'application/json',
 			...(options.headers ?? {})
 		};
 
@@ -109,7 +119,16 @@ class FetchClient {
 
 		const fetchOptions: RequestInit = {
 			...options,
-			headers
+			headers,
+			/*
+				Every call from here is an API call, so a redirect is never the
+				answer to one. Following it would swap a refusal for whatever the
+				redirect target serves — a 200, in practice — and this client would
+				hand that back to the caller as a result. Left unfollowed the 3xx
+				survives to the status checks below and is reported as the failure
+				it is.
+			*/
+			redirect: 'manual'
 		};
 
 		let lastError: Error = new Error('Request failed');
@@ -130,6 +149,16 @@ class FetchClient {
 
 				if (response.status === 401) {
 					throw new AuthenticationError('Unauthorized');
+				}
+
+				// `redirect: 'manual'` leaves these to be handled here. Named
+				// rather than left to `statusText` below, because "Found" tells
+				// the caller nothing about what went wrong.
+				if (response.status >= 300 && response.status < 400) {
+					throw new HttpError(
+						`Unexpected redirect (${response.status}) from ${url}`,
+						response.status
+					);
 				}
 
 				if (response.ok) {

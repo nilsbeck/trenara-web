@@ -3,13 +3,17 @@
 	import { Star, X, Loader2 } from 'lucide-svelte';
 	import RpeSlider from '$lib/components/training/rpe-slider.svelte';
 	import { rpeColors } from '$lib/components/training/rpe';
+	import { DROPPED_MESSAGE, rateEntry } from '$lib/api/rate-entry';
 
 	let {
 		training,
-		entry
+		entry,
+		onRated
 	}: {
 		training: ScheduledTraining;
 		entry: Entry;
+		/** The rating went in; the schedule on screen is a read behind. */
+		onRated?: () => void;
 	} = $props();
 
 	let dialogEl: HTMLDialogElement | undefined = $state();
@@ -34,18 +38,22 @@
 		error = null;
 
 		try {
-			const res = await fetch('/api/v1/feedback', {
-				method: 'PUT',
-				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ entryId: entry.id, feedback: rpeValue })
-			});
+			const outcome = await rateEntry(entry.id, rpeValue);
 
-			if (!res.ok) {
-				const data = await res.json().catch(() => ({}));
-				throw new Error(data.message ?? `Failed to save feedback (${res.status})`);
+			if (outcome.status === 'dropped') {
+				error = DROPPED_MESSAGE;
+				return;
 			}
 
-			entry.rpe = rpeValue;
+			// Written back only where the API confirmed it; anything else is left
+			// for the refresh `onRated` asks for to settle. A rating this card
+			// invents on the strength of a 2xx is what hid a dropped one until
+			// the next reload.
+			if (outcome.status === 'stored') {
+				entry.rpe = outcome.rpe;
+			}
+
+			onRated?.();
 			close();
 		} catch (e) {
 			error = e instanceof Error ? e.message : 'An unexpected error occurred';

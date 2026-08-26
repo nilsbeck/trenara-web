@@ -343,7 +343,7 @@
 					<TreadmillMode training={shownTraining} />
 				{/if}
 				{#if entry && training}
-					<GiveFeedbackModal {training} {entry} />
+					<GiveFeedbackModal {training} {entry} onRated={() => onScheduleChanged?.()} />
 				{/if}
 				{#if training?.can_be_edited}
 					<ChangeDateModal
@@ -487,7 +487,7 @@
 
 		<!-- Inline rating prompt (shown when training is completed but not yet rated) -->
 		{#if needsRating && entry && training}
-			<RateTrainingInline {entry} />
+			<RateTrainingInline {entry} onRated={() => onScheduleChanged?.()} />
 		{/if}
 
 		<!-- Training detail content — blurred when rating is pending -->
