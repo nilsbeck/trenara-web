@@ -703,6 +703,15 @@ was accepted and nothing was stored. `PUT /api/me` has the same hazard written
 down under its own Response heading: a field this API ignores looks exactly
 like one it applied. So a 2xx is not treated as proof here.
 
+The read side has also been seen to lag a rating it accepted: a session rated
+successfully came back from `/api/schedule/week/` unrated, across a reload, and
+agreed some hours later with nothing changed at either end. So a rating this
+browser has sent is held in `localStorage` and read back over the week payload
+until the week payload carries it — `src/lib/stores/remembered-ratings.ts`,
+applied in the calendar store's `commitSchedule`. It is dropped as soon as the
+week agrees, and expires after a day so that a rating which never landed is
+asked for again rather than quietly ceasing to exist.
+
 What would settle it, in one capture each:
 
 - the answer to a successful rating — whether it is the entry, a wrapper, or an

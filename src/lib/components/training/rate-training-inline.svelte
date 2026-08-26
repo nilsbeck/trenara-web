@@ -4,6 +4,7 @@
 	import RpeSlider from '$lib/components/training/rpe-slider.svelte';
 	import { rpeColors } from '$lib/components/training/rpe';
 	import { DROPPED_MESSAGE, rateEntry } from '$lib/api/rate-entry';
+	import { forgetRating, rememberRating } from '$lib/stores/remembered-ratings';
 
 	let {
 		entry,
@@ -27,18 +28,22 @@
 		try {
 			const outcome = await rateEntry(entry.id, rpeValue);
 
+			// The one answer that says, in so many words, that nothing was
+			// stored. Never held over the schedule — the runner is told.
 			if (outcome.status === 'dropped') {
+				forgetRating(entry.id);
 				error = DROPPED_MESSAGE;
 				return;
 			}
 
-			// Written back only where the API confirmed it; anything else is left
-			// for the refresh `onRated` asks for to settle. A rating this card
-			// invents on the strength of a 2xx is what hid a dropped one until
-			// the next reload.
-			if (outcome.status === 'stored') {
-				entry.rpe = outcome.rpe;
-			}
+			// The rating Trenara confirmed, or failing that the one that was
+			// sent. Held until the week payload carries it: that read side has
+			// been seen to lag a rating by hours, and while it does, the entry
+			// it answers with is an unrated one that would ask for the same
+			// rating over and over.
+			const rated = outcome.status === 'stored' ? outcome.rpe : rpeValue;
+			rememberRating(entry.id, rated);
+			entry.rpe = rated;
 
 			onRated?.();
 		} catch (e) {

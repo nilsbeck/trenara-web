@@ -12,6 +12,7 @@ import { fingerprint } from '$lib/utils/fingerprint';
 import { stalenessReason } from '$lib/utils/revalidation';
 import { getMonthTimestamps, toLocalDateString, weeksStillOpen } from '$lib/utils/date';
 import { entryLocalDate, mergeSchedule, type SchedulePayload } from '$lib/utils/schedule';
+import { withRememberedRatings } from '$lib/stores/remembered-ratings';
 
 export type CalendarDate = {
 	year: number;
@@ -307,13 +308,18 @@ export function createCalendarStore(initialDate: Date, options: CalendarStoreOpt
 	 */
 	function commitSchedule(key: string, next: Schedule, etag: string | null = null): boolean {
 		const previous = scheduleCache.get(key);
+
+		// Fingerprinted before anything local is read over it, so what is
+		// compared from one fetch to the next is Trenara's answer and only
+		// that. A rating this browser is holding must not make an unchanged
+		// week look changed, nor a changed one look unchanged.
 		const print = fingerprint(next);
 		const changed = !previous || previous.fingerprint !== print;
 		const fetchedAt = Date.now();
 
 		// Unchanged: keep the object already in hand, so the identity every
 		// derived index is keyed on survives the refresh.
-		const kept = changed ? next : previous.schedule;
+		const kept = changed ? withRememberedRatings(next) : previous.schedule;
 
 		scheduleCache.set(key, {
 			schedule: kept,
