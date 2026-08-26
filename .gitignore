@@ -21,3 +21,8 @@ Thumbs.db
 # Vite
 vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
+
+# Package manager: bun only (Vercel picks npm if a package-lock.json is present)
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
