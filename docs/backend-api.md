@@ -97,16 +97,22 @@ above, keep sending the path the code sends.
 ### Request
 
 Form-encoded (`application/x-www-form-urlencoded`), not JSON. Two grants,
-distinguished by `grant_type`:
+distinguished by `grant_type`. The refresh body is captured off the wire; the
+password body is read from `authApi.login`, not observed:
 
 ```
-grant_type=password&username=<email>&password=<password>
 grant_type=refresh_token&refresh_token=<refresh_token>
+grant_type=password&username=<email>&password=<password>
 ```
+
+Values are URL-encoded — `authApi` builds both with `URLSearchParams`, so a
+password containing `&` or `+` survives the trip.
 
 ### Response
 
-Identical for both grants, and matching `AuthResponse` field for field.
+Captured from the **refresh** grant, and matching `AuthResponse` field for
+field. The password grant is assumed to answer the same way — the app treats
+the two responses interchangeably — but that has not been captured.
 
 - `expires_in` is **seconds** (172800 = 48 hours), unlike the timestamps
   elsewhere in this API. It describes `access_token` only; nothing in the
