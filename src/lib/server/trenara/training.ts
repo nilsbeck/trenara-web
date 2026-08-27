@@ -143,8 +143,10 @@ export const trainingApi = {
 	 * required" rather than keeping the stored value, so the two the caller
 	 * rarely cares about fall back to the defaults the app itself sends.
 	 *
-	 * Unlike its siblings the response shape here is inferred rather than
-	 * observed; it is assumed to match them.
+	 * The response is the complete new training, matching its siblings — since
+	 * a 2026-08-27 capture, observed rather than assumed. Note that a
+	 * `height_value` of 0 comes back as `training_condition.height_value: null`,
+	 * so the response is not a faithful echo of the request.
 	 */
 	async setTrainingCondition(
 		cookies: Cookies,
