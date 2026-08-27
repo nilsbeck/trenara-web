@@ -63,7 +63,8 @@ Endpoints the app already calls live in `src/lib/server/trenara/`:
 | POST/DELETE | `/api/entries`, `/api/entries/{id}`                                                                 | `trainingApi.addTraining` / `deleteTraining`             |
 | PUT         | `/api/entries/{id}/rpe`                                                                             | `trainingApi.putFeedback`                                |
 | GET         | `/api/nutritional/advice`                                                                           | `trainingApi.getNutritionAdvice`                         |
-| GET         | `/api/threads/`, `/api/threads/{id}/messages`                                                       | `chatApi.*`                                              |
+| GET         | `/api/threads/`, `/api/threads/{id}/messages`                                                       | `chatApi.getThreads` / `getMessages`                     |
+| POST        | `/api/threads/{id}/messages`                                                                        | `chatApi.sendMessage`                                    |
 | GET         | `/api/news/`                                                                                        | `newsApi.getNews`                                        |
 | GET         | `/api/config/app`                                                                                   | `configApi.getAppConfig`                                 |
 
@@ -124,8 +125,8 @@ the two responses interchangeably — but that has not been captured.
 {
 	"token_type": "Bearer",
 	"expires_in": 172800,
-	"access_token": "«redacted»",
-	"refresh_token": "«redacted»"
+	"access_token": "<redacted>",
+	"refresh_token": "<redacted>"
 }
 ```
 
@@ -1549,5 +1550,119 @@ and `TRAINING_SURFACES`. The wrapper defaults `height_value` to `0` and
 		"avg_pace_unit": "min/km",
 		"picture": null
 	}
+}
+```
+
+---
+
+## GET /api/threads/{id}/messages
+
+One page of a chat thread. Read by `chatApi.getMessages`; rendered through the
+helpers in `src/lib/components/chat/message-list.ts`, which exist because of
+the first two points below.
+
+### Notable fields
+
+- **Newest first.** Page 1 is the ten most recent messages and `next` pages
+  _backwards_ into history — the opposite of the order the bubble renders.
+  `toOldestFirst` normalises on the way in.
+- **`timestamp` (unix seconds) is required and acts as a stable anchor.** The
+  `next` link carries the same value forward, so messages arriving mid-
+  pagination do not shift the pages under you. `chatApi.getMessages` defaults
+  it to now. Note the link also reorders the query string (`timestamp` before
+  `page`) — cosmetic, but do not pattern-match the URL.
+- `user_id: 3` is the coach bot, posting as "Walter" from a fixed asset on the
+  backend host. Real users carry a CloudFront `picture_url`. Compare against
+  the signed-in user rather than hard-coding 3, as `ChatMessage` warns.
+- `url` was `null` on all eleven messages captured here, as in every payload
+  before. Purpose still unknown.
+- `picture_url` was present on every server message, though it stays optional
+  on `ChatMessage`: `createPendingMessage` builds local placeholders without
+  one.
+- `body` is the source text and `body_html` the server-rendered HTML — the
+  markdown is rendered upstream, not by us. Two trailing spaces in `body`
+  become `<br />`; blank lines become `<p>`; the coach also emits `<h3>`,
+  `<ul>` and `<strong>`. Render `body_html`, keep `body` for anything that
+  needs plain text.
+- `pagination.links` carried only `next` on page 1 — no `previous` — matching
+  the optional-both shape on `Pagination`.
+
+### Sample response
+
+Bodies truncated; two of the ten messages shown.
+
+```json
+{
+	"data": [
+		{
+			"id": 159769,
+			"body": "Yes, an ergoespirometry test (with mask) can determine your thresholds…",
+			"body_html": "<p>Yes, an ergoespirometry test (with mask) can determine your thresholds…</p>",
+			"url": null,
+			"user_id": 3,
+			"picture_url": "https://backend-prod.trenara.com/img/walter.png",
+			"created_at": 1787399675
+		},
+		{
+			"id": 159768,
+			"body": "Can the ergoespirometry test find the thresholds?",
+			"body_html": "<p>Can the ergoespirometry test find the thresholds?</p>",
+			"url": null,
+			"user_id": 56540,
+			"picture_url": "https://<cdn-host>/12356744/profile_picture.jpg",
+			"created_at": 1787399669
+		}
+	],
+	"pagination": {
+		"total": 292,
+		"count": 10,
+		"per_page": 10,
+		"current_page": 1,
+		"total_pages": 30,
+		"links": {
+			"next": "https://backend-prod.trenara.com/api/threads/1482/messages?timestamp=1787859818&page=2"
+		}
+	}
+}
+```
+
+---
+
+## POST /api/threads/{id}/messages
+
+Posts a message to a thread. Called by `chatApi.sendMessage`.
+
+### Request
+
+The field is **`body`**, matching what comes back — not `content`, which is
+what this app's own internal route uses. An earlier version sent `content` and
+was wrong.
+
+```json
+{ "body": "how much margin are in the goal plans to still reach the goal_" }
+```
+
+### Notable fields
+
+- **The response is the posted message alone — the coach's reply is not in
+  it.** A bare `ChatMessage`, not wrapped in `data` and not a list. The answer
+  arrives only on a subsequent `GET .../messages`, which is why the UI shows a
+  placeholder and polls rather than rendering a reply from this response.
+- `body_html` is generated server-side even for a one-line message, so the
+  saved copy is not a byte-for-byte echo of what was sent.
+- `id` is a server-issued positive integer. Local placeholders use negative
+  ids (`isPending`), and `replaceMessage` swaps one for the other in place.
+
+### Sample response
+
+```json
+{
+	"id": 161994,
+	"body": "how much margin are in the goal plans to still reach the goal_",
+	"body_html": "<p>how much margin are in the goal plans to still reach the goal_</p>",
+	"url": null,
+	"user_id": 56540,
+	"picture_url": "https://<cdn-host>/12356744/profile_picture.jpg",
+	"created_at": 1787852624
 }
 ```
