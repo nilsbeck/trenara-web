@@ -279,6 +279,73 @@ describe('forecast', () => {
 		expect(result.gainSeconds).toBeCloseTo(result.remainingKm * 0.5, 6);
 	});
 
+	it('bends with the volume, and says what bent it', () => {
+		// A block that ramps and then tapers, so consecutive weeks are worth
+		// visibly different amounts and a straight line would be wrong.
+		const shaped = weeks(10, [40, 50, 60, 70, 80, 90, 70, 50, 30, 20]);
+		const now = day(28);
+		const result = forecast({
+			nowSeconds: 3600,
+			now,
+			goalSeconds: 3000,
+			raceDay: race,
+			planned: shaped,
+			done: shaped,
+			samples: [{ date: iso(0), seconds: 3600 }],
+			goalStart: day(0)
+		})!;
+
+		// Today, then a vertex per remaining week boundary, then the cutoff and
+		// race day.
+		expect(result.points[0].kind).toBe('today');
+		expect(result.points[0].kmToDate).toBe(0);
+		expect(result.points.at(-2)!.kind).toBe('cutoff');
+		expect(result.points.at(-1)!.kind).toBe('race');
+
+		const weekly = result.points.filter((p) => p.kind === 'week');
+		expect(weekly.length).toBeGreaterThan(1);
+		// Each segment is priced at its own week, which is what makes the line
+		// bend: the 90 km week has to earn more than the 50 km week before it.
+		const gains = weekly.map((p) => p.segmentKm);
+		expect(Math.max(...gains)).toBeGreaterThan(Math.min(...gains) * 1.5);
+
+		// Every point stands on the kilometres between today and itself, and the
+		// segments add back up to that running total.
+		let running = 0;
+		for (const point of result.points.slice(0, -1)) {
+			running += point.segmentKm;
+			expect(point.kmToDate).toBeCloseTo(running, 9);
+			expect(point.seconds).toBeCloseTo(3600 - point.kmToDate * result.rate.secondsPerKm, 9);
+		}
+
+		// Race day earns nothing of its own: it stands on the cutoff's total.
+		expect(result.points.at(-1)!.segmentKm).toBe(0);
+		expect(result.points.at(-1)!.kmToDate).toBeCloseTo(result.remainingKm, 9);
+	});
+
+	it('hands back the weekly load the line was priced from', () => {
+		const now = day(35);
+		const cutoff = earnCutoff(race);
+		const result = forecast({
+			nowSeconds: 3600,
+			now,
+			goalSeconds: 3000,
+			raceDay: race,
+			planned,
+			done: planned,
+			samples: [{ date: iso(0), seconds: 3600 }],
+			goalStart: day(0)
+		})!;
+
+		// Nothing before today and nothing past the cutoff — the same window the
+		// forecast itself counts.
+		expect(result.load.every((slice) => slice.from >= now && slice.to <= cutoff)).toBe(true);
+		// A week the runner is standing in the middle of is priced at the part of
+		// it that is still ahead, so the slices total the remaining volume.
+		const total = result.load.reduce((sum, slice) => sum + slice.km, 0);
+		expect(total).toBeCloseTo(result.remainingKm, 9);
+	});
+
 	it('draws nothing once race day is inside the lag window', () => {
 		expect(
 			forecast({

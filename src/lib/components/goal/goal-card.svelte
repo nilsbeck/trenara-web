@@ -7,7 +7,7 @@
 	} from '$lib/components/charts/prediction-chart.svelte';
 	import DistanceChart from '$lib/components/charts/distance-chart.svelte';
 	import { readWeekDistance, readGoalDistance } from '$lib/utils/distance-graph';
-	import { forecast, earnCutoff } from '$lib/utils/forecast';
+	import { forecast, earnCutoff, type ForecastPoint } from '$lib/utils/forecast';
 	import { readPlanWeeks } from '$lib/utils/plan-weeks';
 	import {
 		timeStringToSeconds,
@@ -202,9 +202,49 @@
 		return 'On goal pace, if you follow the rest of the plan.';
 	});
 
+	/**
+	 * What a forecast point is standing on, in the two lines a tooltip has room
+	 * for.
+	 *
+	 * The chart deals in seconds and dates; kilometres are this card's business,
+	 * so the wording is written here. Every vertex of the line is a week of the
+	 * plan, and the number that put it where it is is that week's distance —
+	 * without it, a bend is just a bend.
+	 */
+	function forecastDetail(point: ForecastPoint): string[] {
+		const since = `${Math.round(point.kmToDate)} km since today`;
+		switch (point.kind) {
+			// The date is already the tooltip's heading, so "today" would be the
+			// same word twice, and race day has no training left to report.
+			case 'today':
+				return [];
+			case 'race':
+				return ['Race day'];
+			case 'cutoff':
+				return ['Last training that counts', since];
+			default:
+				return [`${Math.round(point.segmentKm)} km this week`, since];
+		}
+	}
+
 	const chartLines = $derived(
-		raceForecast ? [{ label: 'Forecast', colour: '#ec4899', points: raceForecast.points }] : []
+		raceForecast
+			? [
+					{
+						label: 'Forecast',
+						colour: '#ec4899',
+						points: raceForecast.points.map((point) => ({
+							date: point.date,
+							seconds: point.seconds,
+							detail: forecastDetail(point)
+						}))
+					}
+				]
+			: []
 	);
+
+	/** The weekly volume the forecast is priced from, drawn under it. */
+	const chartLoad = $derived(raceForecast?.load ?? []);
 
 	const goalReference = $derived(
 		goal.time_in_sec ? { seconds: goal.time_in_sec, label: `Goal ${goal.time}` } : null
@@ -574,6 +614,7 @@
 			domainEnd={raceDay}
 			projections={chartLines}
 			reference={goalReference}
+			load={chartLoad}
 		/>
 	{/if}
 

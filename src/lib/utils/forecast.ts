@@ -210,6 +210,43 @@ export function planRate({
 	return { secondsPerKm: gap / volume, source: 'plan' };
 }
 
+/**
+ * What a point on the forecast line is standing on.
+ *
+ * The seconds alone say where the line goes; these say why it goes there. A
+ * projection that bends is only worth drawing if the reader can find out what
+ * bent it, and the answer is always kilometres — the ones in this stretch, and
+ * the ones behind it since today.
+ */
+export interface ForecastPoint extends Sample {
+	/** Plan kilometres between today and here that still change race-day fitness. */
+	kmToDate: number;
+	/** Kilometres in the stretch ending here — the load this segment was earned on. */
+	segmentKm: number;
+	/**
+	 * What the point marks.
+	 *
+	 * `cutoff` is the last day training still buys speed and `race` is race day
+	 * itself; the flat run between them is the taper, not a stalled forecast,
+	 * and naming both ends is what lets a caller say so.
+	 */
+	kind: 'today' | 'week' | 'cutoff' | 'race';
+}
+
+/**
+ * A stretch of the plan that still earns, and what it asks for.
+ *
+ * Weeks clipped to the window between today and the fitness cutoff, so a
+ * half-run week and a week cut short by the taper are each priced at the part
+ * that still counts. This is the volume the forecast line is drawn from, handed
+ * back so it can be drawn beside it rather than inferred from the slope.
+ */
+export interface LoadSlice {
+	from: Date;
+	to: Date;
+	km: number;
+}
+
 export interface Forecast {
 	/** Where the prediction lands on race day, in seconds. */
 	endSeconds: number;
@@ -231,7 +268,9 @@ export interface Forecast {
 	doneToDateKm: number;
 	rate: RateEstimate;
 	/** Points for drawing: today, then each week boundary, then race day. */
-	points: Sample[];
+	points: ForecastPoint[];
+	/** The weekly volume those points were priced from, for drawing beside them. */
+	load: LoadSlice[];
 }
 
 /**
@@ -293,23 +332,47 @@ export function forecast({
 	const remainingKm = volumeBetween(planned, now, cutoff);
 	if (!(remainingKm > 0)) return null;
 
-	const gainSeconds = remainingKm * rate.secondsPerKm;
+	const { secondsPerKm } = rate;
+	const gainSeconds = remainingKm * secondsPerKm;
 	const endSeconds = nowSeconds - gainSeconds;
 
 	// A point at every week boundary, so the line bends where the volume does —
 	// flattening through the taper instead of running straight at the goal.
-	const points: Sample[] = [{ date: iso(now), seconds: nowSeconds }];
+	//
+	// The boundaries are the only vertices there are: a week's kilometres are
+	// spread evenly across its seven days, so the line is straight *within* a
+	// week by construction and can only change slope where one week hands over
+	// to the next. Points in between would be collinear padding.
+	const points: ForecastPoint[] = [
+		{ date: iso(now), seconds: nowSeconds, kmToDate: 0, segmentKm: 0, kind: 'today' }
+	];
+
+	function at(when: Date, kind: ForecastPoint['kind']): void {
+		const kmToDate = volumeBetween(planned, now, when);
+		points.push({
+			date: iso(when),
+			seconds: nowSeconds - kmToDate * secondsPerKm,
+			kmToDate,
+			segmentKm: kmToDate - points[points.length - 1].kmToDate,
+			kind
+		});
+	}
+
 	for (const week of planned) {
 		const boundary = new Date(week.startsOn.getTime() + WEEK_MS);
 		if (boundary <= now || boundary >= cutoff) continue;
-		points.push({
-			date: iso(boundary),
-			seconds: nowSeconds - volumeBetween(planned, now, boundary) * rate.secondsPerKm
-		});
+		at(boundary, 'week');
 	}
-	// Race day itself, held flat across the lag window: nothing in it earns.
-	points.push({ date: iso(cutoff), seconds: endSeconds });
-	points.push({ date: iso(raceDay), seconds: endSeconds });
+	at(cutoff, 'cutoff');
+	// Race day itself, held flat across the lag window: nothing in it earns, so
+	// the kilometres it is standing on are the cutoff's, not its own.
+	points.push({
+		date: iso(raceDay),
+		seconds: endSeconds,
+		kmToDate: remainingKm,
+		segmentKm: 0,
+		kind: 'race'
+	});
 
 	return {
 		endSeconds,
@@ -319,8 +382,23 @@ export function forecast({
 		askedToDateKm: volumeBetween(planned, goalStart, now),
 		doneToDateKm: volumeBetween(done, goalStart, now),
 		rate,
-		points
+		points,
+		load: loadSlices(planned, now, cutoff)
 	};
+}
+
+/** Each planned week, clipped to the window where training still earns. */
+function loadSlices(planned: VolumeWeek[], now: Date, cutoff: Date): LoadSlice[] {
+	const slices: LoadSlice[] = [];
+	for (const week of planned) {
+		const start = week.startsOn.getTime();
+		if (!Number.isFinite(start)) continue;
+		const from = new Date(Math.max(start, now.getTime()));
+		const to = new Date(Math.min(start + WEEK_MS, cutoff.getTime()));
+		if (to <= from) continue;
+		slices.push({ from, to, km: volumeBetween([week], from, to) });
+	}
+	return slices;
 }
 
 function iso(d: Date): string {
