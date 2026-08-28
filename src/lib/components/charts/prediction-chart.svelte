@@ -3,11 +3,33 @@
 	import { secondsToTimeString, secondsToPaceString, formatDateShort } from '$lib/utils/format';
 	import { paceRatio, summarise, formatDelta } from '$lib/utils/prediction-graph';
 
+	/**
+	 * One vertex of a projected line — where it goes, and what put it there.
+	 *
+	 * `detail` is written by the caller rather than derived here: the chart knows
+	 * seconds and dates, and nothing about the kilometres a forecast is priced
+	 * from. Handing it finished lines keeps the units in the one place that
+	 * understands them.
+	 */
+	export interface ProjectionPoint {
+		date: string;
+		seconds: number;
+		/** Extra tooltip lines for this point, in order. */
+		detail?: string[];
+	}
+
 	export interface ProjectionSeries {
 		label: string;
 		colour: string;
 		/** Dates with a predicted time in seconds, in order. */
-		points: { date: string; seconds: number }[];
+		points: ProjectionPoint[];
+	}
+
+	/** A stretch of planned training, drawn under the projection it explains. */
+	export interface LoadBar {
+		from: Date;
+		to: Date;
+		km: number;
 	}
 
 	export interface ChartDataPoint {
@@ -26,7 +48,8 @@
 		paceLabel = 'Predicted Pace',
 		domainEnd = null,
 		projections = [],
-		reference = null
+		reference = null,
+		load = []
 	}: {
 		data: ChartDataPoint[];
 		loading?: boolean;
@@ -52,6 +75,19 @@
 		projections?: ProjectionSeries[];
 		/** A horizontal line to read the series against — the goal's own time. */
 		reference?: { seconds: number; label: string } | null;
+		/**
+		 * The training still to come, as faint bars along the foot of the plot.
+		 *
+		 * A forecast built on volume already bends with it — that is what makes it
+		 * flatten through a taper — but on an axis this tightly bunched the bend is
+		 * a few pixels and reads as a straight line. The bars are the reason the
+		 * line does what it does, drawn where it can be seen.
+		 *
+		 * Deliberately unscaled and unlabelled: they are a shape to compare
+		 * against, not a second series to read numbers off. The tooltip carries the
+		 * kilometres for anyone who wants them.
+		 */
+		load?: LoadBar[];
 	} = $props();
 
 	// Shared with the distance charts this sits beside in the picker, so the
@@ -214,8 +250,79 @@
 			.join(' ');
 	}
 
+	// ── Load bars ──────────────────────────────────────────────────
+	//
+	// Scaled to their own tallest bar and confined to a band at the foot of the
+	// plot, so they never compete with the series for vertical room. There is no
+	// axis for them on purpose: the question they answer is "does the line ease
+	// off where the training does", which is a question about shape.
+
+	/** Share of the plot height the tallest week of training is allowed. */
+	const LOAD_BAND = 0.22;
+
+	const loadPeak = $derived(load.length === 0 ? 0 : Math.max(...load.map((b) => b.km)));
+
+	const loadBars = $derived.by(() => {
+		if (!(loadPeak > 0)) return [];
+		return load
+			.map((bar) => {
+				const x0 = xAt(bar.from.getTime());
+				const x1 = xAt(bar.to.getTime());
+				const h = (bar.km / loadPeak) * ch * LOAD_BAND;
+				// A hairline of daylight between weeks, so a run of similar weeks
+				// still reads as weeks rather than as one long block.
+				return { x: x0 + 0.5, width: Math.max(0, x1 - x0 - 1), y: ch - h, height: h };
+			})
+			.filter((bar) => bar.width > 0 && bar.height > 0);
+	});
+
 	// ── Hover ──────────────────────────────────────────────────────
-	let hoverIdx = $state<number | null>(null);
+	//
+	// Held as indices rather than as the resolved point, because a resize moves
+	// every x: a snapshot taken on the last mousemove would keep drawing the
+	// crosshair where the point used to be.
+	//
+	// `series` is -1 for the recorded readings and 0-up into `projections`.
+	let hover = $state<{ series: number; point: number } | null>(null);
+
+	interface Hovered {
+		x: number;
+		y: number;
+		title: string;
+		lines: string[];
+	}
+
+	const hovered = $derived.by<Hovered | null>(() => {
+		if (!hover) return null;
+
+		if (hover.series === -1) {
+			const d = data[hover.point];
+			if (!d) return null;
+			return {
+				x: xPos(hover.point),
+				y: yPos(d.predictedTime),
+				title: formatDateShort(d.date),
+				lines: [`Time ${d.formattedTime}`, `Pace ${d.formattedPace}`]
+			};
+		}
+
+		const series = projections[hover.series];
+		const point = series?.points[hover.point];
+		if (!point) return null;
+
+		const lines = [`${series.label} ${secondsToTimeString(Math.round(point.seconds))}`];
+		// Same axis, so the same conversion the gridlines use — a projected pace
+		// is a relabelling of the projected time, not a second claim.
+		if (ratio !== null) lines.push(`Pace ${secondsToPaceString(point.seconds * ratio)}`);
+		lines.push(...(point.detail ?? []));
+
+		return {
+			x: xAt(new Date(point.date).getTime()),
+			y: yPos(point.seconds),
+			title: formatDateShort(point.date),
+			lines
+		};
+	});
 
 	function handleMove(e: MouseEvent) {
 		if (data.length === 0) return;
@@ -227,23 +334,54 @@
 		const scale = rect.width > 0 ? Math.max(1, containerWidth) / rect.width : 1;
 		const mx = (e.clientX - rect.left) * scale - PAD.left;
 
-		// Nearest reading by position. With a time axis the readings are no
-		// longer evenly spaced, so there is no segment width to divide by.
-		let nearest = 0;
+		// Nearest point by position, across the readings and every projection
+		// together. With a time axis nothing is evenly spaced, so there is no
+		// segment width to divide by — and the forecast has to be reachable by
+		// the same pointer, or the half of the chart past today goes dead.
 		let best = Infinity;
+		let pick: { series: number; point: number } | null = null;
+
 		for (let i = 0; i < data.length; i++) {
 			const distance = Math.abs(xPos(i) - mx);
 			if (distance < best) {
 				best = distance;
-				nearest = i;
+				pick = { series: -1, point: i };
 			}
 		}
-		hoverIdx = nearest;
+		// Strictly closer, so where a forecast starts on top of the last reading
+		// the recorded number wins: that one is measured, the other is arithmetic.
+		projections.forEach((series, si) => {
+			series.points.forEach((point, pi) => {
+				const distance = Math.abs(xAt(new Date(point.date).getTime()) - mx);
+				if (distance < best) {
+					best = distance;
+					pick = { series: si, point: pi };
+				}
+			});
+		});
+
+		hover = pick;
 	}
 
 	const LINE = '#a855f7';
-	const TOOLTIP_W = 150;
-	const TOOLTIP_H = 58;
+	/** Wide enough for the longest line it is given, never narrower than this. */
+	const TOOLTIP_MIN_W = 150;
+	const TOOLTIP_LINE_H = 15;
+
+	const tooltip = $derived.by(() => {
+		if (!hovered) return null;
+		const longest = Math.max(hovered.title.length, ...hovered.lines.map((l) => l.length));
+		const width = Math.min(
+			Math.max(TOOLTIP_MIN_W, longest * 6 + 20),
+			// Never wider than the plot, or it cannot be placed inside it.
+			Math.max(TOOLTIP_MIN_W, cw)
+		);
+		return {
+			width,
+			height: 26 + hovered.lines.length * TOOLTIP_LINE_H,
+			x: Math.max(0, Math.min(cw - width, hovered.x - width / 2))
+		};
+	});
 </script>
 
 <div class="w-full min-w-0" bind:clientWidth={containerWidth}>
@@ -301,6 +439,14 @@
 					<span class="text-muted-foreground">{series.label}</span>
 				</span>
 			{/each}
+			<!--
+				Text only, and short: a swatch would promise the bars are a series to
+				read, and a longer caption is the line that pushes this row onto a
+				third line on a phone.
+			-->
+			{#if loadBars.length > 0}
+				<span class="text-muted-foreground">· bars: km to come</span>
+			{/if}
 		</div>
 
 		<!--
@@ -403,6 +549,22 @@
 						</text>
 					{/if}
 
+					<!--
+						The training still to come, under everything else. Faint enough to
+						read as ground rather than as a series, but present enough that the
+						forecast above it can be seen easing off where the weeks do.
+					-->
+					{#each loadBars as bar, i (i)}
+						<rect
+							x={bar.x}
+							y={bar.y}
+							width={bar.width}
+							height={bar.height}
+							class="fill-muted-foreground"
+							opacity="0.16"
+						/>
+					{/each}
+
 					<path d={areaPath} fill="url(#prediction-fill)" stroke="none" />
 
 					<!--
@@ -410,7 +572,7 @@
 						never filled: the area under the measured series says "this
 						happened", and there is nothing under a projection to shade.
 					-->
-					{#each projections as series (series.label)}
+					{#each projections as series, si (series.label)}
 						<path
 							d={projectionPath(series)}
 							fill="none"
@@ -420,6 +582,23 @@
 							stroke-linecap="round"
 							opacity="0.9"
 						/>
+						<!--
+							A dot on every vertex, which is every week of the plan: the
+							places the line changes slope are exactly the places worth
+							asking about, and until now the whole projected half of the
+							chart had nothing to hover.
+						-->
+						{#each series.points as point, pi (point.date)}
+							<circle
+								cx={xAt(new Date(point.date).getTime())}
+								cy={yPos(point.seconds)}
+								r={hover?.series === si && hover?.point === pi ? 5 : 3}
+								fill={series.colour}
+								class="stroke-card"
+								stroke-width="1.5"
+								opacity="0.9"
+							/>
+						{/each}
 					{/each}
 
 					{#if data.length > 1}
@@ -438,7 +617,7 @@
 						<circle
 							cx={xPos(i)}
 							cy={yPos(d.predictedTime)}
-							r={hoverIdx === i || isLatest ? 5 : 3.5}
+							r={(hover?.series === -1 && hover?.point === i) || isLatest ? 5 : 3.5}
 							fill={LINE}
 							class="stroke-card"
 							stroke-width="2"
@@ -489,7 +668,7 @@
 						height={ch}
 						fill="transparent"
 						onmousemove={handleMove}
-						onmouseleave={() => (hoverIdx = null)}
+						onmouseleave={() => (hover = null)}
 					/>
 
 					<!--
@@ -504,15 +683,12 @@
 						survived was a band near the bottom that the tooltip never
 						covers.
 					-->
-					{#if hoverIdx !== null && data[hoverIdx]}
-						{@const d = data[hoverIdx]}
-						{@const hx = xPos(hoverIdx)}
-						{@const tx = Math.max(0, Math.min(cw - TOOLTIP_W, hx - TOOLTIP_W / 2))}
+					{#if hovered && tooltip}
 						<g class="pointer-events-none">
 							<line
-								x1={hx}
+								x1={hovered.x}
 								y1={0}
-								x2={hx}
+								x2={hovered.x}
 								y2={ch}
 								stroke="currentColor"
 								class="text-muted-foreground"
@@ -520,38 +696,32 @@
 								opacity="0.5"
 							/>
 							<rect
-								x={tx}
+								x={tooltip.x}
 								y={4}
-								width={TOOLTIP_W}
-								height={TOOLTIP_H}
+								width={tooltip.width}
+								height={tooltip.height}
 								rx="6"
 								class="fill-popover stroke-border"
 								stroke-width="1"
 							/>
 							<text
-								x={tx + 10}
+								x={tooltip.x + 10}
 								y={21}
 								class="fill-current text-popover-foreground"
 								style="font-size:11px;font-weight:600"
 							>
-								{formatDateShort(d.date)}
+								{hovered.title}
 							</text>
-							<text
-								x={tx + 10}
-								y={38}
-								class="fill-current text-muted-foreground"
-								style="font-size:11px"
-							>
-								Time {d.formattedTime}
-							</text>
-							<text
-								x={tx + 10}
-								y={53}
-								class="fill-current text-muted-foreground"
-								style="font-size:11px"
-							>
-								Pace {d.formattedPace}
-							</text>
+							{#each hovered.lines as line, i (i)}
+								<text
+									x={tooltip.x + 10}
+									y={38 + i * TOOLTIP_LINE_H}
+									class="fill-current text-muted-foreground"
+									style="font-size:11px"
+								>
+									{line}
+								</text>
+							{/each}
 						</g>
 					{/if}
 				</g>
