@@ -49,12 +49,17 @@ export function readWeekVolume(
 }
 
 /**
- * The most this week can still total: everything run so far plus every
- * planned kilometre from today on.
+ * The most this week can still total: everything run so far plus everything
+ * still owed on the days from today on.
  *
  * Today counts as ahead — a session scheduled for this morning is still
  * runnable this evening, and marking it lost before the day is out would be
- * both wrong and discouraging.
+ * both wrong and discouraging. But only what is *left* of a day counts, not
+ * the whole of its plan: this evening's runner has already had their run
+ * added to `doneKm`, and counting today's plan on top of it again would
+ * credit that session twice and stand the ceiling above a plan the runner is
+ * merely keeping to. Whatever a day was asked for beyond what it got is what
+ * remains of it, and running long banks the surplus in `doneKm` instead.
  *
  * When the rows do not say where today falls the ceiling is `max(done,
  * planned)`, which reports no shortfall at all: a bar claiming kilometres are
@@ -65,11 +70,11 @@ function reachableFrom(rows: DayRow[], doneKm: number, plannedKm: number, today:
 	const boundary = firstDayAhead(ordered, today);
 	if (boundary === null) return Math.max(doneKm, plannedKm);
 
-	const stillAhead = ordered
+	const stillOwed = ordered
 		.slice(boundary)
-		.reduce((total, row) => total + (row.todo_value ?? 0), 0);
+		.reduce((total, row) => total + Math.max(0, (row.todo_value ?? 0) - (row.done_value ?? 0)), 0);
 
-	return doneKm + stillAhead;
+	return doneKm + stillOwed;
 }
 
 /**

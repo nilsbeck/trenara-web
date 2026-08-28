@@ -59,10 +59,14 @@
 	});
 </script>
 
-<div class="flex items-center gap-2.5" title={label}>
-	<Footprints class="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+<div class="flex w-full items-center gap-2.5" title={label}>
+	<!-- The narrowest phones need every pixel for the numbers themselves, and
+	     the unit beside them already says what is being measured. -->
+	<Footprints class="hidden h-4 w-4 shrink-0 text-muted-foreground sm:block" aria-hidden="true" />
 
-	<div class="flex w-40 flex-col gap-1 sm:w-52">
+	<!-- Sized by what the bar is given rather than by a width of its own, so it
+	     shrinks into a phone's navbar instead of pushing the menu off the end. -->
+	<div class="flex min-w-0 flex-1 flex-col gap-1">
 		<div class="flex items-baseline justify-between gap-3 leading-none">
 			<span class="whitespace-nowrap">
 				<span class="text-sm font-bold text-foreground">
@@ -78,7 +82,15 @@
 					</span>
 				{/if}
 			</span>
-			<span class="whitespace-nowrap text-xs text-muted-foreground">{hint}</span>
+			<!--
+				The first thing to go on a phone too narrow for all of it: below
+				360px the numbers and the bar need the whole width, and the hint
+				would otherwise run under the menu. It survives in the tooltip and
+				for screen readers either way.
+			-->
+			<span class="whitespace-nowrap text-xs text-muted-foreground max-[359px]:hidden">
+				{hint}
+			</span>
 		</div>
 
 		<!--

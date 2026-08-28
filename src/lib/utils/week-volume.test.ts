@@ -92,10 +92,42 @@ describe('readWeekVolume', () => {
 		expect(shortfallKm(volume)).toBe(6);
 	});
 
+	it('does not count a session run today twice over', () => {
+		// Wednesday's 8 km is done and already in the week's total. Counting
+		// Wednesday's plan on top of it would put the ceiling at 48 and draw a
+		// runner merely keeping to the plan as one on course to beat it.
+		const volume = readWeekVolume(
+			series({ done: 18, todo: 40 }, withDone({ 0: 10, 2: 8 })),
+			WEDNESDAY
+		);
+		expect(volume.reachableKm).toBe(40);
+		expect(shortfallKm(volume)).toBe(0);
+	});
+
+	it('counts only what is left of a day part-run today', () => {
+		// 4 km of Wednesday's 8 km is in the bank; 4 km of it is still owed.
+		const volume = readWeekVolume(
+			series({ done: 14, todo: 40 }, withDone({ 0: 10, 2: 4 })),
+			WEDNESDAY
+		);
+		expect(volume.reachableKm).toBe(40);
+	});
+
 	it('carries an overrun forward: extra kilometres raise the ceiling', () => {
+		// Monday asked for 10 and got 14. The surplus is banked in the week's
+		// total, and Wednesday, Friday and Sunday are still owed in full.
 		const volume = readWeekVolume(series({ done: 14, todo: 40 }, withDone({ 0: 14 })), WEDNESDAY);
 		expect(volume.reachableKm).toBe(44);
 		expect(shortfallKm(volume)).toBe(0);
+	});
+
+	it('banks an overrun today rather than owing the day twice', () => {
+		// Wednesday asked for 8 and got 12; there is nothing left of it to run.
+		const volume = readWeekVolume(
+			series({ done: 22, todo: 40 }, withDone({ 0: 10, 2: 12 })),
+			WEDNESDAY
+		);
+		expect(volume.reachableKm).toBe(44);
 	});
 
 	it('reports no shortfall on the last day of a week that was run in full', () => {

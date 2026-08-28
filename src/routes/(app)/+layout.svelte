@@ -100,11 +100,19 @@
 	<!-- Navbar -->
 	<nav class="border-b border-border bg-card">
 		<div class="mx-auto flex max-w-7xl items-center justify-between px-4 py-3 sm:px-6 lg:px-8">
-			<div class="flex items-center gap-4">
+			<div class="flex shrink-0 items-center gap-4">
 				<a href="/dashboard" class="flex items-center gap-2.5">
 					<img src="/logo.svg" alt="" width="32" height="32" class="h-8 w-8" />
+					<!--
+						A phone's bar has room for the mark, the menu, and one of these
+						two — and this week's running is worth more there than the app's
+						own name, which the logo beside it already carries. So the
+						wordmark yields to the bar below `md`, and only when there is a
+						bar to yield to: a week with nothing to show leaves it in place
+						rather than stripping the header down to an anonymous mark.
+					-->
 					<span
-						class="flex flex-col leading-tight"
+						class="{hasWeekVolume(weekVolume) ? 'hidden md:flex' : 'flex'} flex-col leading-tight"
 						title="This is an unofficial, unaffiliated third-party client. It is not developed, endorsed or supported by Trenara."
 					>
 						<span class="text-xl font-bold tracking-tight text-foreground">Trainara</span>
@@ -121,18 +129,14 @@
 				</a>
 			</div>
 
-			<!--
-				This week at a glance, in the middle of the bar. Below `md` the bar
-				has room for the logo and the menu and nothing else, so it moves to
-				its own row underneath rather than disappearing.
-			-->
+			<!-- This week at a glance, in the middle of the bar at every width. -->
 			{#if hasWeekVolume(weekVolume)}
-				<div class="hidden md:flex md:flex-1 md:justify-center">
+				<div class="flex min-w-0 flex-1 justify-center px-2">
 					{@render weekBar()}
 				</div>
 			{/if}
 
-			<div class="flex items-center gap-2">
+			<div class="flex shrink-0 items-center gap-2">
 				<!-- User Menu -->
 				<div class="relative">
 					<button
@@ -252,12 +256,6 @@
 				</div>
 			</div>
 		</div>
-
-		{#if hasWeekVolume(weekVolume)}
-			<div class="flex justify-center border-t border-border px-4 py-2 md:hidden">
-				{@render weekBar()}
-			</div>
-		{/if}
 	</nav>
 
 	<!-- Main Content -->
@@ -275,7 +273,7 @@
 {#snippet weekBar()}
 	<a
 		href="/goal"
-		class="rounded-md px-2 py-1 hover:bg-accent"
+		class="block w-full max-w-56 rounded-md px-2 py-1 hover:bg-accent"
 		aria-label="This week's training progress"
 	>
 		<WeekVolume volume={weekVolume!} />
