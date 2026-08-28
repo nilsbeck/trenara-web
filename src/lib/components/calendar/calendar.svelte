@@ -2,6 +2,7 @@
 	import { setContext, untrack } from 'svelte';
 	import { createCalendarStore, type CalendarStore } from '$lib/stores/calendar.svelte';
 	import { createRevalidationTrigger } from '$lib/utils/revalidation';
+	import { initialCalendarDay } from '$lib/utils/initial-day';
 	import type { Schedule } from '$lib/server/trenara/types';
 	import CalendarHeader from './calendar-header.svelte';
 	import CalendarGrid from './calendar-grid.svelte';
@@ -32,16 +33,28 @@
 	// Initialise selected date on mount inside an effect so Svelte 5 doesn't
 	// warn about capturing the initial prop value outside a closure.
 	//
-	// `today` is untracked deliberately: the page hands down a fresh `new Date()`
-	// on every render, so tracking it would throw the runner's chosen day away
-	// each time a background refresh brought new data in.
+	// Everything read here is untracked deliberately: the page hands down a
+	// fresh `new Date()` and a fresh schedule on every render, so tracking them
+	// would throw the runner's chosen day away each time a background refresh
+	// brought new data in. The opening day is a first-paint decision, not a
+	// standing one.
 	$effect(() => {
 		const day = untrack(() => today);
+		const opening = untrack(() => initialCalendarDay(schedule, day));
+
 		store.setSelectedDate({
-			year: day.getFullYear(),
-			month: day.getMonth(),
-			day: day.getDate()
+			year: opening.getFullYear(),
+			month: opening.getMonth(),
+			day: opening.getDate()
 		});
+
+		// The pick can land outside the month the page loaded — a session late
+		// last month still waiting on a rating, or the next one over the turn of
+		// the month. Page the grid there too, or the highlight sits on a day it
+		// is not showing.
+		if (opening.getFullYear() !== day.getFullYear() || opening.getMonth() !== day.getMonth()) {
+			untrack(() => void store.loadMonthData(opening));
+		}
 	});
 
 	// Keep schedule in sync whenever the parent passes a new one — on first
