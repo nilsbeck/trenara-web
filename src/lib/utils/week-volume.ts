@@ -115,39 +115,41 @@ export function shortfallKm(volume: WeekVolume): number {
 	return Math.max(0, volume.plannedKm - volume.reachableKm);
 }
 
-/**
- * Headroom past the plan, so a runner who goes over has somewhere to go.
- *
- * A track that ends at 100% cannot tell 100% from 130%, and a full bar for
- * both makes over-delivery look like mere compliance.
- */
-export const VOLUME_HEADROOM = 1.1;
-
 /** The bar's geometry: every mark as a fraction 0–1 of the track's width. */
 export interface VolumeBar {
 	/** Filled: kilometres already run. */
 	done: number;
 	/** The ceiling — done plus what is still ahead. Never left of `done`. */
 	reachable: number;
-	/** Where the plan's 100% mark sits, or 0 on a week with no plan. */
+	/**
+	 * Where the plan's 100% mark sits: exactly 1 while the plan is the biggest
+	 * number on the bar, and left of it once something has passed the plan. 0
+	 * on a week with no plan at all.
+	 */
 	planned: number;
 }
 
 /**
- * Lay the week out on a track that runs a little past the plan.
+ * Lay the week out on a track scaled to whatever is biggest on it.
  *
- * The track is scaled to `VOLUME_HEADROOM` of the plan, and stretches further
- * still for a runner who overshoots even that — the marks stay in proportion
- * to each other either way, so the plan mark slides left as the overshoot
- * grows rather than the fill running off the end.
+ * The plan gets the whole track for as long as it is the largest number
+ * there, so an ordinary week is read against its own end and no space is held
+ * back for headroom nobody is using.
  *
- * A week with nothing planned scales to the distance run instead, which fills
- * the track and puts no plan mark on it: work done against no plan has met
+ * Headroom appears only when it is needed. The moment a runner passes the
+ * plan — or is on course to, having already banked more than the days behind
+ * them asked for — the track scales to that instead, and the plan mark slides
+ * in from the end to show where 100% was. So over-delivery is drawn as
+ * over-delivery rather than as a full bar indistinguishable from mere
+ * compliance, and a week that never goes over never pays for the privilege.
+ *
+ * A week with nothing planned scales to the distance run, which fills the
+ * track and puts no plan mark on it: work done against no plan has met
  * everything that was asked of it.
  */
 export function volumeBar(volume: WeekVolume): VolumeBar {
 	const { doneKm, plannedKm, reachableKm } = volume;
-	const scale = Math.max(plannedKm * VOLUME_HEADROOM, doneKm, reachableKm);
+	const scale = Math.max(plannedKm, doneKm, reachableKm);
 	if (scale <= 0) return { done: 0, reachable: 0, planned: 0 };
 
 	const done = doneKm / scale;

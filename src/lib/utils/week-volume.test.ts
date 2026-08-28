@@ -4,7 +4,6 @@ import {
 	readWeekVolume,
 	shortfallKm,
 	volumeBar,
-	VOLUME_HEADROOM,
 	type WeekVolume
 } from './week-volume';
 import type { UserStats } from '$lib/server/trenara/types';
@@ -172,35 +171,45 @@ describe('volumeBar', () => {
 	const bar = (doneKm: number, plannedKm: number, reachableKm = plannedKm) =>
 		volumeBar({ doneKm, plannedKm, reachableKm, unit: 'km' });
 
-	it('leaves headroom past the plan, so a full week does not fill the track', () => {
-		const full = bar(40, 40);
-		expect(full.done).toBeCloseTo(1 / VOLUME_HEADROOM);
-		expect(full.planned).toBeCloseTo(1 / VOLUME_HEADROOM);
-	});
-
-	it('puts the plan mark where the plan is, half way through the week', () => {
+	it('gives the whole track to the plan, holding no headroom back for an overshoot that has not happened', () => {
 		const half = bar(20, 40);
-		expect(half.done).toBeCloseTo(0.5 / VOLUME_HEADROOM);
-		expect(half.planned).toBeCloseTo(1 / VOLUME_HEADROOM);
+		expect(half.done).toBeCloseTo(0.5);
+		expect(half.planned).toBe(1);
 	});
 
-	it('fits an overshoot inside the headroom without moving the plan mark', () => {
+	it('fills the track exactly on a week run in full', () => {
+		const full = bar(40, 40);
+		expect(full.done).toBe(1);
+		expect(full.planned).toBe(1);
+	});
+
+	it('grows the track only once something has passed the plan', () => {
 		const over = bar(44, 40, 44);
-		expect(over.done).toBeCloseTo(1);
-		expect(over.planned).toBeCloseTo(1 / VOLUME_HEADROOM);
+		expect(over.done).toBe(1);
+		// The plan mark comes in from the end to show where 100% was.
+		expect(over.planned).toBeCloseTo(40 / 44);
 	});
 
-	it('stretches the track for an overshoot past the headroom rather than clipping it', () => {
+	it('keeps the marks in proportion however far past the plan the week goes', () => {
 		const way = bar(60, 40, 60);
 		expect(way.done).toBe(1);
 		expect(way.planned).toBeCloseTo(40 / 60);
 	});
 
+	it('makes room for a week merely on course to go over', () => {
+		// Monday asked for 10 and got 14, with 30 still planned after it.
+		const ahead = bar(14, 40, 44);
+		expect(ahead.reachable).toBe(1);
+		expect(ahead.done).toBeCloseTo(14 / 44);
+		expect(ahead.planned).toBeCloseTo(40 / 44);
+	});
+
 	it('shows the ceiling short of the plan when a day has been missed', () => {
 		const missed = bar(0, 40, 30);
 		expect(missed.done).toBe(0);
-		expect(missed.reachable).toBeCloseTo(30 / 44);
-		expect(missed.planned).toBeCloseTo(40 / 44);
+		expect(missed.reachable).toBeCloseTo(0.75);
+		// Nothing has passed the plan, so it still owns the end of the track.
+		expect(missed.planned).toBe(1);
 	});
 
 	it('never draws the ceiling behind what has already been run', () => {

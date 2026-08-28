@@ -82,10 +82,10 @@
 		</div>
 
 		<!--
-			The week on one track, running a little past the plan so an overshoot
-			has somewhere to go. Four marks, back to front: what a missed day has
-			put out of reach, what is still ahead, what is run, and the plan's own
-			100% — see `volumeBar` for the geometry.
+			The week on one track, which is the plan until something passes it.
+			Four marks, back to front: what a missed day has put out of reach,
+			what is still ahead, what is run, and the plan's own 100% — see
+			`volumeBar` for the geometry.
 		-->
 		<div class="relative h-1.5 overflow-hidden rounded-full bg-border" aria-hidden="true">
 			{#if hasMissed}
@@ -102,8 +102,13 @@
 			{/if}
 			<span class="absolute inset-y-0 left-0 rounded-full bg-primary" style="width:{pct(bar.done)}"
 			></span>
-			<!-- No plan, no mark: there is no 100% to draw a line at. -->
-			{#if bar.planned > 0}
+			<!--
+				The mark is only drawn once the track has grown past the plan and
+				left it somewhere to sit. Until then the plan *is* the end of the
+				track, and a line ruled down the last two pixels of a rounded bar
+				reads as a rendering artefact rather than as a milestone.
+			-->
+			{#if bar.planned > 0 && bar.planned < 1}
 				<span
 					class="absolute inset-y-0 w-0.5 -translate-x-1/2 rounded-full bg-foreground/70"
 					style="left:{pct(bar.planned)}"
