@@ -45,25 +45,28 @@ Upstream's is the mobile app's home screen payload, described below.
 
 Endpoints the app already calls live in `src/lib/server/trenara/`:
 
-| Method      | Path                                                                                                                   | Wrapper                                                  |
-| ----------- | ---------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------- |
-| GET         | `/api/me`                                                                                                              | `userApi.getCurrentUser`                                 |
-| PUT         | `/api/me`                                                                                                              | `userApi.updateProfile`                                  |
-| GET         | `/api/me/stats`                                                                                                        | `userApi.getUserStats`                                   |
-| GET         | `/api/me/shoes`                                                                                                        | `userApi.getShoes`                                       |
-| GET         | `/api/goal`                                                                                                            | `trainingApi.getGoal`                                    |
-| GET         | `/api/schedule/week/?timestamp=`                                                                                       | `trainingApi.getSchedule`                                |
-| GET         | `/api/schedule/trainings/{id}`                                                                                         | `trainingApi.getScheduledTraining`                       |
-| PUT         | `/api/schedule/trainings/{id}/{intensity,distance,cooldown,suggested_shoe,cross_train,pacing_plan,training_condition}` | `trainingApi.set*`                                       |
-| GET/PUT     | `/api/schedule/trainings/{id}/exchange`                                                                                | `trainingApi.getExchangeCandidates` / `exchangeTraining` |
-| PUT         | `/api/schedule/trainings/{id}/change_test`, `/change_save`                                                             | `trainingApi.testChangeDate` / `saveChangeDate`          |
-| DELETE      | `/api/schedule/trainings/{id}`                                                                                         | `trainingApi.deleteScheduledTraining`                    |
-| POST/DELETE | `/api/entries`, `/api/entries/{id}`                                                                                    | `trainingApi.addTraining` / `deleteTraining`             |
-| PUT         | `/api/entries/{id}/rpe`                                                                                                | `trainingApi.putFeedback`                                |
-| GET         | `/api/nutritional/advice`                                                                                              | `trainingApi.getNutritionAdvice`                         |
-| GET         | `/api/threads/`, `/api/threads/{id}/messages`                                                                          | `chatApi.*`                                              |
-| GET         | `/api/news/`                                                                                                           | `newsApi.getNews`                                        |
-| GET         | `/api/config/app`                                                                                                      | `configApi.getAppConfig`                                 |
+| Method      | Path                                                                                                | Wrapper                                                  |
+| ----------- | --------------------------------------------------------------------------------------------------- | -------------------------------------------------------- |
+| POST        | `/oauth/token`                                                                                      | `authApi.login` / `refreshToken`                         |
+| GET         | `/api/me`                                                                                           | `userApi.getCurrentUser`                                 |
+| PUT         | `/api/me`                                                                                           | `userApi.updateProfile`                                  |
+| GET         | `/api/me/stats`                                                                                     | `userApi.getUserStats`                                   |
+| GET         | `/api/me/shoes`                                                                                     | `userApi.getShoes`                                       |
+| GET         | `/api/goal`                                                                                         | `trainingApi.getGoal`                                    |
+| GET         | `/api/schedule/week/?timestamp=`                                                                    | `trainingApi.getSchedule`                                |
+| GET         | `/api/schedule/trainings/{id}`                                                                      | `trainingApi.getScheduledTraining`                       |
+| PUT         | `/api/schedule/trainings/{id}/{intensity,distance,cooldown,suggested_shoe,cross_train,pacing_plan}` | `trainingApi.set*` / `crossTrain`                        |
+| POST        | `/api/schedule/trainings/{id}/training_condition`                                                   | `trainingApi.setTrainingCondition`                       |
+| GET/PUT     | `/api/schedule/trainings/{id}/exchange`                                                             | `trainingApi.getExchangeCandidates` / `exchangeTraining` |
+| PUT         | `/api/schedule/trainings/{id}/change_test`, `/change_save`                                          | `trainingApi.testChangeDate` / `saveChangeDate`          |
+| DELETE      | `/api/schedule/trainings/{id}`                                                                      | `trainingApi.deleteScheduledTraining`                    |
+| POST/DELETE | `/api/entries`, `/api/entries/{id}`                                                                 | `trainingApi.addTraining` / `deleteTraining`             |
+| PUT         | `/api/entries/{id}/rpe`                                                                             | `trainingApi.putFeedback`                                |
+| GET         | `/api/nutritional/advice`                                                                           | `trainingApi.getNutritionAdvice`                         |
+| GET         | `/api/threads/`, `/api/threads/{id}/messages`                                                       | `chatApi.getThreads` / `getMessages`                     |
+| POST        | `/api/threads/{id}/messages`                                                                        | `chatApi.sendMessage`                                    |
+| GET         | `/api/news/`                                                                                        | `newsApi.getNews`                                        |
+| GET         | `/api/config/app`                                                                                   | `configApi.getAppConfig`                                 |
 
 Endpoints recorded below are **not wired up yet** unless the section says so.
 
@@ -71,6 +74,61 @@ Their types in `src/lib/server/trenara/types.ts` were written at different
 times and are not all current — `Goal` was a version behind until a capture
 caught it. A captured response in this file outranks the type that claims to
 describe it.
+
+---
+
+## POST /oauth/token
+
+The only endpoint that is not `/api/*`, and the only one that is neither sent
+nor answered on the app's usual terms. Everything else here takes JSON and a
+`Authorization: Bearer <access_token>`; this takes a **form-encoded** body and
+a `Authorization: Basic <BASIC_BEARER_TOKEN>` — the client credential from the
+environment, not a user token. It is what mints the Bearer the rest of the API
+wants.
+
+Called by `authApi.login` and `authApi.refreshToken`, which reach past the
+`get`/`post` helpers to `fetchClient.request` for exactly this reason: those
+helpers hard-code a JSON content type. The refresh call sets `retries: 2`,
+since losing a session to a blip would log the user out for no reason.
+
+The captured URL carried a trailing slash (`/oauth/token/`); the code sends
+none and works, so both appear to answer. Per the trailing-slash convention
+above, keep sending the path the code sends.
+
+### Request
+
+Form-encoded (`application/x-www-form-urlencoded`), not JSON. Two grants,
+distinguished by `grant_type`. The refresh body is captured off the wire; the
+password body is read from `authApi.login`, not observed:
+
+```
+grant_type=refresh_token&refresh_token=<refresh_token>
+grant_type=password&username=<email>&password=<password>
+```
+
+Values are URL-encoded — `authApi` builds both with `URLSearchParams`, so a
+password containing `&` or `+` survives the trip.
+
+### Response
+
+Captured from the **refresh** grant, and matching `AuthResponse` field for
+field. The password grant is assumed to answer the same way — the app treats
+the two responses interchangeably — but that has not been captured.
+
+- `expires_in` is **seconds** (172800 = 48 hours), unlike the timestamps
+  elsewhere in this API. It describes `access_token` only; nothing in the
+  response says when `refresh_token` expires.
+- No scope, id_token, or user payload comes back — `GET /api/me` is a separate
+  call.
+
+```json
+{
+	"token_type": "Bearer",
+	"expires_in": 172800,
+	"access_token": "<redacted>",
+	"refresh_token": "<redacted>"
+}
+```
 
 ---
 
@@ -1272,5 +1330,339 @@ across the rest.
 			"todo_unit_text": "km"
 		}
 	}
+}
+```
+
+---
+
+## POST /api/schedule/trainings/{id}/training_condition
+
+Sets the terrain a training is run on. **POST, not PUT** — the odd one out
+among the training mutations, which are otherwise all PUT.
+
+Called by `trainingApi.setTrainingCondition`. Like every training mutation it
+answers with the complete new training, so callers patch their store in place
+rather than refetch the week.
+
+### Request
+
+```json
+{
+	"height_difference": "light",
+	"surface": "treadmill",
+	"height_value": 0.0,
+	"height_unit": "m"
+}
+```
+
+`height_difference` and `surface` take the values in `TRAINING_HEIGHT_DIFFERENCES`
+and `TRAINING_SURFACES`. The wrapper defaults `height_value` to `0` and
+`height_unit` to `"m"` when the caller omits them.
+
+### Notable fields
+
+- **`height_value: 0.0` comes back as `training_condition.height_value: null`.**
+  The zero is not stored as a zero — do not round-trip the response into the
+  next request and expect the same body.
+- `training_condition` matches `ScheduledTrainingCondition` field for field,
+  `"type": "SchedulePivot"` included. This capture is what promoted that
+  interface from inferred to observed.
+- `training_condition.intensity` is `100` here even though no intensity step
+  was touched — it is the resting value, not evidence of an applied change.
+  The `selected` flag in `change_intensity_package.steps` remains the only
+  reliable source, as that interface already warns.
+- **Nine top-level fields below are absent from the week payload** (compare
+  `WEEK_TRAINING_KEYS` in `payloads.test.ts`) and were untyped until this
+  capture: `has_intelligence`, `intelligence_text`, `distance_limit`,
+  `original_distance_km`, `base_distance`, `intelligence_distance`,
+  `intelligence_distance_value`, `intelligence_distance_unit`,
+  `intelligence_distance_unit_text`. The `intelligence_*` group is inert on
+  this session (`has_intelligence: false` and every companion `null`), so only
+  the disabled state has been seen — the shape of an _enabled_ one is still
+  unknown, and the four `intelligence_distance*` fields are typed from the
+  naming convention the rest of the API follows, not from observation.
+- `original_distance_km: 12` equals the current distance, this training having
+  no distance adjustment applied (`change_distance_package` step `0%`
+  selected). Whether it tracks the pre-adjustment distance or something else
+  cannot be told from a capture where the two are equal.
+- `distance_limit: 0` — meaning unknown; `0` on the only session captured.
+
+### Sample response
+
+```json
+{
+	"id": 127477834,
+	"day": 1787868000,
+	"day_long": "2026-08-28",
+	"title": "LSD",
+	"description": "Tip: No need to take LSD 💊 for this LSD.",
+	"show_description_from": 1787263200,
+	"type": "training",
+	"icon_url": "https://backend-prod.trenara.com/icons/icon__step.svg",
+	"hex_training": "#44A6D3",
+	"hex_completed": null,
+	"last_garmin_sync": "2026-08-26 01:11:37",
+	"can_be_edited": true,
+	"can_cross_train": true,
+	"cross_type": null,
+	"can_toggle_cooldown": false,
+	"has_cooldown": false,
+	"can_change_distance": true,
+	"change_distance_package": {
+		"title": "Fine-tune distance",
+		"text": "When you have limited time, time to spare, heavy legs, or... …",
+		"steps": [
+			{ "step": 1, "value": -10, "text": "-10%", "selected": false },
+			{ "step": 2, "value": -5, "text": "-5%", "selected": false },
+			{ "step": 3, "value": 0, "text": "0%", "selected": true },
+			{ "step": 4, "value": 5, "text": "5%", "selected": false },
+			{ "step": 5, "value": 10, "text": "10%", "selected": false }
+		]
+	},
+	"can_change_intensity": true,
+	"change_intensity_package": {
+		"title": "Fine-tune intensity",
+		"text": "Change today's session intensity within limits set by Coach Christophe. You can always ease off; increases are capped.",
+		"steps": [
+			{ "step": 1, "value": -4, "text": "Slower", "selected": false },
+			{ "step": 2, "value": -2, "text": "A bit slower", "selected": false },
+			{ "step": 3, "value": 0, "text": "As planned", "selected": true },
+			{ "step": 4, "value": 2, "text": "A bit faster", "selected": false },
+			{ "step": 5, "value": 4, "text": "Faster", "selected": false }
+		]
+	},
+	"can_change_pacing_plan": false,
+	"change_pacing_plan_package": null,
+	"can_be_exchanged": true,
+	"has_intelligence": false,
+	"intelligence_text": null,
+	"distance_limit": 0,
+	"original_distance_km": 12,
+	"base_distance": null,
+	"intelligence_distance": null,
+	"intelligence_distance_value": null,
+	"intelligence_distance_unit": null,
+	"intelligence_distance_unit_text": null,
+	"team_data": {
+		"team_id": 470,
+		"name": "Valencia 42k",
+		"picture": null,
+		"nr_same_day_participants": 0,
+		"nr_other_day_participants": 0,
+		"matches_captain_day": true,
+		"captain_pace": true,
+		"can_toggle_pace": false,
+		"can_show_participant_overview": true
+	},
+	"training": {
+		"blocks": [
+			{
+				"order": 1,
+				"repeat": 1,
+				"type": "core",
+				"blocks": [
+					{
+						"order": 1,
+						"type": "run",
+						"prior": "distance",
+						"hex_graph": "#44A6D3",
+						"hex_text": "#FFFFFF",
+						"time": "01:07:11",
+						"time_in_sec": 4031,
+						"time_value": 4031,
+						"time_unit": "sec",
+						"distance": "12km",
+						"distance_value": 12,
+						"distance_unit": "km",
+						"distance_unit_text": "km",
+						"pace": "05:36 min/km",
+						"pace_value": 336,
+						"pace_unit": "min/km",
+						"pace_per_hour": "10.71 km/h",
+						"pace_per_hour_value": 336,
+						"pace_per_hour_unit": "km/h",
+						"prefer_pph": true,
+						"pace_range": "05:23-05:49 min/km",
+						"pace_range_value_min": 349,
+						"pace_range_value_max": 323,
+						"pace_per_hour_range": "10.32-11.15 km/h",
+						"pace_per_hour_range_value_min": 349,
+						"pace_per_hour_range_value_max": 323,
+						"text": "Run 12km in 01:07:11 (05:23-05:49 min/km)",
+						"text_pph": "Run 12km in 01:07:11 (10.32-11.15 km/h)"
+					}
+				]
+			}
+		],
+		"total_time_in_sec": 4031,
+		"total_distance_in_km": 12,
+		"core_time_in_sec": 4031,
+		"pre_advice": null,
+		"post_advice": null,
+		"core_distance": "12km",
+		"core_distance_value": 12,
+		"core_distance_unit": "km",
+		"core_distance_unit_text": "km",
+		"core_time": "01:07:11",
+		"core_time_value": 4031,
+		"core_time_unit": "sec",
+		"total_distance": "12km",
+		"total_distance_value": 12,
+		"total_distance_unit": "km",
+		"total_distance_unit_text": "km",
+		"total_time": "01:07:11",
+		"total_time_value": 4031,
+		"total_time_unit": "sec"
+	},
+	"training_condition": {
+		"id": 3829491,
+		"type": "SchedulePivot",
+		"height_difference": "light",
+		"surface": "treadmill",
+		"intensity": 100,
+		"updated_at": 1787851880,
+		"height": null,
+		"height_value": null,
+		"height_unit": null,
+		"height_unit_text": null
+	},
+	"suggested_shoe": {
+		"id": 6404,
+		"brand": "Adidas",
+		"name": "Boston 13",
+		"type": "supertrainer",
+		"preferred": false,
+		"buy_date": "2026-01-11",
+		"lifetime_percentage": 33.54750000000001,
+		"created_at": "2026-01-14T09:05:28+01:00",
+		"updated_at": "2026-01-14T09:05:28+01:00",
+		"retired_at": null,
+		"expected_lifetime_distance": "800km",
+		"expected_lifetime_distance_value": 800,
+		"expected_lifetime_distance_unit": "km",
+		"expected_lifetime_distance_unit_text": "km",
+		"distance_done": "268.38km",
+		"distance_done_value": 268.38,
+		"distance_done_unit": "km",
+		"distance_done_unit_text": "km",
+		"avg_pace": "05:09 min/km",
+		"avg_pace_value": 309,
+		"avg_pace_unit": "min/km",
+		"picture": null
+	}
+}
+```
+
+---
+
+## GET /api/threads/{id}/messages
+
+One page of a chat thread. Read by `chatApi.getMessages`; rendered through the
+helpers in `src/lib/components/chat/message-list.ts`, which exist because of
+the first two points below.
+
+### Notable fields
+
+- **Newest first.** Page 1 is the ten most recent messages and `next` pages
+  _backwards_ into history — the opposite of the order the bubble renders.
+  `toOldestFirst` normalises on the way in.
+- **`timestamp` (unix seconds) is required and acts as a stable anchor.** The
+  `next` link carries the same value forward, so messages arriving mid-
+  pagination do not shift the pages under you. `chatApi.getMessages` defaults
+  it to now. Note the link also reorders the query string (`timestamp` before
+  `page`) — cosmetic, but do not pattern-match the URL.
+- `user_id: 3` is the coach bot, posting as "Walter" from a fixed asset on the
+  backend host. Real users carry a CloudFront `picture_url`. Compare against
+  the signed-in user rather than hard-coding 3, as `ChatMessage` warns.
+- `url` was `null` on all eleven messages captured here, as in every payload
+  before. Purpose still unknown.
+- `picture_url` was present on every server message, though it stays optional
+  on `ChatMessage`: `createPendingMessage` builds local placeholders without
+  one.
+- `body` is the source text and `body_html` the server-rendered HTML — the
+  markdown is rendered upstream, not by us. Two trailing spaces in `body`
+  become `<br />`; blank lines become `<p>`; the coach also emits `<h3>`,
+  `<ul>` and `<strong>`. Render `body_html`, keep `body` for anything that
+  needs plain text.
+- `pagination.links` carried only `next` on page 1 — no `previous` — matching
+  the optional-both shape on `Pagination`.
+
+### Sample response
+
+Bodies truncated; two of the ten messages shown.
+
+```json
+{
+	"data": [
+		{
+			"id": 159769,
+			"body": "Yes, an ergoespirometry test (with mask) can determine your thresholds…",
+			"body_html": "<p>Yes, an ergoespirometry test (with mask) can determine your thresholds…</p>",
+			"url": null,
+			"user_id": 3,
+			"picture_url": "https://backend-prod.trenara.com/img/walter.png",
+			"created_at": 1787399675
+		},
+		{
+			"id": 159768,
+			"body": "Can the ergoespirometry test find the thresholds?",
+			"body_html": "<p>Can the ergoespirometry test find the thresholds?</p>",
+			"url": null,
+			"user_id": 56540,
+			"picture_url": "https://<cdn-host>/12356744/profile_picture.jpg",
+			"created_at": 1787399669
+		}
+	],
+	"pagination": {
+		"total": 292,
+		"count": 10,
+		"per_page": 10,
+		"current_page": 1,
+		"total_pages": 30,
+		"links": {
+			"next": "https://backend-prod.trenara.com/api/threads/1482/messages?timestamp=1787859818&page=2"
+		}
+	}
+}
+```
+
+---
+
+## POST /api/threads/{id}/messages
+
+Posts a message to a thread. Called by `chatApi.sendMessage`.
+
+### Request
+
+The field is **`body`**, matching what comes back — not `content`, which is
+what this app's own internal route uses. An earlier version sent `content` and
+was wrong.
+
+```json
+{ "body": "how much margin are in the goal plans to still reach the goal_" }
+```
+
+### Notable fields
+
+- **The response is the posted message alone — the coach's reply is not in
+  it.** A bare `ChatMessage`, not wrapped in `data` and not a list. The answer
+  arrives only on a subsequent `GET .../messages`, which is why the UI shows a
+  placeholder and polls rather than rendering a reply from this response.
+- `body_html` is generated server-side even for a one-line message, so the
+  saved copy is not a byte-for-byte echo of what was sent.
+- `id` is a server-issued positive integer. Local placeholders use negative
+  ids (`isPending`), and `replaceMessage` swaps one for the other in place.
+
+### Sample response
+
+```json
+{
+	"id": 161994,
+	"body": "how much margin are in the goal plans to still reach the goal_",
+	"body_html": "<p>how much margin are in the goal plans to still reach the goal_</p>",
+	"url": null,
+	"user_id": 56540,
+	"picture_url": "https://<cdn-host>/12356744/profile_picture.jpg",
+	"created_at": 1787852624
 }
 ```

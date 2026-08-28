@@ -797,6 +797,34 @@ export interface ScheduledTraining {
 	can_be_exchanged?: boolean;
 	team_data?: TeamData | null;
 
+	// ── Detail/mutation-only, observed on POST .../training_condition ──
+	//
+	// Absent from the week payload (see `WEEK_TRAINING_KEYS` in
+	// `payloads.test.ts`) and untyped until a 2026-08-27 capture.
+
+	/**
+	 * Gates the `intelligence_*` fields below. Only `false` has been captured,
+	 * so the enabled shape is unknown — every companion field was `null`.
+	 */
+	has_intelligence?: boolean;
+	intelligence_text?: string | null;
+	/**
+	 * Typed from the naming convention the rest of this API follows, not from
+	 * observation: all four were `null` in the only capture.
+	 */
+	intelligence_distance?: string | null;
+	intelligence_distance_value?: number | null;
+	intelligence_distance_unit?: string | null;
+	intelligence_distance_unit_text?: string | null;
+	/** Meaning unknown; `0` on the only session captured. */
+	distance_limit?: number;
+	/**
+	 * Equalled the current distance on a training with no distance adjustment
+	 * applied, so whether it tracks the pre-adjustment distance is untested.
+	 */
+	original_distance_km?: number;
+	base_distance?: number | null;
+
 	// ── The two fields only the detail endpoint and the mutations send ──
 	//
 	// Absent from the week response entirely — not null, absent — which is why
