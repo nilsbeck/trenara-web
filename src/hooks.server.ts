@@ -3,6 +3,7 @@ import { TokenManager } from '$lib/server/auth/token-manager';
 import { verifyUserId } from '$lib/server/auth/user-identity';
 import { userApi } from '$lib/server/trenara/user';
 import { isUpstreamFailure, describeFailure } from '$lib/server/trenara/request';
+import { isDatabaseError, STORAGE_READ_MESSAGE } from '$lib/server/db/errors';
 
 const tokenManager = TokenManager.getInstance();
 
@@ -78,6 +79,14 @@ export const handle = handleAuth;
  * definition one whose text was never meant for them.
  */
 export const handleError: HandleServerError = ({ error, event, status, message }) => {
+	// A storage failure that got past `fromStorage` — a DAO called somewhere
+	// that does not wrap it yet. Reported as what it is rather than as a bug,
+	// and never with the database's own words, which name columns.
+	if (isDatabaseError(error)) {
+		console.error(`[${event.request.method} ${event.url.pathname}] ${error.message}`);
+		return { message: STORAGE_READ_MESSAGE, storage: true };
+	}
+
 	if (isUpstreamFailure(error)) {
 		console.error(`[${event.request.method} ${event.url.pathname}] upstream failure:`, error);
 		return { message: describeFailure(error).message, unreachable: true };

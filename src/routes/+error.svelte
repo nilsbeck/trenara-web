@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { page } from '$app/state';
 	import { invalidateAll } from '$app/navigation';
-	import { CloudOff, RefreshCw, SearchX, TriangleAlert, Loader2 } from 'lucide-svelte';
+	import { CloudOff, DatabaseZap, RefreshCw, SearchX, TriangleAlert, Loader2 } from 'lucide-svelte';
 
 	/**
 	 * What the app shows when a load function threw.
@@ -18,13 +18,29 @@
 	const UNREACHABLE_STATUSES = new Set([408, 502, 503, 504]);
 
 	const status = $derived(page.status);
+
+	/**
+	 * Which server could not answer.
+	 *
+	 * The plan lives on Trenara and the history lives in this app's own
+	 * database, and they fail independently. Naming the wrong one sends the
+	 * runner to check a service that is working — so the storage flag is read
+	 * first, because a storage failure also carries a 503.
+	 */
+	const storage = $derived(page.error?.storage === true);
 	const unreachable = $derived(
-		UNREACHABLE_STATUSES.has(status) || page.error?.unreachable === true
+		!storage && (UNREACHABLE_STATUSES.has(status) || page.error?.unreachable === true)
 	);
 	const notFound = $derived(status === 404);
 
 	const title = $derived(
-		unreachable ? 'Trenara is not answering' : notFound ? 'Nothing here' : 'Something went wrong'
+		storage
+			? 'Your history is not available'
+			: unreachable
+				? 'Trenara is not answering'
+				: notFound
+					? 'Nothing here'
+					: 'Something went wrong'
 	);
 
 	const detail = $derived(
@@ -57,11 +73,13 @@
 	<div class="w-full max-w-sm space-y-6 text-center">
 		<div
 			class="mx-auto flex h-14 w-14 items-center justify-center rounded-full"
-			class:bg-muted={unreachable || notFound}
-			class:bg-destructive={!unreachable && !notFound}
-			class:opacity-90={!unreachable && !notFound}
+			class:bg-muted={storage || unreachable || notFound}
+			class:bg-destructive={!storage && !unreachable && !notFound}
+			class:opacity-90={!storage && !unreachable && !notFound}
 		>
-			{#if unreachable}
+			{#if storage}
+				<DatabaseZap class="h-7 w-7 text-muted-foreground" aria-hidden="true" />
+			{:else if unreachable}
 				<CloudOff class="h-7 w-7 text-muted-foreground" aria-hidden="true" />
 			{:else if notFound}
 				<SearchX class="h-7 w-7 text-muted-foreground" aria-hidden="true" />
@@ -73,7 +91,14 @@
 		<div class="space-y-2">
 			<h1 class="text-xl font-semibold tracking-tight text-foreground">{title}</h1>
 			<p class="text-sm text-muted-foreground">{detail}</p>
-			{#if unreachable}
+			{#if storage}
+				<!-- Said explicitly because the alternative reading is the alarming
+				     one: an empty history page looks like lost training. -->
+				<p class="text-sm text-muted-foreground">
+					This is where the app keeps your own records, separately from Trenara. It could not be
+					read just now — nothing has been deleted, and your plan is unaffected.
+				</p>
+			{:else if unreachable}
 				<p class="text-sm text-muted-foreground">
 					Your training plan is on Trenara's servers, and they could not be reached just now.
 					Nothing you have done is lost.

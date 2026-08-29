@@ -1,4 +1,5 @@
 import { supabase } from './client';
+import { storageFailed } from './errors';
 
 /**
  * How far each reader has got in each chat thread.
@@ -56,6 +57,9 @@ export class ChatReadStateDAO {
 	 *
 	 * Monotonic: a lower id is ignored rather than written, so a tab left open
 	 * on an older page of the conversation cannot un-read what arrived since.
+	 *
+	 * `advanced: false` means that and only that — a failed write is reported
+	 * as a failure, not as a mark that was already far enough along.
 	 */
 	async advanceMark(
 		userId: number,
@@ -78,10 +82,7 @@ export class ChatReadStateDAO {
 			{ onConflict: 'user_id,thread_id' }
 		);
 
-		if (error) {
-			console.error('Failed to store chat mark:', error.message);
-			return { advanced: false };
-		}
+		if (error) storageFailed('chat mark write', error);
 
 		return { advanced: true };
 	}

@@ -1,6 +1,7 @@
 import { json, error } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { predictionHistoryDAO } from '$lib/server/db/prediction-history';
+import { fromStorage, STORAGE_WRITE_MESSAGE } from '$lib/server/db/errors';
 import { predictionRecordSchema } from '$lib/schemas/prediction';
 
 export const GET: RequestHandler = async ({ url, locals }) => {
@@ -18,10 +19,9 @@ export const GET: RequestHandler = async ({ url, locals }) => {
 	const limit =
 		rawLimit && Number.isFinite(rawLimit) && rawLimit > 0 ? Math.min(rawLimit, 200) : undefined;
 
-	const records = await predictionHistoryDAO.getUserPredictionHistory(locals.user.id, {
-		startDate,
-		limit
-	});
+	const records = await fromStorage(() =>
+		predictionHistoryDAO.getUserPredictionHistory(locals.user!.id, { startDate, limit })
+	);
 
 	return json({ records });
 };
@@ -41,12 +41,9 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 	const { time, pace, time_10k, pace_10k, time_5k, time_half, time_marathon } = result.data;
 	const tenK = time_10k && pace_10k ? { time: time_10k, pace: pace_10k } : null;
 	const set = { time5k: time_5k, timeHalf: time_half, timeMarathon: time_marathon };
-	const storeResult = await predictionHistoryDAO.storeIfChanged(
-		locals.user.id,
-		time,
-		pace,
-		tenK,
-		set
+	const storeResult = await fromStorage(
+		() => predictionHistoryDAO.storeIfChanged(locals.user!.id, time, pace, tenK, set),
+		STORAGE_WRITE_MESSAGE
 	);
 	return json(storeResult);
 };

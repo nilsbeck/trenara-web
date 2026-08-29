@@ -1,5 +1,6 @@
 import type { PageServerLoad } from './$types';
 import { predictionHistoryDAO } from '$lib/server/db/prediction-history';
+import { fromStorage } from '$lib/server/db/errors';
 import { error } from '@sveltejs/kit';
 
 export const load: PageServerLoad = async ({ locals }) => {
@@ -14,7 +15,9 @@ export const load: PageServerLoad = async ({ locals }) => {
 	// failing the page.
 	await predictionHistoryDAO.backfillDerivedTenK(locals.user.id).catch(() => 0);
 
-	const records = await predictionHistoryDAO.getUserPredictionHistory(locals.user.id);
+	const records = await fromStorage(() =>
+		predictionHistoryDAO.getUserPredictionHistory(locals.user!.id)
+	);
 
 	return {
 		records

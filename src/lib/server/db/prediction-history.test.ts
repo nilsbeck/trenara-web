@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { DatabaseError } from './errors';
 import { PredictionValidator, PredictionHistoryDAO } from './prediction-history';
 import { secondsToTimeString } from '$lib/utils/format';
 import { RIEGEL_EXPONENT } from '$lib/utils/race-equivalent';
@@ -450,10 +451,11 @@ describe('PredictionHistoryDAO.getUserPredictionHistory', () => {
 		expect(mockChain.limit as ReturnType<typeof vi.fn>).toHaveBeenCalledWith(50);
 	});
 
-	it('returns empty array on supabase error', async () => {
+	// An unreadable table used to plot as a flat "no progress recorded", which
+	// is a statement about the runner's training rather than about the database.
+	it('raises rather than plotting a history it could not read', async () => {
 		setThenResult(null, new Error('DB error'));
-		const records = await dao.getUserPredictionHistory(1);
-		expect(records).toEqual([]);
+		await expect(dao.getUserPredictionHistory(1)).rejects.toBeInstanceOf(DatabaseError);
 	});
 });
 
@@ -485,15 +487,16 @@ describe('PredictionHistoryDAO.storeIfChanged — upsert failure', () => {
 		mockSingle.mockResolvedValue({ data: null, error: null });
 	});
 
-	it('returns stored=false when upsert fails', async () => {
+	// `stored: false` still means "there was nothing to store" — a malformed
+	// reading, or one identical to today's. A write that was attempted and
+	// failed is a different answer, and sharing one flag hid it.
+	it('raises rather than looking like there was nothing to store', async () => {
 		// getLatestPrediction → null (no existing record)
 		mockSingle.mockResolvedValueOnce({ data: null, error: { code: 'PGRST116' } });
 		// upsert → error
 		mockSingle.mockResolvedValueOnce({ data: null, error: new Error('Constraint violation') });
 
-		const result = await dao.storeIfChanged(1, '1:28:00', '5:15');
-		expect(result.stored).toBe(false);
-		expect(result.record).toBeUndefined();
+		await expect(dao.storeIfChanged(1, '1:28:00', '5:15')).rejects.toBeInstanceOf(DatabaseError);
 	});
 });
 

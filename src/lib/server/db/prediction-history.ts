@@ -1,4 +1,5 @@
 import { supabase } from './client';
+import { storageFailed } from './errors';
 import {
 	raceEquivalent,
 	fitExponent,
@@ -179,10 +180,12 @@ export class PredictionHistoryDAO {
 		}
 
 		const { data, error } = await query;
-		if (error) {
-			console.error('Failed to fetch prediction history:', error.message);
-			return [];
-		}
+
+		// The series behind the history page and the goal card's chart. An
+		// unreadable table used to plot as a flat "no progress recorded", which
+		// is a claim about the runner's training rather than about the database.
+		if (error) storageFailed('prediction history read', error);
+
 		return (data ?? []) as PredictionRecord[];
 	}
 
@@ -208,7 +211,10 @@ export class PredictionHistoryDAO {
 	 * moves a mean and not a median.
 	 *
 	 * Falls back to `RIEGEL_EXPONENT` for a user with no complete row yet, which
-	 * is the same conversion they were getting before and no worse.
+	 * is the same conversion they were getting before and no worse. A read that
+	 * fails outright takes the same fallback rather than raising: this is a
+	 * refinement to a conversion that has a defined answer without it, and no
+	 * page is worth failing over which exponent it used.
 	 */
 	async riegelExponent(userId: number): Promise<number> {
 		const { data, error } = await supabase
@@ -374,10 +380,10 @@ export class PredictionHistoryDAO {
 			.select()
 			.single();
 
-		if (error) {
-			console.error('Failed to store prediction:', error.message);
-			return { stored: false };
-		}
+		// `stored: false` still means "there was nothing to store" — a malformed
+		// reading, or one identical to today's. A write that was attempted and
+		// failed is a different answer and now says so.
+		if (error) storageFailed('prediction write', error);
 
 		return { stored: true, record: data as PredictionRecord };
 	}
