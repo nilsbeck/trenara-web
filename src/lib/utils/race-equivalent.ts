@@ -1,15 +1,21 @@
 import { timeStringToSeconds, paceStringToSeconds } from './format';
 
 /**
- * The exponent the API's own predictions follow.
+ * A last-resort exponent, for a runner whose own is not knowable yet.
  *
  * Every figure in a captured `best_times` block lies on one curve of the form
  * `T2 = T1 * (D2/D1)^e`: 5 km 19:29, 10 km 40:56, 15 km 1:03:12, half 1:31:04,
  * marathon 3:11:18 all agree at e = 1.0710–1.0713. So the block is not five
  * predictions but one fitness estimate rendered at five distances.
  *
- * Measured from one account, and taken as an argument everywhere rather than
- * buried in a formula, so a second capture can correct it in one place.
+ * That measurement is from one account, and the exponent is the shape of a
+ * runner's endurance — how much a doubled distance costs them — not a property
+ * of the model, so there is no reason to expect another runner to share it.
+ * `fitExponent` derives it from whatever predictions a given runner has, and
+ * this is what remains when they have fewer than two: one prediction fixes a
+ * level and says nothing about a slope. Every function here takes the exponent
+ * as an argument rather than reaching for this, so using someone else's number
+ * is a thing a caller has to choose.
  */
 export const RIEGEL_EXPONENT = 1.071;
 
@@ -60,7 +66,7 @@ export function equivalentSeconds(
 	seconds: number,
 	fromKm: number,
 	toKm: number,
-	exponent: number = RIEGEL_EXPONENT
+	exponent: number
 ): number {
 	return seconds * Math.pow(toKm / fromKm, exponent);
 }
@@ -82,14 +88,19 @@ export interface RaceEquivalent {
  * a collapse in fitness. Converted to one distance, the series is a single
  * curve again.
  *
+ * The exponent is required rather than defaulted, and comes before the
+ * reference distance for that reason: it belongs to the runner whose row this
+ * is, and a default would quietly convert one runner's history on another
+ * runner's endurance curve. `fitExponent` is where callers get it.
+ *
  * Returns null when the pair does not imply a usable distance — a malformed
  * row, or a pace of zero.
  */
 export function raceEquivalent(
 	time: string,
 	pace: string,
-	toKm = 10,
-	exponent: number = RIEGEL_EXPONENT
+	exponent: number,
+	toKm = 10
 ): RaceEquivalent | null {
 	const fromKm = impliedDistanceKm(time, pace);
 	if (fromKm === null || fromKm <= 0) return null;
@@ -106,6 +117,62 @@ export interface RacePoint {
 	km: number;
 	/** The predicted time, in seconds. */
 	seconds: number;
+}
+
+/**
+ * The points worth reading, in distance order and one per distance.
+ *
+ * A malformed time reaches here as a zero, and `ln 0` would take a whole curve
+ * down with the one row that failed to parse.
+ */
+function usablePoints(points: RacePoint[]): RacePoint[] {
+	return points
+		.filter((p) => Number.isFinite(p.km) && Number.isFinite(p.seconds) && p.km > 0 && p.seconds > 0)
+		.sort((a, b) => a.km - b.km)
+		.filter((p, i, all) => i === 0 || p.km !== all[i - 1].km);
+}
+
+/**
+ * The exponent a runner's own predictions follow.
+ *
+ * The endurance half of Riegel, and the half that is not the same for everyone:
+ * it is how steeply a runner's time rises with distance, so a runner who holds
+ * pace over a marathon sits lower than one who is quick over 5 km and fades.
+ * Anywhere a prediction is converted for a particular runner, this is where the
+ * exponent should come from — `RIEGEL_EXPONENT` is one account's answer and
+ * belongs only to callers who have nothing else.
+ *
+ * `T = a * D^e` is a straight line in log-log, so the exponent is the slope of
+ * an ordinary least squares of `ln T` on `ln D`. The level `a` is not returned:
+ * it is the runner's fitness on the day and changes week to week, while the
+ * slope is the shape of them as a runner and is the part worth carrying between
+ * days.
+ *
+ * All the points must come from one prediction set, taken on one day. Pooling
+ * two days puts two different levels through one line and tilts the slope
+ * between them. Returns null below two distinct distances, where there is no
+ * slope to measure.
+ */
+export function fitExponent(points: RacePoint[]): number | null {
+	const known = usablePoints(points);
+	if (known.length < 2) return null;
+
+	const lnD = known.map((p) => Math.log(p.km));
+	const lnT = known.map((p) => Math.log(p.seconds));
+	const meanLnD = lnD.reduce((a, b) => a + b, 0) / known.length;
+	const meanLnT = lnT.reduce((a, b) => a + b, 0) / known.length;
+
+	let covariance = 0;
+	let variance = 0;
+	for (let i = 0; i < known.length; i++) {
+		covariance += (lnD[i] - meanLnD) * (lnT[i] - meanLnT);
+		variance += (lnD[i] - meanLnD) ** 2;
+	}
+
+	// Distinct distances are what `usablePoints` guarantees, so the variance is
+	// positive; a non-finite slope would still mean there is nothing to report.
+	const exponent = covariance / variance;
+	return Number.isFinite(exponent) ? exponent : null;
 }
 
 /**
@@ -137,11 +204,7 @@ export function riegelCurve(
 	points: RacePoint[],
 	fallbackExponent: number = RIEGEL_EXPONENT
 ): ((km: number) => number) | null {
-	const known = points
-		.filter((p) => Number.isFinite(p.km) && Number.isFinite(p.seconds) && p.km > 0 && p.seconds > 0)
-		.sort((a, b) => a.km - b.km)
-		.filter((p, i, all) => i === 0 || p.km !== all[i - 1].km);
-
+	const known = usablePoints(points);
 	if (known.length === 0) return null;
 
 	if (known.length === 1) {
