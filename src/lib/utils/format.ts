@@ -134,3 +134,19 @@ export function secondsToDuration(totalSeconds: number): string {
 		? `${h}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`
 		: `${m}:${String(s).padStart(2, '0')}`;
 }
+
+/**
+ * "5:16 min/km" -> "5:16 /km".
+ *
+ * The goal card's collapsed head gives the countdown and the prediction one
+ * line between them, and on a 390px screen the three characters of "min" are
+ * the difference between two lines and three. The card's own forecast row
+ * already writes a pace this way, so this is the house spelling rather than
+ * one invented here.
+ *
+ * A suffix swap rather than a hardcoded "/km", because the unit follows the
+ * account: an imperial runner gets "min/mi", and keeps it.
+ */
+export function shortenPaceUnit(pace: string): string {
+	return pace.replace(/\bmin\//, '/');
+}

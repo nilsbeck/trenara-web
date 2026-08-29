@@ -75,3 +75,13 @@ export function weeksStillOpen(
 		coveredFrom: kept.length > 0 ? toLocalDateString(mondayOf(kept[0])) : null
 	};
 }
+
+/**
+ * Whole weeks between now and race day, never negative.
+ *
+ * Rounds a part-week up: the last days before a race still read as a week to
+ * go rather than as none, which is what a countdown is for.
+ */
+export function weeksRemaining(endDate: Date, now: Date): number {
+	return Math.max(0, Math.ceil((endDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24 * 7)));
+}
