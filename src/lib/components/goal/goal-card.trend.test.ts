@@ -81,26 +81,45 @@ function heading() {
 
 describe('goal card pace trend', () => {
 	it('says improving when the recorded pace has been falling', async () => {
-		mount([record(35, 310), record(24, 305), record(12, 300), record(1, 295)]);
+		mount([record(13, 300), record(9, 298), record(4, 296), record(0, 294)]);
 		await waitFor(() => expect(heading().textContent).toMatch(/improving/i));
 		expect(heading().textContent).not.toMatch(/detraining/i);
 	});
 
 	it('says detraining when it has been rising', async () => {
-		mount([record(35, 295), record(24, 300), record(12, 305), record(1, 310)]);
+		mount([record(13, 294), record(9, 296), record(4, 298), record(0, 300)]);
 		await waitFor(() => expect(heading().textContent).toMatch(/detraining/i));
 	});
 
 	it('says maintaining when it has hardly moved', async () => {
-		mount([record(35, 300), record(18, 300), record(1, 300)]);
+		mount([record(13, 300), record(6, 300), record(0, 300)]);
 		await waitFor(() => expect(heading().textContent).toMatch(/maintaining/i));
 	});
 
 	it('carries the rate behind the word, for a hover and a screen reader', async () => {
-		mount([record(35, 310), record(24, 305), record(12, 300), record(1, 295)]);
+		mount([record(13, 300), record(9, 298), record(4, 296), record(0, 294)]);
 		const badge = await screen.findByTitle(/predicted pace is .* per week/i);
 		expect(badge.textContent).toMatch(/improving/i);
 		expect(badge.textContent).toMatch(/s\/km faster per week over the last \d+ days/i);
+	});
+
+	it('answers two weeks into a block, without a block of history behind it', async () => {
+		mount([record(12, 300), record(6, 296), record(0, 292)]);
+		await waitFor(() => expect(heading().textContent).toMatch(/improving/i));
+	});
+
+	it('reports the fortnight rather than the block behind it', async () => {
+		// Gains early on, sliding for the last two weeks. The heading is a claim
+		// about now, so it says detraining.
+		mount([
+			record(70, 330),
+			record(50, 315),
+			record(30, 300),
+			record(12, 292),
+			record(6, 296),
+			record(0, 300)
+		]);
+		await waitFor(() => expect(heading().textContent).toMatch(/detraining/i));
 	});
 
 	it('says nothing when there is not enough history to call a direction', async () => {

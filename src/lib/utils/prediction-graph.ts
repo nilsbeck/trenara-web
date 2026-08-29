@@ -97,19 +97,35 @@ export interface PaceTrend {
 /**
  * How far back the trend looks.
  *
- * Six weeks is long enough to see through a single bad reading and short
- * enough that it reports what training is doing now, rather than averaging
- * this month's slide into the block's opening gains.
+ * A goal block is twelve weeks or shorter, so anything measured in months is
+ * measuring the block rather than the training. A fortnight is the span the
+ * question is actually about — am I improving *now*, with the race still to
+ * come — and it is short enough to still have an answer in a block's opening
+ * weeks, when a longer window would have nothing to read.
  */
-export const TREND_WINDOW_DAYS = 42;
+export const TREND_WINDOW_DAYS = 14;
+
+/**
+ * How far back the sparse case may reach.
+ *
+ * A record is only written when the prediction moves, so a quiet fortnight —
+ * a taper, a week off, a runner whose prediction shifts twice a month — can
+ * hold too few readings to fit anything. Reaching a little further keeps the
+ * badge from vanishing on exactly the runners it has something to tell, and
+ * the cap is what stops that reach from quietly turning into a verdict on the
+ * whole block.
+ */
+export const TREND_REACH_DAYS = 28;
 
 /**
  * The shortest span that can carry a direction.
  *
  * Predictions move in steps — a race-effort session can shift one overnight —
- * so a few days of readings describe one session, not a trend.
+ * so a few days of readings describe that session, not a trend. Ten days is
+ * also what keeps the stored rounding from dominating the fit: see the band
+ * below.
  */
-export const TREND_MIN_DAYS = 14;
+export const TREND_MIN_DAYS = 10;
 
 /** Two points are a line through whatever noise they happen to carry. */
 export const TREND_MIN_SAMPLES = 3;
@@ -117,13 +133,16 @@ export const TREND_MIN_SAMPLES = 3;
 /**
  * How much weekly movement still counts as holding steady.
  *
- * Predicted pace is stored to the second, so a series that is genuinely flat
- * still wobbles by a second between readings; a band narrower than that would
- * report the rounding as a direction. Half a second per kilometre per week is
- * also below what a runner would notice over a block — a quarter of a minute
- * across a marathon in six weeks.
+ * Predicted pace is stored to the second, so a genuinely flat series still
+ * ticks by a whole second between readings. Over a fortnight that single tick
+ * fits as roughly 0.5s/km per week, and over the ten-day floor as roughly
+ * 0.7 — which is why this band is wider than it would need to be over six
+ * weeks. Below it, the line is reading the rounding.
+ *
+ * A block that takes 20-30s/km off a marathon pace is moving at about
+ * 2s/km per week, so real training still clears this comfortably.
  */
-export const TREND_FLAT_BAND_PER_WEEK = 0.5;
+export const TREND_FLAT_BAND_PER_WEEK = 1;
 
 /** A recorded pace, as of a date. */
 export interface PaceReading {
@@ -155,14 +174,20 @@ export function paceTrend(readings: PaceReading[], now = new Date()): PaceTrend 
 
 	if (points.length < TREND_MIN_SAMPLES) return null;
 
-	// A series that stopped a month ago says nothing about this month.
+	// A series that stopped a fortnight ago describes a runner who is no longer
+	// being measured, which is not the same thing as one losing fitness.
 	const cutoff = now.getTime() - TREND_WINDOW_DAYS * TREND_DAY_MS;
 	if (points[points.length - 1].time < cutoff) return null;
 
-	// Prefer the window; fall back to the last few readings when it is sparse,
-	// rather than going quiet on a runner whose prediction simply moves rarely.
+	// The fortnight is the answer wherever it holds enough readings. Where it
+	// does not, reach back as far as the cap and no further — a bounded stretch
+	// keeps a sparse fortnight readable without letting "lately" become "this
+	// block".
 	const recent = points.filter((p) => p.time >= cutoff);
-	const used = recent.length >= TREND_MIN_SAMPLES ? recent : points.slice(-TREND_MIN_SAMPLES);
+	const reach = now.getTime() - TREND_REACH_DAYS * TREND_DAY_MS;
+	const used = recent.length >= TREND_MIN_SAMPLES ? recent : points.filter((p) => p.time >= reach);
+
+	if (used.length < TREND_MIN_SAMPLES) return null;
 
 	const days = (used[used.length - 1].time - used[0].time) / TREND_DAY_MS;
 	if (days < TREND_MIN_DAYS) return null;
