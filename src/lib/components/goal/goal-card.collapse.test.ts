@@ -108,9 +108,12 @@ describe('goal card, folded', () => {
 		const shut = document.getElementById('b')!.className;
 		expect(shut).toContain('grid-rows-[0fr]');
 		expect(shut).toContain('invisible');
-		// `sm` always puts the body back, whatever the fold says.
-		expect(shut).toContain('sm:grid-rows-[1fr]');
-		expect(shut).toContain('sm:visible');
+		// `lg` always puts the body back, whatever the fold says — and `lg`
+		// rather than `sm`, because that is where the cards move beside the
+		// calendar. Below it they are stacked, and a stacked card folds.
+		expect(shut).toContain('lg:grid-rows-[1fr]');
+		expect(shut).toContain('lg:visible');
+		expect(shut).not.toContain('sm:');
 
 		cleanup();
 		mount({ collapsible: true, expanded: true, bodyId: 'b' });
