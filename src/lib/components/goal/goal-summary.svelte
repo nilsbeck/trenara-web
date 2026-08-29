@@ -32,18 +32,21 @@
 	const label = $derived(
 		[
 			summary.name,
+			summary.distance,
 			countdown,
 			summary.predictedTime
-				? `predicted ${summary.predictedTime}${summary.predictedPace ? `, ${summary.predictedPace}` : ''}`
+				? `predicted time ${summary.predictedTime}, predicted pace ${summary.predictedPace ?? 'unknown'}`
 				: 'no prediction yet'
-		].join(', ')
+		]
+			.filter(Boolean)
+			.join(', ')
 	);
 </script>
 
 <!--
-	The goal card with the card taken away: the name, the countdown, and the
-	reading the card exists to report. Closed, this answers "am I going to make
-	it" without a tap; open, it is the heading of the card below it.
+	The goal card with the card taken away: what the goal is, how long is left,
+	and the reading the card exists to report. Closed, this answers "am I going
+	to make it" without a tap; open, it is the heading of the card below it.
 
 	A button rather than a `<summary>`, because the same markup has to be a
 	disclosure on a phone and a plain heading from `sm` up — and a closed
@@ -56,59 +59,70 @@
 	aria-expanded={expanded}
 	aria-controls={controls}
 	aria-label={label}
-	class="flex w-full items-center gap-3 rounded-lg border border-border bg-card p-4 text-left shadow-sm transition-colors hover:bg-accent focus:outline-none focus:ring-2 focus:ring-ring"
+	class="w-full rounded-lg border border-border bg-card p-4 text-left shadow-sm transition-colors hover:bg-accent focus:outline-none focus:ring-2 focus:ring-ring"
 >
-	{#if summary.isPast}
-		<Trophy class="h-5 w-5 shrink-0 text-primary" aria-hidden="true" />
-	{:else}
-		<Target class="h-5 w-5 shrink-0 text-primary" aria-hidden="true" />
-	{/if}
-
-	<!--
-		`min-w-0` so a long goal name truncates rather than shouldering the
-		prediction off the end of a narrow phone.
-
-		The second line wraps instead of truncating: on a 320px screen the pace
-		drops to a line of its own, which costs 16px and keeps the number. The
-		whole block is `aria-hidden` in favour of the button's own label — the
-		separators and the split across two lines read badly aloud.
-	-->
-	<div class="flex min-w-0 flex-1 flex-col gap-1" aria-hidden="true">
-		<span class="truncate text-sm font-semibold text-card-foreground">{summary.name}</span>
+	<div class="flex items-start gap-3" aria-hidden="true">
+		{#if summary.isPast}
+			<Trophy class="mt-0.5 h-5 w-5 shrink-0 text-primary" />
+		{:else}
+			<Target class="mt-0.5 h-5 w-5 shrink-0 text-primary" />
+		{/if}
 
 		<!--
-			No separator between the two halves, unlike the card's own event line:
-			that line never wraps, and this one is built to. A pipe that lands at
-			the end of a wrapped line dangles there pointing at nothing, and the
-			word "Predicted" already marks where the countdown stops.
+			`min-w-0` so a long goal name truncates rather than shouldering the
+			chevron off the end of a narrow phone. The line under it is short
+			enough not to wrap even at 320px, which is what lets it keep the
+			card's own pipe separator: a pipe that wrapped to the end of a line
+			would dangle there pointing at nothing.
 		-->
-		<span class="flex flex-wrap items-baseline gap-x-3 gap-y-0.5 text-xs text-muted-foreground">
-			<span>{countdown}</span>
-			{#if summary.predictedTime}
-				<!--
-					"Predicted" is said once, in front of the time, because the goal
-					time is the other number this card carries and an unlabelled
-					3:42:15 beside a goal name reads as the goal itself.
-				-->
-				<span class="whitespace-nowrap">
-					Predicted
-					<span class="font-semibold tabular-nums text-card-foreground">
-						{summary.predictedTime}
-					</span>
-				</span>
-				{#if summary.predictedPace}
-					<span class="whitespace-nowrap tabular-nums">{summary.predictedPace}</span>
+		<div class="min-w-0 flex-1">
+			<p class="truncate text-sm font-semibold text-card-foreground">{summary.name}</p>
+			<p class="mt-0.5 flex items-baseline gap-2 text-xs text-muted-foreground">
+				{#if summary.distance}
+					<span class="whitespace-nowrap">{summary.distance}</span>
+					<span class="text-border">|</span>
 				{/if}
-			{:else}
-				<span>No prediction yet</span>
-			{/if}
-		</span>
+				<span class="whitespace-nowrap">{countdown}</span>
+			</p>
+		</div>
+
+		<ChevronDown
+			class="mt-0.5 h-5 w-5 shrink-0 text-muted-foreground transition-transform duration-200 {expanded
+				? 'rotate-180'
+				: ''}"
+		/>
 	</div>
 
-	<ChevronDown
-		class="h-5 w-5 shrink-0 text-muted-foreground transition-transform duration-200 {expanded
-			? 'rotate-180'
-			: ''}"
-		aria-hidden="true"
-	/>
+	<!--
+		The two numbers side by side under a rule, each labelled.
+
+		They are labelled because the goal has a time and a pace of its own — the
+		card below spells both out in a table — and an unlabelled 3:24:30 under a
+		goal's name reads as the goal rather than as the prediction. Full width
+		rather than indented under the name: these are what the strip is for, and
+		a stat that lines up under a heading reads as a detail of it.
+	-->
+	<div class="mt-3 border-t border-border pt-3" aria-hidden="true">
+		{#if summary.predictedTime}
+			<div class="flex items-stretch text-center">
+				<div class="min-w-0 flex-1">
+					<p class="truncate text-lg font-bold tabular-nums text-card-foreground">
+						{summary.predictedTime}
+					</p>
+					<p class="mt-0.5 text-[11px] leading-tight text-muted-foreground">Predicted time</p>
+				</div>
+				{#if summary.predictedPace}
+					<div class="w-px shrink-0 bg-border"></div>
+					<div class="min-w-0 flex-1">
+						<p class="truncate text-lg font-bold tabular-nums text-card-foreground">
+							{summary.predictedPace}
+						</p>
+						<p class="mt-0.5 text-[11px] leading-tight text-muted-foreground">Predicted pace</p>
+					</div>
+				{/if}
+			</div>
+		{:else}
+			<p class="text-center text-xs text-muted-foreground">No prediction yet</p>
+		{/if}
+	</div>
 </button>

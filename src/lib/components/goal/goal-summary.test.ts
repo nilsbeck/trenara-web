@@ -8,6 +8,7 @@ afterEach(cleanup);
 function summary(overrides: Partial<Summary> = {}): Summary {
 	return {
 		name: 'Autumn Marathon',
+		distance: '42.2 km',
 		weeks: 9,
 		isPast: false,
 		predictedTime: '3:42:15',
@@ -30,17 +31,25 @@ function mount(overrides: Partial<Summary> = {}, expanded = false) {
 }
 
 describe('goal summary strip', () => {
-	it('shows the name, the countdown and the live prediction while closed', () => {
+	it('shows the name, the distance, the countdown and the live prediction', () => {
 		const { button } = mount();
 		expect(button.textContent).toContain('Autumn Marathon');
+		expect(button.textContent).toContain('42.2 km');
 		expect(button.textContent).toContain('9 weeks to go');
 		expect(button.textContent).toContain('3:42:15');
 		expect(button.textContent).toContain('5:16 /km');
 	});
 
-	it('labels the prediction, so it does not read as the goal time', () => {
+	it('labels both numbers, so neither reads as the goal it is measured against', () => {
 		const { button } = mount();
-		expect(button.textContent).toContain('Predicted');
+		expect(button.textContent).toContain('Predicted time');
+		expect(button.textContent).toContain('Predicted pace');
+	});
+
+	it('leaves out the distance rather than an empty separator', () => {
+		const { button } = mount({ distance: null });
+		expect(button.textContent).toContain('9 weeks to go');
+		expect(button.textContent).not.toContain('|');
 	});
 
 	it('says the same thing to a screen reader as it shows on screen', () => {
@@ -48,7 +57,8 @@ describe('goal summary strip', () => {
 		const label = button.getAttribute('aria-label') ?? '';
 		expect(label).toContain('Autumn Marathon');
 		expect(label).toContain('9 weeks to go');
-		expect(label).toContain('predicted 3:42:15');
+		expect(label).toContain('42.2 km');
+		expect(label).toContain('predicted time 3:42:15');
 		expect(label).toContain('5:16 /km');
 	});
 
@@ -92,5 +102,13 @@ describe('goal summary strip', () => {
 	it('drops a stray pace when there is no time to attach it to', () => {
 		const { button } = mount({ predictedTime: null });
 		expect(button.textContent).not.toContain('5:16');
+		expect(button.textContent).not.toContain('Predicted pace');
+	});
+
+	it('keeps the time on its own when the pace is the missing half', () => {
+		const { button } = mount({ predictedPace: null });
+		expect(button.textContent).toContain('3:42:15');
+		expect(button.textContent).toContain('Predicted time');
+		expect(button.textContent).not.toContain('Predicted pace');
 	});
 });

@@ -24,6 +24,8 @@ export function weeksRemaining(endDate: Date, now: Date): number {
  */
 export interface GoalSummary {
 	name: string;
+	/** As the API spells it — "42.2 km" — not a number to be formatted here. */
+	distance: string | null;
 	weeks: number;
 	/** Race day has been and gone, so a countdown would read "0 weeks to go". */
 	isPast: boolean;
@@ -60,6 +62,7 @@ export function readGoalSummary(
 
 	return {
 		name: goal.name,
+		distance: goal.distance || null,
 		weeks: weeksRemaining(endDate, now),
 		isPast: now > endDate,
 		// Empty strings are as absent as nulls here, and the API sends both.

@@ -60,6 +60,7 @@ describe('readGoalSummary', () => {
 	it('reads the name, the countdown and the live prediction', () => {
 		expect(readGoalSummary(goal(), stats(), NOW)).toEqual({
 			name: 'Berlin Marathon',
+			distance: '42.2 km',
 			weeks: 9,
 			isPast: false,
 			predictedTime: '3:42:15',
@@ -91,6 +92,12 @@ describe('readGoalSummary', () => {
 	it('survives stats that arrived without a best_times block at all', () => {
 		const summary = readGoalSummary(goal(), {} as UserStats, NOW);
 		expect(summary).toMatchObject({ name: 'Berlin Marathon', predictedTime: null });
+	});
+
+	it('reports a goal that arrived without a distance as having none', () => {
+		expect(readGoalSummary(goal({ distance: '' }), stats(), NOW)).toMatchObject({
+			distance: null
+		});
 	});
 
 	it('has nothing to say without a goal', () => {
