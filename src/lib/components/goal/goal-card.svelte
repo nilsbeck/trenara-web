@@ -31,6 +31,7 @@
 		shortenPaceUnit,
 		NO_VALUE
 	} from '$lib/utils/format';
+	import { describeError, describeResponse } from '$lib/utils/network';
 
 	let {
 		goal,
@@ -430,11 +431,11 @@
 			const params = new URLSearchParams({ limit: '200' });
 			if (goal.start_date) params.set('startDate', goal.start_date);
 			const res = await fetch(`/api/v1/prediction-history?${params}`);
-			if (!res.ok) throw new Error(`Failed to load history (${res.status})`);
+			if (!res.ok) throw new Error(await describeResponse(res, 'Could not load your history.'));
 			const { records } = await res.json();
 			chartData = transformRecords(records ?? []);
 		} catch (e) {
-			chartError = e instanceof Error ? e.message : 'Failed to load prediction history';
+			chartError = describeError(e, 'Could not load your history.');
 			chartData = [];
 		} finally {
 			chartLoading = false;

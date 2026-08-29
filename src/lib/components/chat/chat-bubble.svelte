@@ -94,7 +94,7 @@
 
 	async function loadThreads(): Promise<ChatThread[]> {
 		const res = await fetch('/api/v1/chat/threads/');
-		if (!res.ok) throw new Error('Failed to load threads');
+		if (!res.ok) throw new Error(await describeResponse(res, 'Could not load your conversations.'));
 		// Anything the bubble fetched itself is newer than the seed below.
 		seedConsumed = true;
 		return await res.json();
@@ -109,7 +109,7 @@
 				await selectThread(threads[0]);
 			}
 		} catch (e) {
-			error = e instanceof Error ? e.message : 'An error occurred';
+			error = describeError(e, 'Could not load your conversations.');
 		} finally {
 			loadingThreads = false;
 		}
@@ -129,7 +129,7 @@
 	// reads oldest-first.
 	async function fetchMessages(threadId: number): Promise<ChatMessage[]> {
 		const res = await fetch(`/api/v1/chat/threads/${threadId}/messages`);
-		if (!res.ok) throw new Error('Failed to load messages');
+		if (!res.ok) throw new Error(await describeResponse(res, 'Could not load these messages.'));
 		const data = await res.json();
 		return toOldestFirst(data.data ?? []);
 	}
@@ -144,7 +144,7 @@
 			messages = await fetchMessages(thread.id);
 			markSeen(thread.id);
 		} catch (e) {
-			error = e instanceof Error ? e.message : 'An error occurred';
+			error = describeError(e, 'Could not load these messages.');
 		} finally {
 			loadingMessages = false;
 		}
