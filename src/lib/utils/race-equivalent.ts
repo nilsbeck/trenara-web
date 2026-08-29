@@ -99,3 +99,73 @@ export function raceEquivalent(
 
 	return { seconds, paceSeconds: seconds / toKm, fromKm };
 }
+
+/** A prediction from the API, as a distance and a time. */
+export interface RacePoint {
+	/** The distance predicted over, in km. */
+	km: number;
+	/** The predicted time, in seconds. */
+	seconds: number;
+}
+
+/**
+ * Read a set of predictions at any distance, along the curve they already sit on.
+ *
+ * A `best_times` block is not five predictions but one fitness estimate rendered
+ * five times — every figure in it lies on `T = a * D^e` — so it already answers
+ * distances it never prints. This is what reads them back out.
+ *
+ * Riegel is applied between neighbouring points rather than fitted across all of
+ * them at once, for one reason: a table and a slider that disagree are worse than
+ * no slider, and a real block is not exactly on one curve. Its half marathon runs
+ * a second off the exponent the other four agree on, and a least-squares fit
+ * spreads that second around until the marathon reads 3:11:19 against the 3:11:18
+ * printed directly above it. Interpolating within a segment reproduces every
+ * stated prediction exactly and still travels on the account's own exponent —
+ * measured locally, where it is being used, rather than averaged over distances
+ * that are nowhere near.
+ *
+ * Outside the stated range the nearest segment's exponent carries on. That is
+ * extrapolation and reads as such: the caller is the one that knows what the
+ * range was, and should say so.
+ *
+ * A single point fixes only a level, so `fallbackExponent` supplies the slope.
+ * Returns null when nothing usable is left — a malformed response, or a block of
+ * unparseable times, which arrive here as zeroes.
+ */
+export function riegelCurve(
+	points: RacePoint[],
+	fallbackExponent: number = RIEGEL_EXPONENT
+): ((km: number) => number) | null {
+	const known = points
+		.filter((p) => Number.isFinite(p.km) && Number.isFinite(p.seconds) && p.km > 0 && p.seconds > 0)
+		.sort((a, b) => a.km - b.km)
+		.filter((p, i, all) => i === 0 || p.km !== all[i - 1].km);
+
+	if (known.length === 0) return null;
+
+	if (known.length === 1) {
+		const [only] = known;
+		return (km) => equivalentSeconds(only.seconds, only.km, km, fallbackExponent);
+	}
+
+	const exponents = known
+		.slice(0, -1)
+		.map(
+			(from, i) =>
+				Math.log(known[i + 1].seconds / from.seconds) / Math.log(known[i + 1].km / from.km)
+		);
+
+	return (km) => {
+		let segment = exponents.length - 1;
+		for (let i = 0; i < exponents.length; i++) {
+			if (km <= known[i + 1].km) {
+				segment = i;
+				break;
+			}
+		}
+
+		const from = known[segment];
+		return equivalentSeconds(from.seconds, from.km, km, exponents[segment]);
+	};
+}

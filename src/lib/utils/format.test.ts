@@ -9,7 +9,8 @@ import {
 	formatDateShort,
 	paceToKmh,
 	formatSpeedKmh,
-	formatSignedDuration
+	formatSignedDuration,
+	secondsToDuration
 } from './format';
 
 // ─────────────────────────────────────────────────────────────
@@ -290,5 +291,22 @@ describe('formatSignedDuration', () => {
 	it('calls a dead heat what it is', () => {
 		expect(formatSignedDuration(0)).toBe('even');
 		expect(formatSignedDuration(0.4)).toBe('even');
+	});
+});
+
+describe('secondsToDuration', () => {
+	it('leaves out an hour field there is no hour for', () => {
+		// A 5 km prediction is 19:29, not 0:19:29.
+		expect(secondsToDuration(1169)).toBe('19:29');
+	});
+
+	it('carries hours when there are any', () => {
+		expect(secondsToDuration(5464)).toBe('1:31:04');
+		expect(secondsToDuration(11478)).toBe('3:11:18');
+	});
+
+	it('rounds to the second the reading is given in', () => {
+		expect(secondsToDuration(1168.6)).toBe('19:29');
+		expect(secondsToDuration(3599.7)).toBe('1:00:00');
 	});
 });

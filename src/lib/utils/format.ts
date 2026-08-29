@@ -117,3 +117,20 @@ export function formatSpeedKmh(kmh: number | null | undefined): string | null {
 	if (kmh == null || !isFinite(kmh) || kmh <= 0) return null;
 	return `${kmh.toFixed(1)} km/h`;
 }
+
+/**
+ * Seconds as a clock time, without an hour field when there isn't an hour.
+ *
+ * `secondsToTimeString` always leads with the hour, which reads wrong on a
+ * distance short enough not to have one: a 5 km prediction is 19:29, not
+ * 0:19:29.
+ */
+export function secondsToDuration(totalSeconds: number): string {
+	const rounded = Math.round(totalSeconds);
+	const h = Math.floor(rounded / 3600);
+	const m = Math.floor((rounded % 3600) / 60);
+	const s = rounded % 60;
+	return h > 0
+		? `${h}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`
+		: `${m}:${String(s).padStart(2, '0')}`;
+}

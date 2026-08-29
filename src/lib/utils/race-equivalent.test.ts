@@ -3,6 +3,7 @@ import {
 	impliedDistanceKm,
 	equivalentSeconds,
 	raceEquivalent,
+	riegelCurve,
 	RIEGEL_EXPONENT
 } from './race-equivalent';
 
@@ -121,4 +122,95 @@ describe('a real series across a goal change', () => {
 		const [h, m, s] = t.split(':').map(Number);
 		return h * 3600 + m * 60 + s;
 	}
+});
+
+describe('riegelCurve', () => {
+	/** One real `best_times` block, as distances and seconds. */
+	const block = [
+		{ km: 5, seconds: 19 * 60 + 29 },
+		{ km: 10, seconds: 40 * 60 + 56 },
+		{ km: 21.0975, seconds: 60 * 60 + 31 * 60 + 4 },
+		{ km: 42.195, seconds: 3 * 3600 + 11 * 60 + 18 }
+	];
+
+	it('gives back every prediction it was built from, exactly', () => {
+		// The point of interpolating rather than fitting. A least-squares fit over
+		// this same block reads the marathon 3:11:19 — one second off the figure
+		// the API states, and off the row printed directly above the slider.
+		const curve = riegelCurve(block)!;
+
+		for (const point of block) {
+			expect(curve(point.km)).toBeCloseTo(point.seconds, 6);
+		}
+	});
+
+	it('reads the distances between them', () => {
+		// 15 km, against the 1:03:12 the same account's API response gives for a
+		// 15 km goal — a distance the block never mentions.
+		expect(Math.round(riegelCurve(block)!(15))).toBeCloseTo(3792, -1);
+	});
+
+	it('travels on the exponent the block was generated with', () => {
+		const curve = riegelCurve(block)!;
+		const exponent = Math.log(curve(30) / curve(12)) / Math.log(30 / 12);
+
+		expect(exponent).toBeCloseTo(RIEGEL_EXPONENT, 3);
+	});
+
+	it('follows the account rather than the constant', () => {
+		// A block on 1.06 is a real possibility — the constant was measured from
+		// one account — and the slider still has to agree with its own table.
+		const flatter = [5, 10, 21.0975, 42.195].map((km) => ({
+			km,
+			seconds: 1169 * Math.pow(km / 5, 1.06)
+		}));
+		const curve = riegelCurve(flatter)!;
+
+		expect(Math.log(curve(30) / curve(12)) / Math.log(30 / 12)).toBeCloseTo(1.06, 6);
+	});
+
+	it('carries the nearest segment on past the ends', () => {
+		const curve = riegelCurve(block)!;
+
+		// Below 5 km on the 5-10 exponent, above the marathon on the half-marathon
+		// one. Both are extrapolation, and both are still the account's own curve.
+		expect(Math.log(curve(3) / curve(5)) / Math.log(3 / 5)).toBeCloseTo(
+			Math.log(block[1].seconds / block[0].seconds) / Math.log(10 / 5),
+			6
+		);
+		expect(Math.log(curve(50) / curve(42.195)) / Math.log(50 / 42.195)).toBeCloseTo(
+			Math.log(block[3].seconds / block[2].seconds) / Math.log(42.195 / 21.0975),
+			6
+		);
+	});
+
+	it('takes the level from a lone prediction and the slope from the constant', () => {
+		const curve = riegelCurve([{ km: 10, seconds: 2456 }])!;
+
+		expect(curve(10)).toBeCloseTo(2456, 6);
+		expect(Math.round(curve(42.195))).toBe(11478);
+	});
+
+	it('drops the rows a malformed response leaves behind', () => {
+		// `timeStringToSeconds` returns 0 for anything it cannot parse, and a zero
+		// is ln(0) — one unparseable row would otherwise take the whole curve down
+		// with it.
+		const curve = riegelCurve([...block, { km: 15, seconds: 0 }, { km: 0, seconds: 100 }])!;
+
+		expect(curve(10)).toBeCloseTo(2456, 6);
+		expect(Math.round(curve(15))).toBeCloseTo(3792, -1);
+	});
+
+	it('is not thrown by points arriving out of order or twice', () => {
+		const curve = riegelCurve([block[3], block[1], block[1], block[0], block[2]])!;
+
+		for (const point of block) {
+			expect(curve(point.km)).toBeCloseTo(point.seconds, 6);
+		}
+	});
+
+	it('has no curve to offer when nothing parsed', () => {
+		expect(riegelCurve([])).toBeNull();
+		expect(riegelCurve([{ km: 10, seconds: 0 }])).toBeNull();
+	});
 });
