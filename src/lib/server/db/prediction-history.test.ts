@@ -1,5 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { PredictionValidator, PredictionHistoryDAO } from './prediction-history';
+import { secondsToTimeString } from '$lib/utils/format';
+import { RIEGEL_EXPONENT } from '$lib/utils/race-equivalent';
 
 // ── Mock the supabase client ──────────────────────────────────
 // vi.hoisted lets us reference these variables inside vi.mock (which is hoisted)
@@ -17,6 +19,7 @@ const { mockSingle, mockChain, mockFrom } = vi.hoisted(() => {
 		upsert: vi.fn().mockReturnThis(),
 		update: vi.fn().mockReturnThis(),
 		is: vi.fn().mockReturnThis(),
+		not: vi.fn().mockReturnThis(),
 		delete: vi.fn().mockReturnThis(),
 		single: mockSingle
 	};
@@ -544,11 +547,26 @@ describe('backfillDerivedTenK', () => {
 		mockFrom.mockReturnValue(mockChain);
 	});
 
-	/** Make the next awaited query resolve with these rows. */
+	/** Make every awaited query resolve with these rows. */
 	function rowsFound(rows: unknown[]) {
-		(mockChain as Record<string, unknown>)['then'] = vi.fn((resolve: (v: unknown) => void) =>
-			Promise.resolve({ data: rows, error: null }).then(resolve)
-		);
+		queriesResolve(rows);
+	}
+
+	/**
+	 * Answer successive awaited queries with successive sets of rows.
+	 *
+	 * The back-fill makes two: the rows to convert, then the recorded sets it
+	 * fits this user's exponent from. They are different shapes, and one canned
+	 * answer for both would have the fit reading the rows being converted.
+	 * The last set answers anything further.
+	 */
+	function queriesResolve(...answers: unknown[][]) {
+		let call = 0;
+		(mockChain as Record<string, unknown>)['then'] = vi.fn((resolve: (v: unknown) => void) => {
+			const rows = answers[Math.min(call, answers.length - 1)];
+			call++;
+			return Promise.resolve({ data: rows, error: null }).then(resolve);
+		});
 	}
 
 	it('only looks at rows that have neither a recorded nor a derived value', async () => {
@@ -561,7 +579,7 @@ describe('backfillDerivedTenK', () => {
 	});
 
 	it('writes the equivalent into the derived columns', async () => {
-		rowsFound([{ id: 7, predicted_time: '01:03:12', predicted_pace: '04:12' }]);
+		queriesResolve([{ id: 7, predicted_time: '01:03:12', predicted_pace: '04:12' }], []);
 
 		const filled = await dao.backfillDerivedTenK(1);
 
@@ -571,6 +589,58 @@ describe('backfillDerivedTenK', () => {
 			derived_time_10k: '0:40:56',
 			derived_pace_10k: '4:06'
 		});
+	});
+
+	it("converts on the user's own exponent, not the captured one", async () => {
+		// One row to convert, and the recorded sets that say who this runner is:
+		// they hold pace, at 1.02 rather than the 1.071 taken from one account.
+		// On a three-hour goal prediction that difference is minutes, and it is
+		// minutes in the runner's own history.
+		const theirs = (km: number) => secondsToTimeString(Math.round(1169 * Math.pow(km / 5, 1.02)));
+		queriesResolve(
+			[{ id: 9, predicted_time: '03:00:12', predicted_pace: '04:23' }],
+			[
+				{
+					predicted_time_5k: theirs(5),
+					predicted_time_10k: theirs(10),
+					predicted_time_half: theirs(21.0975),
+					predicted_time_marathon: theirs(42.195)
+				}
+			]
+		);
+
+		await dao.backfillDerivedTenK(1);
+
+		// 41 km at 3:00:12 is 42:44 on their curve, against the 39:45 the captured
+		// exponent would have written into their history — three minutes of a
+		// runner they are not, on every converted row.
+		expect(mockChain.update).toHaveBeenCalledWith({
+			derived_time_10k: '0:42:44',
+			derived_pace_10k: '4:16'
+		});
+	});
+
+	it('falls back to the captured exponent for a user with no recorded set', async () => {
+		// Everyone was converted on this number until their own rows could say
+		// otherwise, so it is the right thing to keep doing where they cannot.
+		queriesResolve([{ id: 7, predicted_time: '01:03:12', predicted_pace: '04:12' }], []);
+
+		await dao.backfillDerivedTenK(1);
+
+		expect(mockChain.update).toHaveBeenCalledWith({
+			derived_time_10k: '0:40:56',
+			derived_pace_10k: '4:06'
+		});
+	});
+
+	it('fits the exponent only once there is something to convert', async () => {
+		// A caught-up user loads this page every day and has nothing to gain from
+		// a fit, so the steady-state cost stays the one empty query it was.
+		rowsFound([]);
+
+		await dao.backfillDerivedTenK(1);
+
+		expect(mockChain.not).not.toHaveBeenCalled();
 	});
 
 	it('leaves a row it cannot convert alone', async () => {
@@ -584,6 +654,101 @@ describe('backfillDerivedTenK', () => {
 		rowsFound([]);
 		expect(await dao.backfillDerivedTenK(1)).toBe(0);
 		expect(mockChain.update).not.toHaveBeenCalled();
+	});
+});
+
+// ─────────────────────────────────────────────────────────────
+// riegelExponent
+// ─────────────────────────────────────────────────────────────
+describe('riegelExponent', () => {
+	const dao = PredictionHistoryDAO.getInstance();
+
+	beforeEach(() => {
+		vi.clearAllMocks();
+		mockFrom.mockReturnValue(mockChain);
+	});
+
+	/** Make the next awaited query resolve with these rows. */
+	function rowsFound(rows: unknown[]) {
+		(mockChain as Record<string, unknown>)['then'] = vi.fn((resolve: (v: unknown) => void) =>
+			Promise.resolve({ data: rows, error: null }).then(resolve)
+		);
+	}
+
+	/** A day's recorded set for a runner whose times rise at `exponent`. */
+	function setFor(exponent: number, fitness = 1169) {
+		const at = (km: number) =>
+			secondsToTimeString(Math.round(fitness * Math.pow(km / 5, exponent)));
+		return {
+			predicted_time_5k: at(5),
+			predicted_time_10k: at(10),
+			predicted_time_half: at(21.0975),
+			predicted_time_marathon: at(42.195)
+		};
+	}
+
+	it("reads the exponent out of the user's own recorded sets", async () => {
+		rowsFound([setFor(1.04)]);
+		expect(await dao.riegelExponent(1)).toBeCloseTo(1.04, 3);
+	});
+
+	it('gives two runners two different exponents', async () => {
+		// The point of the whole exercise: this is a fact about the runner, and
+		// one number cannot be right for both of them.
+		rowsFound([setFor(1.02)]);
+		const holdsPace = await dao.riegelExponent(1);
+
+		rowsFound([setFor(1.11)]);
+		const fades = await dao.riegelExponent(2);
+
+		expect(holdsPace).toBeLessThan(fades);
+		expect(fades - holdsPace).toBeCloseTo(0.09, 2);
+	});
+
+	it('is not moved by the one day the API returned something strange', async () => {
+		// A median rather than a mean, so an outlier does not drag every converted
+		// row in a user's history along with it.
+		rowsFound([
+			setFor(1.05),
+			setFor(1.05),
+			{ ...setFor(1.05), predicted_time_marathon: '9:59:59' }
+		]);
+
+		expect(await dao.riegelExponent(1)).toBeCloseTo(1.05, 3);
+	});
+
+	it('reads across days rather than trusting the newest one', async () => {
+		// Each row is fitted on its own — a set is one day at one fitness level,
+		// and pooling days would put several levels through a single line.
+		rowsFound([setFor(1.06, 1100), setFor(1.04, 1169), setFor(1.02, 1250)]);
+
+		expect(await dao.riegelExponent(1)).toBeCloseTo(1.04, 3);
+	});
+
+	it('ignores a row too partial to imply a slope', async () => {
+		rowsFound([{ predicted_time_10k: '00:40:56' }, setFor(1.03)]);
+
+		expect(await dao.riegelExponent(1)).toBeCloseTo(1.03, 3);
+	});
+
+	it('only fits rows whose set was actually recorded', async () => {
+		rowsFound([]);
+		await dao.riegelExponent(1);
+
+		expect(mockChain.not).toHaveBeenCalledWith('predicted_time_10k', 'is', null);
+	});
+
+	it('falls back to the captured exponent when the user has no set yet', async () => {
+		rowsFound([]);
+		expect(await dao.riegelExponent(1)).toBe(RIEGEL_EXPONENT);
+	});
+
+	it('falls back rather than failing when the query does', async () => {
+		(mockChain as Record<string, unknown>)['then'] = vi.fn((resolve: (v: unknown) => void) =>
+			Promise.resolve({ data: null, error: { message: 'boom' } }).then(resolve)
+		);
+
+		expect(await dao.riegelExponent(1)).toBe(RIEGEL_EXPONENT);
 	});
 });
 

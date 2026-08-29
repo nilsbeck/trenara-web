@@ -17,10 +17,11 @@
 	const goal = $derived(refreshed?.goal ?? data.goal);
 	const userStats = $derived(refreshed?.userStats ?? data.userStats);
 
-	// Whether the goal card is open, on a phone. Closed to begin with: its head
-	// carries the prediction, so opening it is for the graphs rather than for
-	// the numbers. Ignored from `sm` up, where the cards are a column beside the
-	// calendar and there is nothing to fold.
+	// Whether the goal card is open, while the cards are stacked above the
+	// calendar. Closed to begin with: its head carries the prediction, so
+	// opening it is for the graphs rather than for the numbers. Ignored from
+	// `lg` up, where the cards are a column beside the calendar and there is
+	// nothing to fold.
 	let goalOpen = $state(false);
 
 	/**
@@ -61,26 +62,33 @@
 	<div class="flex flex-col items-start justify-center gap-6 lg:flex-row">
 		<!--
 			The goal column leads the source and steps behind the calendar from
-			`sm` up.
+			`lg` up.
 
-			On a phone that ordering is the whole point of the strip: a month grid
-			and its day detail fill the screen, so anything below the calendar is
-			as far out of reach as it was in the menu. Source order rather than
-			`order` alone, so the strip is also the first thing a keyboard or a
-			screen reader meets — the same argument. The cost is that from `sm` up
-			both land on the cards before the calendar; there the two are
-			side-by-side peers, and the mismatch is worth the phone.
+			`lg` and not `sm`, because `lg` is where the columns actually split.
+			Below it they are stacked however wide the window is, and ordering the
+			goal column second there drops it under a full month grid — off the
+			bottom of a tablet exactly as it would be off the bottom of a phone.
+			Whenever the cards sit above the calendar they lead, and they fold.
+
+			That the cards lead is the whole point of the stack: a month grid and
+			its day detail fill the screen, so anything below the calendar is as
+			far out of reach as it was in the menu. Source order rather than
+			`order` alone, so they are also the first thing a keyboard or a screen
+			reader meets — the same argument. The cost is that from `lg` up both
+			land on the cards before the calendar; there the two are side-by-side
+			peers, and the mismatch is worth the narrow screen.
 
 			The width is definite, matching the calendar. Without one this column
 			is sized by its content, which means by the widest thing the cards
 			happen to contain — and lines up with the calendar only by chance.
 		-->
-		<div class="w-[28rem] min-w-0 max-w-full sm:order-2">
+		<div class="w-[28rem] min-w-0 max-w-full lg:order-2">
 			{#if goal && isRenderableStats(userStats)}
 				<!--
-					The goal card folds down to its own head on a phone, and the
-					predictions table folds with it: the two are one disclosure, opened
-					by the head that stays put above them.
+					The goal card folds down to its own head wherever it is stacked
+					above the calendar, and the predictions table folds with it: the
+					two are one disclosure, opened by the head that stays put above
+					them.
 				-->
 				<GoalCard
 					{goal}
@@ -96,11 +104,11 @@
 					closed card is not left holding 24px of nothing open beneath it.
 				-->
 				<div
-					class="grid transition-[grid-template-rows,opacity] duration-300 ease-out motion-reduce:transition-none sm:visible sm:grid-rows-[1fr] sm:opacity-100 {goalOpen
+					class="grid transition-[grid-template-rows,opacity] duration-300 ease-out motion-reduce:transition-none lg:visible lg:grid-rows-[1fr] lg:opacity-100 {goalOpen
 						? 'visible grid-rows-[1fr] opacity-100'
 						: 'invisible grid-rows-[0fr] opacity-0'}"
 				>
-					<div class="overflow-hidden sm:overflow-visible">
+					<div class="overflow-hidden lg:overflow-visible">
 						<div class="pt-6">
 							<PredictionsCard {userStats} />
 						</div>
@@ -111,7 +119,7 @@
 			{/if}
 		</div>
 
-		<div class="flex flex-col items-center sm:order-1 lg:flex-row">
+		<div class="flex flex-col items-center lg:order-1 lg:flex-row">
 			<Calendar today={new Date()} schedule={data.schedule} {refreshPageData} />
 		</div>
 	</div>

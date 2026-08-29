@@ -59,7 +59,7 @@
 	 * `invisible` rather than a clipped height alone, because a row clipped to
 	 * zero still holds focusable controls and still reads aloud — the graph
 	 * picker and its arrows would be tabbable through a closed card. It is the
-	 * one part `sm` has to put back, or the body is laid out and never shown.
+	 * one part `lg` has to put back, or the body is laid out and never shown.
 	 */
 	const FOLD =
 		'grid transition-[grid-template-rows,opacity] duration-300 ease-out motion-reduce:transition-none';
@@ -68,13 +68,13 @@
 
 	const bodyClass = $derived(
 		collapsible
-			? `${FOLD} ${expanded ? OPEN : SHUT} sm:visible sm:grid-rows-[1fr] sm:opacity-100`
+			? `${FOLD} ${expanded ? OPEN : SHUT} lg:visible lg:grid-rows-[1fr] lg:opacity-100`
 			: ''
 	);
 	const headClass = $derived(
-		collapsible ? `${FOLD} ${expanded ? SHUT : OPEN} sm:hidden` : 'hidden'
+		collapsible ? `${FOLD} ${expanded ? SHUT : OPEN} lg:hidden` : 'hidden'
 	);
-	const clip = $derived(collapsible ? 'overflow-hidden sm:overflow-visible' : '');
+	const clip = $derived(collapsible ? 'overflow-hidden lg:overflow-visible' : '');
 
 	const predictedPace = $derived(
 		userStats?.best_times?.pace_for_goal
@@ -570,7 +570,7 @@
 				onclick={ontoggle}
 				aria-expanded={expanded}
 				aria-controls={bodyId}
-				class="absolute -inset-2 rounded-md focus:outline-none focus:ring-2 focus:ring-ring sm:hidden"
+				class="absolute -inset-2 rounded-md focus:outline-none focus:ring-2 focus:ring-ring lg:hidden"
 			>
 				<span class="sr-only">{expanded ? 'Hide' : 'Show'} goal details</span>
 			</button>
@@ -721,7 +721,7 @@
 {#snippet foldIcon()}
 	{#if collapsible}
 		<ChevronDown
-			class="h-5 w-5 shrink-0 text-muted-foreground transition-transform duration-200 sm:hidden {expanded
+			class="h-5 w-5 shrink-0 text-muted-foreground transition-transform duration-200 lg:hidden {expanded
 				? 'rotate-180'
 				: ''}"
 			aria-hidden="true"

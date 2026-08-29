@@ -1,6 +1,11 @@
 import { supabase } from './client';
-import { raceEquivalent } from '$lib/utils/race-equivalent';
-import { secondsToTimeString, secondsToPaceString } from '$lib/utils/format';
+import {
+	raceEquivalent,
+	fitExponent,
+	RIEGEL_EXPONENT,
+	type RacePoint
+} from '$lib/utils/race-equivalent';
+import { secondsToTimeString, secondsToPaceString, timeStringToSeconds } from '$lib/utils/format';
 
 export interface PredictionRecord {
 	id: number;
@@ -63,6 +68,47 @@ interface PredictionHistoryOptions {
 	startDate?: string;
 	endDate?: string;
 	limit?: number;
+}
+
+/** The four distances a recorded prediction set covers, in km. */
+const SET_DISTANCES_KM = {
+	predicted_time_5k: 5,
+	predicted_time_10k: 10,
+	predicted_time_half: 21.0975,
+	predicted_time_marathon: 42.195
+} as const;
+
+/** One day's recorded predictions, as far as the columns go. */
+type RecordedSet = Partial<Record<keyof typeof SET_DISTANCES_KM, string | null>>;
+
+/**
+ * How many days of recorded sets to fit the exponent from.
+ *
+ * The exponent is the shape of a runner and moves slowly, so this is about
+ * having enough rows for a median to mean something rather than about being
+ * current. Small enough that the fit stays one cheap query.
+ */
+const EXPONENT_SAMPLE_ROWS = 30;
+
+/** A recorded set as the points it states, dropping the columns it left null. */
+function setPoints(row: RecordedSet): RacePoint[] {
+	const points: RacePoint[] = [];
+
+	for (const [column, km] of Object.entries(SET_DISTANCES_KM)) {
+		const time = row[column as keyof typeof SET_DISTANCES_KM];
+		if (time) points.push({ km, seconds: timeStringToSeconds(time) });
+	}
+
+	return points;
+}
+
+/** The middle value, averaging the two middles of an even count. */
+function median(values: number[]): number | null {
+	if (values.length === 0) return null;
+
+	const sorted = [...values].sort((a, b) => a - b);
+	const middle = Math.floor(sorted.length / 2);
+	return sorted.length % 2 === 1 ? sorted[middle] : (sorted[middle - 1] + sorted[middle]) / 2;
 }
 
 export class PredictionValidator {
@@ -141,11 +187,61 @@ export class PredictionHistoryDAO {
 	}
 
 	/**
+	 * The Riegel exponent this user's own predictions follow.
+	 *
+	 * Not a constant: the exponent is how steeply a runner's time rises with
+	 * distance, which is a fact about the runner. A marathoner who holds pace
+	 * sits below 1.06 where someone quick over 5 km and fading sits above 1.08,
+	 * and on a three-hour conversion that spread is minutes. Converting every
+	 * user's history on one captured account's number is the one thing here that
+	 * cannot be right for more than one person.
+	 *
+	 * Their own rows already carry the answer. A row written since the full set
+	 * was recorded holds four predictions the API made on one day at four known
+	 * distances, and those four lie on the curve the API drew for this runner.
+	 * Fitting a slope through them recovers it exactly.
+	 *
+	 * Per row, then the median across rows, rather than one fit over everything:
+	 * each row is one day at one fitness level, and pooling days puts several
+	 * levels through a single line and tilts the slope between them. The median
+	 * is for the odd day where the API returned something strange — one such row
+	 * moves a mean and not a median.
+	 *
+	 * Falls back to `RIEGEL_EXPONENT` for a user with no complete row yet, which
+	 * is the same conversion they were getting before and no worse.
+	 */
+	async riegelExponent(userId: number): Promise<number> {
+		const { data, error } = await supabase
+			.from('prediction_history')
+			.select('predicted_time_5k, predicted_time_10k, predicted_time_half, predicted_time_marathon')
+			.eq('user_id', userId)
+			.not('predicted_time_10k', 'is', null)
+			.order('recorded_at', { ascending: false })
+			.limit(EXPONENT_SAMPLE_ROWS);
+
+		if (error) {
+			console.error('Failed to read rows to fit the exponent:', error.message);
+			return RIEGEL_EXPONENT;
+		}
+
+		const fitted = ((data ?? []) as RecordedSet[])
+			.map((row) => fitExponent(setPoints(row)))
+			.filter((e): e is number => e !== null);
+
+		return median(fitted) ?? RIEGEL_EXPONENT;
+	}
+
+	/**
 	 * Fill in the 10K equivalent for rows that never recorded one.
 	 *
 	 * A back-fill rather than a conversion on read: the value belongs to the row
 	 * it was computed from, and converting again on every page load would put
 	 * the same arithmetic behind every chart that ever wants the series.
+	 *
+	 * Converted on this user's own exponent, so the series a runner is shown is
+	 * on their curve rather than on a captured account's. The fit costs a second
+	 * query, and is only made once there is something to convert — a caught-up
+	 * user still pays for one empty query and nothing else.
 	 *
 	 * Idempotent and best-effort — it only ever touches rows where both the
 	 * recorded and the derived 10K are missing, so a second run does nothing,
@@ -165,13 +261,15 @@ export class PredictionHistoryDAO {
 			return 0;
 		}
 
+		const exponent = await this.riegelExponent(userId);
+
 		let filled = 0;
 		for (const row of data as Array<{
 			id: number;
 			predicted_time: string;
 			predicted_pace: string;
 		}>) {
-			const equivalent = raceEquivalent(row.predicted_time, row.predicted_pace);
+			const equivalent = raceEquivalent(row.predicted_time, row.predicted_pace, exponent);
 			if (!equivalent) continue;
 
 			const { error: writeError } = await supabase
