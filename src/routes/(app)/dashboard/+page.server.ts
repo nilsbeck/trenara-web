@@ -3,8 +3,9 @@ import type { Schedule } from '$lib/server/trenara/types';
 import { getMonthTimestamps } from '$lib/utils/date';
 import type { PageServerLoad } from './$types';
 
-export const load: PageServerLoad = async ({ cookies }) => {
-	const [schedule, goal, userStats] = await Promise.all([
+export const load: PageServerLoad = async ({ cookies, parent }) => {
+	const [{ weekVolume }, schedule, goal, userStats] = await Promise.all([
+		parent(),
 		getMonthlySchedule(cookies),
 		trainingApi.getGoal(cookies).catch(() => null),
 		userApi.getUserStats(cookies).catch(() => null)
@@ -13,7 +14,8 @@ export const load: PageServerLoad = async ({ cookies }) => {
 	return {
 		schedule,
 		goal,
-		userStats
+		userStats,
+		weekVolume
 	};
 };
 
