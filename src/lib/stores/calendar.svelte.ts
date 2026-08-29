@@ -2,6 +2,7 @@
  * Calendar store using Svelte 5 runes
  */
 
+import { untrack } from 'svelte';
 import type {
 	Schedule,
 	ScheduledTraining,
@@ -10,7 +11,13 @@ import type {
 } from '$lib/server/trenara/types';
 import { fingerprint } from '$lib/utils/fingerprint';
 import { stalenessReason } from '$lib/utils/revalidation';
-import { getMonthTimestamps, toLocalDateString, weeksStillOpen } from '$lib/utils/date';
+import {
+	formatDateString,
+	getMonthTimestamps,
+	mondayOf,
+	toLocalDateString,
+	weeksStillOpen
+} from '$lib/utils/date';
 import { entryLocalDate, mergeSchedule, type SchedulePayload } from '$lib/utils/schedule';
 
 export type CalendarDate = {
@@ -18,6 +25,9 @@ export type CalendarDate = {
 	month: number;
 	day: number;
 };
+
+/** Whether the grid is showing a whole month or a single folded week. */
+export type ViewMode = 'month' | 'week';
 
 export type TrainingFilter = {
 	type: 'run' | 'strength';
@@ -60,9 +70,26 @@ function isoToDateString(iso: string): string {
 	return iso.slice(0, 10);
 }
 
+/** Build a cache key from a year and a 0-based month (YYYY-MM). */
+function monthKeyOf(year: number, month: number): string {
+	return `${year}-${String(month + 1).padStart(2, '0')}`;
+}
+
 /** Build a cache key from a Date (YYYY-MM). */
 function monthKey(date: Date): string {
-	return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+	return monthKeyOf(date.getFullYear(), date.getMonth());
+}
+
+/** `n` days on from `date`, at local midnight. */
+function addDays(date: Date, days: number): Date {
+	const next = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+	next.setDate(next.getDate() + days);
+	return next;
+}
+
+/** Monday-first index of a date's weekday: Monday 0 … Sunday 6. */
+function weekdayIndex(date: Date): number {
+	return (date.getDay() + 6) % 7;
 }
 
 function isSameDay(a: Date, b: Date): boolean {
@@ -159,6 +186,17 @@ export function createCalendarStore(initialDate: Date, options: CalendarStoreOpt
 	let error = $state<Error | null>(null);
 
 	/**
+	 * Month grid, or the one week folded out of it.
+	 *
+	 * The week is held as its Monday rather than as a row of the month grid,
+	 * because a week does not belong to a month: fold on the 31st and the six
+	 * days after it are next month's, and they have to be on screen — and
+	 * carrying their training dots — all the same.
+	 */
+	let viewMode = $state<ViewMode>('month');
+	let weekAnchor = $state<Date>(mondayOf(initialDate));
+
+	/**
 	 * Today, as the store understands it.
 	 *
 	 * Held as state rather than read from `new Date()` on demand because the
@@ -181,6 +219,22 @@ export function createCalendarStore(initialDate: Date, options: CalendarStoreOpt
 
 	// ── Month schedule cache (avoids re-fetching visited months) ──
 	const scheduleCache = new Map<string, CachedMonth>();
+
+	/**
+	 * Bumped whenever the cache is written to, so anything derived from a month
+	 * other than the one on screen — the neighbouring month a folded week reaches
+	 * into — re-runs when that month arrives. The Map itself is not reactive.
+	 */
+	let cacheRevision = $state(0);
+
+	/**
+	 * Untracked on the way in: the increment reads the counter as well as writing
+	 * it, and the effect that hands the page's schedule down calls through to
+	 * here — a tracked read would make that effect its own trigger.
+	 */
+	function bumpCacheRevision() {
+		cacheRevision = untrack(() => cacheRevision) + 1;
+	}
 
 	// ── Pre-computed status index (rebuilt when schedule changes) ──
 	const statusIndex = $derived<StatusIndex | null>(schedule ? buildStatusIndex(schedule) : null);
@@ -237,6 +291,38 @@ export function createCalendarStore(initialDate: Date, options: CalendarStoreOpt
 		};
 	});
 
+	// Derived: the seven days of the folded week, Monday first.
+	const weekDays = $derived.by<CalendarDate[]>(() => {
+		const monday = weekAnchor;
+		return Array.from({ length: 7 }, (_, i) => {
+			const date = addDays(monday, i);
+			return { year: date.getFullYear(), month: date.getMonth(), day: date.getDate() };
+		});
+	});
+
+	/**
+	 * Status lookups for the months the folded week reaches into.
+	 *
+	 * The month on screen is served by `statusIndex` off the live schedule; this
+	 * covers the days either side of a week that straddles two months, which come
+	 * from whatever that month left in the cache.
+	 */
+	const weekStatusIndexes = $derived.by<Map<string, StatusIndex>>(() => {
+		const indexes = new Map<string, StatusIndex>();
+		if (viewMode !== 'week') return indexes;
+
+		// Read so the map is rebuilt when a neighbouring month lands in the cache.
+		void cacheRevision;
+
+		for (const day of weekDays) {
+			const key = monthKeyOf(day.year, day.month);
+			if (indexes.has(key)) continue;
+			const cached = scheduleCache.get(key);
+			if (cached) indexes.set(key, buildStatusIndex(cached.schedule));
+		}
+		return indexes;
+	});
+
 	// Derived: entries filtered for selected date (run) — uses cached dates
 	const selectedRunEntries = $derived(
 		schedule?.entries?.filter((entry: Entry) => {
@@ -254,26 +340,56 @@ export function createCalendarStore(initialDate: Date, options: CalendarStoreOpt
 	);
 
 	// Training status — O(1) lookups via pre-computed Sets
-	function getTrainingStatusForDate(filter: TrainingFilter): TrainingStatus {
-		if (!statusIndex) return 'none';
 
-		const year = currentDate.getFullYear();
-		const month = currentDate.getMonth();
-		const calendarDate = `${year}-${String(month + 1).padStart(2, '0')}-${String(filter.day).padStart(2, '0')}`;
+	/** Whichever index speaks for a given month: the live one, or the cache. */
+	function indexForMonth(year: number, month: number): StatusIndex | null {
+		if (year === currentDate.getFullYear() && month === currentDate.getMonth()) {
+			return statusIndex;
+		}
+		return weekStatusIndexes.get(monthKeyOf(year, month)) ?? null;
+	}
 
-		const targetDate = new Date(year, month, filter.day);
+	/**
+	 * Status for an absolute day, whichever month it belongs to.
+	 *
+	 * A day outside the month on screen only comes up in the folded week view,
+	 * and only resolves once that month has been fetched — until then it reads
+	 * as 'none', the same as a day with nothing planned.
+	 */
+	function getTrainingStatusForDay(
+		date: CalendarDate,
+		type: TrainingFilter['type']
+	): TrainingStatus {
+		const index = indexForMonth(date.year, date.month);
+		if (!index) return 'none';
+
+		const calendarDate = formatDateString(date.year, date.month, date.day);
+
+		const targetDate = new Date(date.year, date.month, date.day);
 		const isToday = isSameDay(targetDate, today);
 		const isPast = targetDate < today && !isToday;
 
-		if (filter.type === 'strength') {
-			if (statusIndex.completedStrength.has(calendarDate)) return 'completed';
-			if (statusIndex.scheduledStrength.has(calendarDate)) return isPast ? 'missed' : 'scheduled';
+		if (type === 'strength') {
+			if (index.completedStrength.has(calendarDate)) return 'completed';
+			if (index.scheduledStrength.has(calendarDate)) return isPast ? 'missed' : 'scheduled';
 			return 'none';
 		}
 
-		if (statusIndex.completedRuns.has(calendarDate)) return 'completed';
-		if (statusIndex.scheduledRuns.has(calendarDate)) return isPast ? 'missed' : 'scheduled';
+		if (index.completedRuns.has(calendarDate)) return 'completed';
+		if (index.scheduledRuns.has(calendarDate)) return isPast ? 'missed' : 'scheduled';
 		return 'none';
+	}
+
+	/** Status for a day of the month on screen, by day number. */
+	function getTrainingStatusForDate(filter: TrainingFilter): TrainingStatus {
+		return getTrainingStatusForDay(
+			{
+				year: currentDate.getFullYear(),
+				month: currentDate.getMonth(),
+				day: filter.day
+			},
+			filter.type
+		);
 	}
 
 	function hasTrainingEntriesForDate(filter: TrainingFilter): boolean {
@@ -321,6 +437,7 @@ export function createCalendarStore(initialDate: Date, options: CalendarStoreOpt
 			etag: etag ?? (changed ? null : previous.etag),
 			fetchedAt
 		});
+		bumpCacheRevision();
 
 		if (key !== monthKey(currentDate)) return changed;
 
@@ -378,6 +495,7 @@ export function createCalendarStore(initialDate: Date, options: CalendarStoreOpt
 			etag: null,
 			fetchedAt: previous?.fetchedAt ?? Date.now()
 		});
+		bumpCacheRevision();
 	}
 
 	/** The oldest day a refresh still asks the server about. */
@@ -484,11 +602,30 @@ export function createCalendarStore(initialDate: Date, options: CalendarStoreOpt
 		try {
 			await Promise.all([
 				options.refreshPageData?.().catch(() => {}),
-				revalidateMonth(new Date(currentDate), { full: force })
+				revalidateMonth(new Date(currentDate), { full: force }),
+				// A folded week that straddles the turn of a month is showing days
+				// out of the month next door, so that one has to be checked too or
+				// half the row goes stale.
+				...spilloverMonths().map((date) => revalidateMonth(date, { full: force }))
 			]);
 		} finally {
 			isRevalidating = false;
 		}
+	}
+
+	/** The months the folded week reaches into, other than the one on screen. */
+	function spilloverMonths(): Date[] {
+		if (viewMode !== 'week') return [];
+
+		const seen = new Set([monthKey(currentDate)]);
+		const months: Date[] = [];
+		for (const day of weekDays) {
+			const key = monthKeyOf(day.year, day.month);
+			if (seen.has(key)) continue;
+			seen.add(key);
+			months.push(new Date(day.year, day.month, 1));
+		}
+		return months;
 	}
 
 	async function loadMonthData(date: Date) {
@@ -530,6 +667,145 @@ export function createCalendarStore(initialDate: Date, options: CalendarStoreOpt
 		}
 	}
 
+	/**
+	 * Put a month in the cache without taking anyone off the one they are on.
+	 *
+	 * `commitSchedule` only swaps the schedule being rendered when the month it
+	 * is given is the month on screen, so this is safe to run for the neighbour a
+	 * folded week spills into: the dots for those days light up, nothing else
+	 * moves. Failures are swallowed — a week missing next month's dots is a lot
+	 * better than a week replaced by an error.
+	 */
+	async function prefetchMonth(date: Date): Promise<void> {
+		const key = monthKey(date);
+		if (scheduleCache.has(key)) return;
+
+		try {
+			const result = await fetchMonth(date, { conditional: false, from: null });
+			if (!result) return;
+			const { covered_from: _coverage, ...incoming } = result.payload;
+			commitSchedule(key, incoming, result.etag);
+		} catch {
+			// Leave the day without its dots.
+		}
+	}
+
+	/** Fetch whatever months the folded week needs and does not already have. */
+	async function ensureWeekMonthsLoaded(): Promise<void> {
+		const keys = new Set<string>();
+		const pending: Date[] = [];
+
+		for (const day of weekDays) {
+			const key = monthKeyOf(day.year, day.month);
+			if (keys.has(key) || scheduleCache.has(key)) continue;
+			keys.add(key);
+			pending.push(new Date(day.year, day.month, 1));
+		}
+
+		await Promise.all(pending.map((date) => prefetchMonth(date)));
+	}
+
+	/**
+	 * Pick a day, wherever it falls.
+	 *
+	 * In the folded week the day clicked can belong to the month either side of
+	 * the one loaded, and the panel underneath reads its session out of the
+	 * schedule in hand — so the month has to follow the pick.
+	 */
+	async function selectDay(date: CalendarDate): Promise<void> {
+		selectedDate = date;
+
+		const picked = new Date(date.year, date.month, date.day);
+		if (monthKey(picked) !== monthKey(currentDate)) {
+			await loadMonthData(picked);
+		}
+	}
+
+	/** The day a fold should open on: what is selected, else today, else the 1st. */
+	function foldAnchorDay(): Date {
+		if (selectedDate) {
+			return new Date(selectedDate.year, selectedDate.month, selectedDate.day);
+		}
+		if (
+			today.getFullYear() === currentDate.getFullYear() &&
+			today.getMonth() === currentDate.getMonth()
+		) {
+			return new Date(today.getFullYear(), today.getMonth(), today.getDate());
+		}
+		return new Date(currentDate.getFullYear(), currentDate.getMonth(), 1);
+	}
+
+	/**
+	 * Which month a week counts as, when nothing is selected to say otherwise.
+	 *
+	 * Its Thursday, the ISO rule: a week that straddles the turn of the month
+	 * belongs to whichever month holds the most of it, so unfolding it lands on
+	 * the month the runner was actually looking at.
+	 */
+	function weekOwnerDay(): Date {
+		if (selectedDate) {
+			return new Date(selectedDate.year, selectedDate.month, selectedDate.day);
+		}
+		return addDays(weekAnchor, 3);
+	}
+
+	async function setViewMode(mode: ViewMode): Promise<void> {
+		if (mode === viewMode) return;
+
+		if (mode === 'week') {
+			weekAnchor = mondayOf(foldAnchorDay());
+			viewMode = 'week';
+			await ensureWeekMonthsLoaded();
+			return;
+		}
+
+		viewMode = 'month';
+		const owner = weekOwnerDay();
+		if (monthKey(owner) !== monthKey(currentDate)) {
+			await loadMonthData(owner);
+		}
+	}
+
+	async function toggleViewMode(): Promise<void> {
+		await setViewMode(viewMode === 'month' ? 'week' : 'month');
+	}
+
+	/**
+	 * Step the folded week, carrying the selection with it.
+	 *
+	 * The picked weekday moves along rather than being dropped, because in the
+	 * folded view the panel below the week is the whole of the content: clearing
+	 * the selection the way paging a month does would empty the screen on every
+	 * step.
+	 */
+	async function goToWeek(delta: number): Promise<void> {
+		weekAnchor = addDays(weekAnchor, delta * 7);
+
+		if (selectedDate) {
+			const previous = new Date(selectedDate.year, selectedDate.month, selectedDate.day);
+			const moved = addDays(weekAnchor, weekdayIndex(previous));
+			selectedDate = {
+				year: moved.getFullYear(),
+				month: moved.getMonth(),
+				day: moved.getDate()
+			};
+		}
+
+		const owner = weekOwnerDay();
+		if (monthKey(owner) !== monthKey(currentDate)) {
+			await loadMonthData(owner);
+		}
+		await ensureWeekMonthsLoaded();
+	}
+
+	async function goToPreviousWeek() {
+		await goToWeek(-1);
+	}
+
+	async function goToNextWeek() {
+		await goToWeek(1);
+	}
+
 	// Navigation
 	async function goToPreviousMonth() {
 		const newDate = new Date(currentDate);
@@ -553,7 +829,21 @@ export function createCalendarStore(initialDate: Date, options: CalendarStoreOpt
 			month: now.getMonth(),
 			day: now.getDate()
 		};
+		weekAnchor = mondayOf(now);
 		await loadMonthData(now);
+		if (viewMode === 'week') await ensureWeekMonthsLoaded();
+	}
+
+	/** Back one step, of whatever size the view is currently showing. */
+	async function goToPrevious() {
+		if (viewMode === 'week') return goToPreviousWeek();
+		return goToPreviousMonth();
+	}
+
+	/** Forward one step, of whatever size the view is currently showing. */
+	async function goToNext() {
+		if (viewMode === 'week') return goToNextWeek();
+		return goToNextMonth();
 	}
 
 	/**
@@ -608,6 +898,12 @@ export function createCalendarStore(initialDate: Date, options: CalendarStoreOpt
 		get monthData() {
 			return monthData;
 		},
+		get viewMode() {
+			return viewMode;
+		},
+		get weekDays() {
+			return weekDays;
+		},
 		get selectedRunEntries() {
 			return selectedRunEntries;
 		},
@@ -616,6 +912,9 @@ export function createCalendarStore(initialDate: Date, options: CalendarStoreOpt
 		},
 
 		setSelectedDate,
+		selectDay,
+		setViewMode,
+		toggleViewMode,
 		setSchedule,
 		replaceTraining,
 		loadMonthData,
@@ -624,13 +923,18 @@ export function createCalendarStore(initialDate: Date, options: CalendarStoreOpt
 		refresh,
 
 		navigation: {
+			goToPrevious,
+			goToNext,
 			goToPreviousMonth,
 			goToNextMonth,
+			goToPreviousWeek,
+			goToNextWeek,
 			goToToday,
 			refresh
 		},
 
 		getTrainingStatusForDate,
+		getTrainingStatusForDay,
 		hasTrainingEntriesForDate
 	};
 }

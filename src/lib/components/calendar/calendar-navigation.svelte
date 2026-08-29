@@ -5,6 +5,12 @@
 
 	const store = getContext<CalendarStore>('calendar');
 
+	// The arrows step by whatever the grid is showing: a month when it is open,
+	// a week once it has been folded.
+	const isWeekView = $derived(store.viewMode === 'week');
+	const previousLabel = $derived(isWeekView ? 'Previous week' : 'Previous month');
+	const nextLabel = $derived(isWeekView ? 'Next week' : 'Next month');
+
 	// The only thing on screen that says a refresh is happening, so it has to
 	// carry the whole message: spinning while data is being checked, and telling
 	// you when it last came back if you stop to look.
@@ -34,19 +40,21 @@
 	</button>
 	<button
 		type="button"
-		onclick={() => store.navigation.goToPreviousMonth()}
+		onclick={() => store.navigation.goToPrevious()}
 		disabled={store.isLoading}
 		class="rounded-lg p-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:opacity-50 disabled:cursor-not-allowed"
-		aria-label="Previous month"
+		aria-label={previousLabel}
+		title={previousLabel}
 	>
 		<ChevronLeft class="h-4 w-4" />
 	</button>
 	<button
 		type="button"
-		onclick={() => store.navigation.goToNextMonth()}
+		onclick={() => store.navigation.goToNext()}
 		disabled={store.isLoading}
 		class="rounded-lg p-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:opacity-50 disabled:cursor-not-allowed"
-		aria-label="Next month"
+		aria-label={nextLabel}
+		title={nextLabel}
 	>
 		<ChevronRight class="h-4 w-4" />
 	</button>

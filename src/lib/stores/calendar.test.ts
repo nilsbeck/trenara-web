@@ -1553,3 +1553,191 @@ describe('syncToday', () => {
 		expect(store.getTrainingStatusForDate({ type: 'strength', day: 5 })).toBe('missed');
 	});
 });
+
+// ─────────────────────────────────────────────────────────────
+// Folding the month into a single week
+// ─────────────────────────────────────────────────────────────
+describe('week view', () => {
+	// Wednesday. August 2026 ends on a Monday, so the last week of it runs
+	// straight into September — the case the fold has to get right.
+	const AUGUST_2026 = new Date(2026, 7, 26);
+
+	/** The month a `/api/v1/schedule` call asked about, as `YYYY-MM`. */
+	function requestedMonth(url: string): string {
+		const date = new Date(Number(new URL(url, 'http://localhost').searchParams.get('date')));
+		return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+	}
+
+	/** Serve a different schedule per month, so a fetched neighbour is visible. */
+	function serveByMonth(schedules: Record<string, Schedule>) {
+		mockFetch.mockImplementation((url: string) =>
+			Promise.resolve({
+				ok: true,
+				json: () => Promise.resolve(schedules[requestedMonth(url)] ?? makeSchedule())
+			})
+		);
+	}
+
+	beforeEach(() => {
+		vi.clearAllMocks();
+		mockFetch.mockResolvedValue({ ok: true, json: () => Promise.resolve(makeSchedule()) });
+	});
+
+	it('starts on the month', () => {
+		const store = createCalendarStore(AUGUST_2026);
+		expect(store.viewMode).toBe('month');
+	});
+
+	it('folds to the week and back again', async () => {
+		const store = createCalendarStore(AUGUST_2026);
+
+		await store.toggleViewMode();
+		expect(store.viewMode).toBe('week');
+
+		await store.toggleViewMode();
+		expect(store.viewMode).toBe('month');
+	});
+
+	it('folds onto the week of the selected day, Monday first', async () => {
+		const store = createCalendarStore(AUGUST_2026);
+		store.setSelectedDate({ year: 2026, month: 7, day: 26 });
+
+		await store.setViewMode('week');
+
+		expect(store.weekDays).toHaveLength(7);
+		expect(store.weekDays[0]).toEqual({ year: 2026, month: 7, day: 24 });
+		expect(store.weekDays[6]).toEqual({ year: 2026, month: 7, day: 30 });
+	});
+
+	it('falls back to the week of today when nothing is selected', async () => {
+		const store = createCalendarStore(AUGUST_2026);
+
+		await store.setViewMode('week');
+
+		expect(store.weekDays[0]).toEqual({ year: 2026, month: 7, day: 24 });
+	});
+
+	it('keeps the days of the next month on a week that straddles the turn', async () => {
+		const store = createCalendarStore(AUGUST_2026);
+		store.setSelectedDate({ year: 2026, month: 7, day: 31 });
+
+		await store.setViewMode('week');
+
+		expect(store.weekDays[0]).toEqual({ year: 2026, month: 7, day: 31 });
+		expect(store.weekDays[6]).toEqual({ year: 2026, month: 8, day: 6 });
+	});
+
+	it('fetches the month a straddling week reaches into', async () => {
+		const store = createCalendarStore(AUGUST_2026);
+		store.setSchedule(makeSchedule(), AUGUST_2026);
+		store.setSelectedDate({ year: 2026, month: 7, day: 31 });
+
+		await store.setViewMode('week');
+
+		const months = mockFetch.mock.calls.map((call) => requestedMonth(String(call[0])));
+		expect(months).toContain('2026-09');
+	});
+
+	it('shows the training dots of the month next door', async () => {
+		serveByMonth({
+			'2026-09': makeSchedule({
+				trainings: [{ day_long: '2026-09-02' }] as unknown as Schedule['trainings']
+			})
+		});
+
+		const store = createCalendarStore(AUGUST_2026);
+		store.setSchedule(makeSchedule(), AUGUST_2026);
+		store.setSelectedDate({ year: 2026, month: 7, day: 31 });
+
+		await store.setViewMode('week');
+
+		expect(store.getTrainingStatusForDay({ year: 2026, month: 8, day: 2 }, 'run')).toBe(
+			'scheduled'
+		);
+	});
+
+	it('steps a week at a time, carrying the picked weekday along', async () => {
+		const store = createCalendarStore(AUGUST_2026);
+		store.setSelectedDate({ year: 2026, month: 7, day: 26 });
+		await store.setViewMode('week');
+
+		await store.navigation.goToNextWeek();
+		expect(store.weekDays[0]).toEqual({ year: 2026, month: 7, day: 31 });
+		expect(store.selectedDate).toEqual({ year: 2026, month: 8, day: 2 });
+
+		await store.navigation.goToPreviousWeek();
+		expect(store.weekDays[0]).toEqual({ year: 2026, month: 7, day: 24 });
+		expect(store.selectedDate).toEqual({ year: 2026, month: 7, day: 26 });
+	});
+
+	it('brings the month in hand along when a week step crosses into it', async () => {
+		const store = createCalendarStore(AUGUST_2026);
+		store.setSelectedDate({ year: 2026, month: 7, day: 26 });
+		await store.setViewMode('week');
+
+		await store.navigation.goToNextWeek();
+
+		expect(store.currentDate.getMonth()).toBe(8); // September, where the pick landed
+	});
+
+	it('sends the arrows a month at a time again once unfolded', async () => {
+		const store = createCalendarStore(AUGUST_2026);
+
+		await store.navigation.goToNext();
+		expect(store.currentDate.getMonth()).toBe(8);
+
+		await store.setViewMode('week');
+		const anchor = store.weekDays[0];
+		await store.navigation.goToNext();
+		expect(store.weekDays[0].day).not.toBe(anchor.day);
+	});
+
+	it('unfolds onto the month the picked day belongs to', async () => {
+		const store = createCalendarStore(AUGUST_2026);
+		store.setSelectedDate({ year: 2026, month: 7, day: 31 });
+		await store.setViewMode('week');
+
+		await store.navigation.goToNextWeek(); // Monday 7 September
+		await store.setViewMode('month');
+
+		expect(store.viewMode).toBe('month');
+		expect(store.currentDate.getMonth()).toBe(8);
+	});
+
+	it('unfolds onto the month holding most of the week when nothing is picked', async () => {
+		const store = createCalendarStore(AUGUST_2026);
+		await store.setViewMode('week');
+		store.setSelectedDate(null);
+
+		// Monday 31 August, whose Thursday — and five of whose days — are September.
+		await store.navigation.goToNextWeek();
+		await store.setViewMode('month');
+
+		expect(store.currentDate.getMonth()).toBe(8);
+	});
+
+	it('follows a pick into the month next door', async () => {
+		serveByMonth({ '2026-09': makeSchedule({ id: 909 }) });
+
+		const store = createCalendarStore(AUGUST_2026);
+		store.setSchedule(makeSchedule({ id: 808 }), AUGUST_2026);
+		store.setSelectedDate({ year: 2026, month: 7, day: 31 });
+		await store.setViewMode('week');
+
+		await store.selectDay({ year: 2026, month: 8, day: 3 });
+
+		expect(store.selectedDate).toEqual({ year: 2026, month: 8, day: 3 });
+		expect(store.currentDate.getMonth()).toBe(8);
+		expect(store.schedule?.id).toBe(909);
+	});
+
+	it('setting the mode it is already in changes nothing', async () => {
+		const store = createCalendarStore(AUGUST_2026);
+		store.setSelectedDate({ year: 2026, month: 7, day: 26 });
+
+		await store.setViewMode('month');
+
+		expect(store.viewMode).toBe('month');
+		expect(store.selectedDate).toEqual({ year: 2026, month: 7, day: 26 });
+	});
+});
