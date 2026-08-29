@@ -119,6 +119,14 @@ function shortDay(day: string): string {
 
 /** Distance for display: `8 km`, `8.4 km`, `159.7 km`. */
 export function formatKm(value: number, unit = 'km'): string {
+	return `${formatDistanceValue(value)} ${unit}`;
+}
+
+/**
+ * The bare number, rounded as `formatKm` rounds it — for the places that
+ * carry the unit once for a pair of values rather than on each of them.
+ */
+export function formatDistanceValue(value: number): string {
 	const rounded = Math.round(value * 10) / 10;
-	return `${Number.isInteger(rounded) ? rounded : rounded.toFixed(1)} ${unit}`;
+	return Number.isInteger(rounded) ? String(rounded) : rounded.toFixed(1);
 }

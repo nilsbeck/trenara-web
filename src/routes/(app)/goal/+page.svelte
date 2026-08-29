@@ -2,6 +2,7 @@
 	import type { PageServerData } from './$types';
 	import GoalCard from '$lib/components/goal/goal-card.svelte';
 	import PredictionsCard from '$lib/components/predictions/predictions-card.svelte';
+	import { isRenderableStats } from '$lib/utils/user-stats';
 	import { Loader2, ArrowLeft } from 'lucide-svelte';
 
 	let { data }: { data: PageServerData } = $props();
@@ -30,7 +31,7 @@
 				<Loader2 class="h-6 w-6 animate-spin text-muted-foreground" />
 			</div>
 		{:then [goal, userStats]}
-			{#if goal && userStats}
+			{#if goal && isRenderableStats(userStats)}
 				<GoalCard {goal} {userStats} />
 				<PredictionsCard {userStats} />
 			{:else}

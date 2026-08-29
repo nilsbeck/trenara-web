@@ -5,6 +5,7 @@
 	import Calendar from '$lib/components/calendar/calendar.svelte';
 	import GoalCard from '$lib/components/goal/goal-card.svelte';
 	import PredictionsCard from '$lib/components/predictions/predictions-card.svelte';
+	import { isRenderableStats } from '$lib/utils/user-stats';
 
 	let { data }: { data: PageServerData } = $props();
 
@@ -58,7 +59,7 @@
 			by coincidence.
 		-->
 		<div class="hidden w-[28rem] min-w-0 max-w-full space-y-6 sm:block">
-			{#if goal && userStats}
+			{#if goal && isRenderableStats(userStats)}
 				<GoalCard {goal} {userStats} />
 				<PredictionsCard {userStats} />
 			{:else}
