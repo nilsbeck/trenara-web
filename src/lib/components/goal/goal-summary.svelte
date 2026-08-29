@@ -15,6 +15,16 @@
 		ontoggle: () => void;
 	} = $props();
 
+	let button = $state<HTMLButtonElement | null>(null);
+
+	/**
+	 * Hands the strip's own control back to the page, which moves focus here
+	 * when the expanded half folds away and takes this one's place.
+	 */
+	export function focus() {
+		button?.focus();
+	}
+
 	const countdown = $derived(
 		summary.isPast
 			? 'Completed'
@@ -54,6 +64,7 @@
 	can reach in and force one open.
 -->
 <button
+	bind:this={button}
 	type="button"
 	onclick={ontoggle}
 	aria-expanded={expanded}
