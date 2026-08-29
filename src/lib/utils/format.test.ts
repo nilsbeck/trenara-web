@@ -9,7 +9,8 @@ import {
 	formatDateShort,
 	paceToKmh,
 	formatSpeedKmh,
-	formatSignedDuration
+	formatSignedDuration,
+	shortenPaceUnit
 } from './format';
 
 // ─────────────────────────────────────────────────────────────
@@ -290,5 +291,19 @@ describe('formatSignedDuration', () => {
 	it('calls a dead heat what it is', () => {
 		expect(formatSignedDuration(0)).toBe('even');
 		expect(formatSignedDuration(0.4)).toBe('even');
+	});
+});
+
+describe('shortenPaceUnit', () => {
+	it('drops the "min" a narrow card has no room for', () => {
+		expect(shortenPaceUnit('5:16 min/km')).toBe('5:16 /km');
+	});
+
+	it('keeps whatever unit the account actually uses', () => {
+		expect(shortenPaceUnit('8:29 min/mi')).toBe('8:29 /mi');
+	});
+
+	it('leaves a pace that carries no unit alone', () => {
+		expect(shortenPaceUnit('5:16')).toBe('5:16');
 	});
 });
