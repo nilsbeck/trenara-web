@@ -13,8 +13,6 @@
 		Newspaper
 	} from 'lucide-svelte';
 	import ChatBubble from '$lib/components/chat/chat-bubble.svelte';
-	import WeekVolume from '$lib/components/stats/week-volume.svelte';
-	import { hasWeekVolume, type WeekVolume as WeekVolumeData } from '$lib/utils/week-volume';
 	import { formatUnread, type UnreadSummary } from '$lib/utils/news-unread';
 	import { appConfig } from '$lib/stores/app-config.svelte';
 
@@ -31,11 +29,6 @@
 	let chatThreads = $state<ChatThread[]>([]);
 	let chatSeen = $state<Record<number, number>>({});
 	const newsBadgeLabel = $derived(newsUnread ? formatUnread(newsUnread) : '');
-
-	// This week's volume, streamed in behind the navbar. Null until it arrives,
-	// and null again if it could not be loaded — both render as nothing, so the
-	// bar does not reflow around a placeholder.
-	let weekVolume = $state<WeekVolumeData | null>(null);
 
 	// Seeds the served option lists once. Anything that misses them renders from
 	// the constants instead, so there is nothing to wait for here.
@@ -60,16 +53,6 @@
 			})
 			.catch(() => {
 				newsUnread = null;
-			});
-	});
-
-	$effect(() => {
-		data.weekVolume
-			.then((volume) => {
-				weekVolume = volume;
-			})
-			.catch(() => {
-				weekVolume = null;
 			});
 	});
 
@@ -103,16 +86,8 @@
 			<div class="flex shrink-0 items-center gap-4">
 				<a href="/dashboard" class="flex items-center gap-2.5">
 					<img src="/logo.svg" alt="" width="32" height="32" class="h-8 w-8" />
-					<!--
-						A phone's bar has room for the mark, the menu, and one of these
-						two — and this week's running is worth more there than the app's
-						own name, which the logo beside it already carries. So the
-						wordmark yields to the bar below `md`, and only when there is a
-						bar to yield to: a week with nothing to show leaves it in place
-						rather than stripping the header down to an anonymous mark.
-					-->
 					<span
-						class="{hasWeekVolume(weekVolume) ? 'hidden md:flex' : 'flex'} flex-col leading-tight"
+						class="flex flex-col leading-tight"
 						title="This is an unofficial, unaffiliated third-party client. It is not developed, endorsed or supported by Trenara."
 					>
 						<span class="text-xl font-bold tracking-tight text-foreground">Trainara</span>
@@ -128,13 +103,6 @@
 					</span>
 				</a>
 			</div>
-
-			<!-- This week at a glance, in the middle of the bar at every width. -->
-			{#if hasWeekVolume(weekVolume)}
-				<div class="flex min-w-0 flex-1 justify-center px-2">
-					{@render weekBar()}
-				</div>
-			{/if}
 
 			<div class="flex shrink-0 items-center gap-2">
 				<!-- User Menu -->
@@ -269,13 +237,3 @@
 	initialThreads={chatThreads}
 	initialSeen={chatSeen}
 />
-
-{#snippet weekBar()}
-	<a
-		href="/goal"
-		class="block w-full max-w-56 rounded-md px-2 py-1 hover:bg-accent"
-		aria-label="This week's training progress"
-	>
-		<WeekVolume volume={weekVolume!} />
-	</a>
-{/snippet}
