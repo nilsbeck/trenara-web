@@ -1,7 +1,8 @@
 <script lang="ts">
 	import type { Goal, UserStats } from '$lib/server/trenara/types';
 	import { onMount } from 'svelte';
-	import { Trophy, Calendar, Target, ChevronLeft, ChevronRight } from 'lucide-svelte';
+	import { Trophy, Calendar, Target, ChevronLeft, ChevronRight, ChevronDown } from 'lucide-svelte';
+	import PredictionStats from './prediction-stats.svelte';
 	import PredictionChart, {
 		type ChartDataPoint
 	} from '$lib/components/charts/prediction-chart.svelte';
@@ -9,16 +10,77 @@
 	import { readWeekDistance, readGoalDistance } from '$lib/utils/distance-graph';
 	import { forecast, earnCutoff, type ForecastPoint } from '$lib/utils/forecast';
 	import { readPlanWeeks } from '$lib/utils/plan-weeks';
-	import { weeksRemaining } from '$lib/utils/goal-summary';
+	import { weeksRemaining } from '$lib/utils/date';
 	import {
 		timeStringToSeconds,
 		paceStringToSeconds,
 		formatSignedDuration,
 		secondsToTimeString,
-		secondsToPaceString
+		secondsToPaceString,
+		shortenPaceUnit
 	} from '$lib/utils/format';
 
-	let { goal, userStats }: { goal: Goal; userStats: UserStats } = $props();
+	let {
+		goal,
+		userStats,
+		collapsible = false,
+		expanded = true,
+		ontoggle,
+		bodyId = 'goal-card-body'
+	}: {
+		goal: Goal;
+		userStats: UserStats;
+		/**
+		 * Whether this card folds down to its head on a phone.
+		 *
+		 * Off by default, which is what the dedicated `/goal` page wants: it has
+		 * nothing to share the screen with, so there is nothing to fold away
+		 * from. The dashboard turns it on, where the card is stacked above a
+		 * month of calendar.
+		 *
+		 * Only ever below `sm`. Above it the card is a column of its own beside
+		 * the calendar and is always open, so the control and the head's summary
+		 * both go — see the class strings below.
+		 */
+		collapsible?: boolean;
+		expanded?: boolean;
+		ontoggle?: () => void;
+		/** Id of the folding region, for the head's `aria-controls`. */
+		bodyId?: string;
+	} = $props();
+
+	/**
+	 * The head's summary and the body take turns, and the animation is the two
+	 * of them changing places: one folds to nothing over the same 300ms the
+	 * other unfolds. `grid-template-rows` between `0fr` and `1fr` is what makes
+	 * a height that has to be measured animatable at all; the inner
+	 * `overflow-hidden` is what the row clips against.
+	 *
+	 * `invisible` rather than a clipped height alone, because a row clipped to
+	 * zero still holds focusable controls and still reads aloud — the graph
+	 * picker and its arrows would be tabbable through a closed card. It is the
+	 * one part `sm` has to put back, or the body is laid out and never shown.
+	 */
+	const FOLD =
+		'grid transition-[grid-template-rows,opacity] duration-300 ease-out motion-reduce:transition-none';
+	const OPEN = 'visible grid-rows-[1fr] opacity-100';
+	const SHUT = 'invisible grid-rows-[0fr] opacity-0';
+
+	const bodyClass = $derived(
+		collapsible
+			? `${FOLD} ${expanded ? OPEN : SHUT} sm:visible sm:grid-rows-[1fr] sm:opacity-100`
+			: ''
+	);
+	const headClass = $derived(
+		collapsible ? `${FOLD} ${expanded ? SHUT : OPEN} sm:hidden` : 'hidden'
+	);
+	const clip = $derived(collapsible ? 'overflow-hidden sm:overflow-visible' : '');
+
+	const predictedPace = $derived(
+		userStats?.best_times?.pace_for_goal
+			? shortenPaceUnit(userStats.best_times.pace_for_goal)
+			: null
+	);
 
 	// ── Dates & progress ───────────────────────────────────────────
 	const now = new Date();
@@ -449,150 +511,198 @@
 	});
 </script>
 
-<div class="rounded-lg border border-border bg-card shadow-sm p-6">
-	{#if isPast}
-		<!-- Completed goal -->
-		<div class="flex items-center gap-3 mb-4">
-			<Trophy class="h-6 w-6 text-primary" />
-			<h2 class="text-xl font-semibold text-card-foreground">Goal Completed</h2>
-		</div>
-		<p class="text-muted-foreground">
-			You completed <span class="font-medium text-card-foreground">{goal.name}</span>
-			({goal.distance}) on {formattedEndDate}.
-		</p>
-
-		<!-- Historical chart for completed goals -->
-		<div class="mt-6">
-			{@render graphPicker()}
-			{@render graph()}
-		</div>
-	{:else}
-		<!-- Active goal -->
-		<div class="flex items-center gap-3 mb-4">
-			<Target class="h-6 w-6 text-primary" />
-			<h2 class="text-xl font-semibold text-card-foreground">{goal.name}</h2>
-		</div>
-
-		<!-- Guarded because the API no longer sends a description: an unguarded
-		     paragraph was an empty block holding a margin open under the name. -->
-		{#if goal.description}
-			<p class="text-sm text-muted-foreground mb-4">{goal.description}</p>
-		{/if}
-
-		<!-- Event info -->
-		<div class="flex items-center gap-2 text-sm text-muted-foreground mb-6">
-			<Calendar class="h-4 w-4" />
-			<span>{formattedEndDate}</span>
-			<span class="text-border">|</span>
-			<span>{goal.distance}</span>
-			<span class="text-border">|</span>
-			<span>{weeksLeft} weeks remaining</span>
-		</div>
-
-		<!-- Pace / Time table -->
-		{#if userStats?.best_times}
-			<div class="mb-6 overflow-hidden rounded-md border border-border">
-				<table class="w-full text-sm">
-					<thead>
-						<tr class="border-b border-border bg-muted/50">
-							<th class="px-4 py-2 text-left font-medium text-muted-foreground"></th>
-							<th class="px-4 py-2 text-left font-medium text-muted-foreground">Time</th>
-							<th class="px-4 py-2 text-left font-medium text-muted-foreground">Pace</th>
-						</tr>
-					</thead>
-					<tbody>
-						<tr class="border-b border-border">
-							<td class="px-4 py-2 font-medium text-card-foreground">Goal</td>
-							<td class="px-4 py-2 text-card-foreground">{goal.time}</td>
-							<td class="px-4 py-2 text-card-foreground">{goal.pace}</td>
-						</tr>
-						<tr class:border-b={gap !== null} class:border-border={gap !== null}>
-							<td class="px-4 py-2 font-medium text-card-foreground">Current Prediction</td>
-							<td class="px-4 py-2 text-card-foreground">
-								{userStats.best_times.time_for_goal ?? 'N/A'}
-							</td>
-							<td class="px-4 py-2 text-card-foreground">
-								{userStats.best_times.pace_for_goal ?? 'N/A'}
-							</td>
-						</tr>
-						<!--
-							The subtraction nobody was doing: the two rows above have sat
-							next to each other saying nothing about the distance between
-							them. Ahead of the goal is an ordinary state, so it is coloured
-							as good news rather than treated as an anomaly.
-						-->
-						{#if gap}
-							<tr
-								class:border-b={raceForecast !== null}
-								class:border-border={raceForecast !== null}
-							>
-								<td class="px-4 py-2 font-medium text-muted-foreground">
-									{gap.ahead ? 'Ahead by' : 'To find'}
-								</td>
-								<td class="px-4 py-2 tabular-nums" class:text-primary={gap.ahead}>
-									{formatSignedDuration(gap.time)}
-								</td>
-								<td class="px-4 py-2 tabular-nums text-muted-foreground">
-									{gap.pace === null ? '' : `${formatSignedDuration(gap.pace)} /km`}
-								</td>
-							</tr>
-						{/if}
-						<!--
-							The number the card exists to give: not where the prediction is
-							today, but where the training still left can carry it by race
-							day. Highlighted when that reaches the goal, because reaching it
-							is the whole point of the plan and worth seeing at a glance.
-						-->
-						{#if raceForecast}
-							{@const onGoal = onGoalPace}
-							<tr>
-								<td class="px-4 py-2 font-medium text-card-foreground">Projected on race day</td>
-								<td class="px-4 py-2 font-medium tabular-nums" class:text-primary={onGoal}>
-									{secondsToTimeString(Math.round(raceForecast.endSeconds))}
-								</td>
-								<td class="px-4 py-2 tabular-nums text-muted-foreground">
-									{goal.distance_value
-										? `${secondsToPaceString(Math.round(raceForecast.endSeconds / goal.distance_value))} /km`
-										: ''}
-								</td>
-							</tr>
-						{/if}
-					</tbody>
-				</table>
+<div class="rounded-lg border border-border bg-card p-6 shadow-sm">
+	<!--
+		The head: what this card is, and — while it is closed on a phone — the one
+		reading it exists to report. It stays put when the body folds away, so the
+		control that opened the card is the control that closes it, and the card
+		is seen to grow from its own heading rather than to be replaced.
+	-->
+	<div class="relative">
+		{#if isPast}
+			<div class="mb-4 flex items-center gap-3">
+				<Trophy class="h-6 w-6 shrink-0 text-primary" />
+				<h2 class="min-w-0 flex-1 text-xl font-semibold text-card-foreground">Goal Completed</h2>
+				{@render foldIcon()}
 			</div>
+			<p class="text-muted-foreground">
+				You completed <span class="font-medium text-card-foreground">{goal.name}</span>
+				({goal.distance}) on {formattedEndDate}.
+			</p>
 		{:else}
-			<div class="mb-6 rounded-md border border-border bg-muted/30 px-4 py-3">
-				<p class="text-sm text-muted-foreground">
-					No prediction data available yet. Complete some training to see your predictions.
-				</p>
+			<div class="mb-4 flex items-center gap-3">
+				<Target class="h-6 w-6 shrink-0 text-primary" />
+				<h2 class="min-w-0 flex-1 truncate text-xl font-semibold text-card-foreground">
+					{goal.name}
+				</h2>
+				{@render foldIcon()}
+			</div>
+
+			<!-- Guarded because the API no longer sends a description: an unguarded
+			     paragraph was an empty block holding a margin open under the name. -->
+			{#if goal.description}
+				<p class="mb-4 text-sm text-muted-foreground">{goal.description}</p>
+			{/if}
+
+			<!--
+				Event info. Wraps rather than overflowing, which is what a phone's
+				width needs — and so it carries no pipe separators: a pipe that wraps
+				to the end of a line dangles there pointing at nothing. The gap does
+				the separating instead.
+			-->
+			<div class="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted-foreground">
+				<Calendar class="h-4 w-4 shrink-0" />
+				<span class="whitespace-nowrap">{formattedEndDate}</span>
+				<span class="whitespace-nowrap">{goal.distance}</span>
+				<span class="whitespace-nowrap">{weeksLeft} weeks remaining</span>
 			</div>
 		{/if}
 
-		<!-- Progress bar -->
-		<div class="mb-6">
-			<div class="flex items-center justify-between mb-1.5">
-				<span class="text-xs font-medium text-muted-foreground">Training Progress</span>
-				<span class="text-xs font-medium text-muted-foreground">{Math.round(progress)}%</span>
-			</div>
-			<div class="h-2 w-full overflow-hidden rounded-full bg-muted">
-				<div
-					class="h-full rounded-full bg-primary transition-all duration-300"
-					style="width: {progress}%"
-				></div>
-			</div>
-			<div class="flex items-center justify-between mt-1.5">
-				<span class="text-xs text-muted-foreground">
-					Day {Math.min(daysPassed, totalDays)} of {totalDays}
-				</span>
-			</div>
-		</div>
+		<!--
+			The whole head is the control, laid over it rather than wrapped around
+			it: a heading may not live inside a button, and a chevron alone is a
+			40px target on a card the thumb is already resting on. The icon above
+			carries the state, so this only has to carry the semantics.
+		-->
+		{#if collapsible}
+			<button
+				type="button"
+				onclick={ontoggle}
+				aria-expanded={expanded}
+				aria-controls={bodyId}
+				class="absolute -inset-2 rounded-md focus:outline-none focus:ring-2 focus:ring-ring sm:hidden"
+			>
+				<span class="sr-only">{expanded ? 'Hide' : 'Show'} goal details</span>
+			</button>
+		{/if}
+	</div>
 
-		<!-- Prediction / distance chart -->
-		<div>
-			{@render graphPicker()}
-			{@render graph()}
+	<!-- The closed card's own reading, which the body's table says at length. -->
+	<div class={headClass}>
+		<div class="overflow-hidden">
+			<div class="pt-4">
+				<PredictionStats time={userStats?.best_times?.time_for_goal || null} pace={predictedPace} />
+			</div>
 		</div>
-	{/if}
+	</div>
+
+	<div id={bodyId} class={bodyClass}>
+		<div class={clip}>
+			<div class="pt-6">
+				{#if isPast}
+					<!-- Historical chart for completed goals -->
+					{@render graphPicker()}
+					{@render graph()}
+				{:else}
+					<!-- Pace / Time table -->
+					{#if userStats?.best_times}
+						<div class="mb-6 overflow-hidden rounded-md border border-border">
+							<table class="w-full text-sm">
+								<thead>
+									<tr class="border-b border-border bg-muted/50">
+										<th class="px-4 py-2 text-left font-medium text-muted-foreground"></th>
+										<th class="px-4 py-2 text-left font-medium text-muted-foreground">Time</th>
+										<th class="px-4 py-2 text-left font-medium text-muted-foreground">Pace</th>
+									</tr>
+								</thead>
+								<tbody>
+									<tr class="border-b border-border">
+										<td class="px-4 py-2 font-medium text-card-foreground">Goal</td>
+										<td class="px-4 py-2 text-card-foreground">{goal.time}</td>
+										<td class="px-4 py-2 text-card-foreground">{goal.pace}</td>
+									</tr>
+									<tr class:border-b={gap !== null} class:border-border={gap !== null}>
+										<td class="px-4 py-2 font-medium text-card-foreground">Current Prediction</td>
+										<td class="px-4 py-2 text-card-foreground">
+											{userStats.best_times.time_for_goal ?? 'N/A'}
+										</td>
+										<td class="px-4 py-2 text-card-foreground">
+											{userStats.best_times.pace_for_goal ?? 'N/A'}
+										</td>
+									</tr>
+									<!--
+								The subtraction nobody was doing: the two rows above have sat
+								next to each other saying nothing about the distance between
+								them. Ahead of the goal is an ordinary state, so it is coloured
+								as good news rather than treated as an anomaly.
+							-->
+									{#if gap}
+										<tr
+											class:border-b={raceForecast !== null}
+											class:border-border={raceForecast !== null}
+										>
+											<td class="px-4 py-2 font-medium text-muted-foreground">
+												{gap.ahead ? 'Ahead by' : 'To find'}
+											</td>
+											<td class="px-4 py-2 tabular-nums" class:text-primary={gap.ahead}>
+												{formatSignedDuration(gap.time)}
+											</td>
+											<td class="px-4 py-2 tabular-nums text-muted-foreground">
+												{gap.pace === null ? '' : `${formatSignedDuration(gap.pace)} /km`}
+											</td>
+										</tr>
+									{/if}
+									<!--
+								The number the card exists to give: not where the prediction is
+								today, but where the training still left can carry it by race
+								day. Highlighted when that reaches the goal, because reaching it
+								is the whole point of the plan and worth seeing at a glance.
+							-->
+									{#if raceForecast}
+										{@const onGoal = onGoalPace}
+										<tr>
+											<td class="px-4 py-2 font-medium text-card-foreground"
+												>Projected on race day</td
+											>
+											<td class="px-4 py-2 font-medium tabular-nums" class:text-primary={onGoal}>
+												{secondsToTimeString(Math.round(raceForecast.endSeconds))}
+											</td>
+											<td class="px-4 py-2 tabular-nums text-muted-foreground">
+												{goal.distance_value
+													? `${secondsToPaceString(Math.round(raceForecast.endSeconds / goal.distance_value))} /km`
+													: ''}
+											</td>
+										</tr>
+									{/if}
+								</tbody>
+							</table>
+						</div>
+					{:else}
+						<div class="mb-6 rounded-md border border-border bg-muted/30 px-4 py-3">
+							<p class="text-sm text-muted-foreground">
+								No prediction data available yet. Complete some training to see your predictions.
+							</p>
+						</div>
+					{/if}
+
+					<!-- Progress bar -->
+					<div class="mb-6">
+						<div class="flex items-center justify-between mb-1.5">
+							<span class="text-xs font-medium text-muted-foreground">Training Progress</span>
+							<span class="text-xs font-medium text-muted-foreground">{Math.round(progress)}%</span>
+						</div>
+						<div class="h-2 w-full overflow-hidden rounded-full bg-muted">
+							<div
+								class="h-full rounded-full bg-primary transition-all duration-300"
+								style="width: {progress}%"
+							></div>
+						</div>
+						<div class="flex items-center justify-between mt-1.5">
+							<span class="text-xs text-muted-foreground">
+								Day {Math.min(daysPassed, totalDays)} of {totalDays}
+							</span>
+						</div>
+					</div>
+
+					<!-- Prediction / distance chart -->
+					<div>
+						{@render graphPicker()}
+						{@render graph()}
+					</div>
+				{/if}
+			</div>
+		</div>
+	</div>
 </div>
 
 <!--
@@ -608,6 +718,17 @@
 	as a heading that way, and the arrows land where the eye looks for graph
 	controls instead of crowding the title.
 -->
+{#snippet foldIcon()}
+	{#if collapsible}
+		<ChevronDown
+			class="h-5 w-5 shrink-0 text-muted-foreground transition-transform duration-200 sm:hidden {expanded
+				? 'rotate-180'
+				: ''}"
+			aria-hidden="true"
+		/>
+	{/if}
+{/snippet}
+
 {#snippet graphPicker()}
 	<div class="mb-2 flex items-center justify-between gap-2">
 		<label>

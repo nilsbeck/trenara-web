@@ -5,7 +5,8 @@ import {
 	mondayOf,
 	parseLocalDateString,
 	toLocalDateString,
-	weeksStillOpen
+	weeksStillOpen,
+	weeksRemaining
 } from './date';
 
 // ─────────────────────────────────────────────────────────────
@@ -222,5 +223,21 @@ describe('weeksStillOpen', () => {
 			if (!open.coveredFrom) continue;
 			expect(open.coveredFrom <= toLocalDateString(mondayOf(cutoff))).toBe(true);
 		}
+	});
+});
+
+describe('weeksRemaining', () => {
+	const now = new Date('2026-08-29T12:00:00Z');
+
+	it('rounds a part-week up, so the last days still read as a week', () => {
+		expect(weeksRemaining(new Date('2026-09-01T12:00:00Z'), now)).toBe(1);
+	});
+
+	it('counts whole weeks exactly', () => {
+		expect(weeksRemaining(new Date('2026-09-19T12:00:00Z'), now)).toBe(3);
+	});
+
+	it('floors at zero rather than counting backwards past race day', () => {
+		expect(weeksRemaining(new Date('2026-07-01T12:00:00Z'), now)).toBe(0);
 	});
 });
