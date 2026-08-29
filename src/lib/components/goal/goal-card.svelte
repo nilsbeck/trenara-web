@@ -1,7 +1,17 @@
 <script lang="ts">
 	import type { Goal, UserStats } from '$lib/server/trenara/types';
 	import { onMount } from 'svelte';
-	import { Trophy, Calendar, Target, ChevronLeft, ChevronRight, ChevronDown } from 'lucide-svelte';
+	import {
+		Trophy,
+		Calendar,
+		Target,
+		ChevronLeft,
+		ChevronRight,
+		ChevronDown,
+		TrendingDown,
+		TrendingUp,
+		Minus
+	} from 'lucide-svelte';
 	import PredictionStats from './prediction-stats.svelte';
 	import PredictionChart, {
 		type ChartDataPoint
@@ -10,6 +20,7 @@
 	import { readWeekDistance, readGoalDistance } from '$lib/utils/distance-graph';
 	import { forecast, earnCutoff, type ForecastPoint } from '$lib/utils/forecast';
 	import { readPlanWeeks } from '$lib/utils/plan-weeks';
+	import { paceTrend } from '$lib/utils/prediction-graph';
 	import { weeksRemaining } from '$lib/utils/date';
 	import {
 		timeStringToSeconds,
@@ -357,6 +368,42 @@
 	let chartLoading = $state(false);
 	let chartError = $state<string | null>(null);
 
+	// ── Which way the pace curve is going ──────────────────────────
+	//
+	// The card already draws the curve; what it never said is which way it is
+	// pointing. That reading belongs in the heading rather than under the graph,
+	// because it is true of the goal and not of whichever graph happens to be on
+	// show — and because on a phone the heading is all there is when the card is
+	// folded shut.
+
+	const trend = $derived(paceTrend(chartData, now));
+
+	/**
+	 * The arrow follows the curve, not the mood.
+	 *
+	 * Predicted pace falls as a runner gets faster, so improving is a downward
+	 * arrow — the same movement they can see in the graph a few lines below.
+	 * An upward arrow for improvement would contradict the chart it is
+	 * describing. The word and the colour carry the good or bad news instead.
+	 */
+	const TREND_LOOK = {
+		improving: { label: 'Improving', icon: TrendingDown, tone: 'text-primary' },
+		maintaining: { label: 'Maintaining', icon: Minus, tone: 'text-muted-foreground' },
+		detraining: { label: 'Detraining', icon: TrendingUp, tone: 'text-destructive' }
+	} as const;
+
+	/** The number behind the word, for the tooltip and for screen readers. */
+	const trendNote = $derived.by(() => {
+		if (!trend) return undefined;
+		const span = `over the last ${trend.days} days`;
+		if (trend.direction === 'maintaining') {
+			return `Predicted pace is holding steady ${span}.`;
+		}
+		const rate = Math.abs(trend.perWeekSeconds).toFixed(1);
+		const way = trend.direction === 'improving' ? 'faster' : 'slower';
+		return `Predicted pace is ${rate}s/km ${way} per week ${span}.`;
+	});
+
 	/** Fetch prediction records from Supabase via our API. */
 	async function loadPredictionHistory() {
 		chartLoading = true;
@@ -535,6 +582,7 @@
 				<h2 class="min-w-0 flex-1 truncate text-xl font-semibold text-card-foreground">
 					{goal.name}
 				</h2>
+				{@render trendBadge()}
 				{@render foldIcon()}
 			</div>
 
@@ -704,6 +752,26 @@
 		</div>
 	</div>
 </div>
+
+<!--
+	The one thing the heading could say that the card never did: which way the
+	pace curve under it is pointing. It sits beside the goal's name because it
+	is a reading of the goal rather than of a graph, and because a folded card
+	on a phone is nothing but this row.
+-->
+{#snippet trendBadge()}
+	{#if trend}
+		{@const look = TREND_LOOK[trend.direction]}
+		<span
+			class="flex shrink-0 items-center gap-1 text-xs font-medium whitespace-nowrap {look.tone}"
+			title={trendNote}
+		>
+			<look.icon class="h-3.5 w-3.5" aria-hidden="true" />
+			{look.label}
+			<span class="sr-only">. {trendNote}</span>
+		</span>
+	{/if}
+{/snippet}
 
 <!--
 	The card's own heading, which is also the control that swaps the graph under

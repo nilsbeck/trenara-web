@@ -1,5 +1,13 @@
 import { describe, it, expect } from 'vitest';
-import { paceRatio, summarise, formatDelta } from './prediction-graph';
+import {
+	paceRatio,
+	summarise,
+	formatDelta,
+	paceTrend,
+	TREND_FLAT_BAND_PER_WEEK,
+	TREND_WINDOW_DAYS,
+	TREND_REACH_DAYS
+} from './prediction-graph';
 
 /** A marathon prediction: pace is the time over 42.2 km. */
 function point(timeSeconds: number, distanceKm = 42.2) {
@@ -82,5 +90,149 @@ describe('formatDelta', () => {
 
 	it('reads a loss as a magnitude, leaving the sign to the caller', () => {
 		expect(formatDelta(-134)).toBe('2:14');
+	});
+});
+
+describe('paceTrend', () => {
+	const NOW = new Date('2025-06-01T12:00:00Z');
+
+	/** A reading `daysAgo` before `NOW`, at `pace` seconds per km. */
+	function reading(daysAgo: number, pace: number) {
+		return {
+			date: new Date(NOW.getTime() - daysAgo * 86_400_000).toISOString(),
+			predictedPace: pace
+		};
+	}
+
+	it('calls a falling pace curve improving', () => {
+		// 300 -> 294 across the fortnight: 3s/km a week off the pace.
+		const trend = paceTrend(
+			[reading(14, 300), reading(9, 298), reading(4, 296), reading(0, 294)],
+			NOW
+		);
+		expect(trend!.direction).toBe('improving');
+		expect(trend!.perWeekSeconds).toBeCloseTo(-3, 1);
+		expect(trend!.days).toBe(14);
+		expect(trend!.samples).toBe(4);
+	});
+
+	it('calls a rising pace curve detraining', () => {
+		const trend = paceTrend(
+			[reading(14, 294), reading(9, 296), reading(4, 298), reading(0, 300)],
+			NOW
+		);
+		expect(trend!.direction).toBe('detraining');
+		expect(trend!.perWeekSeconds).toBeCloseTo(3, 1);
+	});
+
+	it('calls a flat curve maintaining', () => {
+		expect(paceTrend([reading(13, 300), reading(6, 300), reading(0, 300)], NOW)!.direction).toBe(
+			'maintaining'
+		);
+	});
+
+	it('reads the stored rounding as maintaining, not as a direction', () => {
+		// A single second ticking either way inside a fortnight is the pace being
+		// stored to the second, not training. This is what the band is sized for.
+		const trend = paceTrend(
+			[reading(13, 300), reading(9, 299), reading(4, 300), reading(0, 299)],
+			NOW
+		);
+		expect(trend!.direction).toBe('maintaining');
+		expect(Math.abs(trend!.perWeekSeconds)).toBeLessThan(TREND_FLAT_BAND_PER_WEEK);
+	});
+
+	it('still hears a block-rate improvement through the wider band', () => {
+		// 2s/km a week is what a block taking 20-30s/km off a marathon looks like.
+		const trend = paceTrend([reading(14, 304), reading(7, 302), reading(0, 300)], NOW);
+		expect(trend!.perWeekSeconds).toBeCloseTo(-2, 1);
+		expect(trend!.direction).toBe('improving');
+	});
+
+	it('fits the window rather than reading off the endpoints', () => {
+		// One race-effort session drops the last reading off an otherwise flat
+		// series. Subtracting the endpoints hands that single session the whole
+		// verdict; the fit weighs it against every reading that did not move.
+		const trend = paceTrend(
+			[reading(12, 300), reading(9, 300), reading(6, 300), reading(3, 300), reading(0, 294)],
+			NOW
+		);
+		const endpoints = ((294 - 300) / 12) * 7;
+		expect(Math.abs(trend!.perWeekSeconds)).toBeLessThan(Math.abs(endpoints));
+	});
+
+	it('answers from a fortnight, without waiting for a block of history', () => {
+		// Two weeks into a new goal there is no more than this, and the runner
+		// still wants to know which way it is going.
+		const trend = paceTrend([reading(12, 300), reading(6, 296), reading(0, 292)], NOW);
+		expect(trend!.direction).toBe('improving');
+		expect(trend!.days).toBeLessThanOrEqual(TREND_WINDOW_DAYS);
+	});
+
+	it('reports the fortnight, not the block behind it', () => {
+		// Big gains early in the block, sliding for the last two weeks. The badge
+		// is a claim about now, so it reports the slide.
+		const trend = paceTrend(
+			[
+				reading(70, 330),
+				reading(50, 315),
+				reading(30, 300),
+				reading(12, 292),
+				reading(6, 296),
+				reading(0, 300)
+			],
+			NOW
+		);
+		expect(trend!.direction).toBe('detraining');
+		expect(trend!.samples).toBe(3);
+		expect(trend!.days).toBeLessThanOrEqual(TREND_WINDOW_DAYS);
+	});
+
+	it('needs more than two readings', () => {
+		expect(paceTrend([reading(12, 300), reading(0, 290)], NOW)).toBeNull();
+	});
+
+	it('needs a long enough span to call a direction', () => {
+		// Three readings inside a week is one session, not a trend — and a week
+		// is too short for the fit to see past the stored rounding.
+		expect(paceTrend([reading(6, 300), reading(3, 295), reading(0, 290)], NOW)).toBeNull();
+	});
+
+	it('ignores a series that stops well before today', () => {
+		// Nobody is being measured any more, which is not the same as detraining.
+		expect(paceTrend([reading(60, 300), reading(45, 305), reading(30, 310)], NOW)).toBeNull();
+	});
+
+	it('reaches past a sparse fortnight, up to the cap', () => {
+		// A prediction that only moves twice a month still has a direction.
+		const trend = paceTrend([reading(26, 310), reading(20, 305), reading(2, 300)], NOW);
+		expect(trend!.direction).toBe('improving');
+		expect(trend!.samples).toBe(3);
+		expect(trend!.days).toBeLessThanOrEqual(TREND_REACH_DAYS);
+	});
+
+	it('will not reach past the cap to find a third reading', () => {
+		// The two older readings are this block's opening weeks. Stretching that
+		// far would answer a question nobody asked.
+		expect(paceTrend([reading(80, 320), reading(60, 310), reading(2, 300)], NOW)).toBeNull();
+	});
+
+	it('drops readings with no usable date or pace', () => {
+		const trend = paceTrend(
+			[
+				{ date: 'not a date', predictedPace: 400 },
+				{ date: reading(12, 0).date, predictedPace: 0 },
+				reading(12, 300),
+				reading(6, 296),
+				reading(0, 292)
+			],
+			NOW
+		);
+		expect(trend!.samples).toBe(3);
+		expect(trend!.direction).toBe('improving');
+	});
+
+	it('is null with nothing to read', () => {
+		expect(paceTrend([], NOW)).toBeNull();
 	});
 });
