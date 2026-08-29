@@ -70,3 +70,124 @@ export function formatDelta(seconds: number): string {
 		? `${h}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`
 		: `${m}:${String(s).padStart(2, '0')}`;
 }
+
+/**
+ * Which way the pace curve is going.
+ *
+ * `improving` is a falling curve — the predicted pace is getting faster.
+ * `detraining` is a rising one. `maintaining` is the band between them, which
+ * exists because a curve that is flat to within a rounding error is not a
+ * direction and should not be reported as one.
+ */
+export type TrendDirection = 'improving' | 'maintaining' | 'detraining';
+
+export interface PaceTrend {
+	direction: TrendDirection;
+	/**
+	 * Seconds per kilometre the predicted pace moves in a week, from a
+	 * least-squares fit through the window. Negative is getting faster.
+	 */
+	perWeekSeconds: number;
+	/** Days between the first and last reading the fit used. */
+	days: number;
+	/** How many readings it used. */
+	samples: number;
+}
+
+/**
+ * How far back the trend looks.
+ *
+ * Six weeks is long enough to see through a single bad reading and short
+ * enough that it reports what training is doing now, rather than averaging
+ * this month's slide into the block's opening gains.
+ */
+export const TREND_WINDOW_DAYS = 42;
+
+/**
+ * The shortest span that can carry a direction.
+ *
+ * Predictions move in steps — a race-effort session can shift one overnight —
+ * so a few days of readings describe one session, not a trend.
+ */
+export const TREND_MIN_DAYS = 14;
+
+/** Two points are a line through whatever noise they happen to carry. */
+export const TREND_MIN_SAMPLES = 3;
+
+/**
+ * How much weekly movement still counts as holding steady.
+ *
+ * Predicted pace is stored to the second, so a series that is genuinely flat
+ * still wobbles by a second between readings; a band narrower than that would
+ * report the rounding as a direction. Half a second per kilometre per week is
+ * also below what a runner would notice over a block — a quarter of a minute
+ * across a marathon in six weeks.
+ */
+export const TREND_FLAT_BAND_PER_WEEK = 0.5;
+
+/** A recorded pace, as of a date. */
+export interface PaceReading {
+	/** Anything `Date` parses — the stored `recorded_at`, in practice. */
+	date: string;
+	/** Predicted pace in seconds per kilometre. */
+	predictedPace: number;
+}
+
+const TREND_DAY_MS = 86_400_000;
+
+/**
+ * Which way the recorded pace curve has been going lately.
+ *
+ * Fitted rather than read off the endpoints: predictions are only written when
+ * they change, so the first and last readings in a window are as likely to be
+ * two jumps as a trend, and a straight subtraction hands the whole verdict to
+ * whichever session happened to land on the edge of the window.
+ *
+ * Null when there is nothing worth calling a direction — too few readings, too
+ * short a span, or a series that stops well before today and so describes a
+ * runner who is no longer being measured rather than one who is detraining.
+ */
+export function paceTrend(readings: PaceReading[], now = new Date()): PaceTrend | null {
+	const points = readings
+		.map((r) => ({ time: new Date(r.date).getTime(), pace: r.predictedPace }))
+		.filter((p) => Number.isFinite(p.time) && p.pace > 0)
+		.sort((a, b) => a.time - b.time);
+
+	if (points.length < TREND_MIN_SAMPLES) return null;
+
+	// A series that stopped a month ago says nothing about this month.
+	const cutoff = now.getTime() - TREND_WINDOW_DAYS * TREND_DAY_MS;
+	if (points[points.length - 1].time < cutoff) return null;
+
+	// Prefer the window; fall back to the last few readings when it is sparse,
+	// rather than going quiet on a runner whose prediction simply moves rarely.
+	const recent = points.filter((p) => p.time >= cutoff);
+	const used = recent.length >= TREND_MIN_SAMPLES ? recent : points.slice(-TREND_MIN_SAMPLES);
+
+	const days = (used[used.length - 1].time - used[0].time) / TREND_DAY_MS;
+	if (days < TREND_MIN_DAYS) return null;
+
+	// Least squares through (days since the first reading, pace).
+	const origin = used[0].time;
+	const xs = used.map((p) => (p.time - origin) / TREND_DAY_MS);
+	const meanX = xs.reduce((sum, x) => sum + x, 0) / xs.length;
+	const meanY = used.reduce((sum, p) => sum + p.pace, 0) / used.length;
+
+	let covariance = 0;
+	let variance = 0;
+	for (const [i, x] of xs.entries()) {
+		covariance += (x - meanX) * (used[i].pace - meanY);
+		variance += (x - meanX) ** 2;
+	}
+	if (variance === 0) return null;
+
+	const perWeekSeconds = (covariance / variance) * 7;
+	const direction: TrendDirection =
+		perWeekSeconds <= -TREND_FLAT_BAND_PER_WEEK
+			? 'improving'
+			: perWeekSeconds >= TREND_FLAT_BAND_PER_WEEK
+				? 'detraining'
+				: 'maintaining';
+
+	return { direction, perWeekSeconds, days: Math.round(days), samples: used.length };
+}
