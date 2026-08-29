@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { fireEvent, render, screen, waitFor } from '@testing-library/svelte';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/svelte';
 import Calendar from './calendar.svelte';
 import type { Schedule, ScheduledTraining } from '$lib/server/trenara/types';
 
@@ -59,6 +59,16 @@ function stubViewport(width: number) {
 	};
 }
 
+/** The heading, which is itself the control that folds and unfolds the grid. */
+function foldToggle(): HTMLElement {
+	return within(screen.getByRole('heading', { level: 2 })).getByRole('button');
+}
+
+/** What the heading reads, without the chevron's whitespace. */
+function headingText(): string {
+	return screen.getByRole('heading', { level: 2 }).textContent?.trim() ?? '';
+}
+
 /** The day numbers the grid is currently showing, in order. */
 function shownDays(): string[] {
 	return screen
@@ -85,7 +95,21 @@ describe('folding the month into a week', () => {
 		render(Calendar, { props: { today: TODAY, schedule: schedule() } });
 
 		await waitFor(() => expect(shownDays()).toHaveLength(31));
-		expect(screen.getByRole('heading', { level: 2 }).textContent).toBe('August 2026');
+		expect(headingText()).toBe('August 2026');
+	});
+
+	it('folds from a press on the month itself, not just the arrow', async () => {
+		render(Calendar, { props: { today: TODAY, schedule: schedule() } });
+		await waitFor(() => expect(shownDays()).toHaveLength(31));
+
+		const toggle = foldToggle();
+		expect(toggle.getAttribute('aria-expanded')).toBe('true');
+		expect(headingText()).toBe('August 2026');
+
+		await fireEvent.click(within(toggle).getByText('August 2026'));
+
+		await waitFor(() => expect(shownDays()).toHaveLength(7));
+		expect(foldToggle().getAttribute('aria-expanded')).toBe('false');
 	});
 
 	it('folds down to the week of the selected day, and back out again', async () => {
@@ -93,28 +117,28 @@ describe('folding the month into a week', () => {
 
 		await waitFor(() => expect(shownDays()).toHaveLength(31));
 
-		await fireEvent.click(screen.getByRole('button', { name: 'Show only this week' }));
+		await fireEvent.click(foldToggle());
 
 		await waitFor(() => expect(shownDays()).toEqual(['24', '25', '26', '27', '28', '29', '30']));
-		expect(screen.getByRole('heading', { level: 2 }).textContent).toBe('24 – 30 August 2026');
+		expect(headingText()).toBe('24 – 30 August 2026');
 
-		await fireEvent.click(screen.getByRole('button', { name: 'Show the whole month' }));
+		await fireEvent.click(foldToggle());
 
 		await waitFor(() => expect(shownDays()).toHaveLength(31));
-		expect(screen.getByRole('heading', { level: 2 }).textContent).toBe('August 2026');
+		expect(headingText()).toBe('August 2026');
 	});
 
 	it('steps a week at a time while folded, into the next month', async () => {
 		render(Calendar, { props: { today: TODAY, schedule: schedule() } });
 
 		await waitFor(() => expect(shownDays()).toHaveLength(31));
-		await fireEvent.click(screen.getByRole('button', { name: 'Show only this week' }));
+		await fireEvent.click(foldToggle());
 		await waitFor(() => expect(shownDays()).toHaveLength(7));
 
 		await fireEvent.click(screen.getByRole('button', { name: 'Next week' }));
 
 		await waitFor(() => expect(shownDays()).toEqual(['31', '1', '2', '3', '4', '5', '6']));
-		expect(screen.getByRole('heading', { level: 2 }).textContent).toBe('31 Aug – 6 Sep 2026');
+		expect(headingText()).toBe('31 Aug – 6 Sep 2026');
 	});
 });
 
@@ -138,7 +162,7 @@ describe('the view the screen opens on', () => {
 		render(Calendar, { props: { today: TODAY, schedule: schedule() } });
 
 		await waitFor(() => expect(shownDays()).toEqual(['24', '25', '26', '27', '28', '29', '30']));
-		expect(screen.getByRole('button', { name: 'Show the whole month' })).toBeTruthy();
+		expect(foldToggle().getAttribute('aria-expanded')).toBe('false');
 	});
 
 	it('opens on the month on a desktop', async () => {
@@ -165,7 +189,7 @@ describe('the view the screen opens on', () => {
 		render(Calendar, { props: { today: TODAY, schedule: schedule() } });
 		await waitFor(() => expect(shownDays()).toHaveLength(7));
 
-		await fireEvent.click(screen.getByRole('button', { name: 'Show the whole month' }));
+		await fireEvent.click(foldToggle());
 		await waitFor(() => expect(shownDays()).toHaveLength(31));
 
 		resize(1280);

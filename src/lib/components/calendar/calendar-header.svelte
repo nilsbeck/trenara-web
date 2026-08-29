@@ -54,24 +54,30 @@
 </script>
 
 <div class="flex items-center justify-between mb-4">
-	<div class="flex items-center gap-1 min-w-0">
-		<h2 class="text-lg font-semibold text-foreground truncate">{title}</h2>
+	<!--
+		The whole title is the control, not just the chevron beside it: a 16px
+		arrow is a poor target for a thumb, and the month is the thing anyone
+		would think to press anyway. Nothing else in the header is a heading, so
+		the button sits inside it rather than around it — `aria-expanded` says
+		which way it will go.
+	-->
+	<h2 class="min-w-0 text-lg font-semibold text-foreground">
 		<button
 			type="button"
 			onclick={() => void store.toggleViewMode()}
 			disabled={store.isLoading}
-			class="shrink-0 rounded-lg p-1 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:opacity-50 disabled:cursor-not-allowed"
-			aria-label={isWeekView ? 'Show the whole month' : 'Show only this week'}
+			class="-mx-2 flex min-w-0 items-center gap-1 rounded-lg px-2 py-1.5 transition-colors hover:bg-muted disabled:cursor-not-allowed"
 			aria-expanded={!isWeekView}
 			aria-controls="calendar-grid"
 			title={isWeekView ? 'Show the whole month' : 'Show only this week'}
 		>
+			<span class="truncate">{title}</span>
 			{#if isWeekView}
-				<ChevronDown class="h-4 w-4" />
+				<ChevronDown class="h-4 w-4 shrink-0 text-muted-foreground" />
 			{:else}
-				<ChevronUp class="h-4 w-4" />
+				<ChevronUp class="h-4 w-4 shrink-0 text-muted-foreground" />
 			{/if}
 		</button>
-	</div>
+	</h2>
 	<CalendarNavigation />
 </div>
