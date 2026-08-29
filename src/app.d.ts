@@ -16,6 +16,12 @@ declare global {
 			 * down has been pointed at the wrong one.
 			 */
 			storage?: boolean;
+			/**
+			 * Present when Trenara refused for rate limiting. Carries what this
+			 * app was sending in the run-up, so the error page can show it and
+			 * the maintainer can send it on without reading a server log.
+			 */
+			rateLimit?: import('$lib/server/trenara/rate-limit').RateLimitDiagnostic;
 		}
 
 		interface Locals {

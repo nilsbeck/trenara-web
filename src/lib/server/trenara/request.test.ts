@@ -1,6 +1,12 @@
 import { describe, it, expect } from 'vitest';
 import { z } from 'zod';
-import { HttpError, MalformedResponseError, NetworkError, TimeoutError } from './client';
+import {
+	HttpError,
+	MalformedResponseError,
+	NetworkError,
+	RateLimitError,
+	TimeoutError
+} from './client';
 import {
 	describeFailure,
 	describeUpstreamError,
@@ -10,7 +16,9 @@ import {
 	TIMEOUT_MESSAGE,
 	UNREACHABLE_MESSAGE,
 	MALFORMED_MESSAGE,
-	isUpstreamFailure
+	isUpstreamFailure,
+	RATE_LIMITED_MESSAGE,
+	retryAfterText
 } from './request';
 import { trainingConditionSchema } from '$lib/schemas/training';
 import { SURFACES } from '$lib/utils/session-setup';
@@ -246,5 +254,61 @@ describe('describeFailure on a body that could not be read', () => {
 		expect(isUpstreamFailure(new MalformedResponseError('bad body'))).toBe(true);
 		expect(isUpstreamFailure(new NetworkError('down'))).toBe(true);
 		expect(isUpstreamFailure(new TypeError('x is not a function'))).toBe(false);
+	});
+});
+
+describe('describeFailure on a rate limit', () => {
+	const diagnostic = {
+		at: '2026-08-29T10:00:00.000Z',
+		method: 'GET',
+		path: '/api/schedule',
+		retryAfterSeconds: null as number | null,
+		limitHeaders: {},
+		windows: [{ seconds: 10, total: 12, byPath: [{ path: 'GET /api/schedule', count: 6 }] }],
+		instance: 'ab12cd'
+	};
+
+	it('relays the 429 and keeps the snapshot with it', () => {
+		const described = describeFailure(new RateLimitError('limited', diagnostic));
+
+		expect(described.status).toBe(429);
+		expect(described.rateLimit).toBe(diagnostic);
+	});
+
+	// Worded as a pause, not a fault: nothing is broken and waiting fixes it,
+	// which is true of no other failure this app reports.
+	it('says it is a pause rather than a breakage', () => {
+		const { message } = describeFailure(new RateLimitError('limited', diagnostic));
+
+		expect(message).toBe(RATE_LIMITED_MESSAGE);
+		expect(message).not.toMatch(/wrong|error|failed/i);
+	});
+
+	it('says how long to wait when Trenara said', () => {
+		const { message } = describeFailure(
+			new RateLimitError('limited', { ...diagnostic, retryAfterSeconds: 30 })
+		);
+
+		expect(message).toContain('about 30 seconds');
+	});
+
+	it('rounds a long wait into minutes rather than reading out seconds', () => {
+		expect(retryAfterText(90)).toBe('about 2 minutes');
+		expect(retryAfterText(60)).toBe('about 1 minute');
+		expect(retryAfterText(1)).toBe('about 1 second');
+		expect(retryAfterText(null)).toBeNull();
+		expect(retryAfterText(0)).toBeNull();
+	});
+
+	it('carries the snapshot through passthrough onto the error body', async () => {
+		let thrown: { status: number; body: { message: string; rateLimit?: unknown } } | undefined;
+		try {
+			await passthrough(() => Promise.reject(new RateLimitError('limited', diagnostic)));
+		} catch (e) {
+			thrown = e as typeof thrown;
+		}
+
+		expect(thrown?.status).toBe(429);
+		expect(thrown?.body.rateLimit).toEqual(diagnostic);
 	});
 });

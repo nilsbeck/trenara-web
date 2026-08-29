@@ -1,7 +1,17 @@
 <script lang="ts">
 	import { page } from '$app/state';
 	import { invalidateAll } from '$app/navigation';
-	import { CloudOff, DatabaseZap, RefreshCw, SearchX, TriangleAlert, Loader2 } from 'lucide-svelte';
+	import {
+		Check,
+		CloudOff,
+		Copy,
+		DatabaseZap,
+		Hourglass,
+		RefreshCw,
+		SearchX,
+		TriangleAlert,
+		Loader2
+	} from 'lucide-svelte';
 
 	/**
 	 * What the app shows when a load function threw.
@@ -28,20 +38,53 @@
 	 * first, because a storage failure also carries a 503.
 	 */
 	const storage = $derived(page.error?.storage === true);
+
+	/**
+	 * Rate limiting is its own case, not a variety of "went wrong".
+	 *
+	 * Nothing is broken and nothing is lost — the app asked for too much at
+	 * once and waiting genuinely fixes it, which is true of no other failure
+	 * here. Saying "something went wrong" for it sends the runner looking for
+	 * a fault that does not exist.
+	 */
+	const rateLimit = $derived(page.error?.rateLimit ?? null);
+	const rateLimited = $derived(status === 429 || rateLimit !== null);
+
 	const unreachable = $derived(
-		!storage && (UNREACHABLE_STATUSES.has(status) || page.error?.unreachable === true)
+		!storage &&
+			!rateLimited &&
+			(UNREACHABLE_STATUSES.has(status) || page.error?.unreachable === true)
 	);
 	const notFound = $derived(status === 404);
 
 	const title = $derived(
-		storage
-			? 'Your history is not available'
-			: unreachable
-				? 'Trenara is not answering'
-				: notFound
-					? 'Nothing here'
-					: 'Something went wrong'
+		rateLimited
+			? 'Too many requests, too quickly'
+			: storage
+				? 'Your history is not available'
+				: unreachable
+					? 'Trenara is not answering'
+					: notFound
+						? 'Nothing here'
+						: 'Something went wrong'
 	);
+
+	/** The snapshot as it should be sent on: whole, and not reformatted by hand. */
+	const report = $derived(rateLimit ? JSON.stringify(rateLimit, null, 2) : '');
+
+	let copied = $state(false);
+
+	async function copyReport() {
+		try {
+			await navigator.clipboard.writeText(report);
+			copied = true;
+			setTimeout(() => (copied = false), 2000);
+		} catch {
+			// Clipboard blocked (an insecure origin, or permission refused). The
+			// block is on screen and selectable, so there is still a way to send
+			// it — no point reporting a failure to copy over the failure itself.
+		}
+	}
 
 	const detail = $derived(
 		page.error?.message ??
@@ -73,11 +116,13 @@
 	<div class="w-full max-w-sm space-y-6 text-center">
 		<div
 			class="mx-auto flex h-14 w-14 items-center justify-center rounded-full"
-			class:bg-muted={storage || unreachable || notFound}
-			class:bg-destructive={!storage && !unreachable && !notFound}
-			class:opacity-90={!storage && !unreachable && !notFound}
+			class:bg-muted={rateLimited || storage || unreachable || notFound}
+			class:bg-destructive={!rateLimited && !storage && !unreachable && !notFound}
+			class:opacity-90={!rateLimited && !storage && !unreachable && !notFound}
 		>
-			{#if storage}
+			{#if rateLimited}
+				<Hourglass class="h-7 w-7 text-muted-foreground" aria-hidden="true" />
+			{:else if storage}
 				<DatabaseZap class="h-7 w-7 text-muted-foreground" aria-hidden="true" />
 			{:else if unreachable}
 				<CloudOff class="h-7 w-7 text-muted-foreground" aria-hidden="true" />
@@ -91,7 +136,13 @@
 		<div class="space-y-2">
 			<h1 class="text-xl font-semibold tracking-tight text-foreground">{title}</h1>
 			<p class="text-sm text-muted-foreground">{detail}</p>
-			{#if storage}
+			{#if rateLimited}
+				<p class="text-sm text-muted-foreground">
+					Trenara limits how often this app may ask for things, and a page was opened that asked for
+					too many at once. Nothing is broken and nothing is lost — waiting a moment and trying
+					again is all it needs.
+				</p>
+			{:else if storage}
 				<!-- Said explicitly because the alternative reading is the alarming
 				     one: an empty history page looks like lost training. -->
 				<p class="text-sm text-muted-foreground">
@@ -131,6 +182,82 @@
 				Back to the calendar
 			</a>
 		</div>
+
+		{#if rateLimit}
+			<!--
+				The whole snapshot, on screen and copyable.
+
+				A 429 is only actionable with what went out before it, and this app
+				is tried as a preview deployment where a server log is not somewhere
+				anyone will look. So the trail is put in front of whoever hit it, in
+				the form it should be sent on in.
+			-->
+			<details class="text-left" data-testid="rate-limit-report">
+				<summary
+					class="cursor-pointer text-center text-xs text-muted-foreground/70 hover:text-muted-foreground"
+				>
+					What was being requested
+				</summary>
+
+				<dl class="mt-3 space-y-1 text-xs text-muted-foreground">
+					<div class="flex justify-between gap-3">
+						<dt>Refused</dt>
+						<dd class="text-right font-mono">{rateLimit.method} {rateLimit.path}</dd>
+					</div>
+					{#each rateLimit.windows as window (window.seconds)}
+						<div class="flex justify-between gap-3">
+							<dt>Sent in the last {window.seconds}s</dt>
+							<dd class="text-right font-mono">{window.total}</dd>
+						</div>
+					{/each}
+					{#if rateLimit.retryAfterSeconds !== null}
+						<div class="flex justify-between gap-3">
+							<dt>Retry after</dt>
+							<dd class="text-right font-mono">{rateLimit.retryAfterSeconds}s</dd>
+						</div>
+					{/if}
+				</dl>
+
+				{#if rateLimit.windows[0]?.byPath.length}
+					<p class="mt-3 text-xs font-medium text-muted-foreground">
+						Busiest endpoints, last {rateLimit.windows[0].seconds}s
+					</p>
+					<ul class="mt-1 space-y-0.5">
+						{#each rateLimit.windows[0].byPath.slice(0, 6) as row (row.path)}
+							<li class="flex justify-between gap-3 font-mono text-xs text-muted-foreground">
+								<span class="truncate">{row.path}</span>
+								<span>×{row.count}</span>
+							</li>
+						{/each}
+					</ul>
+				{/if}
+
+				<button
+					type="button"
+					onclick={copyReport}
+					class="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-md border border-border px-3 py-1.5 text-xs font-medium text-foreground transition-colors hover:bg-secondary"
+				>
+					{#if copied}
+						<Check class="h-3.5 w-3.5" aria-hidden="true" />
+						Copied
+					{:else}
+						<Copy class="h-3.5 w-3.5" aria-hidden="true" />
+						Copy the full report
+					{/if}
+				</button>
+
+				<pre
+					class="mt-2 max-h-56 overflow-auto rounded-md bg-muted p-2 text-left text-[10px] leading-relaxed text-muted-foreground">{report}</pre>
+
+				<!-- Said here rather than left to be worked out from a surprising
+				     count: on Vercel each instance keeps its own trail, so this is
+				     a floor on what Trenara saw, never the total. -->
+				<p class="mt-2 text-[10px] text-muted-foreground/70">
+					Counts are from one server instance ({rateLimit.instance}), so the real total may be
+					higher.
+				</p>
+			</details>
+		{/if}
 
 		<!--
 			The status is the one thing worth keeping on screen: it is what

@@ -3,6 +3,7 @@ import {
 	HttpError,
 	AuthenticationError,
 	MalformedResponseError,
+	RateLimitError,
 	NetworkError,
 	TimeoutError
 } from './client';
@@ -482,5 +483,67 @@ describe('a response that claims JSON and is not', () => {
 
 		await expect(fetchClient.get('/api/me')).rejects.toThrow(NetworkError);
 		expect(fetch).toHaveBeenCalledTimes(2);
+	});
+});
+
+// ─────────────────────────────────────────────────────────────
+// Rate limiting
+// ─────────────────────────────────────────────────────────────
+describe('a 429 from Trenara', () => {
+	function limited(headers: Record<string, string> = {}) {
+		return mockResponse(
+			{ message: 'Too Many Attempts.' },
+			{ status: 429, statusText: 'Too Many Requests', headers }
+		);
+	}
+
+	it('is raised as a rate limit, not as a plain refusal', async () => {
+		vi.spyOn(console, 'error').mockImplementation(() => {});
+		vi.mocked(fetch).mockResolvedValue(limited());
+
+		await expect(fetchClient.get('/api/schedule')).rejects.toBeInstanceOf(RateLimitError);
+	});
+
+	// Retrying a refusal for going too fast is the one response guaranteed to
+	// make it worse, and the dashboard opens a dozen calls at once.
+	it('is never retried, however many retries were asked for', async () => {
+		vi.spyOn(console, 'error').mockImplementation(() => {});
+		vi.mocked(fetch).mockResolvedValue(limited());
+
+		await expect(fetchClient.get('/api/schedule', { retries: 3 })).rejects.toBeInstanceOf(
+			RateLimitError
+		);
+		expect(fetch).toHaveBeenCalledTimes(1);
+	});
+
+	it('carries what was being sent in the run-up', async () => {
+		vi.spyOn(console, 'error').mockImplementation(() => {});
+		vi.mocked(fetch).mockResolvedValue(limited({ 'retry-after': '30' }));
+
+		try {
+			await fetchClient.get('/api/schedule?date=1');
+			expect.unreachable('should have been refused');
+		} catch (e) {
+			const { diagnostic } = e as InstanceType<typeof RateLimitError>;
+			expect(diagnostic.path).toBe('/api/schedule');
+			expect(diagnostic.retryAfterSeconds).toBe(30);
+			// The refused request is itself in the trail.
+			expect(diagnostic.windows[0].total).toBeGreaterThanOrEqual(1);
+		}
+	});
+
+	// The maintainer greps a platform log for this. One line, one prefix, and
+	// the whole payload parseable from it.
+	it('logs one parseable line for the platform log', async () => {
+		const logged = vi.spyOn(console, 'error').mockImplementation(() => {});
+		vi.mocked(fetch).mockResolvedValue(limited({ 'x-ratelimit-limit': '60' }));
+
+		await expect(fetchClient.get('/api/goal')).rejects.toBeInstanceOf(RateLimitError);
+
+		const line = logged.mock.calls.flat().find((arg) => String(arg).startsWith('[rate-limit] '));
+		expect(line).toBeDefined();
+		const payload = JSON.parse(String(line).replace('[rate-limit] ', ''));
+		expect(payload.path).toBe('/api/goal');
+		expect(payload.limitHeaders['x-ratelimit-limit']).toBe('60');
 	});
 });

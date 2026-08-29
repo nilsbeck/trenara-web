@@ -3,6 +3,7 @@ import { TokenManager } from '$lib/server/auth/token-manager';
 import { verifyUserId } from '$lib/server/auth/user-identity';
 import { userApi } from '$lib/server/trenara/user';
 import { isUpstreamFailure, describeFailure } from '$lib/server/trenara/request';
+import { RateLimitError } from '$lib/server/trenara/client';
 import { isDatabaseError, STORAGE_READ_MESSAGE } from '$lib/server/db/errors';
 
 const tokenManager = TokenManager.getInstance();
@@ -85,6 +86,14 @@ export const handleError: HandleServerError = ({ error, event, status, message }
 	if (isDatabaseError(error)) {
 		console.error(`[${event.request.method} ${event.url.pathname}] ${error.message}`);
 		return { message: STORAGE_READ_MESSAGE, storage: true };
+	}
+
+	// A 429 that got past `passthrough` — a streamed promise, or a call added
+	// without it. The snapshot is already in the log from the transport; this
+	// carries it onto the page too.
+	if (error instanceof RateLimitError) {
+		const { message, rateLimit } = describeFailure(error);
+		return { message, rateLimit };
 	}
 
 	if (isUpstreamFailure(error)) {

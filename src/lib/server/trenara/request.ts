@@ -1,6 +1,13 @@
 import { error } from '@sveltejs/kit';
 import type { ZodType } from 'zod';
-import { HttpError, MalformedResponseError, NetworkError, TimeoutError } from './client';
+import {
+	HttpError,
+	MalformedResponseError,
+	NetworkError,
+	RateLimitError,
+	TimeoutError
+} from './client';
+import type { RateLimitDiagnostic } from './rate-limit';
 
 /**
  * What the app says when Trenara could not be reached at all.
@@ -21,6 +28,24 @@ export const TIMEOUT_MESSAGE = 'Trenara took too long to answer. Please try agai
  * will keep saying the same thing for as long as it is there.
  */
 export const MALFORMED_MESSAGE = 'Trenara sent a response this app could not read.';
+
+/**
+ * What the app says when Trenara refuses for going too fast.
+ *
+ * Named as a pause rather than a fault, because it is one: nothing is broken,
+ * nothing is lost, and waiting genuinely fixes it — which is not true of any
+ * other failure this app reports.
+ */
+export const RATE_LIMITED_MESSAGE = 'Trenara is asking this app to slow down.';
+
+/** How long to wait, in words, when Trenara said how long. */
+export function retryAfterText(seconds: number | null): string | null {
+	if (seconds === null || seconds <= 0) return null;
+	if (seconds < 60) return `about ${seconds} second${seconds === 1 ? '' : 's'}`;
+
+	const minutes = Math.ceil(seconds / 60);
+	return `about ${minutes} minute${minutes === 1 ? '' : 's'}`;
+}
 
 /**
  * Whether a failure was the connection rather than the answer.
@@ -50,7 +75,22 @@ export function isUpstreamFailure(e: unknown): boolean {
  * what this app is in front of Trenara — so that everything downstream, the
  * error page included, can tell "Trenara is down" from "we have a bug".
  */
-export function describeFailure(e: unknown): { status: number; message: string } {
+export function describeFailure(e: unknown): {
+	status: number;
+	message: string;
+	rateLimit?: RateLimitDiagnostic;
+} {
+	// Before the HttpError branch below, which would otherwise relay Trenara's
+	// own wording and lose the snapshot that makes a 429 actionable.
+	if (e instanceof RateLimitError) {
+		const wait = retryAfterText(e.diagnostic.retryAfterSeconds);
+		return {
+			status: 429,
+			message: wait ? `${RATE_LIMITED_MESSAGE} Try again in ${wait}.` : RATE_LIMITED_MESSAGE,
+			rateLimit: e.diagnostic
+		};
+	}
+
 	if (e instanceof TimeoutError) return { status: 504, message: TIMEOUT_MESSAGE };
 	if (e instanceof NetworkError) return { status: 502, message: UNREACHABLE_MESSAGE };
 	if (e instanceof MalformedResponseError) return { status: 502, message: MALFORMED_MESSAGE };
@@ -131,8 +171,10 @@ export async function passthrough<T>(fn: () => Promise<T>): Promise<T> {
 		return await fn();
 	} catch (e) {
 		if (e instanceof HttpError || isUpstreamFailure(e)) {
-			const { status, message } = describeFailure(e);
-			error(status, message);
+			const { status, message, rateLimit } = describeFailure(e);
+			// The snapshot rides along on the error body so the page can show it:
+			// the maintainer reads a preview deployment, not a server log.
+			error(status, rateLimit ? { message, rateLimit } : message);
 		}
 		throw e;
 	}

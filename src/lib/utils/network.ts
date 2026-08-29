@@ -20,6 +20,12 @@ export const TIMEOUT_MESSAGE = 'The server took too long to answer. Please try a
 export const EXPIRED_MESSAGE = 'Your session has expired. Please sign in again.';
 
 /**
+ * Worded as a pause rather than a fault, because that is what it is: the app
+ * asked for too much at once, nothing is broken, and waiting fixes it.
+ */
+export const RATE_LIMITED_MESSAGE = 'Too many requests just now — give it a moment and try again.';
+
+/**
  * Whether the browser believes there is no connection at all.
  *
  * `navigator.onLine` only ever proves the negative — true means an interface is
@@ -104,5 +110,6 @@ export function statusMessage(status: number, fallback: string): string {
 	if (status === 502 || status === 503) return UNREACHABLE_MESSAGE;
 	if (status === 504 || status === 408) return TIMEOUT_MESSAGE;
 	if (status === 401) return EXPIRED_MESSAGE;
+	if (status === 429) return RATE_LIMITED_MESSAGE;
 	return `${fallback} (${status})`;
 }

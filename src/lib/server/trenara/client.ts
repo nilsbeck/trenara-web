@@ -1,5 +1,10 @@
 import type { Cookies } from '@sveltejs/kit';
 import { TokenType } from '$lib/server/auth/types';
+import {
+	recordRequest,
+	rateLimitDiagnostic,
+	type RateLimitDiagnostic
+} from '$lib/server/trenara/rate-limit';
 
 const BASE_URL = 'https://backend-prod.trenara.com';
 
@@ -70,6 +75,25 @@ export class AuthenticationError extends HttpError {
 	constructor(message: string, data?: unknown) {
 		super(message, 401, data);
 		this.name = 'AuthenticationError';
+	}
+}
+
+/**
+ * Trenara asking this app to slow down.
+ *
+ * Carries the snapshot of what was being sent in the run-up, because a 429 on
+ * its own cannot be acted on: the fix for one endpoint being hammered and for
+ * a page opening a dozen requests at once are not the same fix, and the status
+ * looks identical either way.
+ */
+export class RateLimitError extends HttpError {
+	constructor(
+		message: string,
+		public diagnostic: RateLimitDiagnostic,
+		data?: unknown
+	) {
+		super(message, 429, data);
+		this.name = 'RateLimitError';
 	}
 }
 
@@ -275,11 +299,32 @@ class FetchClient {
 		callerSignal?.addEventListener('abort', onCallerAbort, { once: true });
 		if (callerSignal?.aborted) controller.abort();
 
+		const method = (init.method ?? 'GET').toUpperCase();
+
+		// Recorded before the answer, so the trail holds what was sent whatever
+		// comes back — including the requests that were still in flight when a
+		// sibling was refused.
+		recordRequest(method, url);
+
 		try {
 			const response = await fetch(url, { ...init, signal: controller.signal });
 
 			if (response.status === 401) {
 				throw new AuthenticationError('Unauthorized');
+			}
+
+			if (response.status === 429) {
+				const diagnostic = rateLimitDiagnostic(method, url, response.headers);
+
+				// One line, prefixed and parseable, so it can be found in the
+				// platform's log with a plain text search and pasted whole.
+				console.error(`[rate-limit] ${JSON.stringify(diagnostic)}`);
+
+				throw new RateLimitError(
+					'Trenara is rate limiting this app',
+					diagnostic,
+					await response.json().catch(() => null)
+				);
 			}
 
 			if (response.ok) {
