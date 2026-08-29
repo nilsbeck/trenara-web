@@ -1115,6 +1115,51 @@ describe('navigation', () => {
 		expect(store.currentDate.getMonth()).toBe(today.getMonth());
 	});
 
+	it('records which way each step went, for the grid to animate from', async () => {
+		const store = createCalendarStore(new Date('2025-03-15'));
+		expect(store.navigationDirection).toBe(0);
+
+		await store.navigation.goToNextMonth();
+		expect(store.navigationDirection).toBe(1);
+
+		await store.navigation.goToPreviousMonth();
+		expect(store.navigationDirection).toBe(-1);
+	});
+
+	it('records the direction of a step through the folded weeks too', async () => {
+		const store = createCalendarStore(new Date('2025-03-15'));
+		await store.setViewMode('week');
+
+		await store.navigation.goToNextWeek();
+		expect(store.navigationDirection).toBe(1);
+
+		await store.navigation.goToPreviousWeek();
+		expect(store.navigationDirection).toBe(-1);
+	});
+
+	it('calls folding the month neither forward nor back', async () => {
+		const store = createCalendarStore(new Date('2025-03-15'));
+		await store.navigation.goToNextMonth();
+		expect(store.navigationDirection).toBe(1);
+
+		await store.setViewMode('week');
+		expect(store.navigationDirection).toBe(0);
+	});
+
+	it('works out the direction of a jump to today from where the grid is sitting', async () => {
+		const past = createCalendarStore(new Date('2020-03-15'));
+		await past.navigation.goToToday();
+		expect(past.navigationDirection).toBe(1);
+
+		const future = createCalendarStore(new Date('2099-03-15'));
+		await future.navigation.goToToday();
+		expect(future.navigationDirection).toBe(-1);
+
+		const now = createCalendarStore(new Date());
+		await now.navigation.goToToday();
+		expect(now.navigationDirection).toBe(0);
+	});
+
 	it('refresh re-fetches without changing currentDate', async () => {
 		const store = createCalendarStore(new Date('2025-03-15'));
 		const monthBefore = store.currentDate.getMonth();

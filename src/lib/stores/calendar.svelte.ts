@@ -87,6 +87,18 @@ function addDays(date: Date, days: number): Date {
 	return next;
 }
 
+/** The 1st of `date`'s month, at local midnight. */
+function firstOfMonth(date: Date): Date {
+	return new Date(date.getFullYear(), date.getMonth(), 1);
+}
+
+/** Whether `to` is ahead of `from` (1), behind it (-1), or the same (0). */
+function stepSign(from: Date, to: Date): -1 | 0 | 1 {
+	if (to.getTime() > from.getTime()) return 1;
+	if (to.getTime() < from.getTime()) return -1;
+	return 0;
+}
+
 /** Monday-first index of a date's weekday: Monday 0 … Sunday 6. */
 function weekdayIndex(date: Date): number {
 	return (date.getDay() + 6) % 7;
@@ -204,6 +216,16 @@ export function createCalendarStore(initialDate: Date, options: CalendarStoreOpt
 	 * view they just asked for.
 	 */
 	let viewModeChosen = $state(false);
+
+	/**
+	 * Which way the view last stepped: 1 forward, -1 back, 0 for a move that is
+	 * neither — the opening month, a fold, a jump to today's week.
+	 *
+	 * Only the grid reads it, and only to decide which edge to bring the new
+	 * period in from. Nothing about what is shown depends on it, so a stale or
+	 * zeroed value costs an animation and nothing else.
+	 */
+	let navigationDirection = $state<-1 | 0 | 1>(0);
 
 	/**
 	 * Today, as the store understands it.
@@ -761,6 +783,10 @@ export function createCalendarStore(initialDate: Date, options: CalendarStoreOpt
 	async function setViewMode(mode: ViewMode): Promise<void> {
 		if (mode === viewMode) return;
 
+		// Folding is a change of scale, not a step through time: the grid should
+		// swap rather than slide in from one side or the other.
+		navigationDirection = 0;
+
 		if (mode === 'week') {
 			weekAnchor = mondayOf(foldAnchorDay());
 			viewMode = 'week';
@@ -801,6 +827,7 @@ export function createCalendarStore(initialDate: Date, options: CalendarStoreOpt
 	 * step.
 	 */
 	async function goToWeek(delta: number): Promise<void> {
+		navigationDirection = delta > 0 ? 1 : -1;
 		weekAnchor = addDays(weekAnchor, delta * 7);
 
 		if (selectedDate) {
@@ -830,6 +857,7 @@ export function createCalendarStore(initialDate: Date, options: CalendarStoreOpt
 
 	// Navigation
 	async function goToPreviousMonth() {
+		navigationDirection = -1;
 		const newDate = new Date(currentDate);
 		newDate.setMonth(newDate.getMonth() - 1);
 		selectedDate = null;
@@ -837,6 +865,7 @@ export function createCalendarStore(initialDate: Date, options: CalendarStoreOpt
 	}
 
 	async function goToNextMonth() {
+		navigationDirection = 1;
 		const newDate = new Date(currentDate);
 		newDate.setMonth(newDate.getMonth() + 1);
 		selectedDate = null;
@@ -845,6 +874,11 @@ export function createCalendarStore(initialDate: Date, options: CalendarStoreOpt
 
 	async function goToToday() {
 		const now = new Date();
+		// A jump can land either side of where the grid is sitting, so work the
+		// direction out from the distance rather than assuming one.
+		const from = viewMode === 'week' ? weekAnchor : firstOfMonth(currentDate);
+		const to = viewMode === 'week' ? mondayOf(now) : firstOfMonth(now);
+		navigationDirection = stepSign(from, to);
 		syncToday(now);
 		selectedDate = {
 			year: now.getFullYear(),
@@ -925,6 +959,9 @@ export function createCalendarStore(initialDate: Date, options: CalendarStoreOpt
 		},
 		get viewModeChosen() {
 			return viewModeChosen;
+		},
+		get navigationDirection() {
+			return navigationDirection;
 		},
 		get weekDays() {
 			return weekDays;
