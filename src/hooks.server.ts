@@ -2,7 +2,7 @@ import type { Handle, HandleServerError } from '@sveltejs/kit';
 import { TokenManager } from '$lib/server/auth/token-manager';
 import { verifyUserId } from '$lib/server/auth/user-identity';
 import { userApi } from '$lib/server/trenara/user';
-import { isUnreachable, describeFailure } from '$lib/server/trenara/request';
+import { isUpstreamFailure, describeFailure } from '$lib/server/trenara/request';
 
 const tokenManager = TokenManager.getInstance();
 
@@ -78,8 +78,8 @@ export const handle = handleAuth;
  * definition one whose text was never meant for them.
  */
 export const handleError: HandleServerError = ({ error, event, status, message }) => {
-	if (isUnreachable(error)) {
-		console.error(`[${event.request.method} ${event.url.pathname}] upstream unreachable:`, error);
+	if (isUpstreamFailure(error)) {
+		console.error(`[${event.request.method} ${event.url.pathname}] upstream failure:`, error);
 		return { message: describeFailure(error).message, unreachable: true };
 	}
 

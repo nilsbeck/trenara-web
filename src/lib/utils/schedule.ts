@@ -1,4 +1,5 @@
 import type { Schedule } from '$lib/server/trenara/types';
+import { dayKeyOf } from './date';
 
 /**
  * What `/api/v1/schedule` answers with.
@@ -12,13 +13,21 @@ export type SchedulePayload = Schedule & {
 };
 
 /**
- * The local `YYYY-MM-DD` an entry belongs to.
+ * The local `YYYY-MM-DD` an entry belongs to, or null if it has no usable one.
  *
  * `start_time` is an ISO instant, so it has to go through Date: a run at 23:30
  * in Berlin is dated the day before if you read the UTC string.
+ *
+ * An instant Date cannot read used to come back as `NaN-NaN-NaN` — a key that
+ * matches no day, silently filing the entry nowhere. Null says the same thing
+ * honestly, and callers comparing it against a date string skip the row.
  */
-export function entryLocalDate(startTime: string): string {
+export function entryLocalDate(startTime: string | null | undefined): string | null {
+	if (typeof startTime !== 'string') return null;
+
 	const d = new Date(startTime);
+	if (Number.isNaN(d.getTime())) return null;
+
 	const y = d.getFullYear();
 	const m = String(d.getMonth() + 1).padStart(2, '0');
 	const day = String(d.getDate()).padStart(2, '0');
@@ -39,17 +48,23 @@ export function entryLocalDate(startTime: string): string {
  * happens downstream.
  */
 export function mergeSchedule(cached: Schedule, incoming: Schedule, coveredFrom: string): Schedule {
-	const before = <T>(items: T[] | undefined, dateOf: (item: T) => string): T[] =>
-		(items ?? []).filter((item) => dateOf(item) < coveredFrom);
+	// A row whose date cannot be read is dropped rather than kept: it cannot be
+	// shown in any cell, and nothing that arrives later can replace it, so
+	// keeping it would carry it through every merge for the life of the cache.
+	const before = <T>(items: T[] | undefined, dateOf: (item: T) => string | null): T[] =>
+		(items ?? []).filter((item) => {
+			const date = dateOf(item);
+			return date !== null && date < coveredFrom;
+		});
 
 	return {
 		...incoming,
 		trainings: [
-			...before(cached.trainings, (t) => t.day_long.slice(0, 10)),
+			...before(cached.trainings, (t) => dayKeyOf(t.day_long)),
 			...(incoming.trainings ?? [])
 		],
 		strength_trainings: [
-			...before(cached.strength_trainings, (s) => s.day.slice(0, 10)),
+			...before(cached.strength_trainings, (s) => dayKeyOf(s.day)),
 			...(incoming.strength_trainings ?? [])
 		],
 		entries: [

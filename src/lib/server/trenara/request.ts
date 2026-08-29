@@ -1,6 +1,6 @@
 import { error } from '@sveltejs/kit';
 import type { ZodType } from 'zod';
-import { HttpError, NetworkError, TimeoutError } from './client';
+import { HttpError, MalformedResponseError, NetworkError, TimeoutError } from './client';
 
 /**
  * What the app says when Trenara could not be reached at all.
@@ -14,6 +14,15 @@ export const UNREACHABLE_MESSAGE = 'Trenara could not be reached. Please try aga
 export const TIMEOUT_MESSAGE = 'Trenara took too long to answer. Please try again.';
 
 /**
+ * What the app says when Trenara answered with something it cannot read.
+ *
+ * Deliberately not "try again": a body that is not the JSON it claimed to be
+ * is usually a proxy or a maintenance page standing in for the API, and it
+ * will keep saying the same thing for as long as it is there.
+ */
+export const MALFORMED_MESSAGE = 'Trenara sent a response this app could not read.';
+
+/**
  * Whether a failure was the connection rather than the answer.
  *
  * These two are the reason this exists at all: neither carries an HTTP status,
@@ -22,6 +31,16 @@ export const TIMEOUT_MESSAGE = 'Trenara took too long to answer. Please try agai
  */
 export function isUnreachable(e: unknown): boolean {
 	return e instanceof NetworkError || e instanceof TimeoutError;
+}
+
+/**
+ * Whether the failure was upstream's rather than this app's.
+ *
+ * The set `handleError` treats as "not our bug" — the connection, and a body
+ * that could not be read as what it claimed to be.
+ */
+export function isUpstreamFailure(e: unknown): boolean {
+	return isUnreachable(e) || e instanceof MalformedResponseError;
 }
 
 /**
@@ -34,6 +53,7 @@ export function isUnreachable(e: unknown): boolean {
 export function describeFailure(e: unknown): { status: number; message: string } {
 	if (e instanceof TimeoutError) return { status: 504, message: TIMEOUT_MESSAGE };
 	if (e instanceof NetworkError) return { status: 502, message: UNREACHABLE_MESSAGE };
+	if (e instanceof MalformedResponseError) return { status: 502, message: MALFORMED_MESSAGE };
 	if (e instanceof HttpError) {
 		return { status: toErrorStatus(e.status), message: describeUpstreamError(e) };
 	}
@@ -110,7 +130,7 @@ export async function passthrough<T>(fn: () => Promise<T>): Promise<T> {
 	try {
 		return await fn();
 	} catch (e) {
-		if (e instanceof HttpError || isUnreachable(e)) {
+		if (e instanceof HttpError || isUpstreamFailure(e)) {
 			const { status, message } = describeFailure(e);
 			error(status, message);
 		}

@@ -1,5 +1,11 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { HttpError, AuthenticationError, NetworkError, TimeoutError } from './client';
+import {
+	HttpError,
+	AuthenticationError,
+	MalformedResponseError,
+	NetworkError,
+	TimeoutError
+} from './client';
 
 // ─────────────────────────────────────────────────────────────
 // We can't directly access the private FetchClient class, but
@@ -423,5 +429,58 @@ describe('the budget floor', () => {
 		await expect(
 			fetchClient.get('/api/silent', { timeout: 0, budget: 100, retries: 0 })
 		).rejects.toThrow(TimeoutError);
+	});
+});
+
+// ─────────────────────────────────────────────────────────────
+// A body that is not what it said it was
+// ─────────────────────────────────────────────────────────────
+describe('a response that claims JSON and is not', () => {
+	/** A 200 whose content-type says JSON but whose body will not parse. */
+	function notJson() {
+		return {
+			ok: true,
+			status: 200,
+			statusText: 'OK',
+			url: 'https://backend-prod.trenara.com/api/me',
+			headers: new Headers({ 'content-type': 'application/json' }),
+			json: () => Promise.reject(new SyntaxError('Unexpected token < in JSON at position 0')),
+			text: () => Promise.resolve('<html>maintenance</html>')
+		} as unknown as Response;
+	}
+
+	// A proxy's HTML error page or a maintenance splash standing in for the
+	// API. It used to escape as a bare SyntaxError and be reported as a bug in
+	// this app, which points at the wrong server.
+	it('is a malformed response, not a bug in this app', async () => {
+		vi.mocked(fetch).mockResolvedValue(notJson());
+
+		await expect(fetchClient.get('/api/me')).rejects.toThrow(MalformedResponseError);
+	});
+
+	it('names the endpoint that sent it', async () => {
+		vi.mocked(fetch).mockResolvedValue(notJson());
+
+		await expect(fetchClient.get('/api/me')).rejects.toThrow(/api\/me/);
+	});
+
+	// Retrying cannot turn an HTML page into JSON. A truncated body is the
+	// other case entirely — that one is transport trouble, and is retried.
+	it('does not retry a body that simply is not JSON', async () => {
+		vi.mocked(fetch).mockResolvedValue(notJson());
+
+		await expect(fetchClient.get('/api/me')).rejects.toThrow(MalformedResponseError);
+		expect(fetch).toHaveBeenCalledTimes(1);
+	});
+
+	it('treats a body that died mid-transfer as a network failure instead', async () => {
+		const truncated = notJson() as unknown as { json: () => Promise<unknown> };
+		const terminated = new TypeError('terminated');
+		(terminated as Error & { cause?: unknown }).cause = new Error('aborted');
+		truncated.json = () => Promise.reject(terminated);
+		vi.mocked(fetch).mockResolvedValue(truncated as unknown as Response);
+
+		await expect(fetchClient.get('/api/me')).rejects.toThrow(NetworkError);
+		expect(fetch).toHaveBeenCalledTimes(2);
 	});
 });

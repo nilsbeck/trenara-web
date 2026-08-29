@@ -90,6 +90,25 @@ export class TimeoutError extends Error {
 	}
 }
 
+/**
+ * An answer that arrived but was not the kind of thing it said it was.
+ *
+ * Distinct from `HttpError`, which is Trenara refusing in its own words. This
+ * is a 200 whose body is not the JSON its `content-type` promised — a proxy's
+ * HTML error page, a truncated payload, a maintenance splash. Left as the raw
+ * `SyntaxError` it used to be, it reached the runner as "Something went wrong
+ * on our side", which points at the wrong server.
+ */
+export class MalformedResponseError extends Error {
+	constructor(
+		message: string,
+		public override cause?: unknown
+	) {
+		super(message);
+		this.name = 'MalformedResponseError';
+	}
+}
+
 /** True for the failures that say nothing about whether the request landed. */
 export function isTransportError(error: unknown): error is NetworkError | TimeoutError {
 	return error instanceof NetworkError || error instanceof TimeoutError;
@@ -205,6 +224,27 @@ class FetchClient {
 	}
 
 	/**
+	 * Read a body that said it was JSON, insisting that it is.
+	 *
+	 * A truncated body rejects with a `TypeError` carrying a cause, which is
+	 * transport trouble and worth another attempt; anything else is a body that
+	 * is simply not JSON, which retrying cannot fix.
+	 */
+	private async readJson<T>(response: Response): Promise<T> {
+		try {
+			return (await response.json()) as T;
+		} catch (error) {
+			const transport = asNetworkError(error);
+			if (transport) throw transport;
+
+			throw new MalformedResponseError(
+				`Expected JSON from ${response.url || 'Trenara'} but the body could not be parsed`,
+				error
+			);
+		}
+	}
+
+	/**
 	 * One attempt: send it, wait no longer than `timeout`, and translate the
 	 * answer into either a value or one of this module's error types.
 	 *
@@ -246,7 +286,7 @@ class FetchClient {
 				if (response.status === 204) return undefined as T;
 				const contentType = response.headers.get('content-type');
 				if (contentType?.includes('application/json')) {
-					return (await response.json()) as T;
+					return (await this.readJson<T>(response)) as T;
 				}
 				return (await response.text()) as unknown as T;
 			}

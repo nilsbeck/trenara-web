@@ -11,7 +11,8 @@ import {
 	formatSpeedKmh,
 	formatSignedDuration,
 	secondsToDuration,
-	shortenPaceUnit
+	shortenPaceUnit,
+	NO_VALUE
 } from './format';
 
 // ─────────────────────────────────────────────────────────────
@@ -323,5 +324,96 @@ describe('shortenPaceUnit', () => {
 
 	it('leaves a pace that carries no unit alone', () => {
 		expect(shortenPaceUnit('5:16')).toBe('5:16');
+	});
+});
+
+// ─────────────────────────────────────────────────────────────
+// Values the API sends that no capture predicted
+//
+// The fields these read are typed `string` because that is what every
+// capture has held — not because the API promises one. A null for an
+// account with no runs yet, or a `"--:--"` placeholder, arrives without
+// notice, and none of it is worth taking a page down over.
+// ─────────────────────────────────────────────────────────────
+describe('parsing a value that is not a time', () => {
+	it('reads a missing time as no time rather than throwing', () => {
+		// This used to be `null.split(':')` — a TypeError thrown halfway
+		// through rendering the predictions table, which took the card with it.
+		expect(timeStringToSeconds(null)).toBe(0);
+		expect(timeStringToSeconds(undefined)).toBe(0);
+		expect(paceStringToSeconds(null)).toBe(0);
+		expect(paceStringToSeconds(undefined)).toBe(0);
+	});
+
+	// The contract `race-equivalent` is written against: "a malformed time
+	// reaches here as a zero", which `usablePoints` then drops. A NaN instead
+	// spread through the curve and surfaced as `NaN:NaN:NaN` on screen.
+	it('reads a placeholder as zero, not as NaN', () => {
+		expect(timeStringToSeconds('--:--')).toBe(0);
+		expect(timeStringToSeconds('1:2x:3')).toBe(0);
+		expect(timeStringToSeconds('n/a')).toBe(0);
+		expect(paceStringToSeconds('--:--')).toBe(0);
+		expect(paceStringToSeconds('rest')).toBe(0);
+	});
+
+	it('does not read a blank field as midnight', () => {
+		// `Number('')` and `Number('  ')` are both 0, so a blank field used to
+		// parse as a real time of zero rather than as nothing at all.
+		expect(timeStringToSeconds(':')).toBe(0);
+		expect(timeStringToSeconds('1: :3')).toBe(0);
+		expect(paceStringToSeconds(' : ')).toBe(0);
+	});
+
+	it('still reads the times it always did', () => {
+		expect(timeStringToSeconds('1:30:00')).toBe(5400);
+		expect(paceStringToSeconds('5:30 min/km')).toBe(330);
+		expect(paceStringToSeconds('8:29 min/mi')).toBe(509);
+	});
+});
+
+describe('formatting a value that is not a duration', () => {
+	it('shows an absence rather than NaN', () => {
+		for (const bad of [NaN, Infinity, -Infinity]) {
+			expect(secondsToTimeString(bad)).toBe(NO_VALUE);
+			expect(secondsToDuration(bad)).toBe(NO_VALUE);
+			expect(secondsToPaceString(bad)).toBe(NO_VALUE);
+		}
+		expect(formatSignedDuration(NaN)).toBe(NO_VALUE);
+	});
+
+	// -5 seconds used to format as "-1:59:55", which is not a shorter time or
+	// a longer one. A signed gap is `formatSignedDuration`'s job.
+	it('refuses a negative duration rather than wrapping it', () => {
+		expect(secondsToTimeString(-5)).toBe(NO_VALUE);
+		expect(secondsToDuration(-5)).toBe(NO_VALUE);
+		expect(secondsToPaceString(-5)).toBe(NO_VALUE);
+	});
+
+	it('still formats the durations it always did', () => {
+		expect(secondsToTimeString(3661)).toBe('1:01:01');
+		expect(secondsToDuration(1169)).toBe('19:29');
+		expect(formatSignedDuration(-432)).toBe('−7:12');
+	});
+});
+
+describe('formatting a value that is not a date or a clock string', () => {
+	it('does not print the words "Invalid Date" onto a chart axis', () => {
+		expect(formatDateShort('n/a')).toBe(NO_VALUE);
+		expect(formatDateShort('')).toBe(NO_VALUE);
+		expect(formatDateShort(null)).toBe(NO_VALUE);
+		expect(formatDateShort(undefined)).toBe(NO_VALUE);
+	});
+
+	it('shows an absent time or pace as absent', () => {
+		expect(formatTime(null)).toBe(NO_VALUE);
+		expect(formatTime('')).toBe(NO_VALUE);
+		expect(formatPace(null)).toBe(NO_VALUE);
+		expect(formatPace('   ')).toBe(NO_VALUE);
+	});
+
+	it('still formats what it always did', () => {
+		expect(formatDateShort('2025-01-05')).toBe('Jan 5');
+		expect(formatTime('45:00')).toBe('45:00min');
+		expect(formatPace('4:15 min/km')).toBe('4:15 min/km');
 	});
 });

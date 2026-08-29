@@ -95,3 +95,83 @@ describe('the distance slider', () => {
 		expect(slider()).toHaveAttribute('aria-valuetext', '10 km, 40:56');
 	});
 });
+
+// ─────────────────────────────────────────────────────────────
+// An account the API has no predictions for yet
+//
+// `best_times` is typed as a block of strings because that is what every
+// capture of an established account has held. A runner who has just signed
+// up has no best times to predict from, and the fields came back null —
+// which `timeStringToSeconds` met with `null.split(':')`, taking down the
+// card mid-render.
+// ─────────────────────────────────────────────────────────────
+describe('a best_times block with nothing in it', () => {
+	const empty = {
+		best_times: {
+			distance_unit: 'km',
+			pace_unit: 'min/km',
+			pace_for_5: null,
+			time_for_5: null,
+			pace_for_10: null,
+			time_for_10: null,
+			pace_for_half_marathon: null,
+			time_for_half_marathon: null,
+			pace_for_marathon: null,
+			time_for_marathon: null,
+			pace_for_goal: null,
+			time_for_goal: null
+		}
+	} as unknown as UserStats;
+
+	it('renders the card instead of throwing', () => {
+		expect(() => render(PredictionsCard, { userStats: empty })).not.toThrow();
+		expect(screen.getByText('Race Predictions')).toBeTruthy();
+	});
+
+	it('still names every distance, with the times marked absent', () => {
+		render(PredictionsCard, { userStats: empty });
+
+		for (const distance of ['5 km', '10 km', '21.1 km', '42.2 km']) {
+			expect(screen.getByText(distance)).toBeTruthy();
+		}
+		// Two cells a row, four rows, none of them a time.
+		expect(screen.getAllByText('-')).toHaveLength(8);
+	});
+
+	// There is no curve to read without at least one prediction on it, so the
+	// slider is not offered rather than offered reading nothing.
+	it('leaves out the slider it has no curve for', () => {
+		render(PredictionsCard, { userStats: empty });
+		expect(screen.queryByTestId('any-distance')).toBeNull();
+	});
+});
+
+describe('a best_times block with only some rows filled in', () => {
+	it('reads the curve off the rows that are there', () => {
+		// A runner with a 5 km and a 10 km but no long races yet.
+		const partial = {
+			best_times: {
+				distance_unit: 'km',
+				pace_unit: 'min/km',
+				pace_for_5: '03:54',
+				time_for_5: '00:19:29',
+				pace_for_10: '04:05',
+				time_for_10: '00:40:56',
+				pace_for_half_marathon: null,
+				time_for_half_marathon: null,
+				pace_for_marathon: '--:--',
+				time_for_marathon: '--:--',
+				pace_for_goal: null,
+				time_for_goal: null
+			}
+		} as unknown as UserStats;
+
+		render(PredictionsCard, { userStats: partial });
+
+		// The two real rows are enough for a slope, so the slider is offered.
+		expect(screen.getByTestId('any-distance')).toBeTruthy();
+		// And it reproduces the 10 km the table states, rather than being
+		// dragged off by the placeholder rows parsing as a time of zero.
+		expect(panel().getByText('40:56')).toBeTruthy();
+	});
+});

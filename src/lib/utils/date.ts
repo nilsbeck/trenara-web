@@ -28,6 +28,38 @@ export function toLocalDateString(date: Date): string {
 	return formatDateString(date.getFullYear(), date.getMonth(), date.getDate());
 }
 
+/**
+ * An API date field as a Date, or null when it does not name a moment.
+ *
+ * `new Date(...)` answers an unreadable string with an Invalid Date rather than
+ * an error, and an Invalid Date is contagious: it compares false against
+ * everything, formats as the words "Invalid Date", and turns every subtraction
+ * downstream into a NaN that reaches the screen as `NaN%` or "NaN days".
+ */
+export function toDate(value: string | null | undefined): Date | null {
+	if (typeof value !== 'string' || !value.trim()) return null;
+
+	const date = new Date(value);
+	return Number.isNaN(date.getTime()) ? null : date;
+}
+
+/**
+ * The `YYYY-MM-DD` an API date field names, or null when it names nothing.
+ *
+ * Every dated row from Trenara — a planned session's `day_long`, a strength
+ * session's `day` — is typed `string` because that is what every capture has
+ * held, not because the API promises one. The calendar keys its whole index off
+ * these, and a `.slice` on a null took the month down over a single row; a null
+ * here costs that row its dot and nothing else.
+ *
+ * A prefix match rather than an exact one: `day_long` arrives as a bare date on
+ * some rows and as a full timestamp on others, and both name the same day.
+ */
+export function dayKeyOf(value: string | null | undefined): string | null {
+	if (typeof value !== 'string') return null;
+	return /^\d{4}-\d{2}-\d{2}/.test(value) ? value.slice(0, 10) : null;
+}
+
 /** `YYYY-MM-DD` back to local midnight. Null on anything that is not that shape. */
 export function parseLocalDateString(value: string): Date | null {
 	const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);

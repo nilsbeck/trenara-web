@@ -21,14 +21,15 @@
 	import { forecast, earnCutoff, type ForecastPoint } from '$lib/utils/forecast';
 	import { readPlanWeeks } from '$lib/utils/plan-weeks';
 	import { paceTrend } from '$lib/utils/prediction-graph';
-	import { weeksRemaining } from '$lib/utils/date';
+	import { toDate, weeksRemaining } from '$lib/utils/date';
 	import {
 		timeStringToSeconds,
 		paceStringToSeconds,
 		formatSignedDuration,
 		secondsToTimeString,
 		secondsToPaceString,
-		shortenPaceUnit
+		shortenPaceUnit,
+		NO_VALUE
 	} from '$lib/utils/format';
 
 	let {
@@ -95,24 +96,41 @@
 
 	// ── Dates & progress ───────────────────────────────────────────
 	const now = new Date();
-	const startDate = $derived(new Date(goal.start_date));
-	const endDate = $derived(new Date(goal.end_date));
-	const isPast = $derived(now > endDate);
 
+	// Read rather than trusted: an unreadable date used to reach the screen as
+	// "Invalid Date", a bar of `NaN%` width and a "Day NaN of NaN" underneath
+	// it, because every sum below is a subtraction of two of these.
+	const startDate = $derived(toDate(goal.start_date));
+	const endDate = $derived(toDate(goal.end_date));
+	const isPast = $derived(endDate !== null && now > endDate);
+
+	/** The length of the plan in days, or null when the dates do not give one. */
 	const totalDays = $derived(
-		Math.max(1, Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)))
+		startDate && endDate
+			? Math.max(1, Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)))
+			: null
 	);
 	const daysPassed = $derived(
-		Math.max(0, Math.ceil((now.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)))
+		startDate
+			? Math.max(0, Math.ceil((now.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)))
+			: null
 	);
-	const progress = $derived(Math.min(100, Math.max(0, (daysPassed / totalDays) * 100)));
+
+	/** Null rather than 0 when the span is unknown: an empty bar is a claim too. */
+	const progress = $derived(
+		totalDays !== null && daysPassed !== null
+			? Math.min(100, Math.max(0, (daysPassed / totalDays) * 100))
+			: null
+	);
 
 	// Shared with the dashboard's collapsed strip, which makes the same claim
 	// about the same goal a few pixels above this card.
-	const weeksLeft = $derived(weeksRemaining(endDate, now));
+	const weeksLeft = $derived(endDate ? weeksRemaining(endDate, now) : null);
 
 	const formattedEndDate = $derived(
-		endDate.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })
+		endDate
+			? endDate.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })
+			: NO_VALUE
 	);
 
 	// ── Which graph is on show ─────────────────────────────────────
@@ -178,7 +196,7 @@
 		};
 	});
 
-	const raceDay = $derived(goal.end_date ? new Date(goal.end_date) : null);
+	const raceDay = $derived(endDate);
 
 	/**
 	 * Where this runner lands on race day, given what they have actually done.
@@ -191,7 +209,7 @@
 	 */
 	const raceForecast = $derived.by(() => {
 		const predicted = userStats?.best_times?.time_for_goal;
-		if (!raceDay || isPast || !predicted || !goal.time_in_sec) return null;
+		if (!raceDay || !startDate || isPast || !predicted || !goal.time_in_sec) return null;
 
 		const plan = readPlanWeeks(userStats?.graph_stats?.goal);
 		if (plan.weeks.length === 0) return null;
@@ -602,7 +620,9 @@
 				<Calendar class="h-4 w-4 shrink-0" />
 				<span class="whitespace-nowrap">{formattedEndDate}</span>
 				<span class="whitespace-nowrap">{goal.distance}</span>
-				<span class="whitespace-nowrap">{weeksLeft} weeks remaining</span>
+				{#if weeksLeft !== null}
+					<span class="whitespace-nowrap">{weeksLeft} weeks remaining</span>
+				{/if}
 			</div>
 		{/if}
 
@@ -723,24 +743,30 @@
 						</div>
 					{/if}
 
-					<!-- Progress bar -->
-					<div class="mb-6">
-						<div class="flex items-center justify-between mb-1.5">
-							<span class="text-xs font-medium text-muted-foreground">Training Progress</span>
-							<span class="text-xs font-medium text-muted-foreground">{Math.round(progress)}%</span>
+					<!-- Progress bar. Drawn only when the goal's own dates say how long
+					     it runs for — a bar with nothing behind it states a position
+					     in a plan, which is the one thing it must not invent. -->
+					{#if progress !== null && totalDays !== null && daysPassed !== null}
+						<div class="mb-6">
+							<div class="flex items-center justify-between mb-1.5">
+								<span class="text-xs font-medium text-muted-foreground">Training Progress</span>
+								<span class="text-xs font-medium text-muted-foreground">
+									{Math.round(progress)}%
+								</span>
+							</div>
+							<div class="h-2 w-full overflow-hidden rounded-full bg-muted">
+								<div
+									class="h-full rounded-full bg-primary transition-all duration-300"
+									style="width: {progress}%"
+								></div>
+							</div>
+							<div class="flex items-center justify-between mt-1.5">
+								<span class="text-xs text-muted-foreground">
+									Day {Math.min(daysPassed, totalDays)} of {totalDays}
+								</span>
+							</div>
 						</div>
-						<div class="h-2 w-full overflow-hidden rounded-full bg-muted">
-							<div
-								class="h-full rounded-full bg-primary transition-all duration-300"
-								style="width: {progress}%"
-							></div>
-						</div>
-						<div class="flex items-center justify-between mt-1.5">
-							<span class="text-xs text-muted-foreground">
-								Day {Math.min(daysPassed, totalDays)} of {totalDays}
-							</span>
-						</div>
-					</div>
+					{/if}
 
 					<!-- Prediction / distance chart -->
 					<div>

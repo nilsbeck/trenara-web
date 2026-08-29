@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { z } from 'zod';
-import { HttpError, NetworkError, TimeoutError } from './client';
+import { HttpError, MalformedResponseError, NetworkError, TimeoutError } from './client';
 import {
 	describeFailure,
 	describeUpstreamError,
@@ -8,7 +8,9 @@ import {
 	parseBody,
 	passthrough,
 	TIMEOUT_MESSAGE,
-	UNREACHABLE_MESSAGE
+	UNREACHABLE_MESSAGE,
+	MALFORMED_MESSAGE,
+	isUpstreamFailure
 } from './request';
 import { trainingConditionSchema } from '$lib/schemas/training';
 import { SURFACES } from '$lib/utils/session-setup';
@@ -221,5 +223,28 @@ describe('passthrough', () => {
 	it('lets anything else through unchanged', async () => {
 		const bug = new TypeError('x is not a function');
 		await expect(passthrough(() => Promise.reject(bug))).rejects.toBe(bug);
+	});
+});
+
+describe('describeFailure on a body that could not be read', () => {
+	// 502, the same as an unreachable server, because that is what it is: the
+	// answer did not come from the API, whatever served it.
+	it('is a 502 that does not blame this app', () => {
+		const described = describeFailure(new MalformedResponseError('bad body'));
+
+		expect(described.status).toBe(502);
+		expect(described.message).toBe(MALFORMED_MESSAGE);
+	});
+
+	// Deliberately not "try again": a maintenance page will keep saying the
+	// same thing for as long as it is there.
+	it('does not promise a retry will help', () => {
+		expect(MALFORMED_MESSAGE).not.toContain('try again');
+	});
+
+	it('counts as an upstream failure, so handleError does not call it our bug', () => {
+		expect(isUpstreamFailure(new MalformedResponseError('bad body'))).toBe(true);
+		expect(isUpstreamFailure(new NetworkError('down'))).toBe(true);
+		expect(isUpstreamFailure(new TypeError('x is not a function'))).toBe(false);
 	});
 });

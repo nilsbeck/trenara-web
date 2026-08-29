@@ -6,7 +6,9 @@ import {
 	parseLocalDateString,
 	toLocalDateString,
 	weeksStillOpen,
-	weeksRemaining
+	weeksRemaining,
+	dayKeyOf,
+	toDate
 } from './date';
 
 // ─────────────────────────────────────────────────────────────
@@ -239,5 +241,43 @@ describe('weeksRemaining', () => {
 
 	it('floors at zero rather than counting backwards past race day', () => {
 		expect(weeksRemaining(new Date('2026-07-01T12:00:00Z'), now)).toBe(0);
+	});
+});
+
+// ─────────────────────────────────────────────────────────────
+// Reading a date field the API typed but did not promise
+// ─────────────────────────────────────────────────────────────
+describe('dayKeyOf', () => {
+	it('reads a day out of either shape the API sends it in', () => {
+		// `day_long` arrives bare on some rows and as a timestamp on others.
+		expect(dayKeyOf('2026-08-26')).toBe('2026-08-26');
+		expect(dayKeyOf('2026-08-26 00:00:00')).toBe('2026-08-26');
+		expect(dayKeyOf('2026-08-26T09:00:00+02:00')).toBe('2026-08-26');
+	});
+
+	// The calendar keys its whole index off these. A `.slice` on a null threw,
+	// taking the month down over one row.
+	it('is null for anything that does not name a day', () => {
+		expect(dayKeyOf(null)).toBeNull();
+		expect(dayKeyOf(undefined)).toBeNull();
+		expect(dayKeyOf('')).toBeNull();
+		expect(dayKeyOf('not a date')).toBeNull();
+		expect(dayKeyOf('26-08-2026')).toBeNull();
+	});
+});
+
+describe('toDate', () => {
+	it('reads a date the API sent', () => {
+		expect(toDate('2026-04-19')?.getFullYear()).toBe(2026);
+	});
+
+	// An Invalid Date compares false against everything and formats as the
+	// words "Invalid Date", so it has to be caught where it is made.
+	it('is null rather than an Invalid Date', () => {
+		expect(toDate('n/a')).toBeNull();
+		expect(toDate('')).toBeNull();
+		expect(toDate('   ')).toBeNull();
+		expect(toDate(null)).toBeNull();
+		expect(toDate(undefined)).toBeNull();
 	});
 });
