@@ -200,7 +200,7 @@
 							</a>
 							<a
 								href="/goal"
-								class="flex items-center gap-2 px-4 py-2 text-sm text-foreground hover:bg-accent md:hidden"
+								class="flex items-center gap-2 px-4 py-2 text-sm text-foreground hover:bg-accent sm:hidden"
 								role="menuitem"
 								onclick={closeMenu}
 							>

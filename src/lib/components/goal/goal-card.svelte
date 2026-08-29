@@ -9,6 +9,7 @@
 	import { readWeekDistance, readGoalDistance } from '$lib/utils/distance-graph';
 	import { forecast, earnCutoff, type ForecastPoint } from '$lib/utils/forecast';
 	import { readPlanWeeks } from '$lib/utils/plan-weeks';
+	import { weeksRemaining } from '$lib/utils/goal-summary';
 	import {
 		timeStringToSeconds,
 		paceStringToSeconds,
@@ -33,9 +34,9 @@
 	);
 	const progress = $derived(Math.min(100, Math.max(0, (daysPassed / totalDays) * 100)));
 
-	const weeksRemaining = $derived(
-		Math.max(0, Math.ceil((endDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24 * 7)))
-	);
+	// Shared with the dashboard's collapsed strip, which makes the same claim
+	// about the same goal a few pixels above this card.
+	const weeksLeft = $derived(weeksRemaining(endDate, now));
 
 	const formattedEndDate = $derived(
 		endDate.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })
@@ -485,7 +486,7 @@
 			<span class="text-border">|</span>
 			<span>{goal.distance}</span>
 			<span class="text-border">|</span>
-			<span>{weeksRemaining} weeks remaining</span>
+			<span>{weeksLeft} weeks remaining</span>
 		</div>
 
 		<!-- Pace / Time table -->
