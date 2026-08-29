@@ -1,7 +1,7 @@
 import { json, error } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { trainingApi } from '$lib/server/trenara';
-import { HttpError } from '$lib/server/trenara/client';
+import { passthrough } from '$lib/server/trenara/request';
 import { changeDateSchema } from '$lib/schemas/training';
 
 export const PUT: RequestHandler = async ({ request, cookies, locals }) => {
@@ -18,18 +18,13 @@ export const PUT: RequestHandler = async ({ request, cookies, locals }) => {
 
 	const { entryId, newDate, includeFuture, action } = result.data;
 
-	try {
-		if (action === 'test') {
-			const data = await trainingApi.testChangeDate(cookies, entryId, newDate, includeFuture);
-			return json(data);
-		}
-
-		const data = await trainingApi.saveChangeDate(cookies, entryId, newDate, includeFuture);
-		return json(data);
-	} catch (e) {
-		if (e instanceof HttpError) {
-			error(e.status, e.message);
-		}
-		throw e;
+	if (action === 'test') {
+		return json(
+			await passthrough(() => trainingApi.testChangeDate(cookies, entryId, newDate, includeFuture))
+		);
 	}
+
+	return json(
+		await passthrough(() => trainingApi.saveChangeDate(cookies, entryId, newDate, includeFuture))
+	);
 };

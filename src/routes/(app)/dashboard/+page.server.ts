@@ -1,4 +1,5 @@
 import { trainingApi, userApi } from '$lib/server/trenara';
+import { passthrough } from '$lib/server/trenara/request';
 import type { Schedule } from '$lib/server/trenara/types';
 import { getMonthTimestamps } from '$lib/utils/date';
 import type { PageServerLoad } from './$types';
@@ -25,9 +26,14 @@ export const load: PageServerLoad = async ({ cookies }) => {
  * grafted onto. Refreshes go through the API route, which does trim.
  */
 async function getMonthlySchedule(cookies: import('@sveltejs/kit').Cookies): Promise<Schedule> {
-	const schedules = await Promise.all(
-		getMonthTimestamps(new Date()).map((ts) =>
-			trainingApi.getSchedule(cookies, Math.floor(ts.getTime() / 1000))
+	// The calendar is the page, so this one is allowed to fail it — but it has
+	// to fail it as a status the error page can speak to. Left bare, a Trenara
+	// outage told the runner "Internal Error", which points at the wrong server.
+	const schedules = await passthrough(() =>
+		Promise.all(
+			getMonthTimestamps(new Date()).map((ts) =>
+				trainingApi.getSchedule(cookies, Math.floor(ts.getTime() / 1000))
+			)
 		)
 	);
 

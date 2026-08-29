@@ -1,7 +1,15 @@
 import { describe, it, expect } from 'vitest';
 import { z } from 'zod';
-import { HttpError } from './client';
-import { describeUpstreamError, parseBody } from './request';
+import { HttpError, NetworkError, TimeoutError } from './client';
+import {
+	describeFailure,
+	describeUpstreamError,
+	isUnreachable,
+	parseBody,
+	passthrough,
+	TIMEOUT_MESSAGE,
+	UNREACHABLE_MESSAGE
+} from './request';
 import { trainingConditionSchema } from '$lib/schemas/training';
 import { SURFACES } from '$lib/utils/session-setup';
 
@@ -111,5 +119,107 @@ describe('the terrain body the picker composes', () => {
 			});
 			expect(parsed.success, `${surface.value} is not accepted`).toBe(true);
 		}
+	});
+});
+
+describe('isUnreachable', () => {
+	it('is true for the failures that never got an answer', () => {
+		expect(isUnreachable(new NetworkError('Network request failed'))).toBe(true);
+		expect(isUnreachable(new TimeoutError())).toBe(true);
+	});
+
+	it('is false for an answer, however unwelcome', () => {
+		expect(isUnreachable(new HttpError('Server error', 500))).toBe(false);
+		expect(isUnreachable(new Error('boom'))).toBe(false);
+		expect(isUnreachable(null)).toBe(false);
+	});
+});
+
+describe('describeFailure', () => {
+	// The gateway statuses, because that is what this app is in front of
+	// Trenara: they let everything downstream tell "Trenara is down" from
+	// "we have a bug", which a 500 for both cannot.
+	it('answers a dead connection with 502 and a timeout with 504', () => {
+		expect(describeFailure(new NetworkError('Network request failed'))).toEqual({
+			status: 502,
+			message: UNREACHABLE_MESSAGE
+		});
+		expect(describeFailure(new TimeoutError())).toEqual({
+			status: 504,
+			message: TIMEOUT_MESSAGE
+		});
+	});
+
+	it('relays an upstream refusal with its own status and every field it named', () => {
+		const e = new HttpError('Unprocessable', 422, {
+			errors: { surface: ['The selected surface is invalid.'] }
+		});
+
+		expect(describeFailure(e)).toEqual({
+			status: 422,
+			message: 'surface: The selected surface is invalid.'
+		});
+	});
+
+	// `error()` throws on anything outside 400–599, so relaying a status
+	// verbatim would crash inside the error path instead of reporting from it.
+	it('folds an out-of-range upstream status into one that can be reported', () => {
+		expect(describeFailure(new HttpError('Weird', 0)).status).toBe(502);
+		expect(describeFailure(new HttpError('Moved', 302)).status).toBe(502);
+		expect(describeFailure(new HttpError('Nonsense', 600)).status).toBe(502);
+	});
+
+	it('says nothing revealing about a failure it does not recognise', () => {
+		const described = describeFailure(new Error('connect ECONNREFUSED 10.0.0.1:5432'));
+		expect(described.status).toBe(500);
+		expect(described.message).not.toContain('ECONNREFUSED');
+	});
+});
+
+describe('passthrough', () => {
+	/** The status and message a SvelteKit error was thrown with. */
+	async function statusOf(fn: () => Promise<unknown>) {
+		try {
+			await fn();
+		} catch (e) {
+			return e as { status: number; body: { message: string } };
+		}
+		throw new Error('expected a failure');
+	}
+
+	it('returns the value when the call succeeds', async () => {
+		expect(await passthrough(async () => ({ id: 1 }))).toEqual({ id: 1 });
+	});
+
+	it('turns an unreachable upstream into a 502 the error page can speak to', async () => {
+		const thrown = await statusOf(() =>
+			passthrough(() => Promise.reject(new NetworkError('Network request failed')))
+		);
+
+		expect(thrown.status).toBe(502);
+		expect(thrown.body.message).toBe(UNREACHABLE_MESSAGE);
+	});
+
+	it('turns a timeout into a 504', async () => {
+		const thrown = await statusOf(() => passthrough(() => Promise.reject(new TimeoutError())));
+
+		expect(thrown.status).toBe(504);
+		expect(thrown.body.message).toBe(TIMEOUT_MESSAGE);
+	});
+
+	it('passes an upstream refusal through with its own status', async () => {
+		const thrown = await statusOf(() =>
+			passthrough(() => Promise.reject(new HttpError('Training already moved', 409)))
+		);
+
+		expect(thrown.status).toBe(409);
+		expect(thrown.body.message).toBe('Training already moved');
+	});
+
+	// A bug in this app is not an upstream failure and must not be dressed as
+	// one: it goes up untouched, for `handleError` to log.
+	it('lets anything else through unchanged', async () => {
+		const bug = new TypeError('x is not a function');
+		await expect(passthrough(() => Promise.reject(bug))).rejects.toBe(bug);
 	});
 });

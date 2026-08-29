@@ -1,6 +1,7 @@
 import { json, error } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { trainingApi } from '$lib/server/trenara';
+import { passthrough } from '$lib/server/trenara/request';
 
 export const GET: RequestHandler = async ({ url, cookies, locals }) => {
 	if (!locals.user) {
@@ -12,6 +13,5 @@ export const GET: RequestHandler = async ({ url, cookies, locals }) => {
 		error(400, 'Missing timestamp parameter');
 	}
 
-	const data = await trainingApi.getNutrition(cookies, timestamp);
-	return json(data);
+	return json(await passthrough(() => trainingApi.getNutrition(cookies, timestamp)));
 };

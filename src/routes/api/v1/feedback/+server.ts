@@ -1,6 +1,7 @@
 import { json, error } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { trainingApi } from '$lib/server/trenara';
+import { passthrough } from '$lib/server/trenara/request';
 import { rpeFeedbackSchema } from '$lib/schemas/feedback';
 
 export const PUT: RequestHandler = async ({ request, cookies, locals }) => {
@@ -16,6 +17,5 @@ export const PUT: RequestHandler = async ({ request, cookies, locals }) => {
 	}
 
 	const { entryId, feedback } = result.data;
-	const data = await trainingApi.putFeedback(cookies, entryId, feedback);
-	return json(data);
+	return json(await passthrough(() => trainingApi.putFeedback(cookies, entryId, feedback)));
 };

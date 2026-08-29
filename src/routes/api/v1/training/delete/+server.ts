@@ -1,6 +1,7 @@
 import { json, error } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { trainingApi } from '$lib/server/trenara';
+import { passthrough } from '$lib/server/trenara/request';
 
 export const DELETE: RequestHandler = async ({ request, cookies, locals }) => {
 	if (!locals.user) {
@@ -21,11 +22,11 @@ export const DELETE: RequestHandler = async ({ request, cookies, locals }) => {
 		error(400, 'Invalid type (must be "entry" or "scheduled")');
 	}
 
-	if (type === 'scheduled') {
-		const data = await trainingApi.deleteScheduledTraining(cookies, trainingId);
-		return json(data);
-	}
-
-	const data = await trainingApi.deleteTraining(cookies, trainingId);
-	return json(data);
+	return json(
+		await passthrough(() =>
+			type === 'scheduled'
+				? trainingApi.deleteScheduledTraining(cookies, trainingId)
+				: trainingApi.deleteTraining(cookies, trainingId)
+		)
+	);
 };

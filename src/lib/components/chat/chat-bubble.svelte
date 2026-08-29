@@ -3,6 +3,7 @@
 	import { MessageCircle, X, Loader2, Bot, Send } from 'lucide-svelte';
 	import { onDestroy } from 'svelte';
 	import DOMPurify from 'dompurify';
+	import { describeError, describeResponse } from '$lib/utils/network';
 	import {
 		createPendingMessage,
 		hasNewReply,
@@ -168,7 +169,7 @@
 				headers: { 'Content-Type': 'application/json' },
 				body: JSON.stringify({ content: text })
 			});
-			if (!res.ok) throw new Error('Failed to send message');
+			if (!res.ok) throw new Error(await describeResponse(res, 'Could not send your message.'));
 
 			// Trenara returns the stored message, sometimes wrapped in a data
 			// envelope. Fall back to the placeholder if it returns neither.
@@ -182,7 +183,7 @@
 		} catch (e) {
 			messages = removeMessage(messages, pending.id);
 			draft = text;
-			sendError = e instanceof Error ? e.message : 'Failed to send message';
+			sendError = describeError(e, 'Could not send your message.');
 		} finally {
 			sending = false;
 			draftInput?.focus();

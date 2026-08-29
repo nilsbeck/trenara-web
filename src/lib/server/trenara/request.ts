@@ -1,6 +1,56 @@
 import { error } from '@sveltejs/kit';
 import type { ZodType } from 'zod';
-import { HttpError } from './client';
+import { HttpError, NetworkError, TimeoutError } from './client';
+
+/**
+ * What the app says when Trenara could not be reached at all.
+ *
+ * Worth naming rather than paraphrasing at each call site: it is the one
+ * failure the runner can do something about — wait, or check their signal —
+ * and it must not read like the app broke.
+ */
+export const UNREACHABLE_MESSAGE = 'Trenara could not be reached. Please try again.';
+
+export const TIMEOUT_MESSAGE = 'Trenara took too long to answer. Please try again.';
+
+/**
+ * Whether a failure was the connection rather than the answer.
+ *
+ * These two are the reason this exists at all: neither carries an HTTP status,
+ * so left alone they fall out of a load function as an unhandled exception and
+ * the runner is told "Internal Error" for what is usually a train tunnel.
+ */
+export function isUnreachable(e: unknown): boolean {
+	return e instanceof NetworkError || e instanceof TimeoutError;
+}
+
+/**
+ * The status and message to answer a failed upstream call with.
+ *
+ * Transport failures become 502/504 — the gateway statuses, which is exactly
+ * what this app is in front of Trenara — so that everything downstream, the
+ * error page included, can tell "Trenara is down" from "we have a bug".
+ */
+export function describeFailure(e: unknown): { status: number; message: string } {
+	if (e instanceof TimeoutError) return { status: 504, message: TIMEOUT_MESSAGE };
+	if (e instanceof NetworkError) return { status: 502, message: UNREACHABLE_MESSAGE };
+	if (e instanceof HttpError) {
+		return { status: toErrorStatus(e.status), message: describeUpstreamError(e) };
+	}
+	return { status: 500, message: 'Something went wrong.' };
+}
+
+/**
+ * Fold an upstream status into the range SvelteKit's `error` accepts.
+ *
+ * It throws on anything outside 400–599, so relaying a status verbatim makes
+ * an unusual upstream answer — a 3xx that survived redirect following, or a 0
+ * from a proxy — crash inside the error path instead of being reported by it.
+ */
+function toErrorStatus(status: number): number {
+	if (!Number.isInteger(status) || status < 400 || status > 599) return 502;
+	return status;
+}
 
 /**
  * Parse a training id out of a route param.
@@ -45,19 +95,24 @@ export function describeUpstreamError(e: HttpError): string {
 }
 
 /**
- * Run an upstream call, translating its HTTP failures into SvelteKit errors.
+ * Run an upstream call, translating its failures into SvelteKit errors.
  *
  * The `can_*` flags on a training say what Trenara will accept, but they are a
  * snapshot: the coach can change the plan between the read and the write. So a
  * refusal is a normal outcome here and is passed through with its own status
  * and message rather than collapsed into a 500.
+ *
+ * A connection that never got an answer is passed through in the same spirit:
+ * as a 502 or 504 saying which of the two servers is not answering, rather
+ * than as the unhandled exception it used to be.
  */
 export async function passthrough<T>(fn: () => Promise<T>): Promise<T> {
 	try {
 		return await fn();
 	} catch (e) {
-		if (e instanceof HttpError) {
-			error(e.status, describeUpstreamError(e));
+		if (e instanceof HttpError || isUnreachable(e)) {
+			const { status, message } = describeFailure(e);
+			error(status, message);
 		}
 		throw e;
 	}

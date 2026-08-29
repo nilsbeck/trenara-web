@@ -25,6 +25,7 @@
 	import SetupRailLoading from '$lib/components/training/setup-rail-loading.svelte';
 	import SessionSetupSheet from '$lib/components/training/session-setup-sheet.svelte';
 	import { trainingLoad } from '$lib/utils/training-load';
+	import { describeError, describeResponse } from '$lib/utils/network';
 	import { SessionDetailStore } from '$lib/stores/session-detail.svelte';
 	import CooldownBlock from '$lib/components/training/cooldown-block.svelte';
 	import {
@@ -226,13 +227,12 @@
 			});
 
 			if (!res.ok) {
-				const data = await res.json().catch(() => ({}));
-				throw new Error(data.message ?? `Failed to delete training (${res.status})`);
+				throw new Error(await describeResponse(res, 'Could not delete this session.'));
 			}
 
 			onScheduleChanged?.();
 		} catch (e) {
-			alert(e instanceof Error ? e.message : 'Failed to delete training');
+			alert(describeError(e, 'Could not delete this session.'));
 		} finally {
 			deleting = false;
 		}

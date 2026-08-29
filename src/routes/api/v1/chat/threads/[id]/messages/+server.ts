@@ -1,6 +1,7 @@
 import { json, error } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { chatApi } from '$lib/server/trenara';
+import { passthrough } from '$lib/server/trenara/request';
 
 export const GET: RequestHandler = async ({ params, url, cookies, locals }) => {
 	if (!locals.user) {
@@ -17,13 +18,16 @@ export const GET: RequestHandler = async ({ params, url, cookies, locals }) => {
 	const rawTimestamp = url.searchParams.get('timestamp');
 	const timestamp = rawTimestamp ? Number(rawTimestamp) : undefined;
 
-	const data = await chatApi.getMessages(
-		cookies,
-		threadId,
-		page,
-		timestamp && Number.isFinite(timestamp) ? timestamp : undefined
+	return json(
+		await passthrough(() =>
+			chatApi.getMessages(
+				cookies,
+				threadId,
+				page,
+				timestamp && Number.isFinite(timestamp) ? timestamp : undefined
+			)
+		)
 	);
-	return json(data);
 };
 
 export const POST: RequestHandler = async ({ params, request, cookies, locals }) => {
@@ -43,6 +47,5 @@ export const POST: RequestHandler = async ({ params, request, cookies, locals })
 		error(400, 'Missing or empty message content');
 	}
 
-	const data = await chatApi.sendMessage(cookies, threadId, content);
-	return json(data);
+	return json(await passthrough(() => chatApi.sendMessage(cookies, threadId, content)));
 };

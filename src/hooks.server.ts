@@ -1,7 +1,8 @@
-import type { Handle } from '@sveltejs/kit';
+import type { Handle, HandleServerError } from '@sveltejs/kit';
 import { TokenManager } from '$lib/server/auth/token-manager';
 import { verifyUserId } from '$lib/server/auth/user-identity';
 import { userApi } from '$lib/server/trenara/user';
+import { isUnreachable, describeFailure } from '$lib/server/trenara/request';
 
 const tokenManager = TokenManager.getInstance();
 
@@ -62,3 +63,30 @@ const handleAuth: Handle = async ({ event, resolve }) => {
 };
 
 export const handle = handleAuth;
+
+/**
+ * Last word on a failure nothing else caught.
+ *
+ * `passthrough` turns the upstream calls it wraps into proper statuses, but it
+ * cannot cover a promise streamed to the browser or a call added later without
+ * it — and whatever escapes lands here, where SvelteKit's own answer is the
+ * word "Internal Error" and nothing in the log to say which server broke.
+ *
+ * So: a transport failure keeps its own description and is marked as such for
+ * the error page, and everything else is logged with the route it came from.
+ * The message shown to the runner stays generic — an unexpected error is by
+ * definition one whose text was never meant for them.
+ */
+export const handleError: HandleServerError = ({ error, event, status, message }) => {
+	if (isUnreachable(error)) {
+		console.error(`[${event.request.method} ${event.url.pathname}] upstream unreachable:`, error);
+		return { message: describeFailure(error).message, unreachable: true };
+	}
+
+	// 404s arrive here too and are not worth a stack trace in the log.
+	if (status !== 404) {
+		console.error(`[${event.request.method} ${event.url.pathname}] ${status} ${message}:`, error);
+	}
+
+	return { message: 'Something went wrong on our side.' };
+};
