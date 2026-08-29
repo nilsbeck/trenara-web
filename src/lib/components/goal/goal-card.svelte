@@ -1,7 +1,7 @@
 <script lang="ts">
 	import type { Goal, UserStats } from '$lib/server/trenara/types';
 	import { onMount } from 'svelte';
-	import { Trophy, Calendar, Target } from 'lucide-svelte';
+	import { Trophy, Calendar, Target, ChevronLeft, ChevronRight } from 'lucide-svelte';
 	import PredictionChart, {
 		type ChartDataPoint
 	} from '$lib/components/charts/prediction-chart.svelte';
@@ -57,6 +57,20 @@
 	];
 
 	let graphView = $state<GraphView>('prediction');
+
+	// The arrows and the picker are the same control in two shapes: the picker
+	// says where you are and jumps anywhere, the arrows step. Three graphs is a
+	// short enough ring to wrap rather than dead-end, which also keeps the back
+	// arrow live on the view the card opens on.
+	const graphIndex = $derived(GRAPH_VIEWS.findIndex((v) => v.value === graphView));
+	const previousGraph = $derived(
+		GRAPH_VIEWS[(graphIndex - 1 + GRAPH_VIEWS.length) % GRAPH_VIEWS.length]
+	);
+	const nextGraph = $derived(GRAPH_VIEWS[(graphIndex + 1) % GRAPH_VIEWS.length]);
+
+	function stepGraph(to: { value: GraphView }) {
+		graphView = to.value;
+	}
 
 	// Both distance graphs read the stats this card already has — no fetch, so
 	// switching between them costs nothing and there is no loading state.
@@ -584,9 +598,17 @@
 	The card's own heading, which is also the control that swaps the graph under
 	it. One element rather than a title beside a picker: they said the same
 	thing, and the native select carries its own affordance.
+
+	The arrows step through the same three graphs without opening anything —
+	the quicker move when you just want to see the next one. Each names the
+	graph it goes to, so the label is useful rather than "previous".
+
+	They sit at the far edge rather than against the picker: the heading reads
+	as a heading that way, and the arrows land where the eye looks for graph
+	controls instead of crowding the title.
 -->
 {#snippet graphPicker()}
-	<div class="mb-2">
+	<div class="mb-2 flex items-center justify-between gap-2">
 		<label>
 			<span class="sr-only">Which graph to show</span>
 			<select
@@ -598,6 +620,24 @@
 				{/each}
 			</select>
 		</label>
+		<div class="flex shrink-0 items-center gap-1">
+			<button
+				type="button"
+				onclick={() => stepGraph(previousGraph)}
+				aria-label="Show {previousGraph.label}"
+				class="rounded-md p-1 text-muted-foreground transition-colors hover:text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+			>
+				<ChevronLeft class="h-4 w-4" />
+			</button>
+			<button
+				type="button"
+				onclick={() => stepGraph(nextGraph)}
+				aria-label="Show {nextGraph.label}"
+				class="rounded-md p-1 text-muted-foreground transition-colors hover:text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+			>
+				<ChevronRight class="h-4 w-4" />
+			</button>
+		</div>
 	</div>
 {/snippet}
 
