@@ -77,6 +77,40 @@ describe it.
 
 ---
 
+## Rate limit
+
+**60 requests per minute**, per the headers on a refusal captured 2026-08-29:
+
+```
+HTTP 429
+retry-after: 47
+x-ratelimit-limit: 60
+x-ratelimit-remaining: 0
+x-ratelimit-reset: 1788042395
+```
+
+`x-ratelimit-reset` is a Unix second and matches `retry-after`, so the window
+is a fixed minute rather than a rolling one — the budget refills all at once
+rather than draining request by request. Two things follow.
+
+First, **spacing requests out does not help**: a fixed window counts them
+however they are spread, so a concurrency limiter would buy nothing here. Only
+sending fewer helps, which is why `read-cache.ts` exists.
+
+Second, sixty is not much for this app. There is no month endpoint — only
+`/api/schedule/week/?timestamp=` — so one month of the calendar costs five or
+six requests, and a dashboard load costs eleven or twelve all told. The minute
+that tripped the limit held 47 requests from a single serverless instance, 24
+of them weeks.
+
+Every response carries the `x-ratelimit-*` headers, not just a refusal, so the
+remaining budget can be read at any time. A 429 is never retried: retrying a
+refusal for going too fast is the one response guaranteed to make it worse.
+`RateLimitError` carries a snapshot of what was being sent in the run-up —
+see `rate-limit.ts`, and the error page, which shows it.
+
+---
+
 ## POST /oauth/token
 
 The only endpoint that is not `/api/*`, and the only one that is neither sent

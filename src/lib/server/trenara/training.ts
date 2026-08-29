@@ -22,9 +22,24 @@ import type {
 } from './types';
 import { fetchClient } from './client';
 import { TokenType } from '$lib/server/auth/types';
+import { cachedRead, CacheKey, invalidate } from './read-cache';
 
 function bearerHeader(cookies: Cookies): Record<string, string> {
 	return { Authorization: `Bearer ${cookies.get(TokenType.AccessToken)}` };
+}
+
+/**
+ * Run a write, then drop the runner's cached weeks.
+ *
+ * Wrapped rather than remembered at each call site: a mutation that forgets it
+ * leaves the plan on screen quietly disagreeing with what the runner just did,
+ * and that is a bad thing to leave to memory. Only on success — a refused
+ * write changed nothing, so there is nothing to forget.
+ */
+async function mutating<T>(cookies: Cookies, run: () => Promise<T>): Promise<T> {
+	const result = await run();
+	invalidate(cookies, CacheKey.weeks);
+	return result;
 }
 
 export const trainingApi = {
@@ -35,11 +50,28 @@ export const trainingApi = {
 		});
 	},
 
-	async getSchedule(cookies: Cookies, timestamp: number): Promise<Schedule> {
-		return fetchClient.get<Schedule>(`/api/schedule/week/?timestamp=${timestamp}`, {
-			headers: bearerHeader(cookies),
-			cookies
-		});
+	/**
+	 * One week of the plan.
+	 *
+	 * Served from {@link cachedRead} unless `fresh` is asked for. There is no
+	 * month endpoint, so a month costs five or six of these — by a distance the
+	 * most requested thing in the app, and half of everything it sends.
+	 */
+	async getSchedule(
+		cookies: Cookies,
+		timestamp: number,
+		{ fresh = false }: { fresh?: boolean } = {}
+	): Promise<Schedule> {
+		return cachedRead(
+			cookies,
+			CacheKey.week(timestamp),
+			() =>
+				fetchClient.get<Schedule>(`/api/schedule/week/?timestamp=${timestamp}`, {
+					headers: bearerHeader(cookies),
+					cookies
+				}),
+			{ fresh }
+		);
 	},
 
 	async getNutrition(cookies: Cookies, timestamp: string): Promise<NutritionAdvice> {
@@ -51,13 +83,15 @@ export const trainingApi = {
 	},
 
 	async putFeedback(cookies: Cookies, entryId: number, feedback: number): Promise<unknown> {
-		return fetchClient.put(
-			`/api/entries/${entryId}/rpe`,
-			{ rpe: feedback },
-			{
-				headers: bearerHeader(cookies),
-				cookies
-			}
+		return mutating(cookies, () =>
+			fetchClient.put(
+				`/api/entries/${entryId}/rpe`,
+				{ rpe: feedback },
+				{
+					headers: bearerHeader(cookies),
+					cookies
+				}
+			)
 		);
 	},
 
@@ -80,10 +114,12 @@ export const trainingApi = {
 		date: string,
 		includeFuture: boolean
 	): Promise<SaveScheduleResponse> {
-		return fetchClient.put<SaveScheduleResponse>(
-			`/api/schedule/trainings/${entryId}/change_save`,
-			{ action: 'move', include_future: includeFuture, target_date: date },
-			{ headers: bearerHeader(cookies), cookies }
+		return mutating(cookies, () =>
+			fetchClient.put<SaveScheduleResponse>(
+				`/api/schedule/trainings/${entryId}/change_save`,
+				{ action: 'move', include_future: includeFuture, target_date: date },
+				{ headers: bearerHeader(cookies), cookies }
+			)
 		);
 	},
 
@@ -94,31 +130,37 @@ export const trainingApi = {
 		date: string,
 		distanceInKm: number
 	): Promise<AddEntryResponse> {
-		return fetchClient.post<AddEntryResponse>(
-			'/api/entries',
-			{
-				name,
-				time_in_sec: timeInSeconds,
-				start_time: date,
-				distance_value: distanceInKm,
-				distance_unit: 'km'
-			},
-			{ headers: bearerHeader(cookies), cookies }
+		return mutating(cookies, () =>
+			fetchClient.post<AddEntryResponse>(
+				'/api/entries',
+				{
+					name,
+					time_in_sec: timeInSeconds,
+					start_time: date,
+					distance_value: distanceInKm,
+					distance_unit: 'km'
+				},
+				{ headers: bearerHeader(cookies), cookies }
+			)
 		);
 	},
 
 	async deleteTraining(cookies: Cookies, trainingId: number): Promise<unknown> {
-		return fetchClient.delete(`/api/entries/${trainingId}`, {
-			headers: bearerHeader(cookies),
-			cookies
-		});
+		return mutating(cookies, () =>
+			fetchClient.delete(`/api/entries/${trainingId}`, {
+				headers: bearerHeader(cookies),
+				cookies
+			})
+		);
 	},
 
 	async deleteScheduledTraining(cookies: Cookies, trainingId: number): Promise<unknown> {
-		return fetchClient.delete(`/api/schedule/trainings/${trainingId}`, {
-			headers: bearerHeader(cookies),
-			cookies
-		});
+		return mutating(cookies, () =>
+			fetchClient.delete(`/api/schedule/trainings/${trainingId}`, {
+				headers: bearerHeader(cookies),
+				cookies
+			})
+		);
 	},
 
 	// ── Single training: read and mutate ───────────────────────────────
@@ -158,15 +200,17 @@ export const trainingApi = {
 			heightUnit?: string;
 		}
 	): Promise<ScheduledTrainingDetail> {
-		return fetchClient.post<ScheduledTrainingDetail>(
-			`/api/schedule/trainings/${trainingId}/training_condition`,
-			{
-				height_difference: condition.heightDifference,
-				surface: condition.surface,
-				height_value: condition.heightValue ?? 0,
-				height_unit: condition.heightUnit ?? 'm'
-			} satisfies SetTrainingConditionRequest,
-			{ headers: bearerHeader(cookies), cookies }
+		return mutating(cookies, () =>
+			fetchClient.post<ScheduledTrainingDetail>(
+				`/api/schedule/trainings/${trainingId}/training_condition`,
+				{
+					height_difference: condition.heightDifference,
+					surface: condition.surface,
+					height_value: condition.heightValue ?? 0,
+					height_unit: condition.heightUnit ?? 'm'
+				} satisfies SetTrainingConditionRequest,
+				{ headers: bearerHeader(cookies), cookies }
+			)
 		);
 	},
 
@@ -184,10 +228,12 @@ export const trainingApi = {
 		trainingId: number,
 		intensityValue: number
 	): Promise<ScheduledTrainingDetail> {
-		return fetchClient.put<ScheduledTrainingDetail>(
-			`/api/schedule/trainings/${trainingId}/intensity`,
-			{ intensity_value: intensityValue } satisfies SetIntensityRequest,
-			{ headers: bearerHeader(cookies), cookies }
+		return mutating(cookies, () =>
+			fetchClient.put<ScheduledTrainingDetail>(
+				`/api/schedule/trainings/${trainingId}/intensity`,
+				{ intensity_value: intensityValue } satisfies SetIntensityRequest,
+				{ headers: bearerHeader(cookies), cookies }
+			)
 		);
 	},
 
@@ -204,10 +250,12 @@ export const trainingApi = {
 		trainingId: number,
 		distanceValue: number
 	): Promise<ScheduledTrainingDetail> {
-		return fetchClient.put<ScheduledTrainingDetail>(
-			`/api/schedule/trainings/${trainingId}/distance`,
-			{ distance_value: distanceValue } satisfies SetDistanceRequest,
-			{ headers: bearerHeader(cookies), cookies }
+		return mutating(cookies, () =>
+			fetchClient.put<ScheduledTrainingDetail>(
+				`/api/schedule/trainings/${trainingId}/distance`,
+				{ distance_value: distanceValue } satisfies SetDistanceRequest,
+				{ headers: bearerHeader(cookies), cookies }
+			)
 		);
 	},
 
@@ -229,10 +277,12 @@ export const trainingApi = {
 		trainingId: number,
 		hasCooldown: boolean
 	): Promise<ScheduledTrainingDetail> {
-		return fetchClient.put<ScheduledTrainingDetail>(
-			`/api/schedule/trainings/${trainingId}/cooldown`,
-			{ cooldown_toggle: hasCooldown } satisfies ToggleCooldownRequest,
-			{ headers: bearerHeader(cookies), cookies }
+		return mutating(cookies, () =>
+			fetchClient.put<ScheduledTrainingDetail>(
+				`/api/schedule/trainings/${trainingId}/cooldown`,
+				{ cooldown_toggle: hasCooldown } satisfies ToggleCooldownRequest,
+				{ headers: bearerHeader(cookies), cookies }
+			)
 		);
 	},
 
@@ -242,10 +292,12 @@ export const trainingApi = {
 		trainingId: number,
 		shoeId: number
 	): Promise<ScheduledTrainingDetail> {
-		return fetchClient.put<ScheduledTrainingDetail>(
-			`/api/schedule/trainings/${trainingId}/suggested_shoe`,
-			{ shoe_id: shoeId } satisfies SetSuggestedShoeRequest,
-			{ headers: bearerHeader(cookies), cookies }
+		return mutating(cookies, () =>
+			fetchClient.put<ScheduledTrainingDetail>(
+				`/api/schedule/trainings/${trainingId}/suggested_shoe`,
+				{ shoe_id: shoeId } satisfies SetSuggestedShoeRequest,
+				{ headers: bearerHeader(cookies), cookies }
+			)
 		);
 	},
 
@@ -265,10 +317,12 @@ export const trainingApi = {
 		trainingId: number,
 		crossType: string | null
 	): Promise<ScheduledTrainingDetail> {
-		return fetchClient.put<ScheduledTrainingDetail>(
-			`/api/schedule/trainings/${trainingId}/cross_train`,
-			{ cross_type: crossType } satisfies CrossTrainRequest,
-			{ headers: bearerHeader(cookies), cookies }
+		return mutating(cookies, () =>
+			fetchClient.put<ScheduledTrainingDetail>(
+				`/api/schedule/trainings/${trainingId}/cross_train`,
+				{ cross_type: crossType } satisfies CrossTrainRequest,
+				{ headers: bearerHeader(cookies), cookies }
+			)
 		);
 	},
 
@@ -285,10 +339,12 @@ export const trainingApi = {
 		trainingId: number,
 		pacingPlan: PacingPlan | null
 	): Promise<ScheduledTrainingDetail> {
-		return fetchClient.put<ScheduledTrainingDetail>(
-			`/api/schedule/trainings/${trainingId}/pacing_plan`,
-			{ pacing_plan: pacingPlan } satisfies SetPacingPlanRequest,
-			{ headers: bearerHeader(cookies), cookies }
+		return mutating(cookies, () =>
+			fetchClient.put<ScheduledTrainingDetail>(
+				`/api/schedule/trainings/${trainingId}/pacing_plan`,
+				{ pacing_plan: pacingPlan } satisfies SetPacingPlanRequest,
+				{ headers: bearerHeader(cookies), cookies }
+			)
 		);
 	},
 
@@ -313,10 +369,12 @@ export const trainingApi = {
 		trainingId: number,
 		candidateId: number
 	): Promise<ScheduledTrainingDetail> {
-		return fetchClient.put<ScheduledTrainingDetail>(
-			`/api/schedule/trainings/${trainingId}/exchange`,
-			{ training_id: candidateId } satisfies ExchangeTrainingRequest,
-			{ headers: bearerHeader(cookies), cookies }
+		return mutating(cookies, () =>
+			fetchClient.put<ScheduledTrainingDetail>(
+				`/api/schedule/trainings/${trainingId}/exchange`,
+				{ training_id: candidateId } satisfies ExchangeTrainingRequest,
+				{ headers: bearerHeader(cookies), cookies }
+			)
 		);
 	}
 };

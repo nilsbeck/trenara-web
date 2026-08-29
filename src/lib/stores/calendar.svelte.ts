@@ -553,7 +553,11 @@ export function createCalendarStore(initialDate: Date, options: CalendarStoreOpt
 	/** One month, straight from the API. Throws; callers decide what that means. */
 	async function fetchMonth(
 		date: Date,
-		{ conditional, from }: { conditional: boolean; from: Date | null }
+		{
+			conditional,
+			from,
+			fresh = false
+		}: { conditional: boolean; from: Date | null; fresh?: boolean }
 	): Promise<{ payload: SchedulePayload; etag: string | null } | null> {
 		const cached = scheduleCache.get(monthKey(date));
 		const headers: Record<string, string> = {};
@@ -564,6 +568,12 @@ export function createCalendarStore(initialDate: Date, options: CalendarStoreOpt
 		const params = new URLSearchParams({ date: String(date.getTime()) });
 		if (from) {
 			params.set('from', toLocalDateString(from));
+		}
+		// Weeks are held for a minute on the server to stay inside Trenara's
+		// rate limit. Someone who pressed refresh is entitled to go past that,
+		// for the same reason they are entitled to skip the conditional request.
+		if (fresh) {
+			params.set('fresh', '1');
 		}
 
 		const response = await fetch(`/api/v1/schedule?${params}`, { headers });
@@ -602,6 +612,7 @@ export function createCalendarStore(initialDate: Date, options: CalendarStoreOpt
 		try {
 			const result = await fetchMonth(date, {
 				conditional: !full,
+				fresh: full,
 				// Only worth asking for part of a month when there is a whole one
 				// already in hand for the answer to be grafted onto. A forced
 				// refresh asks for all of it, since it is the button people press

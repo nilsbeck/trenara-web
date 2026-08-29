@@ -6,6 +6,7 @@ import { trainingApi } from './training';
 import { userApi } from './user';
 import { chatApi } from './chat';
 import { newsApi } from './news';
+import { resetReadCache } from './read-cache';
 
 // ─────────────────────────────────────────────────────────────
 // These cover the request each api method actually puts on the
@@ -57,6 +58,8 @@ let cookies: Cookies;
 beforeEach(() => {
 	vi.stubGlobal('fetch', vi.fn());
 	cookies = makeCookies();
+	// Reads are cached per user and the map outlives a single case.
+	resetReadCache();
 });
 
 afterEach(() => {
@@ -401,5 +404,125 @@ describe('training mutations', () => {
 	it('surface a 401 as AuthenticationError', async () => {
 		fetchMock().mockResolvedValue(mockResponse({}, 401));
 		await expect(trainingApi.getTraining(cookies, 1)).rejects.toBeInstanceOf(AuthenticationError);
+	});
+});
+
+// ─────────────────────────────────────────────────────────────
+// Staying inside Trenara's 60-a-minute budget
+//
+// `/api/schedule/week/` was half of everything this app sent — there is no
+// month endpoint, so a month costs five or six of these and paging between
+// two months bought the same weeks again every time.
+// ─────────────────────────────────────────────────────────────
+describe('the week cache', () => {
+	beforeEach(() => {
+		resetReadCache();
+	});
+
+	it('asks for a week once, however many times a month is loaded', async () => {
+		fetchMock().mockResolvedValue(mockResponse({ trainings: [] }));
+
+		await trainingApi.getSchedule(cookies, 1000);
+		await trainingApi.getSchedule(cookies, 1000);
+		await trainingApi.getSchedule(cookies, 1000);
+
+		expect(fetchMock()).toHaveBeenCalledTimes(1);
+	});
+
+	// A month is five or six distinct weeks; only the repeats are saved.
+	it('still fetches each distinct week of a month', async () => {
+		fetchMock().mockResolvedValue(mockResponse({ trainings: [] }));
+
+		await Promise.all(
+			[1000, 2000, 3000, 4000, 5000].map((ts) => trainingApi.getSchedule(cookies, ts))
+		);
+
+		expect(fetchMock()).toHaveBeenCalledTimes(5);
+	});
+
+	// Two page loads racing was the doubling in the report.
+	it('collapses two simultaneous loads of the same month into one set of requests', async () => {
+		fetchMock().mockResolvedValue(mockResponse({ trainings: [] }));
+		const month = [1000, 2000, 3000, 4000, 5000, 6000];
+
+		await Promise.all([
+			Promise.all(month.map((ts) => trainingApi.getSchedule(cookies, ts))),
+			Promise.all(month.map((ts) => trainingApi.getSchedule(cookies, ts)))
+		]);
+
+		expect(fetchMock()).toHaveBeenCalledTimes(6);
+	});
+
+	it('goes back to Trenara when the caller asks for fresh', async () => {
+		fetchMock().mockResolvedValue(mockResponse({ trainings: [] }));
+
+		await trainingApi.getSchedule(cookies, 1000);
+		await trainingApi.getSchedule(cookies, 1000, { fresh: true });
+
+		expect(fetchMock()).toHaveBeenCalledTimes(2);
+	});
+
+	// The failure mode a cache introduces: a runner changes something and the
+	// calendar goes on showing the plan from before.
+	it('is dropped by a write, so a changed plan is never served from before it', async () => {
+		fetchMock().mockResolvedValue(mockResponse({ id: 1 }));
+
+		await trainingApi.getSchedule(cookies, 1000);
+		await trainingApi.setIntensity(cookies, 127477827, -2);
+		await trainingApi.getSchedule(cookies, 1000);
+
+		// week, the write, then the week again.
+		expect(fetchMock()).toHaveBeenCalledTimes(3);
+	});
+
+	it('is dropped by a delete and by a move as well', async () => {
+		fetchMock().mockResolvedValue(mockResponse({ id: 1 }));
+
+		await trainingApi.getSchedule(cookies, 1000);
+		await trainingApi.deleteScheduledTraining(cookies, 1);
+		await trainingApi.getSchedule(cookies, 1000);
+		await trainingApi.saveChangeDate(cookies, 1, '2026-09-01T00:00:00.000Z', false);
+		await trainingApi.getSchedule(cookies, 1000);
+
+		expect(fetchMock()).toHaveBeenCalledTimes(5);
+	});
+
+	// A dry run changes nothing upstream, so it must not throw the cache away.
+	it('is left alone by the change-date dry run', async () => {
+		fetchMock().mockResolvedValue(mockResponse({ goal_possible: true }));
+
+		await trainingApi.getSchedule(cookies, 1000);
+		await trainingApi.testChangeDate(cookies, 1, '2026-09-01T00:00:00.000Z', false);
+		await trainingApi.getSchedule(cookies, 1000);
+
+		// The week, then the dry run. The second week came from memory.
+		expect(fetchMock()).toHaveBeenCalledTimes(2);
+	});
+});
+
+describe('the account cache', () => {
+	beforeEach(() => {
+		resetReadCache();
+	});
+
+	// The layout asks on every navigation; it ran five times a minute against a
+	// budget of sixty for the whole app.
+	it('asks for the account once per navigation burst', async () => {
+		fetchMock().mockResolvedValue(mockResponse({ id: 56540 }));
+
+		await userApi.getCurrentUser(cookies);
+		await userApi.getCurrentUser(cookies);
+
+		expect(fetchMock()).toHaveBeenCalledTimes(1);
+	});
+
+	it('is dropped when the profile is edited', async () => {
+		fetchMock().mockResolvedValue(mockResponse({ id: 56540 }));
+
+		await userApi.getCurrentUser(cookies);
+		await userApi.updateProfile(cookies, { first_name: 'Nils' } as never);
+		await userApi.getCurrentUser(cookies);
+
+		expect(fetchMock()).toHaveBeenCalledTimes(3);
 	});
 });

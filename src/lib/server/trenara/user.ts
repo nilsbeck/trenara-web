@@ -2,17 +2,28 @@ import type { Cookies } from '@sveltejs/kit';
 import type { User, UserStats, Shoe, ProfileUpdate } from './types';
 import { fetchClient } from './client';
 import { TokenType } from '$lib/server/auth/types';
+import { cachedRead, CacheKey, invalidate } from './read-cache';
 
 function bearerHeader(cookies: Cookies): Record<string, string> {
 	return { Authorization: `Bearer ${cookies.get(TokenType.AccessToken)}` };
 }
 
 export const userApi = {
+	/**
+	 * The signed-in account.
+	 *
+	 * Cached, because the layout asks for it on every navigation and the answer
+	 * is a name and a set of preferences: five identical requests a minute,
+	 * against a budget of sixty for the whole app. `updateProfile` drops it, so
+	 * an edit is never served from a copy taken before it.
+	 */
 	async getCurrentUser(cookies: Cookies): Promise<User> {
-		return fetchClient.get<User>('/api/me', {
-			headers: bearerHeader(cookies),
-			cookies
-		});
+		return cachedRead(cookies, CacheKey.currentUser, () =>
+			fetchClient.get<User>('/api/me', {
+				headers: bearerHeader(cookies),
+				cookies
+			})
+		);
 	},
 
 	async getUserStats(cookies: Cookies): Promise<UserStats> {
@@ -30,10 +41,13 @@ export const userApi = {
 	 * a cached `getCurrentUser`.
 	 */
 	async updateProfile(cookies: Cookies, data: ProfileUpdate): Promise<User> {
-		return fetchClient.put<User>('/api/me', data, {
+		const user = await fetchClient.put<User>('/api/me', data, {
 			headers: bearerHeader(cookies),
 			cookies
 		});
+
+		invalidate(cookies, CacheKey.currentUser);
+		return user;
 	},
 
 	/**
