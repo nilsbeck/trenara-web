@@ -30,6 +30,35 @@ function schedule(partial: Partial<Schedule> = {}): Schedule {
 	} as unknown as Schedule;
 }
 
+/**
+ * A viewport of a given width, as far as `matchMedia` is concerned.
+ *
+ * jsdom answers every media query with `false`, which reads as a desktop —
+ * fine for the tests that want one, no use at all for the tests that want a
+ * phone. This evaluates the one form of query the calendar asks.
+ */
+function stubViewport(width: number) {
+	const listeners = new Set<() => void>();
+	let current = width;
+
+	const matches = () => current <= 767;
+
+	vi.stubGlobal('matchMedia', (query: string) => ({
+		media: query,
+		get matches() {
+			return matches();
+		},
+		addEventListener: (_: string, listener: () => void) => listeners.add(listener),
+		removeEventListener: (_: string, listener: () => void) => listeners.delete(listener)
+	}));
+
+	/** Resize, and tell whoever is listening. */
+	return (next: number) => {
+		current = next;
+		for (const listener of listeners) listener();
+	};
+}
+
 /** The day numbers the grid is currently showing, in order. */
 function shownDays(): string[] {
 	return screen
@@ -86,5 +115,63 @@ describe('folding the month into a week', () => {
 
 		await waitFor(() => expect(shownDays()).toEqual(['31', '1', '2', '3', '4', '5', '6']));
 		expect(screen.getByRole('heading', { level: 2 }).textContent).toBe('31 Aug – 6 Sep 2026');
+	});
+});
+
+describe('the view the screen opens on', () => {
+	beforeEach(() => {
+		vi.stubGlobal(
+			'fetch',
+			vi.fn(
+				async () =>
+					new Response(JSON.stringify(schedule({ trainings: [] })), {
+						status: 200,
+						headers: { 'content-type': 'application/json' }
+					})
+			)
+		);
+	});
+	afterEach(() => vi.unstubAllGlobals());
+
+	it('opens on the week on a phone', async () => {
+		stubViewport(390);
+		render(Calendar, { props: { today: TODAY, schedule: schedule() } });
+
+		await waitFor(() => expect(shownDays()).toEqual(['24', '25', '26', '27', '28', '29', '30']));
+		expect(screen.getByRole('button', { name: 'Show the whole month' })).toBeTruthy();
+	});
+
+	it('opens on the month on a desktop', async () => {
+		stubViewport(1280);
+		render(Calendar, { props: { today: TODAY, schedule: schedule() } });
+
+		await waitFor(() => expect(shownDays()).toHaveLength(31));
+	});
+
+	it('folds and unfolds again as the window crosses the breakpoint', async () => {
+		const resize = stubViewport(1280);
+		render(Calendar, { props: { today: TODAY, schedule: schedule() } });
+		await waitFor(() => expect(shownDays()).toHaveLength(31));
+
+		resize(390);
+		await waitFor(() => expect(shownDays()).toHaveLength(7));
+
+		resize(1280);
+		await waitFor(() => expect(shownDays()).toHaveLength(31));
+	});
+
+	it('leaves the view alone once the runner has set it themselves', async () => {
+		const resize = stubViewport(390);
+		render(Calendar, { props: { today: TODAY, schedule: schedule() } });
+		await waitFor(() => expect(shownDays()).toHaveLength(7));
+
+		await fireEvent.click(screen.getByRole('button', { name: 'Show the whole month' }));
+		await waitFor(() => expect(shownDays()).toHaveLength(31));
+
+		resize(1280);
+		resize(390);
+		await new Promise((resolve) => setTimeout(resolve, 0));
+
+		expect(shownDays()).toHaveLength(31);
 	});
 });

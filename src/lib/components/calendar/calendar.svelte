@@ -57,6 +57,28 @@
 		}
 	});
 
+	/*
+		Which view the screen asks for.
+
+		A phone fits one week and the session under it; a month grid on that width
+		pushes the detail off the bottom of the screen. So the calendar opens
+		folded below `md` — the same line the navbar uses to tell a phone from
+		everything else — and opens on the month above it. It keeps following the
+		viewport across a resize or a turn of the device, right up until the runner
+		works the fold arrow themselves, after which their choice is the only one
+		that counts.
+	*/
+	$effect(() => {
+		if (typeof window.matchMedia !== 'function') return;
+
+		const query = window.matchMedia('(max-width: 767px)');
+		const apply = () => void store.setPreferredViewMode(query.matches ? 'week' : 'month');
+
+		apply();
+		query.addEventListener('change', apply);
+		return () => query.removeEventListener('change', apply);
+	});
+
 	// Keep schedule in sync whenever the parent passes a new one — on first
 	// render, and again after every background refresh. The month it covers goes
 	// with it: if the runner has paged to March while a refresh for August was in
@@ -83,7 +105,7 @@
 	});
 </script>
 
-<div class="relative w-[28rem] mx-auto flex flex-col gap-4">
+<div class="relative w-[28rem] max-w-full mx-auto flex flex-col gap-4">
 	{#if store.isLoading}
 		<div
 			class="absolute inset-0 z-10 flex items-center justify-center rounded-xl bg-background/60 backdrop-blur-sm"

@@ -1731,6 +1731,27 @@ describe('week view', () => {
 		expect(store.schedule?.id).toBe(909);
 	});
 
+	it('takes the view the screen asks for', async () => {
+		const store = createCalendarStore(AUGUST_2026);
+
+		await store.setPreferredViewMode('week');
+
+		expect(store.viewMode).toBe('week');
+		expect(store.viewModeChosen).toBe(false);
+	});
+
+	it("stops taking the screen's word for it once the arrow has been used", async () => {
+		const store = createCalendarStore(AUGUST_2026);
+		await store.setPreferredViewMode('week');
+
+		await store.toggleViewMode(); // the runner opens the month back up
+		expect(store.viewMode).toBe('month');
+		expect(store.viewModeChosen).toBe(true);
+
+		await store.setPreferredViewMode('week'); // a resize, or a turn of the phone
+		expect(store.viewMode).toBe('month');
+	});
+
 	it('setting the mode it is already in changes nothing', async () => {
 		const store = createCalendarStore(AUGUST_2026);
 		store.setSelectedDate({ year: 2026, month: 7, day: 26 });

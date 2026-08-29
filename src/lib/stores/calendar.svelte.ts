@@ -197,6 +197,15 @@ export function createCalendarStore(initialDate: Date, options: CalendarStoreOpt
 	let weekAnchor = $state<Date>(mondayOf(initialDate));
 
 	/**
+	 * Whether the runner has used the fold arrow themselves.
+	 *
+	 * Once they have, the screen size stops having an opinion: a window dragged
+	 * across the breakpoint, or a phone turned on its side, must not undo the
+	 * view they just asked for.
+	 */
+	let viewModeChosen = $state(false);
+
+	/**
 	 * Today, as the store understands it.
 	 *
 	 * Held as state rather than read from `new Date()` on demand because the
@@ -767,7 +776,20 @@ export function createCalendarStore(initialDate: Date, options: CalendarStoreOpt
 	}
 
 	async function toggleViewMode(): Promise<void> {
+		viewModeChosen = true;
 		await setViewMode(viewMode === 'month' ? 'week' : 'month');
+	}
+
+	/**
+	 * What the viewport would like the view to be.
+	 *
+	 * A phone has room for one week and the session underneath it, where a
+	 * desktop has room for the month — so the screen picks the opening view, and
+	 * goes on picking it while the runner has not said otherwise.
+	 */
+	async function setPreferredViewMode(mode: ViewMode): Promise<void> {
+		if (viewModeChosen) return;
+		await setViewMode(mode);
 	}
 
 	/**
@@ -901,6 +923,9 @@ export function createCalendarStore(initialDate: Date, options: CalendarStoreOpt
 		get viewMode() {
 			return viewMode;
 		},
+		get viewModeChosen() {
+			return viewModeChosen;
+		},
 		get weekDays() {
 			return weekDays;
 		},
@@ -914,6 +939,7 @@ export function createCalendarStore(initialDate: Date, options: CalendarStoreOpt
 		setSelectedDate,
 		selectDay,
 		setViewMode,
+		setPreferredViewMode,
 		toggleViewMode,
 		setSchedule,
 		replaceTraining,
