@@ -602,9 +602,13 @@
 	The arrows step through the same three graphs without opening anything —
 	the quicker move when you just want to see the next one. Each names the
 	graph it goes to, so the label is useful rather than "previous".
+
+	They sit at the far edge rather than against the picker: the heading reads
+	as a heading that way, and the arrows land where the eye looks for graph
+	controls instead of crowding the title.
 -->
 {#snippet graphPicker()}
-	<div class="mb-2 flex items-center gap-1">
+	<div class="mb-2 flex items-center justify-between gap-2">
 		<label>
 			<span class="sr-only">Which graph to show</span>
 			<select
@@ -616,22 +620,24 @@
 				{/each}
 			</select>
 		</label>
-		<button
-			type="button"
-			onclick={() => stepGraph(previousGraph)}
-			aria-label="Show {previousGraph.label}"
-			class="rounded-md p-1 text-muted-foreground transition-colors hover:text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
-		>
-			<ChevronLeft class="h-4 w-4" />
-		</button>
-		<button
-			type="button"
-			onclick={() => stepGraph(nextGraph)}
-			aria-label="Show {nextGraph.label}"
-			class="rounded-md p-1 text-muted-foreground transition-colors hover:text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
-		>
-			<ChevronRight class="h-4 w-4" />
-		</button>
+		<div class="flex shrink-0 items-center gap-1">
+			<button
+				type="button"
+				onclick={() => stepGraph(previousGraph)}
+				aria-label="Show {previousGraph.label}"
+				class="rounded-md p-1 text-muted-foreground transition-colors hover:text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+			>
+				<ChevronLeft class="h-4 w-4" />
+			</button>
+			<button
+				type="button"
+				onclick={() => stepGraph(nextGraph)}
+				aria-label="Show {nextGraph.label}"
+				class="rounded-md p-1 text-muted-foreground transition-colors hover:text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+			>
+				<ChevronRight class="h-4 w-4" />
+			</button>
+		</div>
 	</div>
 {/snippet}
 
