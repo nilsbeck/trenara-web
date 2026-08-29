@@ -5,26 +5,9 @@
 	import Calendar from '$lib/components/calendar/calendar.svelte';
 	import GoalCard from '$lib/components/goal/goal-card.svelte';
 	import PredictionsCard from '$lib/components/predictions/predictions-card.svelte';
-	import WeekVolume from '$lib/components/stats/week-volume.svelte';
 	import { isRenderableStats } from '$lib/utils/user-stats';
-	import { hasWeekVolume, type WeekVolume as WeekVolumeData } from '$lib/utils/week-volume';
 
 	let { data }: { data: PageServerData } = $props();
-
-	// This week's volume, streamed in behind the calendar it sits above. Null
-	// until it arrives, and null again if it could not be loaded — both render
-	// as nothing.
-	let weekVolume = $state<WeekVolumeData | null>(null);
-
-	$effect(() => {
-		data.weekVolume
-			.then((volume) => {
-				weekVolume = volume;
-			})
-			.catch(() => {
-				weekVolume = null;
-			});
-	});
 
 	// What a background refresh brought back, if one has. The cards read through
 	// it to the load's own data, so they show something from the first paint and
@@ -136,18 +119,7 @@
 			{/if}
 		</div>
 
-		<div class="flex w-[28rem] max-w-full flex-col items-center gap-4 lg:order-1">
-			{#if hasWeekVolume(weekVolume)}
-				<!--
-					Spike: this week's mileage, pulled out of the navbar and dropped
-					right above the calendar it describes instead — labelled, and
-					next to the schedule it is a running total of.
-				-->
-				<div class="w-full rounded-xl border border-border bg-card p-4 shadow-lg">
-					<h2 class="mb-2 text-sm font-semibold text-foreground">This week</h2>
-					<WeekVolume volume={weekVolume} />
-				</div>
-			{/if}
+		<div class="flex flex-col items-center lg:order-1 lg:flex-row">
 			<Calendar today={new Date()} schedule={data.schedule} {refreshPageData} />
 		</div>
 	</div>
