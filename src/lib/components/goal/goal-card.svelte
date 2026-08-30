@@ -10,7 +10,8 @@
 		ChevronDown,
 		TrendingDown,
 		TrendingUp,
-		Minus
+		Minus,
+		Loader2
 	} from 'lucide-svelte';
 	import PredictionStats from './prediction-stats.svelte';
 	import PredictionChart, {
@@ -384,7 +385,17 @@
 
 	// ── Prediction history & chart ─────────────────────────────────
 	let chartData = $state<ChartDataPoint[]>([]);
-	let chartLoading = $state(false);
+	/**
+	 * True from the first paint, not from the moment the fetch starts.
+	 *
+	 * The history is fetched on mount, so between the server's render and that
+	 * fetch there is always a gap — and a card that starts out `false` spends
+	 * that gap claiming there is nothing to show: an empty chart under a
+	 * heading with no reading in it. Starting true means the first thing drawn
+	 * is the wait itself, and the chart and the trend badge both settle in
+	 * place rather than appearing out of an emptiness that looked settled.
+	 */
+	let chartLoading = $state(true);
 	let chartError = $state<string | null>(null);
 
 	// ── Which way the pace curve is going ──────────────────────────
@@ -731,7 +742,23 @@
 	on a phone is nothing but this row.
 -->
 {#snippet trendBadge()}
-	{#if trend}
+	{#if chartLoading}
+		<!--
+			The reading is a fetch away, and the badge is the narrowest thing in
+			the heading: appearing out of nothing shoves the goal's name sideways
+			just as it is being read. The spinner holds that width and says the
+			heading is not finished, which is the honest reading of the moment —
+			an absent badge means "no trend to report", and that is not yet known.
+		-->
+		<span
+			class="flex shrink-0 items-center gap-1 text-xs font-medium whitespace-nowrap text-muted-foreground"
+			role="status"
+			data-testid="trend-loading"
+		>
+			<Loader2 class="h-3.5 w-3.5 animate-spin" aria-hidden="true" />
+			<span class="sr-only">Reading the pace trend…</span>
+		</span>
+	{:else if trend}
 		{@const look = TREND_LOOK[trend.direction]}
 		<span
 			class="flex shrink-0 items-center gap-1 text-xs font-medium whitespace-nowrap {look.tone}"

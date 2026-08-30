@@ -122,6 +122,54 @@ describe('goal card pace trend', () => {
 		await waitFor(() => expect(heading().textContent).toMatch(/detraining/i));
 	});
 
+	it("spins in the badge's place until the history has arrived", async () => {
+		// Hold the history open so the card is caught mid-fetch, which is the
+		// only moment this element exists.
+		let release!: (records: ReturnType<typeof record>[]) => void;
+		const held = new Promise<ReturnType<typeof record>[]>((resolve) => {
+			release = resolve;
+		});
+		vi.stubGlobal(
+			'fetch',
+			vi.fn(async (url: string, init?: RequestInit) => {
+				if (init?.method === 'POST') {
+					return new Response(JSON.stringify({ stored: false }), { status: 200 });
+				}
+				return new Response(JSON.stringify({ records: await held }), { status: 200 });
+			})
+		);
+		render(GoalCard, { props: { goal, userStats } });
+
+		// Present before the fetch resolves — and on the very first paint, not
+		// only once the request is in flight.
+		expect(screen.getByTestId('trend-loading')).toBeTruthy();
+		expect(heading().textContent).not.toMatch(/improving|maintaining|detraining/i);
+
+		release([record(13, 300), record(9, 298), record(4, 296), record(0, 294)]);
+		await waitFor(() => expect(heading().textContent).toMatch(/improving/i));
+		expect(screen.queryByTestId('trend-loading')).toBeNull();
+	});
+
+	it('stops spinning when the history says there is no trend to report', async () => {
+		mount([record(3, 300), record(1, 290)]);
+		await waitFor(() => expect(screen.queryByTestId('trend-loading')).toBeNull());
+		expect(heading().textContent).not.toMatch(/improving|maintaining|detraining/i);
+	});
+
+	it('stops spinning when the history could not be read', async () => {
+		vi.stubGlobal(
+			'fetch',
+			vi.fn(async (url: string, init?: RequestInit) =>
+				init?.method === 'POST'
+					? new Response(JSON.stringify({ stored: false }), { status: 200 })
+					: new Response('nope', { status: 500 })
+			)
+		);
+		render(GoalCard, { props: { goal, userStats } });
+		await waitFor(() => expect(screen.queryByTestId('trend-loading')).toBeNull());
+		expect(heading().textContent).not.toMatch(/improving|maintaining|detraining/i);
+	});
+
 	it('says nothing when there is not enough history to call a direction', async () => {
 		mount([record(3, 300), record(1, 290)]);
 		// The chart's own empty state would settle later than the badge would
