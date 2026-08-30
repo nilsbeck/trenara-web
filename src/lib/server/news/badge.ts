@@ -20,6 +20,17 @@ interface CacheEntry {
 }
 
 /**
+ * How many readers' badges one instance holds.
+ *
+ * The TTL alone did not bound this. An expired entry was only ever replaced or
+ * explicitly cleared — nothing swept — so the map held one entry per reader who
+ * had ever reached that instance, for the life of the instance. Harmless for a
+ * handful of people and a slow leak for a crowd, which is the shape of bug that
+ * only shows up once it matters.
+ */
+const MAX_READERS = 2000;
+
+/**
  * Per-user badge cache.
  *
  * Module scope, so on Vercel it lives for as long as the serverless instance
@@ -27,6 +38,28 @@ interface CacheEntry {
  * costs one upstream call, and the value is advisory either way.
  */
 const cache = new Map<number, CacheEntry>();
+
+/**
+ * Drop what has expired, and the oldest of what has not if there is still too
+ * much. Called on the way in, so a cache hit does not pay for it.
+ *
+ * A `Map` iterates in insertion order and every entry is written with the same
+ * TTL, so the oldest are simply the first — no sort needed.
+ */
+function prune(now: number): void {
+	for (const [userId, entry] of cache) {
+		if (entry.expiresAt <= now) cache.delete(userId);
+	}
+
+	if (cache.size <= MAX_READERS) return;
+
+	const excess = cache.size - MAX_READERS;
+	let dropped = 0;
+	for (const userId of cache.keys()) {
+		if (dropped++ >= excess) break;
+		cache.delete(userId);
+	}
+}
 
 /** Drop a reader's cached badge, so the next load recomputes it. */
 export function clearBadgeCache(userId: number): void {
@@ -122,6 +155,7 @@ export async function loadNewsBadge(
 			summary = summarizeUnread(items, mark, now, (news.pagination?.total_pages ?? 1) > 1);
 		}
 
+		prune(Date.now());
 		cache.set(userId, { summary, expiresAt: Date.now() + CACHE_TTL_MS });
 		return summary;
 	} catch (e) {

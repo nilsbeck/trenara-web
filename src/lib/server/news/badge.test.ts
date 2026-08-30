@@ -131,3 +131,51 @@ describe('loadNewsBadge', () => {
 		expect(await loadNewsBadge(cookies, 7)).toBeNull();
 	});
 });
+
+describe('the cache does not grow without bound', () => {
+	// The TTL alone did not bound it: an expired entry was only ever replaced or
+	// explicitly cleared, nothing swept, so the map held one entry per reader who
+	// had ever reached that instance for the life of the instance.
+	it('forgets readers once there are more of them than it holds', async () => {
+		getNews.mockResolvedValue(envelope([item(1, 1)]));
+		getMark.mockResolvedValue({ id: 1, createdAt: item(1, 1).created_at });
+
+		// Well past the 2000-reader ceiling.
+		for (let userId = 1; userId <= 2400; userId++) {
+			await loadNewsBadge(cookies, userId);
+		}
+
+		const callsAfterFilling = getNews.mock.calls.length;
+
+		// The most recent reader is still held: no upstream call to answer again.
+		await loadNewsBadge(cookies, 2400);
+		expect(getNews.mock.calls.length).toBe(callsAfterFilling);
+
+		// The first one was evicted, so answering for them costs a fetch.
+		await loadNewsBadge(cookies, 1);
+		expect(getNews.mock.calls.length).toBe(callsAfterFilling + 1);
+	});
+
+	it('sweeps entries whose time is up, rather than only replacing them', async () => {
+		getNews.mockResolvedValue(envelope([item(1, 1)]));
+		getMark.mockResolvedValue({ id: 1, createdAt: item(1, 1).created_at });
+
+		vi.useFakeTimers();
+		try {
+			await loadNewsBadge(cookies, 7);
+			const before = getNews.mock.calls.length;
+
+			// Straight past the ten-minute TTL.
+			vi.advanceTimersByTime(11 * 60 * 1000);
+
+			// A different reader's miss is what triggers the sweep, and reader 7 is
+			// no longer served from memory afterwards.
+			await loadNewsBadge(cookies, 8);
+			await loadNewsBadge(cookies, 7);
+
+			expect(getNews.mock.calls.length).toBe(before + 2);
+		} finally {
+			vi.useRealTimers();
+		}
+	});
+});
