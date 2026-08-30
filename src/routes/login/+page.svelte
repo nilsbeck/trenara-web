@@ -1,10 +1,10 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
-	import type { ActionData } from './$types';
+	import type { ActionData, PageData } from './$types';
 	import { Loader2 } from 'lucide-svelte';
 
 	let formLoading = $state(false);
-	let { form }: { form: ActionData } = $props();
+	let { form, data }: { form: ActionData; data: PageData } = $props();
 </script>
 
 <div class="flex min-h-screen flex-col items-center justify-center px-6 py-12">
@@ -35,6 +35,13 @@
 				};
 			}}
 		>
+			<!--
+				Where the guard turned them away from, carried through the form
+				rather than the query string: `action="?/login"` replaces the query
+				entirely, so a `next` parameter would not survive the submit.
+			-->
+			<input type="hidden" name="next" value={data.next} />
+
 			<div class="space-y-2">
 				<label for="username" class="block text-sm font-medium text-foreground">Email</label>
 				<input

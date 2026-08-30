@@ -2,6 +2,7 @@ import type { Cookies } from '@sveltejs/kit';
 import type { ChatThread, ChatMessage, ChatMessagesResponse } from './types';
 import { fetchClient } from './client';
 import { expectArray } from './shape';
+import { cachedRead, CacheKey, invalidate } from './read-cache';
 import { TokenType } from '$lib/server/auth/types';
 
 function bearerHeader(cookies: Cookies): Record<string, string> {
@@ -9,13 +10,33 @@ function bearerHeader(cookies: Cookies): Record<string, string> {
 }
 
 export const chatApi = {
-	async getThreads(cookies: Cookies): Promise<ChatThread[]> {
-		return expectArray<ChatThread>(
-			await fetchClient.get<unknown>('/api/threads/', {
-				headers: bearerHeader(cookies),
-				cookies
-			}),
-			'/api/threads/'
+	/**
+	 * The reader's conversations.
+	 *
+	 * Cached, and it was the last hot read that was not. Three callers wanted
+	 * it: `loadChatBadge` on every single page load, the bubble when it is
+	 * opened, and the bubble's own tick while it is closed — so a runner with
+	 * the app open was spending a request a minute on a thread list that
+	 * changes when the coach writes back, which is a few times a week.
+	 *
+	 * Against a measured budget of sixty requests a minute for the whole app,
+	 * that made this the largest single consumer. `sendMessage` drops it, so a
+	 * conversation the runner just added to is never served from a copy taken
+	 * before they wrote.
+	 */
+	async getThreads(cookies: Cookies, { fresh = false } = {}): Promise<ChatThread[]> {
+		return cachedRead(
+			cookies,
+			CacheKey.threads,
+			async () =>
+				expectArray<ChatThread>(
+					await fetchClient.get<unknown>('/api/threads/', {
+						headers: bearerHeader(cookies),
+						cookies
+					}),
+					'/api/threads/'
+				),
+			{ fresh }
 		);
 	},
 
@@ -46,10 +67,15 @@ export const chatApi = {
 	 * but not what Trenara expects.
 	 */
 	async sendMessage(cookies: Cookies, threadId: number, content: string): Promise<ChatMessage> {
-		return fetchClient.post<ChatMessage>(
+		const message = await fetchClient.post<ChatMessage>(
 			`/api/threads/${threadId}/messages`,
 			{ body: content },
 			{ headers: bearerHeader(cookies), cookies }
 		);
+
+		// The thread list carries the last message and the unread count, both of
+		// which this just changed.
+		invalidate(cookies, CacheKey.threads);
+		return message;
 	}
 };

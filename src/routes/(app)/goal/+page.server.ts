@@ -1,4 +1,3 @@
-import { error } from '@sveltejs/kit';
 import { trainingApi, userApi } from '$lib/server/trenara';
 import { passthrough } from '$lib/server/trenara/request';
 import type { PageServerLoad } from './$types';
@@ -13,11 +12,7 @@ import type { PageServerLoad } from './$types';
  * whole of this page, so a failure is allowed to fail it — but it has to fail
  * it with a reason attached.
  */
-export const load: PageServerLoad = async ({ cookies, locals }) => {
-	if (!locals.user) {
-		error(401, 'Unauthorized');
-	}
-
+export const load: PageServerLoad = async ({ cookies }) => {
 	return {
 		goal: passthrough(() => trainingApi.getGoal(cookies)),
 		userStats: passthrough(() => userApi.getUserStats(cookies))

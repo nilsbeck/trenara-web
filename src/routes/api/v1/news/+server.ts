@@ -5,9 +5,7 @@ import { passthrough } from '$lib/server/trenara/request';
 import { newsPageSchema } from '$lib/schemas/news';
 
 /** A page of the in-app news feed — ten items, newest first. */
-export const GET: RequestHandler = async ({ url, cookies, locals }) => {
-	if (!locals.user) error(401, 'Unauthorized');
-
+export const GET: RequestHandler = async ({ url, cookies }) => {
 	const parsed = newsPageSchema.safeParse(url.searchParams.get('page') ?? undefined);
 	if (!parsed.success) error(400, 'Invalid page');
 

@@ -3,11 +3,7 @@ import type { RequestHandler } from './$types';
 import { trainingApi } from '$lib/server/trenara';
 import { passthrough } from '$lib/server/trenara/request';
 
-export const DELETE: RequestHandler = async ({ request, cookies, locals }) => {
-	if (!locals.user) {
-		error(401, 'Unauthorized');
-	}
-
+export const DELETE: RequestHandler = async ({ request, cookies }) => {
 	const body = await request.json();
 	const trainingId = body?.trainingId;
 	// type: 'entry' (default) → delete a completed entry

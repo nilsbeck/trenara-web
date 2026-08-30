@@ -1,7 +1,6 @@
 import { supabase } from './client';
-import { storageFailed } from './errors';
+import { isUniqueViolation, storageFailed } from './errors';
 import type { NewsMark } from '$lib/utils/news-unread';
-import { isNewer } from '$lib/utils/news-unread';
 
 /**
  * Where each reader has got to in the news feed.
@@ -57,32 +56,50 @@ export class NewsReadStateDAO {
 	/**
 	 * Move the reader's mark forward to `mark`.
 	 *
-	 * Monotonic: an older mark is ignored rather than written, so a tab left
-	 * open on last week's feed cannot un-read what has arrived since.
+	 * Monotonic, and enforced by the statement rather than by a read followed
+	 * by a write: the old shape compared in JavaScript and then upserted, with
+	 * nothing stopping two concurrent marks from interleaving so that the older
+	 * one landed last.
 	 *
-	 * `advanced: false` means that and only that. A write that failed is not a
-	 * mark that was already forward enough, and reporting it as one left the
-	 * badge to reappear next load with nothing to explain it.
+	 * The ordering is the one `isNewer` describes — `created_at` first, because
+	 * that is what the feed itself is ordered by, with the id breaking ties
+	 * inside the same second — expressed here as the `WHERE` clause of a single
+	 * update.
+	 *
+	 * `advanced: false` means the stored mark was already at least this far
+	 * along, and only that. A write that failed is reported as a failure.
 	 */
 	async advanceMark(userId: number, mark: NewsMark): Promise<{ advanced: boolean }> {
-		const current = await this.getMark(userId);
-		if (current !== null && !isNewer(mark, current)) {
-			return { advanced: false };
-		}
-
-		const { error } = await supabase.from('news_read_state').upsert(
-			{
-				user_id: userId,
+		const { data, error } = await supabase
+			.from('news_read_state')
+			.update({
 				last_seen_id: mark.id,
 				last_seen_created_at: mark.createdAt,
 				updated_at: new Date().toISOString()
-			},
-			{ onConflict: 'user_id' }
-		);
+			})
+			.eq('user_id', userId)
+			.or(
+				`last_seen_created_at.lt.${mark.createdAt},` +
+					`and(last_seen_created_at.eq.${mark.createdAt},last_seen_id.lt.${mark.id})`
+			)
+			.select('user_id');
 
 		if (error) storageFailed('news mark write', error);
+		if ((data ?? []).length > 0) return { advanced: true };
 
-		return { advanced: true };
+		// Nothing moved: either no row yet, or the stored mark is already newer.
+		// The insert tells them apart, and a unique violation is the second case.
+		const { error: insertError } = await supabase.from('news_read_state').insert({
+			user_id: userId,
+			last_seen_id: mark.id,
+			last_seen_created_at: mark.createdAt,
+			updated_at: new Date().toISOString()
+		});
+
+		if (!insertError) return { advanced: true };
+		if (isUniqueViolation(insertError)) return { advanced: false };
+
+		storageFailed('news mark write', insertError);
 	}
 }
 

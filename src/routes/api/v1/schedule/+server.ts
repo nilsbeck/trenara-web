@@ -6,11 +6,7 @@ import { fingerprint } from '$lib/utils/fingerprint';
 import { getMonthTimestamps, parseLocalDateString, weeksStillOpen } from '$lib/utils/date';
 import type { SchedulePayload } from '$lib/utils/schedule';
 
-export const GET: RequestHandler = async ({ url, request, cookies, locals }) => {
-	if (!locals.user) {
-		error(401, 'Unauthorized');
-	}
-
+export const GET: RequestHandler = async ({ url, request, cookies }) => {
 	const dateParam = url.searchParams.get('date');
 	const dateMs = dateParam ? Number(dateParam) : NaN;
 	const date = Number.isFinite(dateMs) ? new Date(dateMs) : new Date();

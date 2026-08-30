@@ -4,11 +4,7 @@ import { trainingApi } from '$lib/server/trenara';
 import { passthrough } from '$lib/server/trenara/request';
 import { rpeFeedbackSchema } from '$lib/schemas/feedback';
 
-export const PUT: RequestHandler = async ({ request, cookies, locals }) => {
-	if (!locals.user) {
-		error(401, 'Unauthorized');
-	}
-
+export const PUT: RequestHandler = async ({ request, cookies }) => {
 	const body = await request.json();
 	const result = rpeFeedbackSchema.safeParse(body);
 

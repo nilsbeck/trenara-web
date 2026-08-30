@@ -1,10 +1,11 @@
-import { json, error } from '@sveltejs/kit';
+import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { parseBody } from '$lib/server/trenara/request';
 import { newsReadStateDAO } from '$lib/server/db/news-read-state';
 import { fromStorage, STORAGE_WRITE_MESSAGE } from '$lib/server/db/errors';
 import { clearBadgeCache } from '$lib/server/news/badge';
 import { newsMarkReadSchema } from '$lib/schemas/news';
+import { requireUser } from '$lib/server/auth/guard';
 
 /**
  * Mark the news feed read up to the item in the body.
@@ -13,24 +14,24 @@ import { newsMarkReadSchema } from '$lib/schemas/news';
  * failed on the way to the reader has not been read, and clearing the badge
  * for it would lose the item silently.
  *
- * The reader is `locals.user`, verified in `hooks.server.ts`, never a field in
+ * The reader is `locals.user`, resolved from the access token in
+ * `hooks.server.ts`, never a field in
  * the body — a mark is per-user state and must not be writable for anyone else.
  */
 export const POST: RequestHandler = async ({ request, locals }) => {
-	if (!locals.user) error(401, 'Unauthorized');
-
+	const user = requireUser(locals);
 	const body = parseBody(newsMarkReadSchema, await request.json());
 
 	const result = await fromStorage(
 		() =>
-			newsReadStateDAO.advanceMark(locals.user!.id, {
+			newsReadStateDAO.advanceMark(user.id, {
 				id: body.lastSeenId,
 				createdAt: body.lastSeenCreatedAt
 			}),
 		STORAGE_WRITE_MESSAGE
 	);
 
-	clearBadgeCache(locals.user.id);
+	clearBadgeCache(user.id);
 
 	return json(result);
 };

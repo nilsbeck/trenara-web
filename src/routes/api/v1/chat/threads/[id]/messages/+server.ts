@@ -3,11 +3,7 @@ import type { RequestHandler } from './$types';
 import { chatApi } from '$lib/server/trenara';
 import { passthrough } from '$lib/server/trenara/request';
 
-export const GET: RequestHandler = async ({ params, url, cookies, locals }) => {
-	if (!locals.user) {
-		error(401, 'Unauthorized');
-	}
-
+export const GET: RequestHandler = async ({ params, url, cookies }) => {
 	const threadId = Number(params.id);
 	if (!Number.isFinite(threadId) || threadId <= 0) {
 		error(400, 'Invalid thread ID');
@@ -30,11 +26,7 @@ export const GET: RequestHandler = async ({ params, url, cookies, locals }) => {
 	);
 };
 
-export const POST: RequestHandler = async ({ params, request, cookies, locals }) => {
-	if (!locals.user) {
-		error(401, 'Unauthorized');
-	}
-
+export const POST: RequestHandler = async ({ params, request, cookies }) => {
 	const threadId = Number(params.id);
 	if (!Number.isFinite(threadId) || threadId <= 0) {
 		error(400, 'Invalid thread ID');

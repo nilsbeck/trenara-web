@@ -88,13 +88,15 @@ export function cachedRead<T>(
 	if (!user) return read();
 
 	const now = Date.now();
-	prune(now);
-
 	const cacheKey = `${user}:${key}`;
 	const cached = cache.get(cacheKey);
 	if (!fresh && cached && now - cached.at < ttl) {
 		return cached.value as Promise<T>;
 	}
+
+	// Pruned on the way in rather than on every read: a hit is the common case
+	// and had no reason to walk the whole map first.
+	prune(now);
 
 	const value = read();
 	cache.set(cacheKey, { at: now, value });
@@ -137,7 +139,8 @@ export const CacheKey = {
 	weeks: 'week:',
 	currentUser: 'me',
 	goal: 'goal',
-	stats: 'stats'
+	stats: 'stats',
+	threads: 'threads'
 } as const;
 
 /** Testing seam — the cache is module-wide and outlives a single case. */

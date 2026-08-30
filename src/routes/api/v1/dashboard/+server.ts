@@ -1,4 +1,4 @@
-import { json, error } from '@sveltejs/kit';
+import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { trainingApi, userApi } from '$lib/server/trenara';
 
@@ -11,11 +11,7 @@ import { trainingApi, userApi } from '$lib/server/trenara';
  * the page load they mirror: a missing goal is a card that does not render,
  * not a refresh that fails.
  */
-export const GET: RequestHandler = async ({ cookies, locals }) => {
-	if (!locals.user) {
-		error(401, 'Unauthorized');
-	}
-
+export const GET: RequestHandler = async ({ cookies }) => {
 	const [goal, userStats] = await Promise.all([
 		trainingApi.getGoal(cookies).catch(() => null),
 		userApi.getUserStats(cookies).catch(() => null)

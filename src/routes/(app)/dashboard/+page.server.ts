@@ -2,13 +2,32 @@ import { trainingApi, userApi } from '$lib/server/trenara';
 import { passthrough } from '$lib/server/trenara/request';
 import type { Schedule } from '$lib/server/trenara/types';
 import { getMonthTimestamps } from '$lib/utils/date';
+import { requireUser } from '$lib/server/auth/guard';
+import { keepHistory } from '$lib/server/history/record';
 import type { PageServerLoad } from './$types';
 
-export const load: PageServerLoad = async ({ cookies }) => {
+export const load: PageServerLoad = async ({ cookies, locals }) => {
+	const user = requireUser(locals);
+
+	/**
+	 * The history write rides along with the page's own fetches.
+	 *
+	 * It used to happen in `goal-card.svelte`, which meant it only happened
+	 * when somebody opened the card — and the prediction series is
+	 * one-point-per-day with no way to fill a day in afterwards, so a fortnight
+	 * of not looking was a fortnight of gaps, permanently. The dashboard is the
+	 * page a runner actually opens, and it already holds everything the record
+	 * needs.
+	 *
+	 * Inside the same `Promise.all` as the schedule, so it costs no wall-clock
+	 * time: two database round trips against six weeks of upstream fetches. It
+	 * never rejects, so it cannot fail the page either.
+	 */
 	const [schedule, goal, userStats] = await Promise.all([
 		getMonthlySchedule(cookies),
 		trainingApi.getGoal(cookies).catch(() => null),
-		userApi.getUserStats(cookies).catch(() => null)
+		userApi.getUserStats(cookies).catch(() => null),
+		keepHistory(cookies, user.id)
 	]);
 
 	return {

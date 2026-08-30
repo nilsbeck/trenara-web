@@ -471,35 +471,18 @@
 			.filter((d): d is ChartDataPoint => d !== null);
 	}
 
-	/** Strip any unit suffix (e.g. "min/km") before sending a pace to the API. */
-	function stripPaceUnit(pace: string): string {
-		return pace.replace(/\s*min\/km\s*/, '').trim();
-	}
-
 	/**
-	 * POST current prediction to the API; only stores if changed.
+	 * Ask the server to record today's prediction, and redraw if it did.
 	 *
-	 * Sends both the goal-distance prediction (what this card's chart plots) and
-	 * the 10K prediction, which the all-time history uses as a fixed reference so
-	 * the series stays comparable across goals of different distances.
+	 * Sends no figures. It used to compose them here — reading `userStats` off
+	 * the page and posting time and pace up — which made the runner's own
+	 * history client-authored for a record meant to outlive the data it
+	 * describes. The server reads Trenara directly now and ignores any body,
+	 * so all this needs to know is whether a new point exists.
 	 */
 	async function trackCurrentPrediction() {
-		const time = userStats?.best_times?.time_for_goal;
-		const rawPace = userStats?.best_times?.pace_for_goal;
-		if (!time || !rawPace) return;
-		const pace = stripPaceUnit(rawPace);
-
-		const time10k = userStats?.best_times?.time_for_10;
-		const rawPace10k = userStats?.best_times?.pace_for_10;
-		const reference =
-			time10k && rawPace10k ? { time_10k: time10k, pace_10k: stripPaceUnit(rawPace10k) } : {};
-
 		try {
-			const res = await fetch('/api/v1/prediction-history', {
-				method: 'POST',
-				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ time, pace, ...reference })
-			});
+			const res = await fetch('/api/v1/prediction-history', { method: 'POST' });
 			if (!res.ok) return; // non-critical, fail silently
 			const result = await res.json();
 			if (result.stored) {
@@ -512,60 +495,21 @@
 	}
 
 	/**
-	 * Archive the current goal to history (best-effort, fire-and-forget).
+	 * Ask the server to archive the goal that is current right now.
 	 *
-	 * Runs for active goals too, not just completed ones: Trenara's /api/goal
-	 * only ever returns the goal that is current right now, so a goal that is
-	 * replaced before anyone opens this page after its end date would otherwise
-	 * be lost for good. The API upserts on (user, name, end date), so repeat
-	 * visits refresh the stored final prediction instead of piling up rows.
+	 * Also body-less, and for the same reason. The dashboard load does this on
+	 * its own now, so this call is only what keeps the archive current for
+	 * someone who came straight to the goal page.
 	 */
 	async function archiveGoal() {
-		const latest = await getLatestPrediction();
 		try {
-			const res = await fetch('/api/v1/goal-history', {
-				method: 'POST',
-				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({
-					goal_name: goal.name,
-					distance: goal.distance,
-					goal_time: goal.time,
-					goal_pace: stripPaceUnit(goal.pace),
-					final_predicted_time: latest?.time ?? userStats?.best_times?.time_for_goal ?? null,
-					final_predicted_pace:
-						latest?.pace ??
-						(userStats?.best_times?.pace_for_goal
-							? stripPaceUnit(userStats.best_times.pace_for_goal)
-							: null),
-					start_date: goal.start_date,
-					end_date: goal.end_date
-				})
-			});
+			const res = await fetch('/api/v1/goal-history', { method: 'POST' });
 			if (!res.ok) {
 				// Not fatal, but silent failures here are why history stays empty.
-				console.warn(`Failed to archive goal (${res.status}): ${await res.text()}`);
+				console.warn(`Failed to archive goal (${res.status})`);
 			}
 		} catch (e) {
 			console.warn('Failed to archive goal:', e);
-		}
-	}
-
-	/** Fetch the latest prediction to use as final prediction for archiving. */
-	async function getLatestPrediction(): Promise<{ time: string; pace: string } | null> {
-		try {
-			const params = new URLSearchParams({ limit: '1' });
-			const res = await fetch(`/api/v1/prediction-history?${params}`);
-			if (!res.ok) return null;
-			const { records } = await res.json();
-			if (records?.length > 0) {
-				return {
-					time: records[records.length - 1].predicted_time,
-					pace: records[records.length - 1].predicted_pace
-				};
-			}
-			return null;
-		} catch {
-			return null;
 		}
 	}
 

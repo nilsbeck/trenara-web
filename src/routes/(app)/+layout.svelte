@@ -211,15 +211,22 @@
 								Goal History
 							</a>
 							<div class="my-1 border-t border-border"></div>
-							<a
-								href="/logout"
-								class="flex items-center gap-2 px-4 py-2 text-sm text-destructive hover:bg-accent"
-								role="menuitem"
-								onclick={closeMenu}
-							>
-								<LogOut class="h-4 w-4" />
-								Logout
-							</a>
+							<!--
+								A form, not a link: logout is a state change, and as a GET it
+								could be triggered by any third-party page embedding it as an
+								image. See src/routes/logout/+server.ts.
+							-->
+							<form method="POST" action="/logout">
+								<button
+									type="submit"
+									class="flex w-full items-center gap-2 px-4 py-2 text-left text-sm text-destructive hover:bg-accent"
+									role="menuitem"
+									onclick={closeMenu}
+								>
+									<LogOut class="h-4 w-4" />
+									Logout
+								</button>
+							</form>
 						</div>
 					{/if}
 				</div>

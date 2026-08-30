@@ -1,5 +1,21 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { z } from 'zod';
+
+// The rate-limit snapshot is shown only to the configured maintainer, so both
+// halves of that decision have to be steerable from a test: who the app thinks
+// the admin is, and who is actually asking.
+const { fakeEnv, viewer } = vi.hoisted(() => ({
+	fakeEnv: {} as Record<string, string | undefined>,
+	viewer: { id: undefined as number | undefined }
+}));
+
+vi.mock('$env/dynamic/private', () => ({ env: fakeEnv }));
+vi.mock('$app/server', () => ({
+	getRequestEvent: () => {
+		if (viewer.id === undefined) throw new Error('no request context');
+		return { locals: { user: { id: viewer.id, email: 'runner@example.com' } } };
+	}
+}));
 import {
 	HttpError,
 	MalformedResponseError,
@@ -268,10 +284,40 @@ describe('describeFailure on a rate limit', () => {
 		instance: 'ab12cd'
 	};
 
-	it('relays the 429 and keeps the snapshot with it', () => {
+	beforeEach(() => {
+		delete fakeEnv.ADMIN_USER_ID;
+		viewer.id = undefined;
+	});
+
+	it('relays the 429 as a 429 whoever is asking', () => {
 		const described = describeFailure(new RateLimitError('limited', diagnostic));
 
 		expect(described.status).toBe(429);
+	});
+
+	// The snapshot names upstream endpoints, their counts and the serverless
+	// instance. That is a maintenance tool, and until `ADMIN_USER_ID` says who
+	// the maintainer is there is nobody it is addressed to.
+	it('withholds the snapshot when no maintainer is configured', () => {
+		const described = describeFailure(new RateLimitError('limited', diagnostic), 42);
+
+		expect(described.rateLimit).toBeUndefined();
+	});
+
+	it('withholds the snapshot from anyone but the configured maintainer', () => {
+		fakeEnv.ADMIN_USER_ID = '42';
+
+		expect(
+			describeFailure(new RateLimitError('limited', diagnostic), 43).rateLimit
+		).toBeUndefined();
+		expect(describeFailure(new RateLimitError('limited', diagnostic)).rateLimit).toBeUndefined();
+	});
+
+	it('keeps the snapshot for the configured maintainer', () => {
+		fakeEnv.ADMIN_USER_ID = '42';
+
+		const described = describeFailure(new RateLimitError('limited', diagnostic), 42);
+
 		expect(described.rateLimit).toBe(diagnostic);
 	});
 
@@ -300,15 +346,45 @@ describe('describeFailure on a rate limit', () => {
 		expect(retryAfterText(0)).toBeNull();
 	});
 
-	it('carries the snapshot through passthrough onto the error body', async () => {
+	async function throughPassthrough() {
 		let thrown: { status: number; body: { message: string; rateLimit?: unknown } } | undefined;
 		try {
 			await passthrough(() => Promise.reject(new RateLimitError('limited', diagnostic)));
 		} catch (e) {
 			thrown = e as typeof thrown;
 		}
+		return thrown;
+	}
+
+	it('carries the snapshot through passthrough for the maintainer', async () => {
+		fakeEnv.ADMIN_USER_ID = '42';
+		viewer.id = 42;
+
+		const thrown = await throughPassthrough();
 
 		expect(thrown?.status).toBe(429);
 		expect(thrown?.body.rateLimit).toEqual(diagnostic);
+	});
+
+	it('still reports the 429 through passthrough, without the snapshot, for everyone else', async () => {
+		fakeEnv.ADMIN_USER_ID = '42';
+		viewer.id = 43;
+
+		const thrown = await throughPassthrough();
+
+		expect(thrown?.status).toBe(429);
+		expect(thrown?.body.message).toBe(RATE_LIMITED_MESSAGE);
+		expect(thrown?.body.rateLimit).toBeUndefined();
+	});
+
+	// Outside a request there is no viewer to be the maintainer, and the read
+	// must not throw on the way to finding that out.
+	it('survives being called with no request context', async () => {
+		fakeEnv.ADMIN_USER_ID = '42';
+
+		const thrown = await throughPassthrough();
+
+		expect(thrown?.status).toBe(429);
+		expect(thrown?.body.rateLimit).toBeUndefined();
 	});
 });
