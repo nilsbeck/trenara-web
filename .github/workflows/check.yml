@@ -10,9 +10,61 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # Dependabot raises npm updates by editing package.json alone; it does not
+  # regenerate bun.lock. Its branches therefore arrive with a lockfile that no
+  # longer matches, and `--frozen-lockfile` below fails on the install step —
+  # before the upgrade itself has been tested at all, which is the one thing
+  # the pull request exists to find out. Bringing the lockfile back in line is
+  # the whole job, so it is the only one holding a token that can write.
+  lockfile:
+    name: Sync bun.lock
+    if: github.event_name == 'pull_request' && github.actor == 'dependabot[bot]'
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          # The merge ref is detached and cannot be pushed back to.
+          ref: ${{ github.head_ref }}
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      # --lockfile-only resolves and writes bun.lock without linking anything
+      # or running a package's install scripts. Nothing from the update under
+      # test executes in this job, which is what makes the write token safe to
+      # hand it.
+      - name: Resolve bun.lock against package.json
+        run: bun install --lockfile-only
+
+      - name: Commit the lockfile
+        run: |
+          if git diff --quiet -- bun.lock; then
+            echo 'bun.lock already matches package.json; nothing to do.'
+            exit 0
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -m 'build(deps): regenerate bun.lock' -- bun.lock
+          git push
+
   check:
     name: Type-check, lint, test & build
     runs-on: ubuntu-latest
+
+    # Every run has to wait for the sync, but only a Dependabot pull request
+    # actually runs it. `needs` on its own would skip this job every time the
+    # sync is skipped, which is almost always, so the result is inspected
+    # rather than merely awaited.
+    needs: lockfile
+    if: always() && needs.lockfile.result != 'failure'
+
+    permissions:
+      contents: read
 
     # Placeholders, not secrets. Nothing here reaches Trenara or Supabase: the
     # type-checker and the unit tests mock every module that would, and the
@@ -24,6 +76,12 @@ jobs:
 
     steps:
       - uses: actions/checkout@v7
+        with:
+          # On a Dependabot pull request the sync job has just pushed a commit.
+          # The merge ref GitHub computed when this run started predates it, so
+          # the branch itself is what holds the tree worth testing. An empty
+          # ref leaves checkout on its default everywhere else.
+          ref: ${{ github.event_name == 'pull_request' && github.actor == 'dependabot[bot]' && github.head_ref || '' }}
 
       - uses: oven-sh/setup-bun@v2
         with:

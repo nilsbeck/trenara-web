@@ -12,6 +12,16 @@ updates:
     schedule:
       interval: monthly
     open-pull-requests-limit: 5
+    ignore:
+      # TypeScript 7 is the native rewrite, and nothing else here can talk to
+      # it yet: svelte-check refuses to run without a side-by-side TypeScript 6
+      # and a --tsgo flag, and typescript-eslint rejects it outright
+      # (typescript-eslint/typescript-eslint#10940). Both have to land before
+      # the major is worth raising, so it is not raised. Minor and patch
+      # updates still come through, and this entry comes back out once
+      # typescript-eslint supports TS >=7.1.
+      - dependency-name: 'typescript'
+        update-types: ['version-update:semver-major']
     groups:
       svelte:
         patterns:
