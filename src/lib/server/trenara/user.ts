@@ -26,11 +26,20 @@ export const userApi = {
 		);
 	},
 
+	/**
+	 * Best times, predictions and the weekly graphs.
+	 *
+	 * On the dashboard and on the goal page both, so it arrived four times in
+	 * the minute that tripped the rate limit. Every training write drops it —
+	 * an intensity change moves the predictions in here, not just the session.
+	 */
 	async getUserStats(cookies: Cookies): Promise<UserStats> {
-		return fetchClient.get<UserStats>('/api/me/stats', {
-			headers: bearerHeader(cookies),
-			cookies
-		});
+		return cachedRead(cookies, CacheKey.stats, () =>
+			fetchClient.get<UserStats>('/api/me/stats', {
+				headers: bearerHeader(cookies),
+				cookies
+			})
+		);
 	},
 
 	/**

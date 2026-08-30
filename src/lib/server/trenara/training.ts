@@ -29,25 +29,42 @@ function bearerHeader(cookies: Cookies): Record<string, string> {
 }
 
 /**
- * Run a write, then drop the runner's cached weeks.
+ * Run a write, then drop everything cached for that runner.
  *
  * Wrapped rather than remembered at each call site: a mutation that forgets it
  * leaves the plan on screen quietly disagreeing with what the runner just did,
- * and that is a bad thing to leave to memory. Only on success — a refused
- * write changed nothing, so there is nothing to forget.
+ * and that is a bad thing to leave to memory.
+ *
+ * All of it, rather than the weeks alone. Changing a session's intensity moves
+ * the week it is in *and* the predictions in `/api/me/stats`, and working out
+ * which reads a given write can reach is exactly the reasoning that gets
+ * quietly wrong later. The cost of being crude is one extra request for a
+ * profile nobody edited; the cost of being clever and wrong is a stale plan.
+ *
+ * Only on success — a refused write changed nothing, so there is nothing to
+ * forget.
  */
 async function mutating<T>(cookies: Cookies, run: () => Promise<T>): Promise<T> {
 	const result = await run();
-	invalidate(cookies, CacheKey.weeks);
+	invalidate(cookies);
 	return result;
 }
 
 export const trainingApi = {
+	/**
+	 * The goal being trained for.
+	 *
+	 * Read by the dashboard and again by the goal page, so it arrived four
+	 * times in the minute that tripped the rate limit. Nothing in this app sets
+	 * a goal, so it only changes when the runner changes it in Trenara itself.
+	 */
 	async getGoal(cookies: Cookies): Promise<Goal> {
-		return fetchClient.get<Goal>('/api/goal', {
-			headers: bearerHeader(cookies),
-			cookies
-		});
+		return cachedRead(cookies, CacheKey.goal, () =>
+			fetchClient.get<Goal>('/api/goal', {
+				headers: bearerHeader(cookies),
+				cookies
+			})
+		);
 	},
 
 	/**

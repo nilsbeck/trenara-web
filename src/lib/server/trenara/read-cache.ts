@@ -111,10 +111,15 @@ export function cachedRead<T>(
 /**
  * Drop what one runner has cached, all of it or one kind.
  *
- * `prefix` narrows it: a write that moves a session drops their weeks and
- * leaves their profile alone. Dropping every week rather than working out
- * which ones a change touched is deliberate — a moved session lands in a week
- * nobody named.
+ * Called with no prefix by every training write, which is deliberately crude:
+ * changing a session's intensity moves the week it sits in *and* the
+ * predictions in `/api/me/stats`, and deciding which reads a given write can
+ * reach is the kind of reasoning that goes quietly wrong a year later. The
+ * cost of being crude is one spare request; the cost of being clever and
+ * wrong is a plan on screen that disagrees with what the runner just did.
+ *
+ * `prefix` is there for a caller that genuinely knows better — `updateProfile`
+ * drops the account and leaves the plan alone.
  */
 export function invalidate(cookies: Cookies, prefix = ''): void {
 	const user = userKey(cookies);
@@ -130,7 +135,9 @@ export function invalidate(cookies: Cookies, prefix = ''): void {
 export const CacheKey = {
 	week: (timestamp: number) => `week:${timestamp}`,
 	weeks: 'week:',
-	currentUser: 'me'
+	currentUser: 'me',
+	goal: 'goal',
+	stats: 'stats'
 } as const;
 
 /** Testing seam — the cache is module-wide and outlives a single case. */

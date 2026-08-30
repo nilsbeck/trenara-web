@@ -500,6 +500,45 @@ describe('the week cache', () => {
 	});
 });
 
+describe('the goal and stats caches', () => {
+	beforeEach(() => {
+		resetReadCache();
+	});
+
+	// Both are read by the dashboard and again by the goal page — four of each
+	// in the minute that tripped the limit, and the last two uncached reads.
+	it('asks for the goal and the stats once across both pages', async () => {
+		fetchMock().mockResolvedValue(mockResponse({ id: 1 }));
+
+		await Promise.all([trainingApi.getGoal(cookies), userApi.getUserStats(cookies)]);
+		await Promise.all([trainingApi.getGoal(cookies), userApi.getUserStats(cookies)]);
+
+		expect(fetchMock()).toHaveBeenCalledTimes(2);
+	});
+
+	// An intensity change rescales the session *and* moves the predictions in
+	// `/api/me/stats`, so a write drops everything rather than guessing.
+	it('drops the stats after a training write, not just the week', async () => {
+		fetchMock().mockResolvedValue(mockResponse({ id: 1 }));
+
+		await userApi.getUserStats(cookies);
+		await trainingApi.setIntensity(cookies, 127477827, -2);
+		await userApi.getUserStats(cookies);
+
+		expect(fetchMock()).toHaveBeenCalledTimes(3);
+	});
+
+	it('drops the goal after a training write too', async () => {
+		fetchMock().mockResolvedValue(mockResponse({ id: 1 }));
+
+		await trainingApi.getGoal(cookies);
+		await trainingApi.deleteScheduledTraining(cookies, 1);
+		await trainingApi.getGoal(cookies);
+
+		expect(fetchMock()).toHaveBeenCalledTimes(3);
+	});
+});
+
 describe('the account cache', () => {
 	beforeEach(() => {
 		resetReadCache();
