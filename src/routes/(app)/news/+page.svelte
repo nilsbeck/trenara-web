@@ -6,6 +6,7 @@
 	import { ArrowLeft, ExternalLink, Loader2, Newspaper } from 'lucide-svelte';
 	import NewsContent from '$lib/components/news/news-content.svelte';
 	import { isNewer, isUnread, newestOf, type NewsMark } from '$lib/utils/news-unread';
+	import { describeError, describeResponse } from '$lib/utils/network';
 
 	let { data }: { data: PageServerData } = $props();
 
@@ -75,12 +76,12 @@
 
 		try {
 			const res = await fetch(`/api/v1/news?page=${pagination.current_page + 1}`);
-			if (!res.ok) throw new Error('Could not load older news');
+			if (!res.ok) throw new Error(await describeResponse(res, 'Could not load older news.'));
 			const page = await res.json();
 			items = [...items, ...(page.data ?? [])];
 			pagination = page.pagination;
 		} catch (e) {
-			loadMoreError = e instanceof Error ? e.message : 'Could not load older news';
+			loadMoreError = describeError(e, 'Could not load older news.');
 		} finally {
 			loadingMore = false;
 		}

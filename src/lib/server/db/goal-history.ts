@@ -1,4 +1,5 @@
 import { supabase } from './client';
+import { storageFailed } from './errors';
 
 export interface GoalHistoryRecord {
 	id: number;
@@ -37,6 +38,14 @@ export class GoalHistoryDAO {
 		return GoalHistoryDAO.instance;
 	}
 
+	/**
+	 * Everything the runner has archived, newest first.
+	 *
+	 * This is the whole of the goal history page, so a failure has to be a
+	 * failure: returning `[]` told them they had never archived a goal, which
+	 * for a page whose entire purpose is remembering is the worst thing it
+	 * could say. An empty array now means empty.
+	 */
 	async getGoalHistory(userId: number): Promise<GoalHistoryRecord[]> {
 		const { data, error } = await supabase
 			.from('goal_history')
@@ -44,10 +53,8 @@ export class GoalHistoryDAO {
 			.eq('user_id', userId)
 			.order('end_date', { ascending: false });
 
-		if (error) {
-			console.error('Failed to fetch goal history:', error.message);
-			return [];
-		}
+		if (error) storageFailed('goal history read', error);
+
 		return (data ?? []) as GoalHistoryRecord[];
 	}
 
@@ -74,10 +81,10 @@ export class GoalHistoryDAO {
 			.select()
 			.single();
 
-		if (error) {
-			console.error('Failed to archive goal:', error.message);
-			return { stored: false };
-		}
+		// `stored: false` was the only thing a failed write said, and it was
+		// indistinguishable from a write that had nothing to do — so a goal the
+		// runner believed was kept could be gone without a word anywhere.
+		if (error) storageFailed('goal archive', error);
 
 		return { stored: true, record: data as GoalHistoryRecord };
 	}

@@ -2,6 +2,7 @@ import { json, error } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { parseBody } from '$lib/server/trenara/request';
 import { newsReadStateDAO } from '$lib/server/db/news-read-state';
+import { fromStorage, STORAGE_WRITE_MESSAGE } from '$lib/server/db/errors';
 import { clearBadgeCache } from '$lib/server/news/badge';
 import { newsMarkReadSchema } from '$lib/schemas/news';
 
@@ -20,10 +21,14 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 
 	const body = parseBody(newsMarkReadSchema, await request.json());
 
-	const result = await newsReadStateDAO.advanceMark(locals.user.id, {
-		id: body.lastSeenId,
-		createdAt: body.lastSeenCreatedAt
-	});
+	const result = await fromStorage(
+		() =>
+			newsReadStateDAO.advanceMark(locals.user!.id, {
+				id: body.lastSeenId,
+				createdAt: body.lastSeenCreatedAt
+			}),
+		STORAGE_WRITE_MESSAGE
+	);
 
 	clearBadgeCache(locals.user.id);
 

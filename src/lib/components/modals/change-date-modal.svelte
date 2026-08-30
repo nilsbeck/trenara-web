@@ -8,6 +8,12 @@
 		Loader2,
 		TriangleAlert
 	} from 'lucide-svelte';
+	import {
+		describeError,
+		describeResponse,
+		isUnreachableStatus,
+		responseMessage
+	} from '$lib/utils/network';
 
 	let {
 		training,
@@ -168,22 +174,30 @@
 					warning = `Your goal time would change to ${newTime}. Do you want to continue?`;
 					return;
 				}
+			} else if (isUnreachableStatus(testRes.status)) {
+				// Trenara itself is not answering. Offering "continue" here would
+				// only lead to a save against the same dead connection, so this one
+				// is an error the runner can retry rather than a choice.
+				error = await describeResponse(testRes, 'Could not check this change.');
+				return;
 			} else if (testRes.status >= 400 && testRes.status < 500) {
 				// Goal-related rejection from the backend — treat as a warning the user can override
-				const data = await testRes.json().catch(() => ({}));
-				warning = data.message ?? 'This change may affect your goal. Do you want to continue?';
+				warning =
+					(await responseMessage(testRes)) ??
+					'This change may affect your goal. Do you want to continue?';
 				return;
 			} else {
 				// Backend test endpoint error — treat as warning since save may still work
-				const data = await testRes.json().catch(() => ({}));
-				warning = data.message ?? 'Could not verify this change. Do you want to continue?';
+				warning =
+					(await responseMessage(testRes)) ??
+					'Could not verify this change. Do you want to continue?';
 				return;
 			}
 
 			// Test passed with goal_possible — proceed to save directly
 			await saveMove(newDate);
 		} catch (e) {
-			error = e instanceof Error ? e.message : 'An unexpected error occurred';
+			error = describeError(e, 'Could not move this session.');
 		} finally {
 			submitting = false;
 		}
@@ -217,14 +231,13 @@
 			});
 
 			if (!saveRes.ok) {
-				const data = await saveRes.json().catch(() => ({}));
-				throw new Error(data.message ?? `Failed to save date change (${saveRes.status})`);
+				throw new Error(await describeResponse(saveRes, 'Could not move this session.'));
 			}
 
 			close();
 			onMoved?.();
 		} catch (e) {
-			error = e instanceof Error ? e.message : 'An unexpected error occurred';
+			error = describeError(e, 'Could not move this session.');
 		} finally {
 			submitting = false;
 		}

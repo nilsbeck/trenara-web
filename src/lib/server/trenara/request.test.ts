@@ -1,7 +1,25 @@
 import { describe, it, expect } from 'vitest';
 import { z } from 'zod';
-import { HttpError } from './client';
-import { describeUpstreamError, parseBody } from './request';
+import {
+	HttpError,
+	MalformedResponseError,
+	NetworkError,
+	RateLimitError,
+	TimeoutError
+} from './client';
+import {
+	describeFailure,
+	describeUpstreamError,
+	isUnreachable,
+	parseBody,
+	passthrough,
+	TIMEOUT_MESSAGE,
+	UNREACHABLE_MESSAGE,
+	MALFORMED_MESSAGE,
+	isUpstreamFailure,
+	RATE_LIMITED_MESSAGE,
+	retryAfterText
+} from './request';
 import { trainingConditionSchema } from '$lib/schemas/training';
 import { SURFACES } from '$lib/utils/session-setup';
 
@@ -111,5 +129,186 @@ describe('the terrain body the picker composes', () => {
 			});
 			expect(parsed.success, `${surface.value} is not accepted`).toBe(true);
 		}
+	});
+});
+
+describe('isUnreachable', () => {
+	it('is true for the failures that never got an answer', () => {
+		expect(isUnreachable(new NetworkError('Network request failed'))).toBe(true);
+		expect(isUnreachable(new TimeoutError())).toBe(true);
+	});
+
+	it('is false for an answer, however unwelcome', () => {
+		expect(isUnreachable(new HttpError('Server error', 500))).toBe(false);
+		expect(isUnreachable(new Error('boom'))).toBe(false);
+		expect(isUnreachable(null)).toBe(false);
+	});
+});
+
+describe('describeFailure', () => {
+	// The gateway statuses, because that is what this app is in front of
+	// Trenara: they let everything downstream tell "Trenara is down" from
+	// "we have a bug", which a 500 for both cannot.
+	it('answers a dead connection with 502 and a timeout with 504', () => {
+		expect(describeFailure(new NetworkError('Network request failed'))).toEqual({
+			status: 502,
+			message: UNREACHABLE_MESSAGE
+		});
+		expect(describeFailure(new TimeoutError())).toEqual({
+			status: 504,
+			message: TIMEOUT_MESSAGE
+		});
+	});
+
+	it('relays an upstream refusal with its own status and every field it named', () => {
+		const e = new HttpError('Unprocessable', 422, {
+			errors: { surface: ['The selected surface is invalid.'] }
+		});
+
+		expect(describeFailure(e)).toEqual({
+			status: 422,
+			message: 'surface: The selected surface is invalid.'
+		});
+	});
+
+	// `error()` throws on anything outside 400–599, so relaying a status
+	// verbatim would crash inside the error path instead of reporting from it.
+	it('folds an out-of-range upstream status into one that can be reported', () => {
+		expect(describeFailure(new HttpError('Weird', 0)).status).toBe(502);
+		expect(describeFailure(new HttpError('Moved', 302)).status).toBe(502);
+		expect(describeFailure(new HttpError('Nonsense', 600)).status).toBe(502);
+	});
+
+	it('says nothing revealing about a failure it does not recognise', () => {
+		const described = describeFailure(new Error('connect ECONNREFUSED 10.0.0.1:5432'));
+		expect(described.status).toBe(500);
+		expect(described.message).not.toContain('ECONNREFUSED');
+	});
+});
+
+describe('passthrough', () => {
+	/** The status and message a SvelteKit error was thrown with. */
+	async function statusOf(fn: () => Promise<unknown>) {
+		try {
+			await fn();
+		} catch (e) {
+			return e as { status: number; body: { message: string } };
+		}
+		throw new Error('expected a failure');
+	}
+
+	it('returns the value when the call succeeds', async () => {
+		expect(await passthrough(async () => ({ id: 1 }))).toEqual({ id: 1 });
+	});
+
+	it('turns an unreachable upstream into a 502 the error page can speak to', async () => {
+		const thrown = await statusOf(() =>
+			passthrough(() => Promise.reject(new NetworkError('Network request failed')))
+		);
+
+		expect(thrown.status).toBe(502);
+		expect(thrown.body.message).toBe(UNREACHABLE_MESSAGE);
+	});
+
+	it('turns a timeout into a 504', async () => {
+		const thrown = await statusOf(() => passthrough(() => Promise.reject(new TimeoutError())));
+
+		expect(thrown.status).toBe(504);
+		expect(thrown.body.message).toBe(TIMEOUT_MESSAGE);
+	});
+
+	it('passes an upstream refusal through with its own status', async () => {
+		const thrown = await statusOf(() =>
+			passthrough(() => Promise.reject(new HttpError('Training already moved', 409)))
+		);
+
+		expect(thrown.status).toBe(409);
+		expect(thrown.body.message).toBe('Training already moved');
+	});
+
+	// A bug in this app is not an upstream failure and must not be dressed as
+	// one: it goes up untouched, for `handleError` to log.
+	it('lets anything else through unchanged', async () => {
+		const bug = new TypeError('x is not a function');
+		await expect(passthrough(() => Promise.reject(bug))).rejects.toBe(bug);
+	});
+});
+
+describe('describeFailure on a body that could not be read', () => {
+	// 502, the same as an unreachable server, because that is what it is: the
+	// answer did not come from the API, whatever served it.
+	it('is a 502 that does not blame this app', () => {
+		const described = describeFailure(new MalformedResponseError('bad body'));
+
+		expect(described.status).toBe(502);
+		expect(described.message).toBe(MALFORMED_MESSAGE);
+	});
+
+	// Deliberately not "try again": a maintenance page will keep saying the
+	// same thing for as long as it is there.
+	it('does not promise a retry will help', () => {
+		expect(MALFORMED_MESSAGE).not.toContain('try again');
+	});
+
+	it('counts as an upstream failure, so handleError does not call it our bug', () => {
+		expect(isUpstreamFailure(new MalformedResponseError('bad body'))).toBe(true);
+		expect(isUpstreamFailure(new NetworkError('down'))).toBe(true);
+		expect(isUpstreamFailure(new TypeError('x is not a function'))).toBe(false);
+	});
+});
+
+describe('describeFailure on a rate limit', () => {
+	const diagnostic = {
+		at: '2026-08-29T10:00:00.000Z',
+		method: 'GET',
+		path: '/api/schedule',
+		retryAfterSeconds: null as number | null,
+		limitHeaders: {},
+		windows: [{ seconds: 10, total: 12, byPath: [{ path: 'GET /api/schedule', count: 6 }] }],
+		instance: 'ab12cd'
+	};
+
+	it('relays the 429 and keeps the snapshot with it', () => {
+		const described = describeFailure(new RateLimitError('limited', diagnostic));
+
+		expect(described.status).toBe(429);
+		expect(described.rateLimit).toBe(diagnostic);
+	});
+
+	// Worded as a pause, not a fault: nothing is broken and waiting fixes it,
+	// which is true of no other failure this app reports.
+	it('says it is a pause rather than a breakage', () => {
+		const { message } = describeFailure(new RateLimitError('limited', diagnostic));
+
+		expect(message).toBe(RATE_LIMITED_MESSAGE);
+		expect(message).not.toMatch(/wrong|error|failed/i);
+	});
+
+	it('says how long to wait when Trenara said', () => {
+		const { message } = describeFailure(
+			new RateLimitError('limited', { ...diagnostic, retryAfterSeconds: 30 })
+		);
+
+		expect(message).toContain('about 30 seconds');
+	});
+
+	it('rounds a long wait into minutes rather than reading out seconds', () => {
+		expect(retryAfterText(90)).toBe('about 2 minutes');
+		expect(retryAfterText(60)).toBe('about 1 minute');
+		expect(retryAfterText(1)).toBe('about 1 second');
+		expect(retryAfterText(null)).toBeNull();
+		expect(retryAfterText(0)).toBeNull();
+	});
+
+	it('carries the snapshot through passthrough onto the error body', async () => {
+		let thrown: { status: number; body: { message: string; rateLimit?: unknown } } | undefined;
+		try {
+			await passthrough(() => Promise.reject(new RateLimitError('limited', diagnostic)));
+		} catch (e) {
+			thrown = e as typeof thrown;
+		}
+
+		expect(thrown?.status).toBe(429);
+		expect(thrown?.body.rateLimit).toEqual(diagnostic);
 	});
 });

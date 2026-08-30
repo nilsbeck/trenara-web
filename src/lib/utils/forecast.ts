@@ -306,8 +306,11 @@ export function forecast({
 	goalStart: Date;
 }): Forecast | null {
 	if (!Number.isFinite(nowSeconds) || !Number.isFinite(goalSeconds)) return null;
+
+	// An Invalid Date compares false against everything, so `cutoff <= now`
+	// waves one through and every sum after it comes out NaN.
 	const cutoff = earnCutoff(raceDay);
-	if (cutoff <= now) return null;
+	if (!Number.isFinite(cutoff.getTime()) || cutoff <= now) return null;
 
 	const ordered = samples
 		.map((s) => ({ stamp: new Date(s.date).getTime(), seconds: s.seconds }))

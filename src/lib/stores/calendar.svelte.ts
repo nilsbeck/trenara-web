@@ -12,6 +12,7 @@ import type {
 import { fingerprint } from '$lib/utils/fingerprint';
 import { stalenessReason } from '$lib/utils/revalidation';
 import {
+	dayKeyOf,
 	formatDateString,
 	getMonthTimestamps,
 	mondayOf,
@@ -66,8 +67,8 @@ export const REFRESH_LOOKBACK_DAYS = 7;
 // ── Helpers (pure, no allocations on hot path) ──────────────
 
 /** Extract YYYY-MM-DD from an ISO timestamp without creating a Date object. */
-function isoToDateString(iso: string): string {
-	return iso.slice(0, 10);
+function isoToDateString(iso: string | null | undefined): string | null {
+	return dayKeyOf(iso);
 }
 
 /** Build a cache key from a year and a 0-based month (YYYY-MM). */
@@ -141,14 +142,20 @@ function buildStatusIndex(schedule: Schedule): StatusIndex {
 	const scheduledStrength = new Set<string>();
 	const completedStrength = new Set<string>();
 
+	// A row the API sent without a readable date is skipped. It cannot be drawn
+	// in any cell anyway, and reaching into it used to throw here — taking the
+	// whole month down over one malformed row.
 	for (const t of schedule.trainings ?? []) {
-		scheduledRuns.add(isoToDateString(t.day_long));
+		const day = isoToDateString(t.day_long);
+		if (day) scheduledRuns.add(day);
 	}
 	for (const s of schedule.strength_trainings ?? []) {
-		scheduledStrength.add(isoToDateString(s.day));
+		const day = isoToDateString(s.day);
+		if (day) scheduledStrength.add(day);
 	}
 	for (const e of schedule.entries ?? []) {
 		const d = entryLocalDate(e.start_time);
+		if (!d) continue;
 		if (e.type === 'run') {
 			completedRuns.add(d);
 		} else if (e.type === 'strength') {
@@ -162,8 +169,8 @@ function buildStatusIndex(schedule: Schedule): StatusIndex {
 // ── Entry date cache ────────────────────────────────────────
 
 /** Pre-compute date strings for all entries so filters don't re-parse. */
-function buildEntryDateCache(entries: Entry[]): Map<Entry, string> {
-	const map = new Map<Entry, string>();
+function buildEntryDateCache(entries: Entry[]): Map<Entry, string | null> {
+	const map = new Map<Entry, string | null>();
 	for (const e of entries) {
 		map.set(e, entryLocalDate(e.start_time));
 	}
@@ -271,7 +278,9 @@ export function createCalendarStore(initialDate: Date, options: CalendarStoreOpt
 	const statusIndex = $derived<StatusIndex | null>(schedule ? buildStatusIndex(schedule) : null);
 
 	// ── Pre-computed entry date cache ─────────────────────────────
-	const entryDates = $derived<Map<Entry, string>>(buildEntryDateCache(schedule?.entries ?? []));
+	const entryDates = $derived<Map<Entry, string | null>>(
+		buildEntryDateCache(schedule?.entries ?? [])
+	);
 
 	// Derived: selected date as formatted string
 	const selectedDateString = $derived(
@@ -544,7 +553,11 @@ export function createCalendarStore(initialDate: Date, options: CalendarStoreOpt
 	/** One month, straight from the API. Throws; callers decide what that means. */
 	async function fetchMonth(
 		date: Date,
-		{ conditional, from }: { conditional: boolean; from: Date | null }
+		{
+			conditional,
+			from,
+			fresh = false
+		}: { conditional: boolean; from: Date | null; fresh?: boolean }
 	): Promise<{ payload: SchedulePayload; etag: string | null } | null> {
 		const cached = scheduleCache.get(monthKey(date));
 		const headers: Record<string, string> = {};
@@ -555,6 +568,12 @@ export function createCalendarStore(initialDate: Date, options: CalendarStoreOpt
 		const params = new URLSearchParams({ date: String(date.getTime()) });
 		if (from) {
 			params.set('from', toLocalDateString(from));
+		}
+		// Weeks are held for a minute on the server to stay inside Trenara's
+		// rate limit. Someone who pressed refresh is entitled to go past that,
+		// for the same reason they are entitled to skip the conditional request.
+		if (fresh) {
+			params.set('fresh', '1');
 		}
 
 		const response = await fetch(`/api/v1/schedule?${params}`, { headers });
@@ -593,6 +612,7 @@ export function createCalendarStore(initialDate: Date, options: CalendarStoreOpt
 		try {
 			const result = await fetchMonth(date, {
 				conditional: !full,
+				fresh: full,
 				// Only worth asking for part of a month when there is a whole one
 				// already in hand for the answer to be grafted onto. A forced
 				// refresh asks for all of it, since it is the button people press

@@ -1,6 +1,7 @@
 import { error } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { trainingApi } from '$lib/server/trenara';
+import { passthrough } from '$lib/server/trenara/request';
 import { fingerprint } from '$lib/utils/fingerprint';
 import { getMonthTimestamps, parseLocalDateString, weeksStillOpen } from '$lib/utils/date';
 import type { SchedulePayload } from '$lib/utils/schedule';
@@ -45,8 +46,25 @@ export const GET: RequestHandler = async ({ url, request, cookies, locals }) => 
 		}
 	}
 
-	const schedules = await Promise.all(
-		timestamps.map((ts) => trainingApi.getSchedule(cookies, Math.floor(ts.getTime() / 1000)))
+	/**
+	 * `fresh` is the refresh button, and anything else that means it.
+	 *
+	 * Weeks are held server-side for a minute to stay inside Trenara's rate
+	 * limit, which is right for paging around and wrong for someone who pressed
+	 * refresh because they think something is stale. They get a real answer.
+	 */
+	const fresh = url.searchParams.get('fresh') === '1';
+
+	// One failed week fails the request: a month with a hole in it would be
+	// merged into the calendar's cache and read as a week with nothing planned.
+	// Reported with the upstream's own status so the caller can tell a refusal
+	// from Trenara being unreachable, and leave what is on screen alone.
+	const schedules = await passthrough(() =>
+		Promise.all(
+			timestamps.map((ts) =>
+				trainingApi.getSchedule(cookies, Math.floor(ts.getTime() / 1000), { fresh })
+			)
+		)
 	);
 
 	const merged: SchedulePayload = {

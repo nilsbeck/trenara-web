@@ -13,6 +13,7 @@
 		Newspaper
 	} from 'lucide-svelte';
 	import ChatBubble from '$lib/components/chat/chat-bubble.svelte';
+	import RenderFailure from '$lib/components/shared/render-failure.svelte';
 	import { formatUnread, type UnreadSummary } from '$lib/utils/news-unread';
 	import { appConfig } from '$lib/stores/app-config.svelte';
 
@@ -226,14 +227,41 @@
 		</div>
 	</nav>
 
-	<!-- Main Content -->
+	<!--
+		Main Content.
+
+		Inside a boundary so that a page component throwing mid-render costs the
+		page and not the navbar: the menu above stays live, which is the
+		difference between "this screen is broken" and "the app is broken".
+
+		A boundary catches throws during rendering and in effects. It does not
+		catch one inside an event handler or a promise callback — those are
+		already handled where they happen, by the stores and the `network`
+		helpers, and would be silent here.
+	-->
 	<main class="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
-		{@render children()}
+		<svelte:boundary>
+			{@render children()}
+
+			{#snippet failed(error, reset)}
+				<RenderFailure title="This page could not be shown" {error} {reset} />
+			{/snippet}
+		</svelte:boundary>
 	</main>
 </div>
 
-<ChatBubble
-	currentUserId={userData?.id ?? null}
-	initialThreads={chatThreads}
-	initialSeen={chatSeen}
-/>
+<!--
+	The bubble is chrome on every page, so it gets its own boundary rather than
+	sharing the page's: a thread that will not render must not be able to take
+	the dashboard behind it down. No fallback is drawn — a bubble that cannot
+	render is better absent than replaced by a panel about itself.
+-->
+<svelte:boundary>
+	<ChatBubble
+		currentUserId={userData?.id ?? null}
+		initialThreads={chatThreads}
+		initialSeen={chatSeen}
+	/>
+
+	{#snippet failed()}{/snippet}
+</svelte:boundary>

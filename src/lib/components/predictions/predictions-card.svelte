@@ -2,7 +2,12 @@
 	import type { UserStats } from '$lib/server/trenara/types';
 	import { Timer } from 'lucide-svelte';
 	import { riegelCurve } from '$lib/utils/race-equivalent';
-	import { timeStringToSeconds, secondsToDuration, secondsToPaceString } from '$lib/utils/format';
+	import {
+		timeStringToSeconds,
+		secondsToDuration,
+		secondsToPaceString,
+		NO_VALUE
+	} from '$lib/utils/format';
 
 	let { userStats }: { userStats: UserStats } = $props();
 
@@ -115,10 +120,13 @@
 			</thead>
 			<tbody>
 				{#each races as race, i}
+					<!-- A row the account has no prediction for yet reads as absent
+					     rather than as an empty cell, which is indistinguishable from
+					     a column that failed to render. -->
 					<tr class={i < races.length - 1 ? 'border-b border-border' : ''}>
 						<td class="px-4 py-2.5 font-medium text-card-foreground">{race.name}</td>
-						<td class="px-4 py-2.5 text-card-foreground">{race.time}</td>
-						<td class="px-4 py-2.5 text-card-foreground">{race.pace}</td>
+						<td class="px-4 py-2.5 text-card-foreground">{race.time || NO_VALUE}</td>
+						<td class="px-4 py-2.5 text-card-foreground">{race.pace || NO_VALUE}</td>
 					</tr>
 				{/each}
 			</tbody>

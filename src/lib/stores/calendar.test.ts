@@ -1807,3 +1807,57 @@ describe('week view', () => {
 		expect(store.selectedDate).toEqual({ year: 2026, month: 7, day: 26 });
 	});
 });
+
+// ─────────────────────────────────────────────────────────────
+// A row the API sent without a readable date
+//
+// The status index is built for the whole month at once, so reaching into a
+// single malformed row used to throw out of the derivation and take the
+// calendar — the app's main screen — down with it.
+// ─────────────────────────────────────────────────────────────
+describe('a schedule carrying an undated row', () => {
+	function scheduleWithBadRows(): Schedule {
+		return makeSchedule({
+			trainings: [
+				{ id: 1, day_long: '2025-03-05' },
+				{ id: 2, day_long: null },
+				{ id: 3 }
+			] as unknown as Schedule['trainings'],
+			strength_trainings: [
+				{ id: 4, day: '2025-03-06' },
+				{ id: 5, day: undefined }
+			] as unknown as Schedule['strength_trainings'],
+			entries: [
+				{ id: 6, type: 'run', start_time: '2025-03-07T09:00:00+01:00' },
+				{ id: 7, type: 'run', start_time: 'whenever' }
+			] as unknown as Schedule['entries']
+		});
+	}
+
+	it('still reports the status of the days it can read', () => {
+		const store = createCalendarStore(new Date('2025-03-05'));
+		store.setSchedule(scheduleWithBadRows());
+
+		expect(store.getTrainingStatusForDate({ type: 'run', day: 5 })).toBe('scheduled');
+		expect(store.getTrainingStatusForDate({ type: 'strength', day: 6 })).toBe('scheduled');
+	});
+
+	it('leaves the undated rows out rather than filing them on a wrong day', () => {
+		const store = createCalendarStore(new Date('2025-03-05'));
+		store.setSchedule(scheduleWithBadRows());
+
+		// Nothing in the month may claim a day that no row actually named.
+		for (const day of [1, 2, 3, 4, 8, 9, 20, 31]) {
+			expect(store.getTrainingStatusForDate({ type: 'run', day })).toBe('none');
+			expect(store.getTrainingStatusForDate({ type: 'strength', day })).toBe('none');
+		}
+	});
+
+	it('does not throw while indexing them', () => {
+		const store = createCalendarStore(new Date('2025-03-05'));
+		expect(() => {
+			store.setSchedule(scheduleWithBadRows());
+			store.getTrainingStatusForDate({ type: 'run', day: 5 });
+		}).not.toThrow();
+	});
+});

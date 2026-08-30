@@ -361,3 +361,31 @@ describe('forecast', () => {
 		).toBeNull();
 	});
 });
+
+describe('forecast against a race day it cannot read', () => {
+	const iso = (n: number) => {
+		const d = day(n);
+		return new Date(d.getTime() - d.getTimezoneOffset() * 60_000).toISOString().slice(0, 10);
+	};
+
+	// An Invalid Date compares false against everything, so the `cutoff <= now`
+	// guard waved one straight through and every sum after it came out NaN —
+	// which reached the card as a forecast made of NaNs rather than as no
+	// forecast at all.
+	it('declines to forecast rather than returning NaNs', () => {
+		const planned = weeks(10, 50);
+
+		const result = forecast({
+			nowSeconds: 3600,
+			now: day(35),
+			goalSeconds: 3000,
+			raceDay: new Date('not a date'),
+			planned,
+			done: planned,
+			samples: [{ date: iso(0), seconds: 3600 }],
+			goalStart: day(0)
+		});
+
+		expect(result).toBeNull();
+	});
+});

@@ -3,6 +3,7 @@
 	import { Star, X, Loader2 } from 'lucide-svelte';
 	import RpeSlider from '$lib/components/training/rpe-slider.svelte';
 	import { rpeColors } from '$lib/components/training/rpe';
+	import { describeError, describeResponse } from '$lib/utils/network';
 
 	let {
 		training,
@@ -41,14 +42,13 @@
 			});
 
 			if (!res.ok) {
-				const data = await res.json().catch(() => ({}));
-				throw new Error(data.message ?? `Failed to save feedback (${res.status})`);
+				throw new Error(await describeResponse(res, 'Could not save your rating.'));
 			}
 
 			entry.rpe = rpeValue;
 			close();
 		} catch (e) {
-			error = e instanceof Error ? e.message : 'An unexpected error occurred';
+			error = describeError(e, 'Could not save your rating.');
 		} finally {
 			submitting = false;
 		}

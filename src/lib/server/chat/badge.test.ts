@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import type { Cookies } from '@sveltejs/kit';
 import type { ChatThread } from '$lib/server/trenara/types';
 import { loadChatBadge } from './badge';
+import { DatabaseError } from '$lib/server/db/errors';
 
 const { getThreads, getMarks, advanceMark } = vi.hoisted(() => ({
 	getThreads: vi.fn(),
@@ -107,5 +108,28 @@ describe('loadChatBadge', () => {
 		getThreads.mockRejectedValue(new Error('upstream down'));
 
 		expect(await loadChatBadge(cookies, USER)).toEqual({ threads: [], seen: {} });
+	});
+});
+
+describe('when the database raises instead of swallowing', () => {
+	// The DAOs now report a failed write rather than returning it as a no-op.
+	// The badge is the one caller that must not care: it is chrome on every
+	// page, and its own contract is that a database down means an empty bubble,
+	// never a page that will not render.
+	it('still comes back empty rather than failing the layout', async () => {
+		vi.spyOn(console, 'error').mockImplementation(() => {});
+		getThreads.mockResolvedValue([thread(1, 2, 900)]);
+		getMarks.mockResolvedValue(new Map());
+		advanceMark.mockRejectedValue(new DatabaseError('chat mark write', 'down'));
+
+		await expect(loadChatBadge(cookies, USER)).resolves.toEqual({ threads: [], seen: {} });
+	});
+
+	it('is equally unbothered when the marks cannot be read', async () => {
+		vi.spyOn(console, 'error').mockImplementation(() => {});
+		getThreads.mockResolvedValue([thread(1, 2, 900)]);
+		getMarks.mockRejectedValue(new DatabaseError('chat marks read', 'down'));
+
+		await expect(loadChatBadge(cookies, USER)).resolves.toEqual({ threads: [], seen: {} });
 	});
 });

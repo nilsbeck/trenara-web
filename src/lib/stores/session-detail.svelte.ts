@@ -6,6 +6,7 @@ import type {
 	TrainingSurface
 } from '$lib/server/trenara/types';
 import { activityLabel, type SettingKey } from '$lib/utils/session-setup';
+import { describeError, describeResponse, isAbort } from '$lib/utils/network';
 import { appConfig } from './app-config.svelte';
 
 /**
@@ -95,7 +96,7 @@ export class SessionDetailStore {
 			if (this.#detailRequest !== controller) return;
 			this.detail = detail;
 		} catch (e) {
-			if (e instanceof DOMException && e.name === 'AbortError') return;
+			if (isAbort(e)) return;
 			if (this.#detailRequest !== controller) return;
 			// The card still shows the week's copy of the training, so this
 			// failure costs the setup controls and nothing else.
@@ -110,11 +111,11 @@ export class SessionDetailStore {
 		if (this.shoes) return;
 		try {
 			const res = await fetch('/api/v1/shoes');
-			if (!res.ok) throw new Error(`Failed to load shoes (${res.status})`);
+			if (!res.ok) throw new Error(await describeResponse(res, 'Could not load your shoes.'));
 			this.shoes = await res.json();
-		} catch {
+		} catch (e) {
 			this.shoes = [];
-			this.error = 'Could not load your shoes.';
+			this.error = describeError(e, 'Could not load your shoes.');
 		}
 	}
 
@@ -123,11 +124,11 @@ export class SessionDetailStore {
 		if (this.candidates || this.#trainingId == null) return;
 		try {
 			const res = await fetch(`/api/v1/training/${this.#trainingId}/exchange`);
-			if (!res.ok) throw new Error(`Failed to load alternatives (${res.status})`);
+			if (!res.ok) throw new Error(await describeResponse(res, 'Could not load the alternatives.'));
 			this.candidates = await res.json();
-		} catch {
+		} catch (e) {
 			this.candidates = [];
-			this.error = 'Could not load the alternatives.';
+			this.error = describeError(e, 'Could not load the alternatives.');
 		}
 	}
 
@@ -273,8 +274,7 @@ export class SessionDetailStore {
 			});
 
 			if (!res.ok) {
-				const data = await res.json().catch(() => ({}));
-				throw new Error(data?.message ?? `Could not save the change (${res.status})`);
+				throw new Error(await describeResponse(res, 'Could not save the change.'));
 			}
 
 			const detail: ScheduledTrainingDetail = await res.json();
@@ -290,7 +290,7 @@ export class SessionDetailStore {
 			return true;
 		} catch (e) {
 			if (this.#trainingId === trainingId) {
-				this.error = e instanceof Error ? e.message : 'Could not save the change.';
+				this.error = describeError(e, 'Could not save the change.');
 			}
 			return false;
 		} finally {

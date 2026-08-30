@@ -124,3 +124,50 @@ describe('mergeSchedule', () => {
 		expect(mergeSchedule(cached, incoming, '2025-03-17').trainings.map((t) => t.id)).toEqual([1]);
 	});
 });
+
+// ─────────────────────────────────────────────────────────────
+// Rows the API sent without a readable date
+// ─────────────────────────────────────────────────────────────
+describe('entryLocalDate on an unusable instant', () => {
+	// `new Date(null)` is the epoch and `new Date(undefined)` is Invalid, so
+	// these used to file an entry on 1970-01-01 or under a `NaN-NaN-NaN` key —
+	// a day that exists in the index and matches no cell on screen.
+	it('is null rather than a day that is not the entry’s', () => {
+		expect(entryLocalDate(null)).toBeNull();
+		expect(entryLocalDate(undefined)).toBeNull();
+		expect(entryLocalDate('')).toBeNull();
+		expect(entryLocalDate('whenever')).toBeNull();
+	});
+});
+
+describe('mergeSchedule with an undated row', () => {
+	it('does not throw on a cached row the API sent no date for', () => {
+		const cached = schedule({
+			trainings: [
+				{ id: 9, title: 'Undated' } as unknown as ScheduledTraining,
+				training(1, '2025-03-03')
+			],
+			strength_trainings: [{ id: 8 } as unknown as StrengthTraining],
+			entries: [{ id: 7, type: 'run' } as unknown as Entry]
+		});
+
+		expect(() => mergeSchedule(cached, schedule(), '2025-03-17')).not.toThrow();
+	});
+
+	// It cannot be drawn in any cell, and nothing arriving later can replace
+	// it, so keeping it would carry it through every merge for the life of the
+	// cache. The dated rows either side of it are untouched.
+	it('drops the undated row and keeps the ones it can place', () => {
+		const cached = schedule({
+			trainings: [
+				training(1, '2025-03-03'),
+				{ id: 9, title: 'Undated' } as unknown as ScheduledTraining
+			]
+		});
+		const incoming = schedule({ trainings: [training(2, '2025-03-20')] });
+
+		const merged = mergeSchedule(cached, incoming, '2025-03-17');
+
+		expect(merged.trainings.map((t) => t.id)).toEqual([1, 2]);
+	});
+});

@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { DatabaseError } from './errors';
 import { NewsReadStateDAO } from './news-read-state';
 
 // ── Mock the supabase client ──────────────────────────────────
@@ -109,10 +110,14 @@ describe('NewsReadStateDAO.advanceMark', () => {
 		expect(mockUpsert).not.toHaveBeenCalled();
 	});
 
-	it('reports a failed write rather than throwing', async () => {
+	// The test above returns `{ advanced: false }` for a mark that was already
+	// far enough along — a correct no-op. A failed write returning the very
+	// same thing left the badge to reappear next load with nothing to explain
+	// it, so the two answers are no longer the same answer.
+	it('raises rather than reporting a failed write as a no-op', async () => {
 		state.upsertResult = { error: { message: 'down' } };
-		expect(await dao.advanceMark(7, { id: 82, createdAt: 1_750_000_000 })).toEqual({
-			advanced: false
-		});
+		await expect(dao.advanceMark(7, { id: 82, createdAt: 1_750_000_000 })).rejects.toBeInstanceOf(
+			DatabaseError
+		);
 	});
 });

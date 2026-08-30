@@ -1,6 +1,116 @@
 import { error } from '@sveltejs/kit';
 import type { ZodType } from 'zod';
-import { HttpError } from './client';
+import {
+	HttpError,
+	MalformedResponseError,
+	NetworkError,
+	RateLimitError,
+	TimeoutError
+} from './client';
+import type { RateLimitDiagnostic } from './rate-limit';
+
+/**
+ * What the app says when Trenara could not be reached at all.
+ *
+ * Worth naming rather than paraphrasing at each call site: it is the one
+ * failure the runner can do something about — wait, or check their signal —
+ * and it must not read like the app broke.
+ */
+export const UNREACHABLE_MESSAGE = 'Trenara could not be reached. Please try again.';
+
+export const TIMEOUT_MESSAGE = 'Trenara took too long to answer. Please try again.';
+
+/**
+ * What the app says when Trenara answered with something it cannot read.
+ *
+ * Deliberately not "try again": a body that is not the JSON it claimed to be
+ * is usually a proxy or a maintenance page standing in for the API, and it
+ * will keep saying the same thing for as long as it is there.
+ */
+export const MALFORMED_MESSAGE = 'Trenara sent a response this app could not read.';
+
+/**
+ * What the app says when Trenara refuses for going too fast.
+ *
+ * Named as a pause rather than a fault, because it is one: nothing is broken,
+ * nothing is lost, and waiting genuinely fixes it — which is not true of any
+ * other failure this app reports.
+ */
+export const RATE_LIMITED_MESSAGE = 'Trenara is asking this app to slow down.';
+
+/** How long to wait, in words, when Trenara said how long. */
+export function retryAfterText(seconds: number | null): string | null {
+	if (seconds === null || seconds <= 0) return null;
+	if (seconds < 60) return `about ${seconds} second${seconds === 1 ? '' : 's'}`;
+
+	const minutes = Math.ceil(seconds / 60);
+	return `about ${minutes} minute${minutes === 1 ? '' : 's'}`;
+}
+
+/**
+ * Whether a failure was the connection rather than the answer.
+ *
+ * These two are the reason this exists at all: neither carries an HTTP status,
+ * so left alone they fall out of a load function as an unhandled exception and
+ * the runner is told "Internal Error" for what is usually a train tunnel.
+ */
+export function isUnreachable(e: unknown): boolean {
+	return e instanceof NetworkError || e instanceof TimeoutError;
+}
+
+/**
+ * Whether the failure was upstream's rather than this app's.
+ *
+ * The set `handleError` treats as "not our bug" — the connection, and a body
+ * that could not be read as what it claimed to be.
+ */
+export function isUpstreamFailure(e: unknown): boolean {
+	return isUnreachable(e) || e instanceof MalformedResponseError;
+}
+
+/**
+ * The status and message to answer a failed upstream call with.
+ *
+ * Transport failures become 502/504 — the gateway statuses, which is exactly
+ * what this app is in front of Trenara — so that everything downstream, the
+ * error page included, can tell "Trenara is down" from "we have a bug".
+ */
+export function describeFailure(e: unknown): {
+	status: number;
+	message: string;
+	rateLimit?: RateLimitDiagnostic;
+} {
+	// Before the HttpError branch below, which would otherwise relay Trenara's
+	// own wording and lose the snapshot that makes a 429 actionable.
+	if (e instanceof RateLimitError) {
+		const wait = retryAfterText(e.diagnostic.retryAfterSeconds);
+		return {
+			status: 429,
+			message: wait ? `${RATE_LIMITED_MESSAGE} Try again in ${wait}.` : RATE_LIMITED_MESSAGE,
+			rateLimit: e.diagnostic
+		};
+	}
+
+	if (e instanceof TimeoutError) return { status: 504, message: TIMEOUT_MESSAGE };
+	if (e instanceof NetworkError) return { status: 502, message: UNREACHABLE_MESSAGE };
+	if (e instanceof MalformedResponseError) return { status: 502, message: MALFORMED_MESSAGE };
+	if (e instanceof HttpError) {
+		return { status: toErrorStatus(e.status), message: describeUpstreamError(e) };
+	}
+	return { status: 500, message: 'Something went wrong.' };
+}
+
+/**
+ * Fold an upstream status into the range SvelteKit's `error` accepts.
+ *
+ * It throws on anything outside 400–599, so relaying a status verbatim makes
+ * an unusual upstream answer — a 3xx that survived redirect following, or a 0
+ * from a proxy — crash inside the error path instead of being reported by it.
+ */
+function toErrorStatus(status: number): number {
+	if (!Number.isInteger(status) || status < 400 || status > 599) return 502;
+	return status;
+}
 
 /**
  * Parse a training id out of a route param.
@@ -45,19 +155,26 @@ export function describeUpstreamError(e: HttpError): string {
 }
 
 /**
- * Run an upstream call, translating its HTTP failures into SvelteKit errors.
+ * Run an upstream call, translating its failures into SvelteKit errors.
  *
  * The `can_*` flags on a training say what Trenara will accept, but they are a
  * snapshot: the coach can change the plan between the read and the write. So a
  * refusal is a normal outcome here and is passed through with its own status
  * and message rather than collapsed into a 500.
+ *
+ * A connection that never got an answer is passed through in the same spirit:
+ * as a 502 or 504 saying which of the two servers is not answering, rather
+ * than as the unhandled exception it used to be.
  */
 export async function passthrough<T>(fn: () => Promise<T>): Promise<T> {
 	try {
 		return await fn();
 	} catch (e) {
-		if (e instanceof HttpError) {
-			error(e.status, describeUpstreamError(e));
+		if (e instanceof HttpError || isUpstreamFailure(e)) {
+			const { status, message, rateLimit } = describeFailure(e);
+			// The snapshot rides along on the error body so the page can show it:
+			// the maintainer reads a preview deployment, not a server log.
+			error(status, rateLimit ? { message, rateLimit } : message);
 		}
 		throw e;
 	}

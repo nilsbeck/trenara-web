@@ -3,7 +3,8 @@
 	import GoalCard from '$lib/components/goal/goal-card.svelte';
 	import PredictionsCard from '$lib/components/predictions/predictions-card.svelte';
 	import { isRenderableStats } from '$lib/utils/user-stats';
-	import { Loader2, ArrowLeft } from 'lucide-svelte';
+	import { invalidateAll } from '$app/navigation';
+	import { Loader2, ArrowLeft, RefreshCw } from 'lucide-svelte';
 
 	let { data }: { data: PageServerData } = $props();
 </script>
@@ -37,8 +38,30 @@
 			{:else}
 				<p class="text-center text-sm text-muted-foreground">No goal or stats data available.</p>
 			{/if}
-		{:catch}
-			<p class="text-center text-sm text-destructive">Error loading goal/stats</p>
+		{:catch failure}
+			<!--
+				The reason, not the fact.
+
+				This said "Error loading goal/stats" whatever had happened, which
+				told a runner nothing they could act on and told the maintainer
+				nothing either — a rate limit, an outage and an expired session were
+				one indistinguishable line. The message here is the one the server
+				composed for exactly this, and it is on screen because branches are
+				tried as preview deployments.
+			-->
+			<div class="space-y-3 py-8 text-center">
+				<p class="text-sm text-destructive">
+					{failure?.message ?? 'The goal and predictions could not be loaded.'}
+				</p>
+				<button
+					type="button"
+					onclick={() => invalidateAll()}
+					class="inline-flex items-center justify-center gap-2 rounded-md border border-border px-3 py-1.5 text-sm font-medium text-foreground transition-colors hover:bg-secondary"
+				>
+					<RefreshCw class="h-3.5 w-3.5" aria-hidden="true" />
+					Try again
+				</button>
+			</div>
 		{/await}
 	</div>
 </div>

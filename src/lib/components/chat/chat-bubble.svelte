@@ -3,6 +3,7 @@
 	import { MessageCircle, X, Loader2, Bot, Send } from 'lucide-svelte';
 	import { onDestroy } from 'svelte';
 	import DOMPurify from 'dompurify';
+	import { describeError, describeResponse } from '$lib/utils/network';
 	import {
 		createPendingMessage,
 		hasNewReply,
@@ -93,7 +94,7 @@
 
 	async function loadThreads(): Promise<ChatThread[]> {
 		const res = await fetch('/api/v1/chat/threads/');
-		if (!res.ok) throw new Error('Failed to load threads');
+		if (!res.ok) throw new Error(await describeResponse(res, 'Could not load your conversations.'));
 		// Anything the bubble fetched itself is newer than the seed below.
 		seedConsumed = true;
 		return await res.json();
@@ -108,7 +109,7 @@
 				await selectThread(threads[0]);
 			}
 		} catch (e) {
-			error = e instanceof Error ? e.message : 'An error occurred';
+			error = describeError(e, 'Could not load your conversations.');
 		} finally {
 			loadingThreads = false;
 		}
@@ -128,7 +129,7 @@
 	// reads oldest-first.
 	async function fetchMessages(threadId: number): Promise<ChatMessage[]> {
 		const res = await fetch(`/api/v1/chat/threads/${threadId}/messages`);
-		if (!res.ok) throw new Error('Failed to load messages');
+		if (!res.ok) throw new Error(await describeResponse(res, 'Could not load these messages.'));
 		const data = await res.json();
 		return toOldestFirst(data.data ?? []);
 	}
@@ -143,7 +144,7 @@
 			messages = await fetchMessages(thread.id);
 			markSeen(thread.id);
 		} catch (e) {
-			error = e instanceof Error ? e.message : 'An error occurred';
+			error = describeError(e, 'Could not load these messages.');
 		} finally {
 			loadingMessages = false;
 		}
@@ -168,7 +169,7 @@
 				headers: { 'Content-Type': 'application/json' },
 				body: JSON.stringify({ content: text })
 			});
-			if (!res.ok) throw new Error('Failed to send message');
+			if (!res.ok) throw new Error(await describeResponse(res, 'Could not send your message.'));
 
 			// Trenara returns the stored message, sometimes wrapped in a data
 			// envelope. Fall back to the placeholder if it returns neither.
@@ -182,7 +183,7 @@
 		} catch (e) {
 			messages = removeMessage(messages, pending.id);
 			draft = text;
-			sendError = e instanceof Error ? e.message : 'Failed to send message';
+			sendError = describeError(e, 'Could not send your message.');
 		} finally {
 			sending = false;
 			draftInput?.focus();

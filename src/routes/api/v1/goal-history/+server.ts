@@ -1,6 +1,7 @@
 import { json, error } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { goalHistoryDAO } from '$lib/server/db/goal-history';
+import { fromStorage, STORAGE_WRITE_MESSAGE } from '$lib/server/db/errors';
 import { archiveGoalSchema } from '$lib/schemas/goal-history';
 
 export const GET: RequestHandler = async ({ locals }) => {
@@ -8,7 +9,7 @@ export const GET: RequestHandler = async ({ locals }) => {
 		error(401, 'Unauthorized');
 	}
 
-	const records = await goalHistoryDAO.getGoalHistory(locals.user.id);
+	const records = await fromStorage(() => goalHistoryDAO.getGoalHistory(locals.user!.id));
 	return json({ records });
 };
 
@@ -35,16 +36,20 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 		end_date
 	} = result.data;
 
-	const record = await goalHistoryDAO.archiveGoal(locals.user.id, {
-		goal_name,
-		distance,
-		goal_time,
-		goal_pace,
-		final_predicted_time: final_predicted_time ?? null,
-		final_predicted_pace: final_predicted_pace ?? null,
-		start_date,
-		end_date
-	});
+	const record = await fromStorage(
+		() =>
+			goalHistoryDAO.archiveGoal(locals.user!.id, {
+				goal_name,
+				distance,
+				goal_time,
+				goal_pace,
+				final_predicted_time: final_predicted_time ?? null,
+				final_predicted_pace: final_predicted_pace ?? null,
+				start_date,
+				end_date
+			}),
+		STORAGE_WRITE_MESSAGE
+	);
 
 	return json(record);
 };

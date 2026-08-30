@@ -1,6 +1,7 @@
 import { json, error } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { chatReadStateDAO } from '$lib/server/db/chat-read-state';
+import { fromStorage, STORAGE_WRITE_MESSAGE } from '$lib/server/db/errors';
 
 /**
  * Records how far the reader has got in a thread.
@@ -25,10 +26,9 @@ export const POST: RequestHandler = async ({ params, request, locals }) => {
 		error(400, 'Invalid last seen message ID');
 	}
 
-	const { advanced } = await chatReadStateDAO.advanceMark(
-		locals.user.id,
-		threadId,
-		lastSeenMessageId
+	const { advanced } = await fromStorage(
+		() => chatReadStateDAO.advanceMark(locals.user!.id, threadId, lastSeenMessageId),
+		STORAGE_WRITE_MESSAGE
 	);
 	return json({ advanced });
 };

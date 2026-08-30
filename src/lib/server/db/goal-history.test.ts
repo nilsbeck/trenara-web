@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { DatabaseError } from './errors';
 import { GoalHistoryDAO } from './goal-history';
 
 // ── Mock the supabase client ──────────────────────────────────
@@ -102,12 +103,15 @@ describe('GoalHistoryDAO.getGoalHistory', () => {
 		expect(result[0].goal_name).toBe('Marathon Berlin');
 	});
 
-	it('returns empty array on supabase error', async () => {
+	// This used to answer an unreadable table with `[]`, which the archive page
+	// rendered as "you have archived no goals" — a claim about the runner's
+	// history that an unreachable database is not entitled to make.
+	it('raises rather than reporting a history it could not read', async () => {
 		setThenResult(null, new Error('DB error'));
-		const records = await dao.getGoalHistory(42);
-		expect(records).toEqual([]);
+		await expect(dao.getGoalHistory(42)).rejects.toBeInstanceOf(DatabaseError);
 	});
 
+	// The distinction the raise buys: an empty array now means empty.
 	it('returns empty array when data is null without error', async () => {
 		setThenResult(null, null);
 		const records = await dao.getGoalHistory(42);
@@ -151,11 +155,12 @@ describe('GoalHistoryDAO.archiveGoal', () => {
 		expect(result.record).toMatchObject({ goal_name: 'Marathon Berlin', goal_time: '3:45:00' });
 	});
 
-	it('returns stored=false on upsert failure', async () => {
+	// `stored: false` was the only thing a failed archive said, and nothing
+	// downstream could tell it from a write with nothing to do — so a goal the
+	// runner believed was kept could be gone without a word anywhere.
+	it('raises rather than reporting a goal it did not store', async () => {
 		mockSingle.mockResolvedValueOnce({ data: null, error: new Error('Constraint violation') });
-		const result = await dao.archiveGoal(42, sampleGoal);
-		expect(result.stored).toBe(false);
-		expect(result.record).toBeUndefined();
+		await expect(dao.archiveGoal(42, sampleGoal)).rejects.toBeInstanceOf(DatabaseError);
 	});
 
 	it('handles null predicted values gracefully', async () => {

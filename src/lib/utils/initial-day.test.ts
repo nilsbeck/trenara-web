@@ -178,3 +178,20 @@ describe('initialCalendarDay', () => {
 		expect(asString(initialCalendarDay(schedule({}), TODAY))).toBe('2026-08-26');
 	});
 });
+
+describe('a schedule carrying rows the API sent no date for', () => {
+	// The calendar asks this which day to open on before it renders anything,
+	// so a throw here is a blank dashboard rather than a misplaced dot.
+	it('opens on the day the readable rows point at', () => {
+		const withBadRows = schedule({
+			trainings: [{ id: 1 } as unknown as Schedule['trainings'][number], training('2026-08-28')],
+			strength_trainings: [{ id: 2, day: null } as unknown as StrengthTraining],
+			entries: [{ id: 3, type: 'run', start_time: null, rpe: null } as unknown as Entry]
+		});
+
+		expect(() => initialCalendarDay(withBadRows, TODAY)).not.toThrow();
+		// Nothing on today, so the next session ahead of it — the one row that
+		// actually named a day.
+		expect(asString(initialCalendarDay(withBadRows, TODAY))).toBe('2026-08-28');
+	});
+});

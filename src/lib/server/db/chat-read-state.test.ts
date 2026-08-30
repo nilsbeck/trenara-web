@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { DatabaseError } from './errors';
 import { ChatReadStateDAO } from './chat-read-state';
 
 // ── Mock the supabase client ──────────────────────────────────
@@ -93,9 +94,12 @@ describe('ChatReadStateDAO.advanceMark', () => {
 		expect(mockUpsert).not.toHaveBeenCalled();
 	});
 
-	it('reports a failed write rather than throwing', async () => {
+	// `{ advanced: false }` is what a mark already far enough along returns — a
+	// correct no-op. A failed write answering the same way made the two
+	// indistinguishable to everything downstream.
+	it('raises rather than reporting a failed write as a no-op', async () => {
 		state.upsertResult = { error: { message: 'boom' } };
 
-		expect(await dao.advanceMark(USER, 1, 101)).toEqual({ advanced: false });
+		await expect(dao.advanceMark(USER, 1, 101)).rejects.toBeInstanceOf(DatabaseError);
 	});
 });

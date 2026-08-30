@@ -1,4 +1,5 @@
 import { supabase } from './client';
+import { storageFailed } from './errors';
 import type { NewsMark } from '$lib/utils/news-unread';
 import { isNewer } from '$lib/utils/news-unread';
 
@@ -58,6 +59,10 @@ export class NewsReadStateDAO {
 	 *
 	 * Monotonic: an older mark is ignored rather than written, so a tab left
 	 * open on last week's feed cannot un-read what has arrived since.
+	 *
+	 * `advanced: false` means that and only that. A write that failed is not a
+	 * mark that was already forward enough, and reporting it as one left the
+	 * badge to reappear next load with nothing to explain it.
 	 */
 	async advanceMark(userId: number, mark: NewsMark): Promise<{ advanced: boolean }> {
 		const current = await this.getMark(userId);
@@ -75,10 +80,7 @@ export class NewsReadStateDAO {
 			{ onConflict: 'user_id' }
 		);
 
-		if (error) {
-			console.error('Failed to store news mark:', error.message);
-			return { advanced: false };
-		}
+		if (error) storageFailed('news mark write', error);
 
 		return { advanced: true };
 	}

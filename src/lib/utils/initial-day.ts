@@ -1,5 +1,5 @@
 import type { Schedule } from '$lib/server/trenara/types';
-import { parseLocalDateString, toLocalDateString } from './date';
+import { dayKeyOf, parseLocalDateString, toLocalDateString } from './date';
 import { entryLocalDate } from './schedule';
 
 /**
@@ -55,8 +55,10 @@ function lastCompletedRun(
 	for (const entry of schedule.entries ?? []) {
 		if (entry.type !== 'run') continue;
 
+		// An entry with no readable start time cannot be ordered against the
+		// others, so it cannot be the most recent one either.
 		const date = entryLocalDate(entry.start_time);
-		if (date > todayString) continue;
+		if (date === null || date > todayString) continue;
 
 		const startedAt = new Date(entry.start_time).getTime();
 		if (best && !(date > best.date || (date === best.date && startedAt > best.startedAt))) continue;
@@ -70,8 +72,8 @@ function lastCompletedRun(
 /** Whether the day holds a planned session of either kind, or a logged one. */
 function hasAnythingOn(schedule: Schedule, date: string): boolean {
 	return (
-		(schedule.trainings ?? []).some((training) => training.day_long.slice(0, 10) === date) ||
-		(schedule.strength_trainings ?? []).some((strength) => strength.day.slice(0, 10) === date) ||
+		(schedule.trainings ?? []).some((training) => dayKeyOf(training.day_long) === date) ||
+		(schedule.strength_trainings ?? []).some((strength) => dayKeyOf(strength.day) === date) ||
 		(schedule.entries ?? []).some((entry) => entryLocalDate(entry.start_time) === date)
 	);
 }
@@ -80,16 +82,16 @@ function hasAnythingOn(schedule: Schedule, date: string): boolean {
 function nextSessionAfter(schedule: Schedule, todayString: string): string | null {
 	let soonest: string | null = null;
 
-	const consider = (date: string) => {
-		if (date <= todayString) return;
+	const consider = (date: string | null) => {
+		if (date === null || date <= todayString) return;
 		if (soonest === null || date < soonest) soonest = date;
 	};
 
 	for (const training of schedule.trainings ?? []) {
-		consider(training.day_long.slice(0, 10));
+		consider(dayKeyOf(training.day_long));
 	}
 	for (const strength of schedule.strength_trainings ?? []) {
-		consider(strength.day.slice(0, 10));
+		consider(dayKeyOf(strength.day));
 	}
 
 	return soonest;
