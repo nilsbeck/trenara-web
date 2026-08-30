@@ -119,7 +119,7 @@
 				</tr>
 			</thead>
 			<tbody>
-				{#each races as race, i}
+				{#each races as race, i (race.km)}
 					<!-- A row the account has no prediction for yet reads as absent
 					     rather than as an empty cell, which is indistinguishable from
 					     a column that failed to render. -->
@@ -164,7 +164,7 @@
 					class="distance-slider w-full h-2 cursor-pointer appearance-none rounded-full"
 				/>
 				<div class="relative mt-1.5 h-4">
-					{#each ticks as tick}
+					{#each ticks as tick (tick.km)}
 						<button
 							type="button"
 							class="absolute -translate-x-1/2 text-xs transition-colors {Math.abs(

@@ -27,6 +27,18 @@ export function isDatabaseError(e: unknown): e is DatabaseError {
 	return e instanceof DatabaseError;
 }
 
+/**
+ * Postgres' "that row already exists".
+ *
+ * Not a failure everywhere it appears: the read-state tables advance a mark
+ * with a conditional update and fall back to an insert, and a conflict there
+ * means another writer got in first with a mark at least as far along — which
+ * is the outcome asked for, reached by someone else.
+ */
+export function isUniqueViolation(cause: { code?: string } | null | undefined): boolean {
+	return cause?.code === '23505';
+}
+
 export const STORAGE_READ_MESSAGE = 'Your saved history could not be loaded. Please try again.';
 
 export const STORAGE_WRITE_MESSAGE = 'That could not be saved. Please try again.';

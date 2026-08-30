@@ -2,6 +2,7 @@ import type { Cookies } from '@sveltejs/kit';
 import type { NewsResponse } from './types';
 import { fetchClient } from './client';
 import { expectCollections } from './shape';
+import { cachedRead, CacheKey } from './read-cache';
 import { TokenType } from '$lib/server/auth/types';
 
 function bearerHeader(cookies: Cookies): Record<string, string> {
@@ -18,14 +19,16 @@ export const newsApi = {
 	 * truth rather than assuming a page exists.
 	 */
 	async getNews(cookies: Cookies, page = 1): Promise<NewsResponse> {
-		return expectCollections<NewsResponse>(
-			await fetchClient.get<unknown>('/api/news/', {
-				headers: bearerHeader(cookies),
-				cookies,
-				params: { page }
-			}),
-			'/api/news/',
-			['data']
+		return cachedRead(cookies, CacheKey.news(page), async () =>
+			expectCollections<NewsResponse>(
+				await fetchClient.get<unknown>('/api/news/', {
+					headers: bearerHeader(cookies),
+					cookies,
+					params: { page }
+				}),
+				'/api/news/',
+				['data']
+			)
 		);
 	}
 };

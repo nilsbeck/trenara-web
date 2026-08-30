@@ -492,7 +492,7 @@
 
 					<!-- Time on the left, and the very same gridline read as a pace on
 				     the right. Two units, one scale — never two scales. -->
-					{#each yTicks as tick}
+					{#each yTicks as tick (tick)}
 						{@const y = yPos(tick)}
 						<text
 							x={-8}
@@ -612,7 +612,7 @@
 						/>
 					{/if}
 
-					{#each data as d, i}
+					{#each data as d, i (d.date)}
 						{@const isLatest = i === data.length - 1}
 						<circle
 							cx={xPos(i)}

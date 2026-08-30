@@ -1,55 +1,38 @@
 import { json, error } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
+import { requireUser } from '$lib/server/auth/guard';
 import { goalHistoryDAO } from '$lib/server/db/goal-history';
 import { fromStorage, STORAGE_WRITE_MESSAGE } from '$lib/server/db/errors';
-import { archiveGoalSchema } from '$lib/schemas/goal-history';
+import { passthrough } from '$lib/server/trenara/request';
+import { archiveCurrentGoal } from '$lib/server/history/record';
+import { storageWrites } from '$lib/server/security/rate-limit';
 
 export const GET: RequestHandler = async ({ locals }) => {
-	if (!locals.user) {
-		error(401, 'Unauthorized');
-	}
-
-	const records = await fromStorage(() => goalHistoryDAO.getGoalHistory(locals.user!.id));
+	const user = requireUser(locals);
+	const records = await fromStorage(() => goalHistoryDAO.getGoalHistory(user.id));
 	return json({ records });
 };
 
-export const POST: RequestHandler = async ({ request, locals }) => {
-	if (!locals.user) {
-		error(401, 'Unauthorized');
+/**
+ * Archive the goal that is current right now.
+ *
+ * Takes no body, for the reasons in `$lib/server/history/record`. It also
+ * closes the shape this endpoint used to have: `goal_name` was a free string
+ * and part of the table's uniqueness constraint, so an account could write as
+ * many rows as it cared to invent names for. Derived from `/api/goal`, a
+ * runner has exactly as many archivable goals as Trenara has given them.
+ */
+export const POST: RequestHandler = async ({ cookies, locals }) => {
+	const user = requireUser(locals);
+
+	const limit = storageWrites.check(`goal-archive:${user.id}`);
+	if (!limit.allowed) {
+		error(429, 'Too many updates. Please slow down.');
 	}
 
-	const body = await request.json();
-	const result = archiveGoalSchema.safeParse(body);
-
-	if (!result.success) {
-		error(400, result.error.issues[0]?.message ?? 'Invalid request body');
-	}
-
-	const {
-		goal_name,
-		distance,
-		goal_time,
-		goal_pace,
-		final_predicted_time,
-		final_predicted_pace,
-		start_date,
-		end_date
-	} = result.data;
-
-	const record = await fromStorage(
-		() =>
-			goalHistoryDAO.archiveGoal(locals.user!.id, {
-				goal_name,
-				distance,
-				goal_time,
-				goal_pace,
-				final_predicted_time: final_predicted_time ?? null,
-				final_predicted_pace: final_predicted_pace ?? null,
-				start_date,
-				end_date
-			}),
-		STORAGE_WRITE_MESSAGE
+	const result = await passthrough(() =>
+		fromStorage(() => archiveCurrentGoal(cookies, user.id), STORAGE_WRITE_MESSAGE)
 	);
 
-	return json(record);
+	return json(result);
 };

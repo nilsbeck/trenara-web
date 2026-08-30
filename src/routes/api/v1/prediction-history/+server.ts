@@ -1,13 +1,14 @@
 import { json, error } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
+import { requireUser } from '$lib/server/auth/guard';
 import { predictionHistoryDAO } from '$lib/server/db/prediction-history';
 import { fromStorage, STORAGE_WRITE_MESSAGE } from '$lib/server/db/errors';
-import { predictionRecordSchema } from '$lib/schemas/prediction';
+import { passthrough } from '$lib/server/trenara/request';
+import { recordCurrentPrediction } from '$lib/server/history/record';
+import { storageWrites } from '$lib/server/security/rate-limit';
 
 export const GET: RequestHandler = async ({ url, locals }) => {
-	if (!locals.user) {
-		error(401, 'Unauthorized');
-	}
+	const user = requireUser(locals);
 
 	const startDateParam = url.searchParams.get('startDate');
 	const startDate =
@@ -20,30 +21,37 @@ export const GET: RequestHandler = async ({ url, locals }) => {
 		rawLimit && Number.isFinite(rawLimit) && rawLimit > 0 ? Math.min(rawLimit, 200) : undefined;
 
 	const records = await fromStorage(() =>
-		predictionHistoryDAO.getUserPredictionHistory(locals.user!.id, { startDate, limit })
+		predictionHistoryDAO.getUserPredictionHistory(user.id, { startDate, limit })
 	);
 
 	return json({ records });
 };
 
-export const POST: RequestHandler = async ({ request, locals }) => {
-	if (!locals.user) {
-		error(401, 'Unauthorized');
+/**
+ * Record today's prediction.
+ *
+ * Takes no body. It used to take the figures themselves — the browser read
+ * them off the page and posted them up, and the server stored whatever passed
+ * a shape check. That made the runner's own history client-authored, for a
+ * record whose entire purpose is to be trusted long after the source data is
+ * gone. The authoritative values are one cached call away on this side, so
+ * they are read here instead and anything sent is ignored.
+ *
+ * Still worth keeping as an endpoint, even though the dashboard load now
+ * records on its own: the goal card calls it after a change and wants to know
+ * whether a new point exists before it redraws the chart.
+ */
+export const POST: RequestHandler = async ({ cookies, locals }) => {
+	const user = requireUser(locals);
+
+	const limit = storageWrites.check(`prediction:${user.id}`);
+	if (!limit.allowed) {
+		error(429, 'Too many updates. Please slow down.');
 	}
 
-	const body = await request.json();
-	const result = predictionRecordSchema.safeParse(body);
-
-	if (!result.success) {
-		error(400, 'Invalid request body');
-	}
-
-	const { time, pace, time_10k, pace_10k, time_5k, time_half, time_marathon } = result.data;
-	const tenK = time_10k && pace_10k ? { time: time_10k, pace: pace_10k } : null;
-	const set = { time5k: time_5k, timeHalf: time_half, timeMarathon: time_marathon };
-	const storeResult = await fromStorage(
-		() => predictionHistoryDAO.storeIfChanged(locals.user!.id, time, pace, tenK, set),
-		STORAGE_WRITE_MESSAGE
+	const result = await passthrough(() =>
+		fromStorage(() => recordCurrentPrediction(cookies, user.id), STORAGE_WRITE_MESSAGE)
 	);
-	return json(storeResult);
+
+	return json(result);
 };

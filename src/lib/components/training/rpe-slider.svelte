@@ -90,7 +90,7 @@
 		style="--rpe-color: {currentColor};"
 	/>
 	<div class="flex justify-between mt-1.5 text-xs text-muted-foreground">
-		{#each Array.from({ length: 10 }, (_, i) => i + 1) as n}
+		{#each Array.from({ length: 10 }, (_, i) => i + 1) as n (n)}
 			<span
 				class="w-5 text-center transition-all duration-150"
 				style={n === value ? `color: ${currentColor}; font-weight: 600;` : ''}>{n}</span

@@ -1,4 +1,6 @@
 import { error } from '@sveltejs/kit';
+import { getRequestEvent } from '$app/server';
+import { env } from '$env/dynamic/private';
 import type { ZodType } from 'zod';
 import {
 	HttpError,
@@ -69,13 +71,53 @@ export function isUpstreamFailure(e: unknown): boolean {
 }
 
 /**
+ * Who, if anyone, is shown the rate-limit snapshot on the error page.
+ *
+ * The snapshot names upstream endpoints, their counts and the serverless
+ * instance — a maintenance tool, put on the page because the maintainer reads
+ * preview deployments rather than server logs. That is the right call for the
+ * person who owns the app and the wrong one for everybody else, and until now
+ * there was no way to tell them apart.
+ *
+ * Unset, nobody gets it on screen. It is still logged in full by the transport
+ * on every 429, which is where a diagnostic normally lives; setting this to a
+ * Trenara user id puts it back on the page for that one reader.
+ */
+function isDiagnosticViewer(viewerId: number | undefined): boolean {
+	const admin = Number(env.ADMIN_USER_ID);
+	return Number.isInteger(admin) && admin > 0 && viewerId === admin;
+}
+
+/**
+ * The runner this request belongs to, if it belongs to one.
+ *
+ * `passthrough` is called from load functions and endpoints that have the
+ * event but do not pass it down, so it is read from async context rather than
+ * threaded through every call site. Absent outside a request — in a unit test,
+ * say — which reads as "not the maintainer", the safe answer.
+ */
+function currentViewerId(): number | undefined {
+	try {
+		return getRequestEvent().locals.user?.id;
+	} catch {
+		return undefined;
+	}
+}
+
+/**
  * The status and message to answer a failed upstream call with.
  *
  * Transport failures become 502/504 — the gateway statuses, which is exactly
  * what this app is in front of Trenara — so that everything downstream, the
  * error page included, can tell "Trenara is down" from "we have a bug".
+ *
+ * `viewerId` decides whether the 429 snapshot rides along; see
+ * {@link isDiagnosticViewer}.
  */
-export function describeFailure(e: unknown): {
+export function describeFailure(
+	e: unknown,
+	viewerId?: number
+): {
 	status: number;
 	message: string;
 	rateLimit?: RateLimitDiagnostic;
@@ -87,7 +129,7 @@ export function describeFailure(e: unknown): {
 		return {
 			status: 429,
 			message: wait ? `${RATE_LIMITED_MESSAGE} Try again in ${wait}.` : RATE_LIMITED_MESSAGE,
-			rateLimit: e.diagnostic
+			...(isDiagnosticViewer(viewerId) ? { rateLimit: e.diagnostic } : {})
 		};
 	}
 
@@ -171,7 +213,7 @@ export async function passthrough<T>(fn: () => Promise<T>): Promise<T> {
 		return await fn();
 	} catch (e) {
 		if (e instanceof HttpError || isUpstreamFailure(e)) {
-			const { status, message, rateLimit } = describeFailure(e);
+			const { status, message, rateLimit } = describeFailure(e, currentViewerId());
 			// The snapshot rides along on the error body so the page can show it:
 			// the maintainer reads a preview deployment, not a server log.
 			error(status, rateLimit ? { message, rateLimit } : message);

@@ -547,7 +547,7 @@
 			{#if shownTraining?.training?.blocks && shownTraining.training.blocks.length > 0}
 				<div class="flex flex-col gap-3">
 					<h4 class="text-sm font-medium text-foreground">Training details</h4>
-					{#each shownTraining.training.blocks as block, blockIndex}
+					{#each shownTraining.training.blocks as block, blockIndex (blockIndex)}
 						{#if block.blocks && block.blocks.length > 0}
 							<!-- Composite block (intervals / repeat sets) -->
 							<div class="flex flex-col gap-1.5">
@@ -576,7 +576,7 @@
 								</div>
 								<!-- Sub-blocks with coloured vertical bar -->
 								<div class="ml-[26px] flex flex-col gap-1">
-									{#each block.blocks as sub}
+									{#each block.blocks as sub, subIndex (subIndex)}
 										<div class="flex items-start gap-2 text-sm">
 											<div
 												class="mt-[4px] w-[3px] shrink-0 self-stretch rounded-full"

@@ -4,10 +4,6 @@ import { TokenType } from './types';
 
 vi.mock('$app/environment', () => ({ dev: false }));
 
-vi.mock('$lib/server/auth/user-identity', () => ({
-	signUserId: (id: number) => `sig-${id}`
-}));
-
 vi.mock('$lib/server/trenara/auth', () => ({
 	authApi: {
 		refreshToken: vi.fn(),
@@ -332,26 +328,6 @@ describe('validateAndRefreshToken', () => {
 });
 
 // ─────────────────────────────────────────────────────────────
-// setIdentityCookies
-// ─────────────────────────────────────────────────────────────
-describe('setIdentityCookies', () => {
-	it('stores id, signature and email as long-lived httpOnly cookies', async () => {
-		const { SESSION_COOKIE_MAX_AGE } = await import('./token-manager');
-		const cookies = makeCookies();
-
-		manager.setIdentityCookies(cookies, { id: 42, email: 'user@example.com' });
-
-		expect(cookies._store.user_id.value).toBe('42');
-		expect(cookies._store.user_id_sig.value).toBe('sig-42');
-		expect(cookies._store.user_email.value).toBe('user@example.com');
-		for (const key of ['user_id', 'user_id_sig', 'user_email']) {
-			expect(cookies._store[key].options.httpOnly).toBe(true);
-			expect(cookies._store[key].options.maxAge).toBe(SESSION_COOKIE_MAX_AGE);
-		}
-	});
-});
-
-// ─────────────────────────────────────────────────────────────
 // deleteToken
 // ─────────────────────────────────────────────────────────────
 describe('deleteToken', () => {
@@ -365,6 +341,25 @@ describe('deleteToken', () => {
 
 		expect(cookies._store['access-token']).toBeUndefined();
 		expect(cookies._store['access-token_expiration']).toBeUndefined();
+	});
+
+	it('clears both with the attributes they were written with', () => {
+		const setter = makeCookies();
+		manager.setToken(setter, 'tok', TokenType.AccessToken, new Date());
+		const written = setter._store['access-token_expiration'].options;
+
+		const deleter = makeCookies({ 'access-token_expiration': 'x' });
+		let cleared: Record<string, unknown> = {};
+		deleter.delete = ((name: string, options: Record<string, unknown>) => {
+			if (name === 'access-token_expiration') cleared = options;
+		}) as unknown as typeof deleter.delete;
+
+		manager.deleteToken(deleter, TokenType.AccessToken);
+
+		expect(cleared.httpOnly).toBe(written.httpOnly);
+		expect(cleared.secure).toBe(written.secure);
+		expect(cleared.sameSite).toBe(written.sameSite);
+		expect(cleared.path).toBe(written.path);
 	});
 });
 

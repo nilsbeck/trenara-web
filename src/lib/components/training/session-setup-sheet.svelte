@@ -25,7 +25,6 @@
 		elevationBand,
 		isRun,
 		metresPerKm,
-		selectedStep,
 		sessionSettings,
 		setupHeading,
 		shoeName,

@@ -188,7 +188,7 @@
 				<g transform="translate({PAD.left},{PAD.top})">
 					<!-- Y axis line and its labels -->
 					<line x1={0} y1={0} x2={0} y2={ch} stroke="currentColor" class="text-border" />
-					{#each yTicks as tick}
+					{#each yTicks as tick (tick.value)}
 						<text
 							x={-8}
 							y={yPos(tick.value)}
@@ -227,7 +227,7 @@
 
 					<!-- Markers. Drawn after the lines so they sit on top, and ringed in
 				     the surface colour so overlapping points stay countable. -->
-					{#each points as p, i}
+					{#each points as p, i (i)}
 						<circle
 							cx={xPos(i)}
 							cy={yPos(p.todoKm)}
@@ -237,7 +237,7 @@
 							stroke-width="2"
 						/>
 					{/each}
-					{#each points as p, i}
+					{#each points as p, i (i)}
 						<circle
 							cx={xPos(i)}
 							cy={yPos(p.doneKm)}
@@ -249,7 +249,7 @@
 					{/each}
 
 					<!-- X labels -->
-					{#each xLabels as { i, label }}
+					{#each xLabels as { i, label } (i)}
 						<text
 							x={xPos(i)}
 							y={ch + 17}

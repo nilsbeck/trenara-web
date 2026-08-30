@@ -3,23 +3,52 @@ import { DatabaseError } from './errors';
 import { NewsReadStateDAO } from './news-read-state';
 
 // ── Mock the supabase client ──────────────────────────────────
-const { mockMaybeSingle, mockUpsert, mockFrom, state } = vi.hoisted(() => {
+//
+// Three chains to tell apart:
+//
+//   read    →  .select(…).eq(…).maybeSingle()
+//   advance →  .update(…).eq(…).or(…).select(…)   awaited
+//   advance →  .insert(…)                         awaited
+//
+// `or` is captured because the ordering that used to live in `isNewer` is now
+// the update's `WHERE` clause, and that is the thing worth asserting on.
+const { mockMaybeSingle, mockFrom, mockInsert, captured, state } = vi.hoisted(() => {
 	const state = {
-		upsertResult: { error: null } as { error: { message: string } | null }
+		updateResult: { data: [] as unknown[], error: null as { message: string } | null },
+		insertResult: { error: null as { message: string; code?: string } | null }
 	};
+
+	const captured = { update: null as unknown, insert: null as unknown, or: null as string | null };
 
 	const mockMaybeSingle = vi.fn().mockResolvedValue({ data: null, error: null });
-	const mockUpsert = vi.fn(() => Promise.resolve(state.upsertResult));
+	const mockInsert = vi.fn();
 
-	const chain: Record<string, unknown> = {
-		select: vi.fn().mockReturnThis(),
-		eq: vi.fn().mockReturnThis(),
-		maybeSingle: mockMaybeSingle,
-		upsert: mockUpsert
-	};
+	const mockFrom = vi.fn(() => {
+		const chain: Record<string, unknown> = {
+			select: vi.fn(() => chain),
+			eq: vi.fn(() => chain),
+			maybeSingle: mockMaybeSingle,
+			update: vi.fn((values: unknown) => {
+				captured.update = values;
+				return chain;
+			}),
+			or: vi.fn((filter: string) => {
+				captured.or = filter;
+				return chain;
+			}),
+			insert: vi.fn((values: unknown) => {
+				captured.insert = values;
+				mockInsert(values);
+				return Promise.resolve(state.insertResult);
+			}),
+			then: (resolve: (v: unknown) => unknown, reject?: (e: unknown) => unknown) =>
+				Promise.resolve(state.updateResult).then(resolve, reject)
+		};
 
-	const mockFrom = vi.fn().mockReturnValue(chain);
-	return { mockMaybeSingle, mockUpsert, mockFrom, state };
+		return chain;
+	});
+
+	return { mockMaybeSingle, mockFrom, mockInsert, captured, state };
 });
 
 vi.mock('$lib/server/db/client', () => ({
@@ -32,7 +61,11 @@ beforeEach(() => {
 	vi.clearAllMocks();
 	vi.spyOn(console, 'error').mockImplementation(() => {});
 	mockMaybeSingle.mockResolvedValue({ data: null, error: null });
-	state.upsertResult = { error: null };
+	state.updateResult = { data: [], error: null };
+	state.insertResult = { error: null };
+	captured.update = null;
+	captured.insert = null;
+	captured.or = null;
 });
 
 afterEach(() => {
@@ -61,53 +94,51 @@ describe('NewsReadStateDAO.getMark', () => {
 });
 
 describe('NewsReadStateDAO.advanceMark', () => {
-	it('writes the first mark for a reader who has none', async () => {
+	it('inserts the first mark for a reader who has none', async () => {
 		const result = await dao.advanceMark(7, { id: 82, createdAt: 1_750_000_000 });
 
 		expect(result).toEqual({ advanced: true });
-		expect(mockUpsert).toHaveBeenCalledWith(
+		expect(captured.insert).toEqual(
 			expect.objectContaining({
 				user_id: 7,
 				last_seen_id: 82,
 				last_seen_created_at: 1_750_000_000
-			}),
-			{ onConflict: 'user_id' }
+			})
 		);
 	});
 
-	it('moves a mark forward', async () => {
-		mockMaybeSingle.mockResolvedValue({
-			data: { last_seen_id: 80, last_seen_created_at: 1_749_000_000 },
-			error: null
-		});
+	it('moves a mark forward with one conditional update', async () => {
+		state.updateResult = { data: [{ user_id: 7 }], error: null };
 
 		expect(await dao.advanceMark(7, { id: 82, createdAt: 1_750_000_000 })).toEqual({
 			advanced: true
 		});
+		expect(mockInsert).not.toHaveBeenCalled();
 	});
 
-	it('ignores an older mark, so a stale tab cannot un-read newer items', async () => {
-		mockMaybeSingle.mockResolvedValue({
-			data: { last_seen_id: 82, last_seen_created_at: 1_750_000_000 },
-			error: null
-		});
+	// `created_at` decides, because that is what the feed is ordered by; the id
+	// only breaks ties inside the same second. That ordering is the update's
+	// `WHERE` clause now, so this is where it gets checked.
+	it('asks the database for the same ordering isNewer describes', async () => {
+		state.updateResult = { data: [{ user_id: 7 }], error: null };
+
+		await dao.advanceMark(7, { id: 82, createdAt: 1_750_000_000 });
+
+		expect(captured.or).toBe(
+			'last_seen_created_at.lt.1750000000,' +
+				'and(last_seen_created_at.eq.1750000000,last_seen_id.lt.82)'
+		);
+	});
+
+	// A stale tab must not un-read newer items: nothing matches the update, and
+	// the insert conflicts with the row that is already there.
+	it('ignores a mark that is not newer', async () => {
+		state.updateResult = { data: [], error: null };
+		state.insertResult = { error: { message: 'duplicate key', code: '23505' } };
 
 		expect(await dao.advanceMark(7, { id: 80, createdAt: 1_749_000_000 })).toEqual({
 			advanced: false
 		});
-		expect(mockUpsert).not.toHaveBeenCalled();
-	});
-
-	it('ignores a mark the reader already has', async () => {
-		mockMaybeSingle.mockResolvedValue({
-			data: { last_seen_id: 82, last_seen_created_at: 1_750_000_000 },
-			error: null
-		});
-
-		expect(await dao.advanceMark(7, { id: 82, createdAt: 1_750_000_000 })).toEqual({
-			advanced: false
-		});
-		expect(mockUpsert).not.toHaveBeenCalled();
 	});
 
 	// The test above returns `{ advanced: false }` for a mark that was already
@@ -115,7 +146,15 @@ describe('NewsReadStateDAO.advanceMark', () => {
 	// same thing left the badge to reappear next load with nothing to explain
 	// it, so the two answers are no longer the same answer.
 	it('raises rather than reporting a failed write as a no-op', async () => {
-		state.upsertResult = { error: { message: 'down' } };
+		state.updateResult = { data: null as unknown as unknown[], error: { message: 'down' } };
+		await expect(dao.advanceMark(7, { id: 82, createdAt: 1_750_000_000 })).rejects.toBeInstanceOf(
+			DatabaseError
+		);
+	});
+
+	it('raises when the insert fails for a reason other than a conflict', async () => {
+		state.insertResult = { error: { message: 'down', code: '08006' } };
+
 		await expect(dao.advanceMark(7, { id: 82, createdAt: 1_750_000_000 })).rejects.toBeInstanceOf(
 			DatabaseError
 		);

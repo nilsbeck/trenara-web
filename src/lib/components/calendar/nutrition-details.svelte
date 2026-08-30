@@ -103,7 +103,7 @@
 				</span>
 				<h4 class="text-center text-sm font-semibold text-foreground">Total for the day</h4>
 				<dl class="mt-3 flex flex-col gap-1.5 border-t border-border pt-3">
-					{#each totals as total}
+					{#each totals as total (`${total.name}:${total.unit}`)}
 						<!--
 							`flex-row-reverse` so the figure reads first and the name sits at
 							the right margin, while the markup keeps the term ahead of the
@@ -140,7 +140,7 @@
 			<div>
 				<h4 class="mb-4 text-sm font-medium text-foreground">Meal breakdown</h4>
 				<div class="grid gap-x-3 gap-y-7 [grid-template-columns:repeat(auto-fit,minmax(9rem,1fr))]">
-					{#each meals as meal, index}
+					{#each meals as meal, index (meal.title || index)}
 						{@const rows = rowsFor(meal)}
 						{@const carries = rows.some((row) => row.amount !== null)}
 						<div class="relative rounded-xl border border-border bg-background/40 px-3 pb-3 pt-5">
@@ -187,7 +187,7 @@
 							-->
 							{#if carries}
 								<dl class="mt-2 flex flex-col gap-1 border-t border-border pt-2">
-									{#each rows as { column, amount }}
+									{#each rows as { column, amount } (`${column.name}:${column.unit}`)}
 										<div class="flex flex-row-reverse items-baseline justify-between gap-2">
 											<dt class="truncate text-xs text-muted-foreground" title={column.name}>
 												{column.name}

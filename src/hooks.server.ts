@@ -1,14 +1,32 @@
-import type { Handle, HandleServerError } from '@sveltejs/kit';
+import { redirect, type Handle, type HandleServerError } from '@sveltejs/kit';
+import { sequence } from '@sveltejs/kit/hooks';
 import { TokenManager } from '$lib/server/auth/token-manager';
-import { verifyUserId } from '$lib/server/auth/user-identity';
 import { userApi } from '$lib/server/trenara/user';
 import { isUpstreamFailure, describeFailure } from '$lib/server/trenara/request';
 import { RateLimitError } from '$lib/server/trenara/client';
 import { isDatabaseError, STORAGE_READ_MESSAGE } from '$lib/server/db/errors';
+import { securityHeaders } from '$lib/server/security/headers';
+import { apiRequests } from '$lib/server/security/rate-limit';
 
 const tokenManager = TokenManager.getInstance();
 
-const handleAuth: Handle = async ({ event, resolve }) => {
+/**
+ * Resolve who is asking, from the token and nothing else.
+ *
+ * There used to be a second source: a `user_id` cookie with an HMAC beside it,
+ * so the id could be trusted without an API call. It was verified — but never
+ * against the token it arrived with, so the two were checked independently and
+ * nothing ever asked whether they described the same person. A signed pair was
+ * therefore a permanent, transferable capability for that user's stored
+ * history: valid forever, and valid alongside anybody's access token.
+ *
+ * The reason that shortcut existed is gone. `getCurrentUser` sits behind the
+ * read cache now, keyed by the access token, holding the *promise* — so a warm
+ * instance answers from memory and a cold one spends one request that every
+ * concurrent caller shares. That is cheap enough to make the token the single
+ * source of identity, which is the only way the two can never disagree.
+ */
+export const handleAuth: Handle = async ({ event, resolve }) => {
 	event.locals.user = null;
 
 	// Nothing to restore — an anonymous visitor, not an expired session.
@@ -29,42 +47,98 @@ const handleAuth: Handle = async ({ event, resolve }) => {
 		return resolve(event);
 	}
 
-	// Verify user identity via HMAC signature stored at login.
-	// This prevents IDOR: an attacker who modifies the user_id cookie cannot
-	// produce a valid signature without the server-side SESSION_SECRET, so
-	// the tampered value is rejected here with no extra API call.
-	const userIdStr = event.cookies.get('user_id');
-	const userIdSig = event.cookies.get('user_id_sig');
-	const userEmail = event.cookies.get('user_email');
-
-	if (userIdStr && userIdSig && userEmail && verifyUserId(userIdStr, userIdSig)) {
-		event.locals.user = { id: Number(userIdStr), email: userEmail };
-
-		// Slide the identity cookies forward whenever the tokens are renewed so
-		// they never expire out from under a session that is still in use.
-		if (status === 'refreshed') {
-			tokenManager.setIdentityCookies(event.cookies, event.locals.user);
-		}
-
-		return resolve(event);
-	}
-
-	// The identity cookies are missing, expired or unsigned (for example a
-	// session created before signing existed, or after SESSION_SECRET was
-	// rotated). The tokens are still good, so rebuild the identity from the API
-	// rather than throwing the user back to the login screen.
 	try {
 		const user = await userApi.getCurrentUser(event.cookies);
-		tokenManager.setIdentityCookies(event.cookies, { id: user.id, email: user.email });
 		event.locals.user = { id: user.id, email: user.email };
 	} catch {
-		await tokenManager.logout(event.cookies);
+		// The token was good enough to validate but the account could not be
+		// read. That is Trenara being unreachable far more often than it is a
+		// dead session, so the cookies are kept and this request is served
+		// unauthenticated — same posture as `unavailable` above.
 	}
 
 	return resolve(event);
 };
 
-export const handle = handleAuth;
+/** Routes that answer in JSON, and must be refused in JSON. */
+function isApiRoute(routeId: string | null): boolean {
+	return routeId?.startsWith('/api') ?? false;
+}
+
+/** Routes inside the authenticated shell, which redirect rather than refuse. */
+function isAppRoute(routeId: string | null): boolean {
+	return routeId?.startsWith('/(app)') ?? false;
+}
+
+/**
+ * One gate, before any route runs.
+ *
+ * The guard used to be written out per route, and the copies disagreed: the
+ * `(app)` layout redirected to the login screen while every page beneath it
+ * threw a 401, and since layout and page loads run concurrently, which answer
+ * an expired session got was a race. The dashboard had no copy at all, so an
+ * unauthenticated request to the app's main page still opened five or six
+ * upstream fetches before the layout's redirect settled.
+ *
+ * So the rule lives here once: a page redirects, an endpoint refuses, and
+ * neither depends on a check being remembered.
+ */
+export const handleGuard: Handle = async ({ event, resolve }) => {
+	const routeId = event.route.id;
+
+	if (event.locals.user) {
+		// A ceiling on what one account may ask of the API. Nothing else bounded
+		// it, which left this app usable as a load generator pointed at Trenara —
+		// whose own limit is sixty a minute for everyone behind this egress IP.
+		if (isApiRoute(routeId)) {
+			const limit = apiRequests.check(`api:${event.locals.user.id}`);
+			if (!limit.allowed) {
+				return new Response(JSON.stringify({ message: 'Too many requests' }), {
+					status: 429,
+					headers: {
+						'content-type': 'application/json',
+						'retry-after': String(limit.retryAfterSeconds)
+					}
+				});
+			}
+		}
+
+		return resolve(event);
+	}
+
+	if (!(isApiRoute(routeId) || isAppRoute(routeId))) {
+		return resolve(event);
+	}
+
+	if (isApiRoute(routeId)) {
+		return new Response(JSON.stringify({ message: 'Unauthorized' }), {
+			status: 401,
+			headers: { 'content-type': 'application/json' }
+		});
+	}
+
+	// Where they were headed, so signing in lands them there rather than on the
+	// dashboard. Path and query only — never a caller-supplied absolute URL,
+	// which is how a login redirect becomes an open redirect.
+	const target = `${event.url.pathname}${event.url.search}`;
+	redirect(302, target === '/dashboard' ? '/login' : `/login?next=${encodeURIComponent(target)}`);
+};
+
+/**
+ * Order matters, and not in the order they read.
+ *
+ * `securityHeaders` goes *first* so that it wraps the other two rather than
+ * following them. A hook in a `sequence` only reaches the ones after it by
+ * calling `resolve`, and `handleGuard` deliberately does not: it returns a 401
+ * outright. Placed last, the headers would therefore have been set on every
+ * response except the refusals — the one class of response most likely to be
+ * read by something other than a browser.
+ *
+ * The three are exported individually as well, because `sequence` reaches for
+ * SvelteKit's request store and so cannot be driven outside a real request;
+ * the tests compose them by hand.
+ */
+export const handle = sequence(securityHeaders, handleAuth, handleGuard);
 
 /**
  * Last word on a failure nothing else caught.
@@ -90,9 +164,9 @@ export const handleError: HandleServerError = ({ error, event, status, message }
 
 	// A 429 that got past `passthrough` — a streamed promise, or a call added
 	// without it. The snapshot is already in the log from the transport; this
-	// carries it onto the page too.
+	// carries it onto the page too, for the readers entitled to it.
 	if (error instanceof RateLimitError) {
-		const { message, rateLimit } = describeFailure(error);
+		const { message, rateLimit } = describeFailure(error, event.locals.user?.id);
 		return { message, rateLimit };
 	}
 

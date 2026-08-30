@@ -1,7 +1,6 @@
 import type { Cookies } from '@sveltejs/kit';
 import { dev } from '$app/environment';
 import { TokenType } from './types';
-import { signUserId } from './user-identity';
 import { authApi } from '$lib/server/trenara/auth';
 import { HttpError } from '$lib/server/trenara/client';
 import type { AuthResponse } from '$lib/server/trenara/types';
@@ -166,17 +165,6 @@ export class TokenManager {
 		this.setToken(cookies, response.refresh_token, TokenType.RefreshToken, expirationDate);
 	}
 
-	/**
-	 * Stores the identity of the logged-in user together with an HMAC of the
-	 * id, so hooks can trust the id without an extra API call. Re-issued on
-	 * every token refresh so the identity cookies never outlive the session.
-	 */
-	setIdentityCookies(cookies: Cookies, user: { id: number; email: string }): void {
-		cookies.set('user_id', String(user.id), this.cookieOptions());
-		cookies.set('user_id_sig', signUserId(user.id), this.cookieOptions());
-		cookies.set('user_email', user.email, this.cookieOptions());
-	}
-
 	private cookieOptions() {
 		return {
 			maxAge: SESSION_COOKIE_MAX_AGE,
@@ -188,18 +176,19 @@ export class TokenManager {
 		};
 	}
 
+	/**
+	 * Clears a token and the expiry beside it.
+	 *
+	 * Both go through `cookieOptions()`, the same helper that wrote them. The
+	 * two used to be spelled out separately and drifted: the token was deleted
+	 * with `httpOnly` and its `_expiration` without, although both were set with
+	 * it. Deletion matches on name, path and domain, so nothing was actually
+	 * broken — but an asymmetry between how a cookie is written and how it is
+	 * cleared is the kind that gets copied somewhere it does matter.
+	 */
 	deleteToken(cookies: Cookies, tokenType: TokenType): void {
-		cookies.delete(tokenType.toString(), {
-			path: '/',
-			httpOnly: true,
-			secure: !dev,
-			sameSite: 'lax'
-		});
-		cookies.delete(`${tokenType}_expiration`, {
-			path: '/',
-			secure: !dev,
-			sameSite: 'lax'
-		});
+		cookies.delete(tokenType.toString(), this.cookieOptions());
+		cookies.delete(`${tokenType}_expiration`, this.cookieOptions());
 	}
 
 	async authenticate(
@@ -239,12 +228,24 @@ export class TokenManager {
 
 		this.deleteToken(cookies, TokenType.AccessToken);
 		this.deleteToken(cookies, TokenType.RefreshToken);
-		cookies.delete('user_id', { path: '/' });
-		cookies.delete('user_id_sig', { path: '/' });
-		cookies.delete('user_email', { path: '/' });
-		cookies.delete('trenara_session', { path: '/' });
+		cookies.delete('trenara_session', this.cookieOptions());
+
+		// Identity is resolved from the token now, so nothing writes these any
+		// more. They are still cleared, and will be for a while yet: a browser
+		// that signed in before the change is holding a set, and logout is the
+		// one moment this app is certain to be able to take them back.
+		for (const legacy of LEGACY_IDENTITY_COOKIES) {
+			cookies.delete(legacy, this.cookieOptions());
+		}
 	}
 }
+
+/**
+ * Cookies an earlier version of this app used to carry the signed user id.
+ *
+ * Kept only so `logout` can clear them; nothing reads or writes them.
+ */
+const LEGACY_IDENTITY_COOKIES = ['user_id', 'user_id_sig', 'user_email'] as const;
 
 /**
  * Only a refusal by the auth server means the session is really over. Network

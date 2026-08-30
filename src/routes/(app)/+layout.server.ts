@@ -1,13 +1,11 @@
-import { redirect } from '@sveltejs/kit';
 import type { LayoutServerLoad } from './$types';
 import { configApi, userApi } from '$lib/server/trenara';
-import { loadNewsBadge } from '$lib/server/news/badge';
+import { newsBadgeIfReady } from '$lib/server/news/badge';
 import { loadChatBadge } from '$lib/server/chat/badge';
+import { requireUser } from '$lib/server/auth/guard';
 
 export const load: LayoutServerLoad = async ({ cookies, locals, depends }) => {
-	if (!locals.user) {
-		redirect(302, '/login');
-	}
+	const user = requireUser(locals);
 
 	// The news feed invalidates this once it has been read, so the badge clears
 	// without a full page load.
@@ -43,8 +41,12 @@ export const load: LayoutServerLoad = async ({ cookies, locals, depends }) => {
 	 * Affordable because it is cached for ten minutes per reader — free on a
 	 * warm cache, one request on a cold one. It reports its own failures as
 	 * null, so awaiting it cannot fail a page either.
+	 *
+	 * And the wait is bounded: a cold instance gives it a fifth of a second and
+	 * then renders without it, because a dot is worth no part of first paint.
+	 * The computation finishes in the background and the next navigation has it.
 	 */
-	const newsBadge = await loadNewsBadge(cookies, locals.user.id);
+	const newsBadge = await newsBadgeIfReady(cookies, user.id);
 
 	/**
 	 * The chat bubble's unread badge: the thread list plus how far the reader
@@ -56,7 +58,7 @@ export const load: LayoutServerLoad = async ({ cookies, locals, depends }) => {
 	 * corner rather than in the navbar. Late is cheap there in a way it is not
 	 * on the menu button.
 	 */
-	const chatBadge = loadChatBadge(cookies, locals.user.id);
+	const chatBadge = loadChatBadge(cookies, user.id);
 
 	// Option lists and copy the pickers render from. Streamed like the badges,
 	// and null on failure: every consumer falls back to the constants, so a

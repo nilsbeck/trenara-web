@@ -1,4 +1,4 @@
-import { json, error } from '@sveltejs/kit';
+import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { trainingApi } from '$lib/server/trenara';
 import { parseTrainingId, passthrough } from '$lib/server/trenara/request';
@@ -9,9 +9,7 @@ import { parseTrainingId, passthrough } from '$lib/server/trenara/request';
  * The week response omits every capability flag and change package, so this is
  * the only place the session-setup UI can learn what it is allowed to offer.
  */
-export const GET: RequestHandler = async ({ params, cookies, locals }) => {
-	if (!locals.user) error(401, 'Unauthorized');
-
+export const GET: RequestHandler = async ({ params, cookies }) => {
 	const id = parseTrainingId(params.id);
 	return json(await passthrough(() => trainingApi.getTraining(cookies, id)));
 };

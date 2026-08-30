@@ -1,5 +1,5 @@
 import { supabase } from './client';
-import { storageFailed } from './errors';
+import { isUniqueViolation, storageFailed } from './errors';
 
 /**
  * How far each reader has got in each chat thread.
@@ -55,36 +55,50 @@ export class ChatReadStateDAO {
 	/**
 	 * Move a thread's mark forward.
 	 *
-	 * Monotonic: a lower id is ignored rather than written, so a tab left open
-	 * on an older page of the conversation cannot un-read what arrived since.
+	 * Monotonic, and now actually so. This used to read the current mark,
+	 * compare it in JavaScript and then upsert — three steps with no lock
+	 * between them, so two marks arriving together (the reply poll and a page
+	 * load, which is a routine pairing) could interleave and let the lower id
+	 * win. The comparison happens inside the statement now: an `UPDATE … WHERE
+	 * last_seen_message_id < $new` either moves the row or does nothing, and
+	 * Postgres serialises the two writers itself.
 	 *
-	 * `advanced: false` means that and only that — a failed write is reported
-	 * as a failure, not as a mark that was already far enough along.
+	 * `advanced: false` means the mark was already at least this far along, and
+	 * only that — a failed write is reported as a failure.
 	 */
 	async advanceMark(
 		userId: number,
 		threadId: number,
 		lastSeenMessageId: number
 	): Promise<{ advanced: boolean }> {
-		const marks = await this.getMarks(userId);
-		const current = marks.get(threadId);
-		if (current !== undefined && lastSeenMessageId <= current) {
-			return { advanced: false };
-		}
-
-		const { error } = await supabase.from('chat_read_state').upsert(
-			{
-				user_id: userId,
-				thread_id: threadId,
+		const { data, error } = await supabase
+			.from('chat_read_state')
+			.update({
 				last_seen_message_id: lastSeenMessageId,
 				updated_at: new Date().toISOString()
-			},
-			{ onConflict: 'user_id,thread_id' }
-		);
+			})
+			.eq('user_id', userId)
+			.eq('thread_id', threadId)
+			.lt('last_seen_message_id', lastSeenMessageId)
+			.select('thread_id');
 
 		if (error) storageFailed('chat mark write', error);
+		if ((data ?? []).length > 0) return { advanced: true };
 
-		return { advanced: true };
+		// Nothing moved: either there is no row yet, or the stored mark is
+		// already at or past this one. Insert to tell the two apart — a unique
+		// violation is the second case, which is a no-op rather than a failure.
+		const { error: insertError } = await supabase.from('chat_read_state').insert({
+			user_id: userId,
+			thread_id: threadId,
+			last_seen_message_id: lastSeenMessageId,
+			updated_at: new Date().toISOString()
+		});
+
+		if (!insertError) return { advanced: true };
+		if (isUniqueViolation(insertError)) return { advanced: false };
+
+		storageFailed('chat mark write', insertError);
 	}
 }
 
