@@ -32,13 +32,30 @@ export const load: LayoutServerLoad = async ({ cookies, locals, depends }) => {
 	 */
 	const userData = await userApi.getCurrentUser(cookies).catch(() => null);
 
-	// Streamed, not awaited: the badge is an ornament on the navbar and must
-	// never hold up the page behind it.
-	const newsBadge = loadNewsBadge(cookies, locals.user.id);
+	/**
+	 * The unread dot on the menu button, beside the avatar.
+	 *
+	 * Awaited for the same reason as the account: streamed, it was absent in the
+	 * first paint and popped in a moment later, on the very button that had just
+	 * stopped flickering. Two things settling at different times on one control
+	 * is the flicker, whichever of them is late.
+	 *
+	 * Affordable because it is cached for ten minutes per reader — free on a
+	 * warm cache, one request on a cold one. It reports its own failures as
+	 * null, so awaiting it cannot fail a page either.
+	 */
+	const newsBadge = await loadNewsBadge(cookies, locals.user.id);
 
-	// Same for the chat bubble's unread badge: the thread list plus how far the
-	// reader has got in each thread. It reports its own failures as "nothing
-	// unread" — the page behind it has nothing to do with chat.
+	/**
+	 * The chat bubble's unread badge: the thread list plus how far the reader
+	 * has got in each thread.
+	 *
+	 * Still streamed, unlike the two above, and deliberately. It calls
+	 * `/api/threads/` uncached — a real request on every page's critical path if
+	 * awaited — and it feeds a bubble that is collapsed until tapped, in the
+	 * corner rather than in the navbar. Late is cheap there in a way it is not
+	 * on the menu button.
+	 */
 	const chatBadge = loadChatBadge(cookies, locals.user.id);
 
 	// Option lists and copy the pickers render from. Streamed like the badges,

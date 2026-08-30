@@ -30,9 +30,15 @@
 	 */
 	const userData = $derived(data.userData);
 
-	// Null while the badge is still streaming in, and also when it could not be
-	// computed at all. Both mean the same thing to the navbar: show nothing.
-	let newsUnread = $state<UnreadSummary | null>(null);
+	/**
+	 * The unread count, resolved by the load like the account above it.
+	 *
+	 * Null means nothing unread, or a badge that could not be computed — both
+	 * read as "show nothing". What it no longer means is "not here yet": the dot
+	 * used to be missing from the first paint and appear afterwards, on the same
+	 * button as the avatar.
+	 */
+	const newsUnread = $derived(data.newsBadge);
 
 	// Seeds the chat bubble's unread badge before the bubble is ever opened.
 	let chatThreads = $state<ChatThread[]>([]);
@@ -45,16 +51,6 @@
 		// Only a value replaces a value: a failed re-run must not throw away the
 		// option lists the pickers are already rendering from.
 		data.appConfig.then((c) => c && appConfig.set(c)).catch(() => {});
-	});
-
-	$effect(() => {
-		data.newsBadge
-			.then((badge) => {
-				newsUnread = badge;
-			})
-			.catch(() => {
-				newsUnread = null;
-			});
 	});
 
 	$effect(() => {

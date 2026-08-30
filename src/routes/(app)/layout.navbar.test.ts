@@ -32,10 +32,15 @@ function user(firstName: string): User {
 }
 
 /** One run of the layout load, as the component receives it. */
-function loadResult(userData: User | null) {
+function loadResult(
+	userData: User | null,
+	newsBadge: { count: number; capped: boolean } | null = null
+) {
 	return {
 		userData,
-		newsBadge: Promise.resolve(null),
+		newsBadge,
+		// Still streamed, and deliberately: it feeds the collapsed bubble in the
+		// corner, not the navbar, and awaiting it would cost a request per page.
 		chatBadge: Promise.resolve({ threads: [], seen: {} }),
 		appConfig: Promise.resolve(null)
 	};
@@ -92,6 +97,28 @@ describe('the navbar', () => {
 		await rerender({ children, data: loadResult(user('Niels')) } as never);
 
 		expect(screen.getByText(/Hi, Niels!/)).toBeTruthy();
+	});
+
+	// The dot sits on the same button as the avatar. Streamed, it was absent
+	// from the first paint and appeared afterwards — two things settling at
+	// different times on one control is the flicker, whichever is late.
+	it('has the unread dot in the first paint too', () => {
+		show(loadResult(user('Nils'), { count: 3, capped: false }));
+
+		const menu = screen.getByRole('button', { name: /3 unread news items/i });
+		expect(menu).toBeTruthy();
+	});
+
+	it('does not move the dot when the load re-runs with the same count', async () => {
+		const { rerender } = show(loadResult(user('Nils'), { count: 3, capped: false }));
+		const before = screen.getByRole('button', { name: /3 unread news items/i });
+
+		await rerender({
+			children,
+			data: loadResult(user('Nils'), { count: 3, capped: false })
+		} as never);
+
+		expect(screen.getByRole('button', { name: /3 unread news items/i })).toBe(before);
 	});
 
 	// Chrome on every page must never be able to take a page down, so the load
