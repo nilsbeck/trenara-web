@@ -185,6 +185,36 @@ describe('the guard', () => {
 
 		expect(response?.status).toBe(200);
 	});
+
+	// Nothing bounded what one account could ask of the API, which left the app
+	// usable as a load generator pointed at Trenara — whose own limit is sixty a
+	// minute for everything behind this egress IP.
+	it('caps how much API traffic one account can generate', async () => {
+		const { apiRequests } = await import('$lib/server/security/rate-limit');
+		apiRequests.reset();
+
+		let last: Response | undefined;
+		for (let i = 0; i < 241; i++) {
+			({ response: last } = await run(eventFor('/api/v1/schedule', '/api/v1/schedule')));
+		}
+
+		expect(last?.status).toBe(429);
+		expect(last?.headers.get('retry-after')).toMatch(/^\d+$/);
+		apiRequests.reset();
+	});
+
+	it('does not cap page navigation, only the API', async () => {
+		const { apiRequests } = await import('$lib/server/security/rate-limit');
+		apiRequests.reset();
+
+		let last: Response | undefined;
+		for (let i = 0; i < 300; i++) {
+			({ response: last } = await run(eventFor('/(app)/dashboard')));
+		}
+
+		expect(last?.status).toBe(200);
+		apiRequests.reset();
+	});
 });
 
 describe('security headers', () => {

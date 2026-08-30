@@ -2,7 +2,6 @@
 	import type { ChatThread, ChatMessage } from '$lib/server/trenara/types';
 	import { MessageCircle, X, Loader2, Bot, Send } from 'lucide-svelte';
 	import { onDestroy } from 'svelte';
-	import DOMPurify from 'dompurify';
 	import { describeError, describeResponse } from '$lib/utils/network';
 	import {
 		createPendingMessage,
@@ -69,6 +68,30 @@
 	let sendError = $state<string | null>(null);
 	let awaitingReply = $state(false);
 
+	/**
+	 * DOMPurify, once the bubble has actually been opened.
+	 *
+	 * It used to be a plain import, and this component lives in the (app)
+	 * layout — so ~27KB of sanitiser was in the layout chunk of every page,
+	 * loaded whether or not anyone ever tapped the bubble. It is only needed
+	 * when a message carrying markup is about to be drawn, which is strictly
+	 * after the bubble is open.
+	 *
+	 * Until it has landed, a message with markup renders as its plain-text
+	 * `body`. Nothing unsanitised is ever put in the document.
+	 */
+	let sanitize = $state<((html: string) => string) | null>(null);
+
+	async function loadSanitizer(): Promise<void> {
+		if (sanitize) return;
+		try {
+			const { default: DOMPurify } = await import('dompurify');
+			sanitize = (html: string) => DOMPurify.sanitize(html);
+		} catch {
+			// Left null, so every message falls back to its plain-text body.
+		}
+	}
+
 	let messagesContainer: HTMLDivElement | undefined = $state();
 	let draftInput: HTMLTextAreaElement | undefined = $state();
 
@@ -128,7 +151,12 @@
 	// A page holds the ten most recent messages, newest first; the list below
 	// reads oldest-first.
 	async function fetchMessages(threadId: number): Promise<ChatMessage[]> {
-		const res = await fetch(`/api/v1/chat/threads/${threadId}/messages`);
+		// The sanitiser is fetched alongside the messages rather than before
+		// them, so it costs no extra wait on the way to a conversation.
+		const [res] = await Promise.all([
+			fetch(`/api/v1/chat/threads/${threadId}/messages`),
+			loadSanitizer()
+		]);
 		if (!res.ok) throw new Error(await describeResponse(res, 'Could not load these messages.'));
 		const data = await res.json();
 		return toOldestFirst(data.data ?? []);
@@ -320,14 +348,50 @@
 		seenMessageIds = merged;
 	});
 
-	// An open bubble already polls the conversation it is showing, so the thread
-	// tick only runs while it is closed.
+	/**
+	 * Keeping the badge honest on a page left open all morning.
+	 *
+	 * An open bubble already polls the conversation it is showing, so this tick
+	 * only runs while it is closed — and only while anyone is actually looking.
+	 * It used to run regardless: a phone with the PWA in the background still
+	 * spent a request a minute, every open tab its own timer, against a budget
+	 * of sixty a minute shared with the whole app.
+	 *
+	 * A hidden tab is refreshed the moment it is looked at again instead, which
+	 * is the only moment a badge being a minute stale could matter. The same
+	 * reasoning, and the same shape, as `$lib/utils/revalidation`.
+	 */
 	$effect(() => {
 		if (isOpen) return;
-		const timer = setInterval(() => {
-			refreshThreads();
-		}, THREAD_POLL_INTERVAL_MS);
-		return () => clearInterval(timer);
+
+		let timer: ReturnType<typeof setInterval> | null = null;
+
+		function stop() {
+			if (timer !== null) clearInterval(timer);
+			timer = null;
+		}
+
+		function start() {
+			if (timer !== null) return;
+			timer = setInterval(refreshThreads, THREAD_POLL_INTERVAL_MS);
+		}
+
+		function onVisibility() {
+			if (document.visibilityState === 'visible') {
+				refreshThreads();
+				start();
+			} else {
+				stop();
+			}
+		}
+
+		if (document.visibilityState === 'visible') start();
+		document.addEventListener('visibilitychange', onVisibility);
+
+		return () => {
+			stop();
+			document.removeEventListener('visibilitychange', onVisibility);
+		};
 	});
 
 	// Accounts Trenara posts replies from: the coach bot ("Walter") authors as
@@ -391,7 +455,7 @@
 			<!-- Thread list (shown when no thread selected or multiple threads) -->
 			{#if !selectedThread && !loadingThreads}
 				<div class="flex-1 overflow-y-auto">
-					{#each threads as thread}
+					{#each threads as thread (thread.id)}
 						{@const threadUnreadLabel = formatUnreadBadge(threadUnread(thread, seenMessageIds))}
 						<button
 							type="button"
@@ -431,7 +495,7 @@
 					{:else if messages.length === 0}
 						<p class="text-center text-sm text-muted-foreground">No messages yet.</p>
 					{:else}
-						{#each messages as message, i}
+						{#each messages as message, i (message.id)}
 							{@const isOwn = isOwnMessage(message)}
 							{@const startsGroup = i === 0 || isOwnMessage(messages[i - 1]) !== isOwn}
 							{#if isOwn}
@@ -442,8 +506,11 @@
 											class="rounded-2xl rounded-br-sm bg-primary px-3 py-2 text-sm text-primary-foreground"
 										>
 											<div class="chat-content">
-												{#if message.body_html}
-													{@html DOMPurify.sanitize(message.body_html)}
+												{#if message.body_html && sanitize}
+													<!-- Sanitised: `sanitize` is DOMPurify and is null until it
+														 has loaded, so this branch is not taken before then. -->
+													<!-- eslint-disable-next-line svelte/no-at-html-tags -->
+													{@html sanitize(message.body_html)}
 												{:else}
 													{message.body}
 												{/if}
@@ -484,8 +551,11 @@
 											class="rounded-2xl rounded-tl-sm border border-border bg-muted px-3 py-2 text-sm text-card-foreground"
 										>
 											<div class="chat-content">
-												{#if message.body_html}
-													{@html DOMPurify.sanitize(message.body_html)}
+												{#if message.body_html && sanitize}
+													<!-- Sanitised: `sanitize` is DOMPurify and is null until it
+														 has loaded, so this branch is not taken before then. -->
+													<!-- eslint-disable-next-line svelte/no-at-html-tags -->
+													{@html sanitize(message.body_html)}
 												{:else}
 													{message.body}
 												{/if}

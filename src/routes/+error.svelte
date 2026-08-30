@@ -6,6 +6,7 @@
 		CloudOff,
 		Copy,
 		DatabaseZap,
+		LogIn,
 		Hourglass,
 		RefreshCw,
 		SearchX,
@@ -57,16 +58,30 @@
 	);
 	const notFound = $derived(status === 404);
 
+	/**
+	 * The session has ended.
+	 *
+	 * The one failure on this page with an obvious remedy, and the one it could
+	 * not name: a 401 fell through every branch into "Something went wrong",
+	 * under a Retry button that would fail again, identically, every time it was
+	 * pressed. The guard in `hooks.server.ts` redirects rather than reaching
+	 * here now, so this is the backstop for a 401 raised from somewhere else —
+	 * a streamed promise resolving after the session went, most likely.
+	 */
+	const signedOut = $derived(status === 401 || status === 403);
+
 	const title = $derived(
-		rateLimited
-			? 'Too many requests, too quickly'
-			: storage
-				? 'Your history is not available'
-				: unreachable
-					? 'Trenara is not answering'
-					: notFound
-						? 'Nothing here'
-						: 'Something went wrong'
+		signedOut
+			? 'You have been signed out'
+			: rateLimited
+				? 'Too many requests, too quickly'
+				: storage
+					? 'Your history is not available'
+					: unreachable
+						? 'Trenara is not answering'
+						: notFound
+							? 'Nothing here'
+							: 'Something went wrong'
 	);
 
 	/** The snapshot as it should be sent on: whole, and not reformatted by hand. */
@@ -87,8 +102,15 @@
 	}
 
 	const detail = $derived(
-		page.error?.message ??
-			(notFound ? 'That page does not exist.' : 'The page could not be loaded.')
+		signedOut
+			? 'Your session has ended. Sign in again to pick up where you left off.'
+			: (page.error?.message ??
+					(notFound ? 'That page does not exist.' : 'The page could not be loaded.'))
+	);
+
+	/** Back to the login screen, and back here afterwards. */
+	const signInHref = $derived(
+		`/login?next=${encodeURIComponent(`${page.url.pathname}${page.url.search}`)}`
 	);
 
 	let retrying = $state(false);
@@ -116,11 +138,13 @@
 	<div class="w-full max-w-sm space-y-6 text-center">
 		<div
 			class="mx-auto flex h-14 w-14 items-center justify-center rounded-full"
-			class:bg-muted={rateLimited || storage || unreachable || notFound}
-			class:bg-destructive={!rateLimited && !storage && !unreachable && !notFound}
-			class:opacity-90={!rateLimited && !storage && !unreachable && !notFound}
+			class:bg-muted={signedOut || rateLimited || storage || unreachable || notFound}
+			class:bg-destructive={!signedOut && !rateLimited && !storage && !unreachable && !notFound}
+			class:opacity-90={!signedOut && !rateLimited && !storage && !unreachable && !notFound}
 		>
-			{#if rateLimited}
+			{#if signedOut}
+				<LogIn class="h-7 w-7 text-muted-foreground" aria-hidden="true" />
+			{:else if rateLimited}
 				<Hourglass class="h-7 w-7 text-muted-foreground" aria-hidden="true" />
 			{:else if storage}
 				<DatabaseZap class="h-7 w-7 text-muted-foreground" aria-hidden="true" />
@@ -158,7 +182,17 @@
 		</div>
 
 		<div class="flex flex-col gap-2">
-			{#if !notFound}
+			{#if signedOut}
+				<!-- Retrying a 401 fails identically every time; signing in is the
+				     only thing that changes the outcome. -->
+				<a
+					href={signInHref}
+					class="inline-flex items-center justify-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-opacity hover:opacity-90"
+				>
+					<LogIn class="h-4 w-4" aria-hidden="true" />
+					Sign in again
+				</a>
+			{:else if !notFound}
 				<button
 					type="button"
 					onclick={retry}

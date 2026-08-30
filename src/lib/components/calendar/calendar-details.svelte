@@ -161,7 +161,7 @@
 	<div class="rounded-xl bg-card shadow-lg border border-border overflow-hidden">
 		{#if availableTabs.length > 0}
 			<div class="flex border-b border-border">
-				{#each availableTabs as tab}
+				{#each availableTabs as tab (tab)}
 					<button
 						type="button"
 						class="flex-1 px-4 py-2.5 text-sm font-medium transition-colors"

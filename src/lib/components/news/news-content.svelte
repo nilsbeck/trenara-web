@@ -1,6 +1,4 @@
 <script lang="ts">
-	import DOMPurify from 'dompurify';
-
 	/**
 	 * The body of a news item.
 	 *
@@ -9,6 +7,10 @@
 	 * differently rather than dangerously: plain text goes out with the server
 	 * render, markup is sanitised and inserted once the browser has it. Nothing
 	 * unsanitised is ever put in the document.
+	 *
+	 * DOMPurify is imported where it is needed rather than at the top, so the
+	 * ~27KB only travels for a feed that actually contains markup — most items
+	 * are plain text and take the branch below instead.
 	 */
 	let { content }: { content: string } = $props();
 
@@ -17,9 +19,26 @@
 	let host: HTMLDivElement | undefined = $state();
 
 	$effect(() => {
-		if (host && looksLikeMarkup) {
-			host.innerHTML = DOMPurify.sanitize(content);
-		}
+		if (!host || !looksLikeMarkup) return;
+
+		const target = host;
+		let current = true;
+
+		import('dompurify')
+			.then(({ default: DOMPurify }) => {
+				// The prop can change while the import is in flight; only the
+				// render this effect was started for may write to the node.
+				if (current) target.innerHTML = DOMPurify.sanitize(content);
+			})
+			.catch(() => {
+				// No sanitiser, no markup. The text is shown as text rather than
+				// as nothing, and never as unsanitised HTML.
+				if (current) target.textContent = content;
+			});
+
+		return () => {
+			current = false;
+		};
 	});
 </script>
 

@@ -6,6 +6,7 @@ import { isUpstreamFailure, describeFailure } from '$lib/server/trenara/request'
 import { RateLimitError } from '$lib/server/trenara/client';
 import { isDatabaseError, STORAGE_READ_MESSAGE } from '$lib/server/db/errors';
 import { securityHeaders } from '$lib/server/security/headers';
+import { apiRequests } from '$lib/server/security/rate-limit';
 
 const tokenManager = TokenManager.getInstance();
 
@@ -85,7 +86,27 @@ function isAppRoute(routeId: string | null): boolean {
 export const handleGuard: Handle = async ({ event, resolve }) => {
 	const routeId = event.route.id;
 
-	if (event.locals.user || !(isApiRoute(routeId) || isAppRoute(routeId))) {
+	if (event.locals.user) {
+		// A ceiling on what one account may ask of the API. Nothing else bounded
+		// it, which left this app usable as a load generator pointed at Trenara —
+		// whose own limit is sixty a minute for everyone behind this egress IP.
+		if (isApiRoute(routeId)) {
+			const limit = apiRequests.check(`api:${event.locals.user.id}`);
+			if (!limit.allowed) {
+				return new Response(JSON.stringify({ message: 'Too many requests' }), {
+					status: 429,
+					headers: {
+						'content-type': 'application/json',
+						'retry-after': String(limit.retryAfterSeconds)
+					}
+				});
+			}
+		}
+
+		return resolve(event);
+	}
+
+	if (!(isApiRoute(routeId) || isAppRoute(routeId))) {
 		return resolve(event);
 	}
 

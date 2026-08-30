@@ -13,10 +13,13 @@
 	} from 'lucide-svelte';
 	import ChatBubble from '$lib/components/chat/chat-bubble.svelte';
 	import RenderFailure from '$lib/components/shared/render-failure.svelte';
-	import { formatUnread, type UnreadSummary } from '$lib/utils/news-unread';
+	import { formatUnread } from '$lib/utils/news-unread';
 	import { appConfig } from '$lib/stores/app-config.svelte';
+	import type { Snippet } from 'svelte';
 
-	let { children, data }: { children: any; data: LayoutServerData } = $props();
+	// `children` was typed `any`, which agents.md forbids — and survived a
+	// passing lint because the config could not see a .svelte file at all.
+	let { children, data }: { children: Snippet; data: LayoutServerData } = $props();
 
 	let menuOpen = $state(false);
 

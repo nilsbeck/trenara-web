@@ -62,7 +62,7 @@
 						</tr>
 					</thead>
 					<tbody>
-						{#each data.records as record, i}
+						{#each data.records as record, i (record.id)}
 							<tr class={i < data.records.length - 1 ? 'border-b border-border' : ''}>
 								<td class="px-4 py-2.5 font-medium text-card-foreground">{record.goal_name}</td>
 								<td class="px-4 py-2.5 text-card-foreground">{record.distance}</td>

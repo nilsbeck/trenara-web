@@ -112,3 +112,82 @@ ALTER TABLE prediction_history
     ADD COLUMN IF NOT EXISTS predicted_time_5k VARCHAR(20),
     ADD COLUMN IF NOT EXISTS predicted_time_half VARCHAR(20),
     ADD COLUMN IF NOT EXISTS predicted_time_marathon VARCHAR(20);
+
+-- ─────────────────────────────────────────────────────────────
+-- Row Level Security (added later)
+--
+-- Every table above was created without it, and the app connects with the
+-- service role key — which bypasses RLS outright. So the only thing standing
+-- between one runner's history and another's was that every DAO remembered to
+-- write `.eq('user_id', …)`. They all do. Nothing enforced it, and one query
+-- added without that clause would have exposed every user.
+--
+-- What this changes, and what it does not:
+--
+-- RLS is enabled with no policies at all, which denies everything. The service
+-- role still passes — it is exempt by design, and it is what the server uses —
+-- so the app is unaffected. What stops working is every other way in: the
+-- anon key, an authenticated JWT, anything reaching the project's public REST
+-- endpoint. Those returned whole tables before, and the day the anon key or
+-- the project URL leaks is the day that mattered.
+--
+-- It is a floor, not the whole answer: the DAO filter is still what scopes a
+-- query the server makes, and RLS cannot check it. It means a leak now needs
+-- the service role key rather than any credential at all.
+--
+-- No policies are written deliberately. A policy would have to say what an
+-- end user may read, and no end user ever connects — this app's readers
+-- authenticate with Trenara, not with Supabase, and `user_id` here is a
+-- Trenara id with no Supabase identity behind it. A policy keyed on
+-- `auth.uid()` would be fiction. If direct client access is ever wanted, that
+-- is the point at which to design one.
+
+ALTER TABLE prediction_history ENABLE ROW LEVEL SECURITY;
+ALTER TABLE goal_history ENABLE ROW LEVEL SECURITY;
+ALTER TABLE news_read_state ENABLE ROW LEVEL SECURITY;
+ALTER TABLE chat_read_state ENABLE ROW LEVEL SECURITY;
+
+-- Belt and braces: revoke the grants PostgREST exposes those roles through, so
+-- the tables are unreachable for them even if RLS is ever switched off again.
+REVOKE ALL ON prediction_history, goal_history, news_read_state, chat_read_state
+    FROM anon, authenticated;
+
+-- A cap on the goal archive.
+--
+-- `goal_history` is unique on (user_id, goal_name, end_date) and `goal_name`
+-- used to be a free string from the request body, so an account could write as
+-- many rows as it cared to invent names for. The endpoint derives the goal
+-- from Trenara now, which is the real fix; this is the backstop, sized far
+-- above any plausible number of goals a runner will ever train for.
+CREATE OR REPLACE FUNCTION goal_history_row_cap() RETURNS TRIGGER AS $$
+BEGIN
+    IF (SELECT COUNT(*) FROM goal_history WHERE user_id = NEW.user_id) >= 500 THEN
+        RAISE EXCEPTION 'goal history limit reached for user %', NEW.user_id
+            USING ERRCODE = 'check_violation';
+    END IF;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS goal_history_row_cap_trigger ON goal_history;
+CREATE TRIGGER goal_history_row_cap_trigger
+    BEFORE INSERT ON goal_history
+    FOR EACH ROW EXECUTE FUNCTION goal_history_row_cap();
+
+-- The same for chat read marks, which are keyed on a thread id the client
+-- names. The endpoint checks the thread is the reader's own now; this bounds
+-- the damage if that check is ever bypassed or removed.
+CREATE OR REPLACE FUNCTION chat_read_state_row_cap() RETURNS TRIGGER AS $$
+BEGIN
+    IF (SELECT COUNT(*) FROM chat_read_state WHERE user_id = NEW.user_id) >= 1000 THEN
+        RAISE EXCEPTION 'chat read state limit reached for user %', NEW.user_id
+            USING ERRCODE = 'check_violation';
+    END IF;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS chat_read_state_row_cap_trigger ON chat_read_state;
+CREATE TRIGGER chat_read_state_row_cap_trigger
+    BEFORE INSERT ON chat_read_state
+    FOR EACH ROW EXECUTE FUNCTION chat_read_state_row_cap();

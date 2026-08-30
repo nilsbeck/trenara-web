@@ -300,14 +300,14 @@
 
 			<!-- Weekday headers -->
 			<div class="grid grid-cols-7 gap-0 mb-1">
-				{#each ['Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa', 'Su'] as day}
+				{#each ['Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa', 'Su'] as day (day)}
 					<div class="py-1 text-center text-xs font-medium text-muted-foreground">{day}</div>
 				{/each}
 			</div>
 
 			<!-- Day grid -->
 			<div class="grid grid-cols-7 gap-0">
-				{#each calendarDays as day}
+				{#each calendarDays as day (day.date.getTime())}
 					<button
 						type="button"
 						class="flex aspect-square items-center justify-center rounded-md text-xs transition-colors"

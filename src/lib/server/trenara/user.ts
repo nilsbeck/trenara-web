@@ -55,6 +55,19 @@ export const userApi = {
 	 * The body is `ProfileUpdate`, not `Partial<User>` — see that type for why
 	 * the two differ. Answers with the whole account, so the result can replace
 	 * a cached `getCurrentUser`.
+	 *
+	 * **Nothing calls this.** The profile page is read-only and there is no
+	 * route behind it, which reads at a glance like a feature that half-landed.
+	 * It is kept deliberately rather than deleted: this app talks to a
+	 * reverse-engineered API, and a verified request shape for `PUT /api/me` is
+	 * the expensive half of that knowledge — `docs/backend-api.md` documents the
+	 * endpoint and names this as its client method, and `api.test.ts` pins the
+	 * body it sends. Deleting the code would leave the documentation pointing at
+	 * nothing and cost a capture that took real traffic to obtain.
+	 *
+	 * So: unused, on purpose, and ready for the editable profile page it was
+	 * written for. If that page is never wanted, delete this, its tests, the
+	 * `ProfileUpdate` type and the `PUT /api/me` row in the docs together.
 	 */
 	async updateProfile(cookies: Cookies, data: ProfileUpdate): Promise<User> {
 		const user = await fetchClient.put<User>('/api/me', data, {

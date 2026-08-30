@@ -121,6 +121,17 @@ export const loginByIp = new RateLimiter({ limit: 10, windowMs: 5 * 60 * 1000 })
 export const loginByUsername = new RateLimiter({ limit: 5, windowMs: 15 * 60 * 1000 });
 
 /**
+ * Every `/api` request, per signed-in runner.
+ *
+ * A ceiling rather than a throttle: the read cache and the conditional
+ * schedule fetch already keep honest use far below it — a busy page load is
+ * five or ten calls, and a tab left open costs one a minute. Four a second
+ * sustained is well above anything the client does and well below what it
+ * takes to make this app a load generator pointed at Trenara.
+ */
+export const apiRequests = new RateLimiter({ limit: 240, windowMs: 60 * 1000 });
+
+/**
  * Writes to this app's own database, per user.
  *
  * Sized for the honest client: the goal card archives once per page view and

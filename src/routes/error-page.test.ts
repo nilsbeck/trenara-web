@@ -43,6 +43,7 @@ function show(status: number, error: App.Error | null) {
 beforeEach(() => {
 	state.page.status = 500;
 	state.page.error = null;
+	state.page.url = new URL('http://localhost/dashboard');
 });
 
 afterEach(cleanup);
@@ -125,5 +126,40 @@ describe('the error page on everything else', () => {
 	it('falls back to a plain apology for anything unrecognised', () => {
 		show(500, { message: 'Something went wrong on our side.' });
 		expect(screen.getByText('Something went wrong')).toBeTruthy();
+	});
+});
+
+describe('a session that has ended', () => {
+	// The one failure on this page with an obvious remedy, and the one it could
+	// not name: a 401 fell through every branch into "Something went wrong",
+	// under a Retry button that would fail again, identically, every time.
+	it('says the session ended rather than that something went wrong', () => {
+		show(401, { message: 'Unauthorized' });
+
+		expect(screen.getByRole('heading', { name: /signed out/i })).toBeInTheDocument();
+		expect(screen.queryByText(/something went wrong/i)).not.toBeInTheDocument();
+	});
+
+	it('offers signing in instead of a retry that cannot succeed', () => {
+		show(401, { message: 'Unauthorized' });
+
+		expect(screen.getByRole('link', { name: /sign in again/i })).toBeInTheDocument();
+		expect(screen.queryByRole('button', { name: /try again/i })).not.toBeInTheDocument();
+	});
+
+	it('sends them back to where they were once they have', () => {
+		state.page.url = new URL('http://localhost/goal?tab=history');
+		show(401, { message: 'Unauthorized' });
+
+		expect(screen.getByRole('link', { name: /sign in again/i })).toHaveAttribute(
+			'href',
+			'/login?next=%2Fgoal%3Ftab%3Dhistory'
+		);
+	});
+
+	it('does not relay the upstream wording, which says nothing to a runner', () => {
+		show(401, { message: 'Unauthorized' });
+
+		expect(screen.queryByText('Unauthorized')).not.toBeInTheDocument();
 	});
 });

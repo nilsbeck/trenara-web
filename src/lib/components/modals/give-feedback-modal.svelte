@@ -5,8 +5,13 @@
 	import { rpeColors } from '$lib/components/training/rpe';
 	import { describeError, describeResponse } from '$lib/utils/network';
 
+	/**
+	 * `training` is accepted and not read: callers pass the pair, and the RPE
+	 * dialog only ever needs the entry that was actually run. Kept in the
+	 * signature so the call sites stay honest about what this is rating.
+	 */
 	let {
-		training,
+		training: _training,
 		entry
 	}: {
 		training: ScheduledTraining;

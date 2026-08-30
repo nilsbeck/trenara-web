@@ -9,8 +9,21 @@ jobs:
   ping:
     runs-on: ubuntu-latest
     steps:
+      # Reaching the REST root needs no privilege at all, so it is done with
+      # the anon key. It used to send SUPABASE_SERVICE_ROLE_KEY — the most
+      # privileged credential in the project — for a liveness check, under
+      # `curl -v`, which prints request headers into the workflow log. Actions
+      # masks registered secrets there, so nothing leaked; sending it at all
+      # was still the wrong shape.
+      #
+      # The fallback keeps this working before SUPABASE_ANON_KEY is added as a
+      # repository secret. Once it is, the service role key can be dropped from
+      # this workflow's reach entirely.
       - name: Ping Supabase
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          PING_KEY: ${{ secrets.SUPABASE_ANON_KEY || secrets.SUPABASE_SERVICE_ROLE_KEY }}
         run: |
           echo "Pinging Supabase at $(date)"
-          curl -fsSv -o /dev/null "${{ secrets.SUPABASE_URL }}/rest/v1/" -H "apikey: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}"
+          curl -fsS -o /dev/null "$SUPABASE_URL/rest/v1/" -H "apikey: $PING_KEY"
           echo "Ping successful"

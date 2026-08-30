@@ -14,12 +14,60 @@ You are a Senior Fullstack Engineer specializing in the **SvelteKit, Bun, and Su
 
 ## 3. Security Protocol (Strict)
 
-- **Zero-Trust Backend:** Never trust `event.locals.user` alone. Re-verify the session in `hooks.server.ts` and `+page.server.ts` before sensitive operations.
-- **State Validation:** Before any mutation, verify the current state server-side rather than trusting what the client sent. What a session allows is decided by the coach's own `can_*` flags on that training — check them upstream instead of re-deriving them in the browser.
-- **Database Security:** **Row Level Security (RLS)** is the primary defense. Every table must have a policy.
-- **XSS & Sanitization:** Use Svelte's native escaping. For HTML that comes back from the API (chat, news), sanitize with `dompurify`.
-- **Session Management:** Use Supabase Auth Helpers. Ensure cookies are `HttpOnly`, `Secure`, and `SameSite=Lax`.
-- **CSRF:** Use SvelteKit **Form Actions** for all data mutations to leverage built-in CSRF protection.
+This section used to describe an architecture the code does not have — Supabase
+Auth helpers, RLS as the primary defence, Form Actions for every mutation — and
+a contributor following it would have built on premises that were not true.
+What follows is the design as it actually stands.
+
+- **Authentication is Trenara's, not Supabase's.** A runner signs in with their
+  Trenara account; `/oauth/token` returns an access and refresh token which are
+  kept in `httpOnly`, `Secure`, `SameSite=Lax` cookies by `TokenManager`.
+  Supabase is a database here and nothing more — no Supabase Auth, no
+  `auth.uid()`, no session helpers. `user_id` in every table is a Trenara id
+  with no Supabase identity behind it.
+- **Identity comes from the token and from nowhere else.** `hooks.server.ts`
+  resolves the runner by calling `/api/me` through the read cache, keyed by the
+  access token. Do not reintroduce a second source (a `user_id` cookie, a
+  signed claim, a header): the previous design verified an HMAC over the id but
+  never checked it against the token beside it, which made a signed pair a
+  permanent capability valid alongside anybody's session.
+- **One gate, in `hooks.server.ts`.** `handleGuard` redirects an
+  unauthenticated visitor away from `/(app)` routes and refuses `/api` routes
+  in JSON, before any route runs. Do not add per-route guards: the copies
+  disagreed last time, and the layout and its pages race. Routes read the
+  runner with `requireUser(locals)`, which narrows the type — never
+  `locals.user!`.
+- **State validation:** before any mutation, verify the current state
+  server-side rather than trusting what the client sent. What a session allows
+  is decided by the coach's own `can_*` flags on that training — check them
+  upstream instead of re-deriving them in the browser.
+- **Never store what the client composed.** The history endpoints take no body;
+  they read `/api/me/stats` and `/api/goal` server-side. A record meant to
+  outlive the data it describes must not be authored by a browser.
+- **Database security:** RLS is enabled on all four tables with no policies,
+  which denies everything. The server connects with the service role key and is
+  exempt by design, so this is a floor rather than the defence: it closes the
+  anon key and the public REST endpoint, and the DAO's `.eq('user_id', …)` is
+  still what scopes a query the server makes. Every DAO must carry that filter.
+  See the RLS block at the end of `migration.sql`.
+- **Rate limiting:** login is limited by IP and by submitted username, and the
+  endpoints that write to Supabase are limited per user
+  (`$lib/server/security/rate-limit`). The limiters are per serverless instance
+  and in memory — a floor, not a wall; a shared store is the upgrade path.
+- **XSS & sanitization:** use Svelte's native escaping. For HTML that comes back
+  from the API (chat, news), sanitize with `dompurify` — imported dynamically at
+  the point of use, so it does not ride along in the layout chunk.
+- **CSRF:** the mutations are JSON `+server.ts` routes, not Form Actions, and
+  they are protected all the same. SvelteKit's origin check rejects a
+  cross-origin `POST`/`PUT`/`DELETE` carrying any of the three form content
+  types, and an `application/json` request needs a preflight this app never
+  answers. The one thing that had to change was logout, which was a GET and so
+  outside the check entirely; it is a POST now. Keep every mutation on a method
+  that is not GET.
+- **Response headers** are set in `$lib/server/security/headers`, which runs
+  _first_ in the hook sequence — `handleGuard` returns its 401 without calling
+  `resolve`, so anything behind it would miss the refusals. The CSP lives in
+  `svelte.config.js`.
 - always execute on the server-side
 - use tokens for auth
 
@@ -36,7 +84,7 @@ You are a Senior Fullstack Engineer specializing in the **SvelteKit, Bun, and Su
 - **TypeScript:** - Strict mode enabled. No `any`.
   - Use `type` imports: `import type { User } from '@supabase/supabase-js'`.
   - Use `interface` for data models and component props.
-- **Linting:** ESLint + Prettier (`bun run lint`). Tabs for indentation, single quotes, semi-colons required, 100-column print width — all enforced by `.prettierrc`, so run `bun run format` rather than matching it by hand.
+- **Linting:** ESLint + Prettier (`bun run lint`). Tabs for indentation, single quotes, semi-colons required, 100-column print width — all enforced by `.prettierrc`, so run `bun run format` rather than matching it by hand. ESLint covers `.svelte` files as well as `.ts`; two rules from the recommended Svelte set are off, each with its reason written beside it in `eslint.config.mjs`.
 - **Clean Code:** No `axios` (use `fetch`), no `lodash` (use native JS), no `onMount` for data fetching if a SvelteKit `load` function can do it.
 - **Performance** use db indexing, and other best practices
 
@@ -47,4 +95,6 @@ You are a Senior Fullstack Engineer specializing in the **SvelteKit, Bun, and Su
 - **Component Tests:** `@testing-library/svelte` for components, mounted into jsdom.
 - **Mocking:** Mock Supabase responses and SvelteKit `event` objects to ensure the "Sad Path" (errors) and "Happy Path" work as expected.
 - **API Payloads:** `src/lib/server/trenara/payloads.test.ts` pins the reverse-engineered response shapes with `satisfies` clauses against fixtures transcribed from real traffic. Request bodies are pinned the same way, in `training.ts`. Update the fixture when the API changes — do not loosen the type.
+- **Coverage:** thresholds live in `vitest.config.ts` and CI runs `test:coverage`, so they are a gate rather than a wish. They sit just under where the suite actually stands; raise them as coverage rises rather than lowering them to fit a change.
+- **CI** (`.github/workflows/check.yml`) runs type-check, lint, coverage and a production build, on pushes and pull requests. A change that passes locally and not there is a change that is not finished.
 - **Trying a branch:** the maintainer tests branches as **Vercel preview deployments**, not with a local dev server. Anything meant to be seen or exercised by hand must therefore work in a production build: no `dev`-only code paths, no env-var flags to set, and diagnostics on screen rather than in a terminal.

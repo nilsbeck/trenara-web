@@ -39,6 +39,46 @@ export function clearAllBadgeCache(): void {
 }
 
 /**
+ * How long a page render will wait for the badge before going without it.
+ *
+ * The layout awaits this rather than streaming it, and that is the right call:
+ * streamed, the dot was absent from the first paint and popped in a moment
+ * later, on the same button as the avatar. But awaiting it without a bound put
+ * an upstream call and a database round trip on the critical path of first
+ * paint whenever the cache was cold — which on serverless is every new
+ * instance.
+ *
+ * So it is awaited, briefly. A warm cache answers in microseconds and nothing
+ * changes; a cold one gets a fifth of a second and then the page goes on
+ * without a badge, which is exactly what the component already renders when
+ * the answer is not knowable. The computation keeps running and populates the
+ * cache for the next navigation.
+ */
+const BADGE_WAIT_MS = 200;
+
+/**
+ * The badge, or nothing if it is not ready in time.
+ *
+ * A dot is worth no part of first paint. This is the only caller a page should
+ * use; `loadNewsBadge` below is the unbounded version, for anything that
+ * genuinely needs the answer.
+ */
+export async function newsBadgeIfReady(
+	cookies: Cookies,
+	userId: number
+): Promise<UnreadSummary | null> {
+	const cached = cache.get(userId);
+	if (cached && cached.expiresAt > Date.now()) return cached.summary;
+
+	// `loadNewsBadge` reports its own failures as null and never rejects, so
+	// the race cannot reject either.
+	return Promise.race([
+		loadNewsBadge(cookies, userId),
+		new Promise<null>((resolve) => setTimeout(() => resolve(null), BADGE_WAIT_MS))
+	]);
+}
+
+/**
  * How many news items the reader has not seen.
  *
  * Returns null when the answer is not knowable — news unreachable, database

@@ -143,7 +143,7 @@
 	onclickcapture={onClickCapture}
 >
 	<div class="mb-1 grid grid-cols-7 gap-1">
-		{#each DAY_NAMES as dayName}
+		{#each DAY_NAMES as dayName (dayName)}
 			<div class="py-1 text-center text-xs font-medium text-muted-foreground">
 				{dayName}
 			</div>

@@ -140,7 +140,15 @@ export const CacheKey = {
 	currentUser: 'me',
 	goal: 'goal',
 	stats: 'stats',
-	threads: 'threads'
+	threads: 'threads',
+	/**
+	 * The news feed, by page.
+	 *
+	 * Two callers want page one within a moment of each other — the badge on
+	 * every page load, and the feed itself when it is opened — and news changes
+	 * a few times a month. Sharing them turns the second into no request at all.
+	 */
+	news: (page: number) => `news:${page}`
 } as const;
 
 /** Testing seam — the cache is module-wide and outlives a single case. */

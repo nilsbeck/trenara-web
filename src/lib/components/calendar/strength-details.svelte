@@ -54,7 +54,7 @@
 			<div>
 				<h4 class="mb-2 text-sm font-medium text-foreground">Exercises</h4>
 				<div class="flex flex-col gap-2">
-					{#each strengthData.exercises as exercise}
+					{#each strengthData.exercises as exercise (exercise.id)}
 						<div class="rounded-lg bg-muted px-3 py-2">
 							<p class="text-sm font-medium text-foreground">{exercise.name}</p>
 							{#if exercise.howto}

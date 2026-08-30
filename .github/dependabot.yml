@@ -1,0 +1,44 @@
+# Nothing told this project when one of its pinned dependencies acquired an
+# advisory. Several majors are pinned exactly and deliberately —
+# @sveltejs/kit, adapter-vercel, @testing-library/svelte — which is the right
+# call and also the reason an update has to be raised rather than drifted into.
+#
+# Monthly and grouped, so this is a pull request to read once a month rather
+# than a stream of them.
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: '/'
+    schedule:
+      interval: monthly
+    open-pull-requests-limit: 5
+    groups:
+      svelte:
+        patterns:
+          - 'svelte'
+          - 'svelte-*'
+          - '@sveltejs/*'
+          - 'eslint-plugin-svelte'
+      tooling:
+        patterns:
+          - 'eslint*'
+          - '@eslint/*'
+          - 'typescript*'
+          - '@typescript-eslint/*'
+          - 'prettier*'
+          - 'vite'
+          - 'vitest'
+          - '@vitest/*'
+      runtime:
+        patterns:
+          - '@supabase/*'
+          - 'zod'
+          - 'dompurify'
+          - 'tailwindcss'
+          - '@tailwindcss/*'
+          - 'lucide-svelte'
+
+  - package-ecosystem: github-actions
+    directory: '/'
+    schedule:
+      interval: monthly

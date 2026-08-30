@@ -776,7 +776,7 @@
 				bind:value={graphView}
 				class="-ml-1 cursor-pointer rounded-md border-0 bg-transparent py-0.5 pl-1 pr-6 text-sm font-medium text-muted-foreground hover:text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
 			>
-				{#each GRAPH_VIEWS as view}
+				{#each GRAPH_VIEWS as view (view.value)}
 					<option value={view.value}>{view.label}</option>
 				{/each}
 			</select>
