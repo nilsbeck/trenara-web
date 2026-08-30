@@ -3,6 +3,7 @@ import type { User, UserStats, Shoe, ProfileUpdate } from './types';
 import { fetchClient } from './client';
 import { TokenType } from '$lib/server/auth/types';
 import { cachedRead, CacheKey, invalidate } from './read-cache';
+import { expectArray, expectObject } from './shape';
 
 function bearerHeader(cookies: Cookies): Record<string, string> {
 	return { Authorization: `Bearer ${cookies.get(TokenType.AccessToken)}` };
@@ -18,11 +19,14 @@ export const userApi = {
 	 * an edit is never served from a copy taken before it.
 	 */
 	async getCurrentUser(cookies: Cookies): Promise<User> {
-		return cachedRead(cookies, CacheKey.currentUser, () =>
-			fetchClient.get<User>('/api/me', {
-				headers: bearerHeader(cookies),
-				cookies
-			})
+		return cachedRead(cookies, CacheKey.currentUser, async () =>
+			expectObject<User>(
+				await fetchClient.get<unknown>('/api/me', {
+					headers: bearerHeader(cookies),
+					cookies
+				}),
+				'/api/me'
+			)
 		);
 	},
 
@@ -34,11 +38,14 @@ export const userApi = {
 	 * an intensity change moves the predictions in here, not just the session.
 	 */
 	async getUserStats(cookies: Cookies): Promise<UserStats> {
-		return cachedRead(cookies, CacheKey.stats, () =>
-			fetchClient.get<UserStats>('/api/me/stats', {
-				headers: bearerHeader(cookies),
-				cookies
-			})
+		return cachedRead(cookies, CacheKey.stats, async () =>
+			expectObject<UserStats>(
+				await fetchClient.get<unknown>('/api/me/stats', {
+					headers: bearerHeader(cookies),
+					cookies
+				}),
+				'/api/me/stats'
+			)
 		);
 	},
 
@@ -67,9 +74,12 @@ export const userApi = {
 	 * `retired_at: null`, so filter on it if you need only active pairs.
 	 */
 	async getShoes(cookies: Cookies): Promise<Shoe[]> {
-		return fetchClient.get<Shoe[]>('/api/me/shoes', {
-			headers: bearerHeader(cookies),
-			cookies
-		});
+		return expectArray<Shoe>(
+			await fetchClient.get<unknown>('/api/me/shoes', {
+				headers: bearerHeader(cookies),
+				cookies
+			}),
+			'/api/me/shoes'
+		);
 	}
 };

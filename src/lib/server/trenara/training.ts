@@ -23,6 +23,7 @@ import type {
 import { fetchClient } from './client';
 import { TokenType } from '$lib/server/auth/types';
 import { cachedRead, CacheKey, invalidate } from './read-cache';
+import { expectCollections, expectObject } from './shape';
 
 function bearerHeader(cookies: Cookies): Record<string, string> {
 	return { Authorization: `Bearer ${cookies.get(TokenType.AccessToken)}` };
@@ -82,11 +83,15 @@ export const trainingApi = {
 		return cachedRead(
 			cookies,
 			CacheKey.week(timestamp),
-			() =>
-				fetchClient.get<Schedule>(`/api/schedule/week/?timestamp=${timestamp}`, {
-					headers: bearerHeader(cookies),
-					cookies
-				}),
+			async () =>
+				expectCollections<Schedule>(
+					await fetchClient.get<unknown>(`/api/schedule/week/?timestamp=${timestamp}`, {
+						headers: bearerHeader(cookies),
+						cookies
+					}),
+					'/api/schedule/week/',
+					['trainings', 'strength_trainings', 'entries']
+				),
 			{ fresh }
 		);
 	},
@@ -188,10 +193,13 @@ export const trainingApi = {
 
 	/** Full detail for one scheduled training — more fields than the week response carries. */
 	async getTraining(cookies: Cookies, trainingId: number): Promise<ScheduledTrainingDetail> {
-		return fetchClient.get<ScheduledTrainingDetail>(`/api/schedule/trainings/${trainingId}`, {
-			headers: bearerHeader(cookies),
-			cookies
-		});
+		return expectObject<ScheduledTrainingDetail>(
+			await fetchClient.get<unknown>(`/api/schedule/trainings/${trainingId}`, {
+				headers: bearerHeader(cookies),
+				cookies
+			}),
+			'/api/schedule/trainings/{id}'
+		);
 	},
 
 	/**

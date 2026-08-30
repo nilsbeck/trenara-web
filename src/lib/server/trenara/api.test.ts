@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import type { Cookies } from '@sveltejs/kit';
 import { TokenType } from '$lib/server/auth/types';
-import { AuthenticationError, HttpError } from './client';
+import { AuthenticationError, HttpError, MalformedResponseError } from './client';
 import { trainingApi } from './training';
 import { userApi } from './user';
 import { chatApi } from './chat';
@@ -563,5 +563,71 @@ describe('the account cache', () => {
 		await userApi.getCurrentUser(cookies);
 
 		expect(fetchMock()).toHaveBeenCalledTimes(3);
+	});
+});
+
+// ─────────────────────────────────────────────────────────────
+// A response that is not the shape it claims to be
+//
+// The types describe captured traffic, not a promise. Unchecked, a `null`
+// where a week should be surfaced as `Cannot read properties of null`
+// somewhere deep in the calendar, naming neither endpoint nor cause.
+// ─────────────────────────────────────────────────────────────
+describe('shape checks at the boundary', () => {
+	beforeEach(() => {
+		resetReadCache();
+	});
+
+	it('refuses a week that is not an object', async () => {
+		fetchMock().mockResolvedValue(mockResponse(null));
+		await expect(trainingApi.getSchedule(cookies, 1000)).rejects.toBeInstanceOf(
+			MalformedResponseError
+		);
+	});
+
+	it('refuses a week whose trainings are not a list', async () => {
+		fetchMock().mockResolvedValue(mockResponse({ trainings: 'none' }));
+		await expect(trainingApi.getSchedule(cookies, 1000)).rejects.toThrow(/trainings/);
+	});
+
+	// A week with nothing planned is a rest week, not a malformed response.
+	it('accepts a week with its collections missing', async () => {
+		fetchMock().mockResolvedValue(mockResponse({ id: 1, start_day: 0 }));
+		await expect(trainingApi.getSchedule(cookies, 1000)).resolves.toMatchObject({ id: 1 });
+	});
+
+	it('refuses a shoe locker that cannot be mapped over', async () => {
+		fetchMock().mockResolvedValue(mockResponse({ error: 'nope' }));
+		await expect(userApi.getShoes(cookies)).rejects.toBeInstanceOf(MalformedResponseError);
+	});
+
+	it('refuses a thread list that is not a list', async () => {
+		fetchMock().mockResolvedValue(mockResponse(null));
+		await expect(chatApi.getThreads(cookies)).rejects.toBeInstanceOf(MalformedResponseError);
+	});
+
+	it('refuses a stats block that is not an object', async () => {
+		fetchMock().mockResolvedValue(mockResponse([]));
+		await expect(userApi.getUserStats(cookies)).rejects.toBeInstanceOf(MalformedResponseError);
+	});
+
+	// The check must not be stricter than the API is stable: a field appearing
+	// upstream is not a reason to stop working.
+	it('lets a response carrying unfamiliar fields straight through', async () => {
+		fetchMock().mockResolvedValue(
+			mockResponse({ trainings: [], entries: [], somethingNew: { nested: true } })
+		);
+		await expect(trainingApi.getSchedule(cookies, 1000)).resolves.toMatchObject({
+			somethingNew: { nested: true }
+		});
+	});
+
+	// A failed shape check must not be remembered as though it were an answer.
+	it('does not cache a malformed week', async () => {
+		fetchMock().mockResolvedValueOnce(mockResponse(null));
+		await expect(trainingApi.getSchedule(cookies, 1000)).rejects.toThrow();
+
+		fetchMock().mockResolvedValueOnce(mockResponse({ trainings: [] }));
+		await expect(trainingApi.getSchedule(cookies, 1000)).resolves.toMatchObject({ trainings: [] });
 	});
 });
