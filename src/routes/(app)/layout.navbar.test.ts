@@ -1,16 +1,22 @@
 import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest';
-import { render, cleanup, screen, waitFor } from '@testing-library/svelte';
+import { render, cleanup, screen } from '@testing-library/svelte';
 import { createRawSnippet } from 'svelte';
 import type { User } from '$lib/server/trenara/types';
 import Layout from './+layout.svelte';
 
 /**
- * The layout load re-runs far more often than a navigation does.
+ * The navbar is a name and a picture, and it must not move.
  *
- * `depends('app:news')` covers the whole load, so `invalidate('app:news')` —
- * fired by the dashboard on every background refresh — hands the component a
- * fresh set of promises for an account that has not changed. Read straight
- * from those, the navbar blanked and re-rendered every time.
+ * It used to be streamed — the load returned `userData` as a promise, so the
+ * value was *always* pending first and the navbar rendered a spinner before
+ * swapping in a name that had been the same all day. That happened on every
+ * full page load, and again on every re-run of the layout load: `depends`
+ * covers the whole load, so `invalidate('app:news')` — fired by the news page
+ * and by every dashboard background refresh — handed the component a fresh
+ * pending promise.
+ *
+ * Resolving it in the load puts it in the server-rendered HTML, which is the
+ * only way for it not to flicker. These pin that it stays resolved.
  */
 
 vi.mock('$app/navigation', () => ({ invalidate: vi.fn(), invalidateAll: vi.fn() }));
@@ -26,7 +32,7 @@ function user(firstName: string): User {
 }
 
 /** One run of the layout load, as the component receives it. */
-function loadResult(userData: Promise<User>) {
+function loadResult(userData: User | null) {
 	return {
 		userData,
 		newsBadge: Promise.resolve(null),
@@ -49,67 +55,51 @@ afterEach(() => {
 	vi.restoreAllMocks();
 });
 
-describe('the navbar across a re-run of the layout load', () => {
-	it('shows the runner once their account arrives', async () => {
-		show(loadResult(Promise.resolve(user('Nils'))));
-
-		await waitFor(() => expect(screen.getByText(/Hi, Nils!/)).toBeTruthy());
-	});
-
-	// The reported symptom: navigating, or any background refresh, sent the
-	// greeting back to a spinner and re-rendered the avatar beside it.
-	it('keeps the name on screen while a re-run is still in flight', async () => {
-		const { rerender } = show(loadResult(Promise.resolve(user('Nils'))));
-		await waitFor(() => expect(screen.getByText(/Hi, Nils!/)).toBeTruthy());
-
-		// A re-run: same account, new promise, not yet settled.
-		let settle: (value: User) => void = () => {};
-		await rerender({
-			children,
-			data: loadResult(new Promise<User>((resolve) => (settle = resolve)))
-		} as never);
+describe('the navbar', () => {
+	// Synchronously, in the first render — no `waitFor`, which is the point.
+	it('has the name and the avatar in the first paint', () => {
+		show(loadResult(user('Nils')));
 
 		expect(screen.getByText(/Hi, Nils!/)).toBeTruthy();
-
-		settle(user('Nils'));
-		await waitFor(() => expect(screen.getByText(/Hi, Nils!/)).toBeTruthy());
+		expect((screen.getByAltText('Profile') as HTMLImageElement).src).toBe(
+			'https://example.test/nils.jpg'
+		);
 	});
 
-	it('keeps the avatar rather than dropping back to the placeholder', async () => {
-		const { rerender } = show(loadResult(Promise.resolve(user('Nils'))));
-		await waitFor(() => expect(screen.getByAltText('Profile')).toBeTruthy());
-
-		await rerender({ children, data: loadResult(new Promise<User>(() => {})) } as never);
-
-		const avatar = screen.getByAltText('Profile') as HTMLImageElement;
-		expect(avatar.src).toBe('https://example.test/nils.jpg');
+	// A streamed value renders a spinner first. A resolved one never does.
+	it('never shows a loading state for a name it already has', () => {
+		const { container } = show(loadResult(user('Nils')));
+		expect(container.querySelector('.animate-spin')).toBeNull();
 	});
 
-	it('takes the new name when a re-run genuinely brings one', async () => {
-		const { rerender } = show(loadResult(Promise.resolve(user('Nils'))));
-		await waitFor(() => expect(screen.getByText(/Hi, Nils!/)).toBeTruthy());
+	// The re-runs: `invalidate('app:news')` from the news page and from every
+	// dashboard refresh. Same account, so nothing may move.
+	it('does not move when the load re-runs with the same account', async () => {
+		const { rerender, container } = show(loadResult(user('Nils')));
+		const avatarBefore = screen.getByAltText('Profile');
 
-		await rerender({ children, data: loadResult(Promise.resolve(user('Niels'))) } as never);
+		await rerender({ children, data: loadResult(user('Nils')) } as never);
 
-		await waitFor(() => expect(screen.getByText(/Hi, Niels!/)).toBeTruthy());
-	});
-
-	// A refresh that failed has not unmade the account.
-	it('keeps the account when a later run fails', async () => {
-		const { rerender } = show(loadResult(Promise.resolve(user('Nils'))));
-		await waitFor(() => expect(screen.getByText(/Hi, Nils!/)).toBeTruthy());
-
-		await rerender({ children, data: loadResult(Promise.reject(new Error('down'))) } as never);
-
-		await new Promise((r) => setTimeout(r, 0));
 		expect(screen.getByText(/Hi, Nils!/)).toBeTruthy();
-		expect(screen.queryByText('Could not load user data')).toBeNull();
+		expect(container.querySelector('.animate-spin')).toBeNull();
+		// The same element, not a replacement — a new <img> would re-request.
+		expect(screen.getByAltText('Profile')).toBe(avatarBefore);
 	});
 
-	// But a first attempt that fails has nothing to keep, and should say so.
-	it('reports a first load that failed', async () => {
-		show(loadResult(Promise.reject(new Error('down'))));
+	it('takes a new account when a re-run genuinely brings one', async () => {
+		const { rerender } = show(loadResult(user('Nils')));
 
-		await waitFor(() => expect(screen.getByText('Could not load user data')).toBeTruthy());
+		await rerender({ children, data: loadResult(user('Niels')) } as never);
+
+		expect(screen.getByText(/Hi, Niels!/)).toBeTruthy();
+	});
+
+	// Chrome on every page must never be able to take a page down, so the load
+	// resolves this to null rather than throwing.
+	it('says so, rather than spinning, when there is no account to show', () => {
+		const { container } = show(loadResult(null));
+
+		expect(screen.getByText('Could not load user data')).toBeTruthy();
+		expect(container.querySelector('.animate-spin')).toBeNull();
 	});
 });

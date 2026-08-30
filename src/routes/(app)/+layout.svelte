@@ -1,8 +1,7 @@
 <script lang="ts">
-	import type { ChatThread, User } from '$lib/server/trenara/types';
+	import type { ChatThread } from '$lib/server/trenara/types';
 	import type { LayoutServerData } from './$types';
 	import {
-		Loader2,
 		ChevronDown,
 		LogOut,
 		LayoutDashboard,
@@ -22,26 +21,14 @@
 	let menuOpen = $state(false);
 
 	/**
-	 * The account, held across re-runs of the layout load.
+	 * The account, resolved by the load rather than awaited here.
 	 *
-	 * That load re-runs more often than a navigation does: `depends('app:news')`
-	 * covers the whole of it, so `invalidate('app:news')` — which the dashboard
-	 * fires on every background refresh — hands this component four fresh
-	 * promises. Read straight from those, the navbar blanked and re-rendered
-	 * each time: the name fell back to a spinner and the avatar with it, for an
-	 * account that had not changed and, since the read cache, had not even been
-	 * re-fetched upstream.
-	 *
-	 * So the last account that actually arrived stays on screen, and a re-run
-	 * replaces it only once the new one resolves. Nothing flashes.
+	 * No state, no effect, no `{#await}`. The name and the avatar are in the
+	 * server-rendered HTML, so they are on screen in the first paint and stay
+	 * there: a re-run of the load brings the same strings, Svelte sees no
+	 * change, and nothing in the navbar moves.
 	 */
-	let userData = $state<User | null>(null);
-
-	/** Whether an account has ever arrived. The spinner is for the first wait only. */
-	let userArrived = $state(false);
-
-	/** Set only when the *first* attempt failed — a later one has nothing to replace. */
-	let userFailed = $state(false);
+	const userData = $derived(data.userData);
 
 	// Null while the badge is still streaming in, and also when it could not be
 	// computed at all. Both mean the same thing to the navbar: show nothing.
@@ -58,21 +45,6 @@
 		// Only a value replaces a value: a failed re-run must not throw away the
 		// option lists the pickers are already rendering from.
 		data.appConfig.then((c) => c && appConfig.set(c)).catch(() => {});
-	});
-
-	$effect(() => {
-		data.userData
-			.then((u) => {
-				userData = u as User;
-				userArrived = true;
-				userFailed = false;
-			})
-			.catch(() => {
-				// A refresh that failed has not unmade the account. Keeping what is
-				// on screen is the same rule the calendar follows for a failed
-				// revalidation: the last good answer beats no answer.
-				if (!userArrived) userFailed = true;
-			});
 	});
 
 	$effect(() => {
@@ -122,18 +94,15 @@
 						<span class="text-xl font-bold tracking-tight text-foreground">Trainara</span>
 						<span class="text-xs text-muted-foreground">
 							<!--
-								Read from state rather than `{#await data.userData}`. That
-								block keys off the promise's identity, so every re-run of the
-								layout load — one per background refresh — sent it back to the
-								spinner and re-rendered the greeting for an account that had
-								not changed.
+								Rendered on the server, so there is no pending state to show
+								and nothing to swap in afterwards. It used to be an `{#await}`
+								over a streamed promise, which meant a spinner first — every
+								page load, for a name that had not changed all day.
 							-->
 							{#if userData}
 								Hi, {userData.first_name}!
-							{:else if userFailed}
-								<span class="text-destructive">Could not load user data</span>
 							{:else}
-								<Loader2 class="h-3 w-3 animate-spin text-muted-foreground" />
+								<span class="text-destructive">Could not load user data</span>
 							{/if}
 						</span>
 					</span>

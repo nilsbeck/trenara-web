@@ -1,7 +1,6 @@
 <script lang="ts">
 	import type { PageServerData } from './$types';
-	import type { User } from '$lib/server/trenara/types';
-	import { Loader2, UserCircle, ArrowLeft } from 'lucide-svelte';
+	import { UserCircle, ArrowLeft } from 'lucide-svelte';
 
 	let { data }: { data: PageServerData } = $props();
 </script>
@@ -17,12 +16,13 @@
 		</a>
 	</div>
 
-	{#await data.userData}
-		<div class="flex items-center justify-center py-12">
-			<Loader2 class="h-6 w-6 animate-spin text-muted-foreground" />
-		</div>
-	{:then user}
-		{@const u = user as User}
+	<!--
+		Resolved by the layout load, so the form is server-rendered rather than
+		spinning first. The account is a name, an email and a set of units — it
+		was never worth streaming.
+	-->
+	{#if data.userData}
+		{@const u = data.userData}
 		<div>
 			<div class="rounded-lg border border-border bg-card p-6 shadow-sm">
 				<div class="mb-6 flex items-center gap-4">
@@ -158,7 +158,7 @@
 				</form>
 			</div>
 		</div>
-	{:catch}
+	{:else}
 		<p class="text-center text-sm text-destructive">Could not load user data.</p>
-	{/await}
+	{/if}
 </div>
