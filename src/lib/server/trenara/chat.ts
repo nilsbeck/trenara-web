@@ -1,6 +1,7 @@
 import type { Cookies } from '@sveltejs/kit';
 import type { ChatThread, ChatMessage, ChatMessagesResponse } from './types';
 import { fetchClient } from './client';
+import { expectArray } from './shape';
 import { TokenType } from '$lib/server/auth/types';
 
 function bearerHeader(cookies: Cookies): Record<string, string> {
@@ -9,10 +10,13 @@ function bearerHeader(cookies: Cookies): Record<string, string> {
 
 export const chatApi = {
 	async getThreads(cookies: Cookies): Promise<ChatThread[]> {
-		return fetchClient.get<ChatThread[]>('/api/threads/', {
-			headers: bearerHeader(cookies),
-			cookies
-		});
+		return expectArray<ChatThread>(
+			await fetchClient.get<unknown>('/api/threads/', {
+				headers: bearerHeader(cookies),
+				cookies
+			}),
+			'/api/threads/'
+		);
 	},
 
 	async getMessages(

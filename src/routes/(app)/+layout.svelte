@@ -1,8 +1,7 @@
 <script lang="ts">
-	import type { ChatThread, User } from '$lib/server/trenara/types';
+	import type { ChatThread } from '$lib/server/trenara/types';
 	import type { LayoutServerData } from './$types';
 	import {
-		Loader2,
 		ChevronDown,
 		LogOut,
 		LayoutDashboard,
@@ -20,11 +19,26 @@
 	let { children, data }: { children: any; data: LayoutServerData } = $props();
 
 	let menuOpen = $state(false);
-	let userData = $state<User | null>(null);
 
-	// Null while the badge is still streaming in, and also when it could not be
-	// computed at all. Both mean the same thing to the navbar: show nothing.
-	let newsUnread = $state<UnreadSummary | null>(null);
+	/**
+	 * The account, resolved by the load rather than awaited here.
+	 *
+	 * No state, no effect, no `{#await}`. The name and the avatar are in the
+	 * server-rendered HTML, so they are on screen in the first paint and stay
+	 * there: a re-run of the load brings the same strings, Svelte sees no
+	 * change, and nothing in the navbar moves.
+	 */
+	const userData = $derived(data.userData);
+
+	/**
+	 * The unread count, resolved by the load like the account above it.
+	 *
+	 * Null means nothing unread, or a badge that could not be computed — both
+	 * read as "show nothing". What it no longer means is "not here yet": the dot
+	 * used to be missing from the first paint and appear afterwards, on the same
+	 * button as the avatar.
+	 */
+	const newsUnread = $derived(data.newsBadge);
 
 	// Seeds the chat bubble's unread badge before the bubble is ever opened.
 	let chatThreads = $state<ChatThread[]>([]);
@@ -34,27 +48,9 @@
 	// Seeds the served option lists once. Anything that misses them renders from
 	// the constants instead, so there is nothing to wait for here.
 	$effect(() => {
-		data.appConfig.then((c) => appConfig.set(c)).catch(() => appConfig.set(null));
-	});
-
-	$effect(() => {
-		data.userData
-			.then((u) => {
-				userData = u as User;
-			})
-			.catch(() => {
-				userData = null;
-			});
-	});
-
-	$effect(() => {
-		data.newsBadge
-			.then((badge) => {
-				newsUnread = badge;
-			})
-			.catch(() => {
-				newsUnread = null;
-			});
+		// Only a value replaces a value: a failed re-run must not throw away the
+		// option lists the pickers are already rendering from.
+		data.appConfig.then((c) => c && appConfig.set(c)).catch(() => {});
 	});
 
 	$effect(() => {
@@ -93,13 +89,17 @@
 					>
 						<span class="text-xl font-bold tracking-tight text-foreground">Trainara</span>
 						<span class="text-xs text-muted-foreground">
-							{#await data.userData}
-								<Loader2 class="h-3 w-3 animate-spin text-muted-foreground" />
-							{:then resolvedUser}
-								Hi, {(resolvedUser as User).first_name}!
-							{:catch}
+							<!--
+								Rendered on the server, so there is no pending state to show
+								and nothing to swap in afterwards. It used to be an `{#await}`
+								over a streamed promise, which meant a spinner first — every
+								page load, for a name that had not changed all day.
+							-->
+							{#if userData}
+								Hi, {userData.first_name}!
+							{:else}
 								<span class="text-destructive">Could not load user data</span>
-							{/await}
+							{/if}
 						</span>
 					</span>
 				</a>
