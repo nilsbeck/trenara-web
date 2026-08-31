@@ -540,9 +540,9 @@ describe('PredictionHistoryDAO — null-data defensive branches', () => {
 });
 
 // ─────────────────────────────────────────────────────────────
-// backfillDerivedTenK
+// backfillRiegelCurve
 // ─────────────────────────────────────────────────────────────
-describe('backfillDerivedTenK', () => {
+describe('backfillRiegelCurve', () => {
 	const dao = PredictionHistoryDAO.getInstance();
 
 	beforeEach(() => {
@@ -558,10 +558,10 @@ describe('backfillDerivedTenK', () => {
 	/**
 	 * Answer successive awaited queries with successive sets of rows.
 	 *
-	 * The back-fill makes two: the rows to convert, then the recorded sets it
-	 * fits this user's exponent from. They are different shapes, and one canned
-	 * answer for both would have the fit reading the rows being converted.
-	 * The last set answers anything further.
+	 * The back-fill makes two: the rows with no curve yet, then the dated
+	 * exponents a row that cannot fit its own borrows from. They are different
+	 * shapes, and one canned answer for both would have a row borrowing from
+	 * itself. The last set answers anything further, the row updates included.
 	 */
 	function queriesResolve(...answers: unknown[][]) {
 		let call = 0;
@@ -572,90 +572,206 @@ describe('backfillDerivedTenK', () => {
 		});
 	}
 
-	it('only looks at rows that have neither a recorded nor a derived value', async () => {
+	/** What each row update was asked to write. */
+	function updates() {
+		return (mockChain.update as ReturnType<typeof vi.fn>).mock.calls.map(
+			(call) => call[0] as Record<string, unknown>
+		);
+	}
+
+	/** A row with nothing but its goal prediction — all the older rows have. */
+	function goalOnly(id: number, recorded_at: string) {
+		return {
+			id,
+			recorded_at,
+			predicted_time: '01:03:12',
+			predicted_pace: '04:12',
+			predicted_time_10k: null,
+			predicted_time_5k: null,
+			predicted_time_half: null,
+			predicted_time_marathon: null
+		};
+	}
+
+	/** A day's recorded set for a runner whose times rise at `exponent`. */
+	function setFor(exponent: number, fitness = 1169) {
+		const at = (km: number) =>
+			secondsToTimeString(Math.round(fitness * Math.pow(km / 5, exponent)));
+		return {
+			predicted_time_5k: at(5),
+			predicted_time_10k: at(10),
+			predicted_time_half: at(21.0975),
+			predicted_time_marathon: at(42.195)
+		};
+	}
+
+	it('only looks at rows that have no curve yet', async () => {
 		rowsFound([]);
-		await dao.backfillDerivedTenK(1);
+		await dao.backfillRiegelCurve(1);
 
-		// Both nulls, or the back-fill would overwrite what the API recorded.
-		expect(mockChain.is).toHaveBeenCalledWith('predicted_time_10k', null);
-		expect(mockChain.is).toHaveBeenCalledWith('derived_time_10k', null);
+		expect(mockChain.is).toHaveBeenCalledWith('riegel_exponent', null);
 	});
 
-	it('writes the equivalent into the derived columns', async () => {
-		queriesResolve([{ id: 7, predicted_time: '01:03:12', predicted_pace: '04:12' }], []);
+	it("reads the curve out of a row's own recorded set", async () => {
+		queriesResolve([
+			{
+				id: 3,
+				recorded_at: '2025-06-01',
+				predicted_time: '1:01:45',
+				predicted_pace: '4:07',
+				...setFor(1.05)
+			}
+		]);
 
-		const filled = await dao.backfillDerivedTenK(1);
+		expect(await dao.backfillRiegelCurve(1)).toBe(1);
 
-		expect(filled).toBe(1);
-		// A 15km prediction of 1:03:12 is the 40:56 the API gives for 10km.
-		expect(mockChain.update).toHaveBeenCalledWith({
-			derived_time_10k: '0:40:56',
-			derived_pace_10k: '4:06'
-		});
+		// Both halves, from the one day: 1.05 is the shape of this runner, and
+		// 215.7 seconds over a kilometre is where they were on the day.
+		const [written] = updates();
+		expect(written.riegel_exponent).toBeCloseTo(1.05, 3);
+		expect(written.riegel_level).toBeCloseTo(215.7, 1);
+		expect(written.riegel_source).toBe('fitted');
 	});
 
-	it("converts on the user's own exponent, not the captured one", async () => {
-		// One row to convert, and the recorded sets that say who this runner is:
-		// they hold pace, at 1.02 rather than the 1.071 taken from one account.
-		// On a three-hour goal prediction that difference is minutes, and it is
-		// minutes in the runner's own history.
-		const theirs = (km: number) => secondsToTimeString(Math.round(1169 * Math.pow(km / 5, 1.02)));
+	it('fits a row that has only its goal prediction and a recorded 10K', async () => {
+		// Two distances is a slope, and most of the rows between the 10K column
+		// arriving and the rest of the set arriving are exactly this shape. They
+		// used to contribute nothing and take a borrowed exponent.
+		queriesResolve([
+			{
+				id: 4,
+				recorded_at: '2025-06-01',
+				predicted_time: '01:03:12',
+				predicted_pace: '04:12',
+				predicted_time_10k: '00:40:56',
+				predicted_time_5k: null,
+				predicted_time_half: null,
+				predicted_time_marathon: null
+			}
+		]);
+
+		await dao.backfillRiegelCurve(1);
+
+		const [written] = updates();
+		expect(written.riegel_source).toBe('fitted');
+		expect(written.riegel_exponent).toBeCloseTo(1.0713, 4);
+		expect(written.riegel_level).toBeCloseTo(208.433, 2);
+	});
+
+	it('borrows from the nearest measured day, not the most recent one', async () => {
+		// The exponent moves. A runner who held pace in 2020 and fades now is
+		// better described, in 2020, by the day next to it than by who they have
+		// since become — which is what a median over everything would have said.
 		queriesResolve(
-			[{ id: 9, predicted_time: '03:00:12', predicted_pace: '04:23' }],
+			[goalOnly(1, '2020-01-01')],
 			[
-				{
-					predicted_time_5k: theirs(5),
-					predicted_time_10k: theirs(10),
-					predicted_time_half: theirs(21.0975),
-					predicted_time_marathon: theirs(42.195)
-				}
+				{ recorded_at: '2020-02-01', riegel_exponent: 1.02 },
+				{ recorded_at: '2025-01-01', riegel_exponent: 1.12 }
 			]
 		);
 
-		await dao.backfillDerivedTenK(1);
+		await dao.backfillRiegelCurve(1);
 
-		// 41 km at 3:00:12 is 42:44 on their curve, against the 39:45 the captured
-		// exponent would have written into their history — three minutes of a
-		// runner they are not, on every converted row.
-		expect(mockChain.update).toHaveBeenCalledWith({
-			derived_time_10k: '0:42:44',
-			derived_pace_10k: '4:16'
-		});
+		const [written] = updates();
+		expect(written.riegel_exponent).toBe(1.02);
+		expect(written.riegel_source).toBe('borrowed');
+		// 1:03:12 over 15 km, projected to one kilometre on that exponent.
+		expect(written.riegel_level).toBeCloseTo(239.472, 2);
 	});
 
-	it('falls back to the captured exponent for a user with no recorded set', async () => {
-		// Everyone was converted on this number until their own rows could say
-		// otherwise, so it is the right thing to keep doing where they cannot.
-		queriesResolve([{ id: 7, predicted_time: '01:03:12', predicted_pace: '04:12' }], []);
+	it('borrows from a day fitted in the same batch', async () => {
+		// The spine a row borrows from is not only what is already stored: a first
+		// run over a whole history has to fit and borrow in one pass.
+		queriesResolve(
+			[
+				goalOnly(1, '2024-01-01'),
+				{
+					id: 2,
+					recorded_at: '2024-01-08',
+					predicted_time: '1:01:45',
+					predicted_pace: '4:07',
+					...setFor(1.02)
+				}
+			],
+			[]
+		);
 
-		await dao.backfillDerivedTenK(1);
+		expect(await dao.backfillRiegelCurve(1)).toBe(2);
 
-		expect(mockChain.update).toHaveBeenCalledWith({
+		const [borrowed, fitted] = updates();
+		expect(fitted.riegel_source).toBe('fitted');
+		expect(borrowed.riegel_source).toBe('borrowed');
+		expect(borrowed.riegel_exponent).toBeCloseTo(1.02, 3);
+	});
+
+	it('falls back to the captured exponent when nothing can be fitted', async () => {
+		// A user whose every row states one distance is converted on the number
+		// everyone was converted on before, which is no worse than they had.
+		queriesResolve([goalOnly(1, '2020-01-01')], []);
+
+		await dao.backfillRiegelCurve(1);
+
+		expect(updates()[0].riegel_exponent).toBe(RIEGEL_EXPONENT);
+	});
+
+	it("writes the 10K equivalent off the row's own curve", async () => {
+		queriesResolve([goalOnly(1, '2020-01-01')], []);
+
+		await dao.backfillRiegelCurve(1);
+
+		// The row now carries what the conversion used, so `a * 10^e` reproduces
+		// this exactly rather than depending on when the back-fill happened to run.
+		expect(updates()[0]).toMatchObject({
 			derived_time_10k: '0:40:56',
 			derived_pace_10k: '4:06'
 		});
 	});
 
-	it('fits the exponent only once there is something to convert', async () => {
-		// A caught-up user loads this page every day and has nothing to gain from
-		// a fit, so the steady-state cost stays the one empty query it was.
-		rowsFound([]);
+	it('never derives a 10K over one the API recorded', async () => {
+		queriesResolve([
+			{
+				id: 5,
+				recorded_at: '2025-06-01',
+				predicted_time: '1:01:45',
+				predicted_pace: '4:07',
+				...setFor(1.05)
+			}
+		]);
 
-		await dao.backfillDerivedTenK(1);
+		await dao.backfillRiegelCurve(1);
 
-		expect(mockChain.not).not.toHaveBeenCalled();
+		const [written] = updates();
+		expect(written).not.toHaveProperty('derived_time_10k');
+		expect(written).not.toHaveProperty('derived_pace_10k');
 	});
 
-	it('leaves a row it cannot convert alone', async () => {
-		rowsFound([{ id: 8, predicted_time: '01:03:12', predicted_pace: '00:00' }]);
+	it('does not go looking for exponents when every row fits its own', async () => {
+		queriesResolve([
+			{
+				id: 6,
+				recorded_at: '2025-06-01',
+				predicted_time: '1:01:45',
+				predicted_pace: '4:07',
+				...setFor(1.05)
+			}
+		]);
 
-		expect(await dao.backfillDerivedTenK(1)).toBe(0);
+		await dao.backfillRiegelCurve(1);
+
+		expect(mockChain.eq).not.toHaveBeenCalledWith('riegel_source', 'fitted');
+	});
+
+	it('leaves a row it cannot read alone', async () => {
+		queriesResolve([{ ...goalOnly(8, '2020-01-01'), predicted_pace: '00:00' }], []);
+
+		expect(await dao.backfillRiegelCurve(1)).toBe(0);
 		expect(mockChain.update).not.toHaveBeenCalled();
 	});
 
 	it('has nothing to do once it has caught up', async () => {
 		rowsFound([]);
-		expect(await dao.backfillDerivedTenK(1)).toBe(0);
+
+		expect(await dao.backfillRiegelCurve(1)).toBe(0);
 		expect(mockChain.update).not.toHaveBeenCalled();
 	});
 });
@@ -831,13 +947,82 @@ describe('storeIfChanged with the wider prediction set', () => {
 			predicted_pace: '3:44',
 			predicted_time_10k: null,
 			predicted_pace_10k: null,
-			predicted_time_5k: '00:19:29'
+			predicted_time_5k: '00:19:29',
+			riegel_exponent: 1.05
 		});
 
 		const result = await dao.storeIfChanged(1, '56:00', '3:44', null, { time5k: '00:19:29' });
 
 		expect(result.stored).toBe(false);
 		expect(mockChain.upsert).not.toHaveBeenCalled();
+	});
+
+	it("stores the curve the day's predictions sit on", async () => {
+		latestIs(null);
+
+		await dao.storeIfChanged(
+			1,
+			'01:03:12',
+			'04:12',
+			{ time: '00:40:56', pace: '04:06' },
+			{
+				time5k: '00:19:29',
+				timeHalf: '01:31:04',
+				timeMarathon: '03:11:18'
+			}
+		);
+
+		// Measured now, while the whole response is in hand, rather than left to
+		// be filled in later from whoever the runner has become by then.
+		expect(written().riegel_exponent).toBeCloseTo(RIEGEL_EXPONENT, 3);
+		expect(written().riegel_level).toBeCloseTo(208.56, 1);
+		expect(written().riegel_source).toBe('fitted');
+	});
+
+	it('leaves the curve off a write that states one distance', async () => {
+		latestIs(null);
+
+		await dao.storeIfChanged(1, '56:00', '3:44');
+
+		// One point is a level and no slope. The back-fill borrows an exponent
+		// from a neighbouring day and marks it as borrowed; a write cannot.
+		expect(written()).not.toHaveProperty('riegel_exponent');
+	});
+
+	it('gives a row from before the curve existed one, without waiting for a change', async () => {
+		latestIs({
+			predicted_time: '01:03:12',
+			predicted_pace: '04:12',
+			predicted_time_10k: '00:40:56',
+			predicted_pace_10k: '04:06',
+			riegel_exponent: null
+		});
+
+		const result = await dao.storeIfChanged(
+			1,
+			'01:03:12',
+			'04:12',
+			{ time: '00:40:56', pace: '04:06' },
+			null
+		);
+
+		expect(result.stored).toBe(true);
+		expect(written().riegel_source).toBe('fitted');
+	});
+
+	it('derives the 10K when the response carried every distance but that one', async () => {
+		latestIs(null);
+
+		await dao.storeIfChanged(1, '1:01:45', '4:07', null, {
+			time5k: '0:19:29',
+			timeHalf: '1:28:21',
+			timeMarathon: '3:02:55'
+		});
+
+		// Read off the curve just fitted, and marked derived rather than written
+		// into the recorded columns.
+		expect(written()).toMatchObject({ derived_time_10k: '0:40:21', derived_pace_10k: '4:02' });
+		expect(written()).not.toHaveProperty('predicted_time_10k');
 	});
 
 	it('drops a malformed distance rather than failing the row', async () => {

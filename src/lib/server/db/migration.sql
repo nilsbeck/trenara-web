@@ -113,6 +113,37 @@ ALTER TABLE prediction_history
     ADD COLUMN IF NOT EXISTS predicted_time_half VARCHAR(20),
     ADD COLUMN IF NOT EXISTS predicted_time_marathon VARCHAR(20);
 
+-- The Riegel curve behind each day's row (added later)
+-- Every stats response is one fitness estimate rendered at several distances:
+-- the figures in it lie on `T = a * D^e`. The columns above store the rendering
+-- and threw the curve away, so the two halves of it had to be re-derived on
+-- every read, and the halves say different things.
+--   riegel_level    `a`, seconds over one kilometre. Where the curve sits: the
+--                   runner's fitness that day, moving week to week.
+--   riegel_exponent `e`. How steeply it rises: the shape of the runner's
+--                   endurance, moving over months, and the number that cannot
+--                   be shared between two runners.
+--   riegel_source   'fitted' where the row's own predictions fixed the
+--                   exponent, 'borrowed' where the row states one distance and
+--                   the exponent had to come from a neighbouring day. The level
+--                   is a measurement either way; how much to trust it depends
+--                   on this, which is why it is recorded rather than inferred.
+-- Storing the pair is also what makes derived_time_10k reproducible: it is
+-- exactly `a * 10^e` for the row it sits on, rather than whatever a median over
+-- recent rows happened to be on the day the back-fill ran.
+
+ALTER TABLE prediction_history
+    ADD COLUMN IF NOT EXISTS riegel_exponent NUMERIC(6, 4),
+    ADD COLUMN IF NOT EXISTS riegel_level NUMERIC(9, 3),
+    ADD COLUMN IF NOT EXISTS riegel_source VARCHAR(10)
+        CHECK (riegel_source IS NULL OR riegel_source IN ('fitted', 'borrowed'));
+
+-- The back-fill asks for this user's rows that have no curve yet, and for the
+-- fitted ones it borrows exponents from; both are answered here rather than by
+-- reading every row the user has.
+CREATE INDEX IF NOT EXISTS idx_prediction_history_user_curve
+    ON prediction_history(user_id, riegel_source, recorded_at);
+
 -- ─────────────────────────────────────────────────────────────
 -- Row Level Security (added later)
 --

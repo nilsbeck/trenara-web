@@ -5,6 +5,9 @@ import {
 	raceEquivalent,
 	riegelCurve,
 	fitExponent,
+	fitCurve,
+	curveThrough,
+	curveSeconds,
 	RIEGEL_EXPONENT
 } from './race-equivalent';
 
@@ -167,6 +170,77 @@ describe('fitExponent', () => {
 		// An unparseable time arrives as a zero, and ln(0) would take the fit with
 		// it — a set of four with one bad column is still a set of three.
 		expect(fitExponent([...block, { km: 15, seconds: 0 }])!).toBeCloseTo(RIEGEL_EXPONENT, 3);
+	});
+});
+
+describe('fitCurve', () => {
+	/** One real `best_times` block, as distances and seconds. */
+	const block = [
+		{ km: 5, seconds: 19 * 60 + 29 },
+		{ km: 10, seconds: 40 * 60 + 56 },
+		{ km: 21.0975, seconds: 60 * 60 + 31 * 60 + 4 },
+		{ km: 42.195, seconds: 3 * 3600 + 11 * 60 + 18 }
+	];
+
+	it('returns both halves of the curve the block sits on', () => {
+		const curve = fitCurve(block)!;
+
+		// The level is the same fitness read at one kilometre — 3:29 — and the
+		// exponent is the shape of the runner who holds it.
+		expect(curve.exponent).toBeCloseTo(RIEGEL_EXPONENT, 3);
+		expect(curve.level).toBeCloseTo(208.56, 2);
+		expect(curveSeconds(curve, 10)).toBeCloseTo(40 * 60 + 56, 0);
+	});
+
+	it('separates a runner who improved from one whose shape changed', () => {
+		// The whole reason both are stored. A block five per cent faster at every
+		// distance is the same runner on a better day: the level moves and the
+		// exponent does not.
+		const fitter = block.map((p) => ({ ...p, seconds: p.seconds * 0.95 }));
+
+		expect(fitCurve(fitter)!.exponent).toBeCloseTo(fitCurve(block)!.exponent, 6);
+		expect(fitCurve(fitter)!.level).toBeCloseTo(fitCurve(block)!.level * 0.95, 6);
+	});
+
+	it('refuses a span too short to measure a slope over', () => {
+		// Two points a kilometre apart divide a small time difference by a small
+		// distance ratio, and `impliedDistanceKm` rounds to the half kilometre —
+		// so the answer is mostly the rounding. Better to have no exponent from
+		// here than a fabricated one.
+		expect(
+			fitCurve([
+				{ km: 10, seconds: 2456 },
+				{ km: 11, seconds: 2730 }
+			])
+		).toBeNull();
+		expect(
+			fitCurve([
+				{ km: 10, seconds: 2456 },
+				{ km: 13, seconds: 3286 }
+			])
+		).not.toBeNull();
+	});
+
+	it('has no curve to report from a single distance', () => {
+		expect(fitCurve([block[1]])).toBeNull();
+		expect(fitCurve([])).toBeNull();
+	});
+});
+
+describe('curveThrough', () => {
+	it('projects one prediction to a level on a borrowed exponent', () => {
+		// All an older row has: one point fixes the level and the slope has to be
+		// borrowed, so the level is exact given the exponent and no better.
+		const curve = curveThrough(3792, 15, 1.02)!;
+
+		expect(curve.exponent).toBe(1.02);
+		expect(curve.level).toBeCloseTo(239.472, 2);
+		expect(curveSeconds(curve, 15)).toBeCloseTo(3792, 6);
+	});
+
+	it('has nothing to project from a malformed row', () => {
+		expect(curveThrough(0, 15, 1.02)).toBeNull();
+		expect(curveThrough(3792, 0, 1.02)).toBeNull();
 	});
 });
 

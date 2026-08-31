@@ -1,10 +1,14 @@
 import { supabase } from './client';
 import { storageFailed } from './errors';
 import {
-	raceEquivalent,
+	fitCurve,
 	fitExponent,
+	curveThrough,
+	curveSeconds,
+	impliedDistanceKm,
 	RIEGEL_EXPONENT,
-	type RacePoint
+	type RacePoint,
+	type RiegelCurve
 } from '$lib/utils/race-equivalent';
 import { secondsToTimeString, secondsToPaceString, timeStringToSeconds } from '$lib/utils/format';
 
@@ -21,7 +25,7 @@ export interface PredictionRecord {
 	predicted_time_10k: string | null;
 	predicted_pace_10k: string | null;
 	/**
-	 * The 10K equivalent computed from this row's own goal-distance prediction.
+	 * The 10K equivalent read off this row's own Riegel curve, `a * 10^e`.
 	 *
 	 * Filled in for rows written before the API's 10K figure was recorded, so
 	 * the all-time series is not four points long. Kept apart from the recorded
@@ -29,10 +33,33 @@ export interface PredictionRecord {
 	 * one cannot be told from it afterwards.
 	 *
 	 * Null on a row that has a recorded 10K — there is nothing to derive — and
-	 * on one whose stored pair implies no usable distance.
+	 * on one that has no curve, which is a row whose stored pair implies no
+	 * usable distance.
 	 */
 	derived_time_10k: string | null;
 	derived_pace_10k: string | null;
+	/**
+	 * The Riegel curve this day's predictions sit on, `T = a * D^e`.
+	 *
+	 * `riegel_level` is `a`, in seconds over one kilometre: where the curve
+	 * sits, which is the runner's fitness that day. `riegel_exponent` is `e`:
+	 * how steeply it rises, which is the shape of their endurance. The first
+	 * moves week to week, the second over months, and neither can be read off
+	 * the other — a runner can hold the same 10K while their marathon comes to
+	 * them, and only `e` shows it.
+	 *
+	 * `riegel_source` says where `e` came from: `fitted` where this row's own
+	 * predictions fixed it, `borrowed` where the row states one distance and it
+	 * had to come from the nearest day that could. The level is a measurement of
+	 * this day either way, but on a borrowed row it is only as right as the
+	 * exponent it was projected on.
+	 *
+	 * Null together on a row the back-fill has not reached, or one that states
+	 * nothing usable.
+	 */
+	riegel_exponent: number | null;
+	riegel_level: number | null;
+	riegel_source: CurveSource | null;
 	/**
 	 * The rest of the set the stats response carried that day, as recorded.
 	 *
@@ -82,6 +109,41 @@ const SET_DISTANCES_KM = {
 /** One day's recorded predictions, as far as the columns go. */
 type RecordedSet = Partial<Record<keyof typeof SET_DISTANCES_KM, string | null>>;
 
+/** Where a row's exponent came from. */
+export type CurveSource = 'fitted' | 'borrowed';
+
+/** A row as much of it as a curve can be built from. */
+interface CurveRow extends RecordedSet {
+	predicted_time?: string | null;
+	predicted_pace?: string | null;
+}
+
+/**
+ * How the stored curve is rounded, matching `NUMERIC(6, 4)` and `NUMERIC(9, 3)`
+ * in the schema.
+ *
+ * Rounded here rather than left to the column, so that what the row says and
+ * what the derived 10K beside it was computed from are the same numbers. A
+ * value rounded on the way in is reproducible from the row afterwards; one
+ * rounded by the column is not.
+ */
+const EXPONENT_DECIMALS = 4;
+const LEVEL_DECIMALS = 3;
+
+/** The curve columns for a row, at the precision the schema stores. */
+function curveColumns(curve: RiegelCurve, source: CurveSource) {
+	return {
+		riegel_exponent: Number(curve.exponent.toFixed(EXPONENT_DECIMALS)),
+		riegel_level: Number(curve.level.toFixed(LEVEL_DECIMALS)),
+		riegel_source: source
+	};
+}
+
+/** Those columns read back as a curve, so a caller uses the stored numbers. */
+function storedCurve(columns: { riegel_exponent: number; riegel_level: number }): RiegelCurve {
+	return { exponent: columns.riegel_exponent, level: columns.riegel_level };
+}
+
 /**
  * How many days of recorded sets to fit the exponent from.
  *
@@ -101,6 +163,100 @@ function setPoints(row: RecordedSet): RacePoint[] {
 	}
 
 	return points;
+}
+
+/**
+ * Everything a row states about the curve, the goal prediction included.
+ *
+ * The goal-distance prediction is on the same curve as the rest of the block —
+ * that is what makes the block one estimate rather than five — so it is a point
+ * like any other, and on a row that has a recorded 10K and nothing else it is
+ * the second point that makes a fit possible at all. Which is most of the rows
+ * between the 10K column arriving and the rest of the set arriving.
+ *
+ * Its distance is inferred rather than stated, and `impliedDistanceKm` rounds
+ * anything non-standard to the half kilometre, so it is the least precise point
+ * in the set. `fitCurve` refuses a span too short to survive that; where the
+ * other distances are present they outvote it.
+ */
+function curvePoints(row: CurveRow): RacePoint[] {
+	const points = setPoints(row);
+
+	if (row.predicted_time && row.predicted_pace) {
+		const km = impliedDistanceKm(row.predicted_time, row.predicted_pace);
+		if (km !== null) points.push({ km, seconds: timeStringToSeconds(row.predicted_time) });
+	}
+
+	return points;
+}
+
+/** The reference distance the derived series is plotted against, in km. */
+const TEN_K = 10;
+
+/** A row the curve back-fill reads, as much of it as it needs. */
+interface BackfillRow extends RecordedSet {
+	id: number;
+	recorded_at: string;
+	predicted_time: string;
+	predicted_pace: string;
+	predicted_time_10k: string | null;
+}
+
+/** An exponent and the day it was measured on. */
+interface DatedExponent {
+	recorded_at: string;
+	exponent: number;
+}
+
+/**
+ * The measured exponent closest in time to a day that has none.
+ *
+ * The exponent is the shape of a runner and moves over months, so the day
+ * beside a gap describes it better than an average over years — and outside the
+ * measured range this carries the nearest end outwards rather than inventing a
+ * trend, which is the least this can claim while still claiming something.
+ *
+ * Ties go to the earlier day, which only matters for a row exactly between two
+ * measurements.
+ */
+function nearestExponent(spine: DatedExponent[], on: string): number | null {
+	const day = Date.parse(on);
+	if (spine.length === 0 || Number.isNaN(day)) return null;
+
+	let best = spine[0];
+	let bestGap = Math.abs(Date.parse(best.recorded_at) - day);
+	for (const candidate of spine.slice(1)) {
+		const gap = Math.abs(Date.parse(candidate.recorded_at) - day);
+		if (gap < bestGap) {
+			best = candidate;
+			bestGap = gap;
+		}
+	}
+
+	return best.exponent;
+}
+
+/** The curve through a row's single prediction, on a borrowed exponent. */
+function borrowedCurve(row: BackfillRow, spine: DatedExponent[]): RiegelCurve | null {
+	const km = impliedDistanceKm(row.predicted_time, row.predicted_pace);
+	if (km === null || km <= 0) return null;
+
+	return curveThrough(
+		timeStringToSeconds(row.predicted_time),
+		km,
+		nearestExponent(spine, row.recorded_at) ?? RIEGEL_EXPONENT
+	);
+}
+
+/** A curve as the 10K columns it implies, `a * 10^e`. */
+function derivedTenK(curve: RiegelCurve) {
+	const seconds = curveSeconds(curve, TEN_K);
+	if (!Number.isFinite(seconds) || seconds <= 0) return {};
+
+	return {
+		derived_time_10k: secondsToTimeString(Math.round(seconds)),
+		derived_pace_10k: secondsToPaceString(Math.round(seconds / TEN_K))
+	};
 }
 
 /** The middle value, averaging the two middles of an even count. */
@@ -200,9 +356,14 @@ export class PredictionHistoryDAO {
 	 * cannot be right for more than one person.
 	 *
 	 * Their own rows already carry the answer. A row written since the full set
-	 * was recorded holds four predictions the API made on one day at four known
-	 * distances, and those four lie on the curve the API drew for this runner.
-	 * Fitting a slope through them recovers it exactly.
+	 * was recorded holds the predictions the API made on one day at several
+	 * known distances — the goal one included, which is what lets a row with
+	 * nothing but a goal and a 10K contribute — and those all lie on the curve
+	 * the API drew for this runner. Fitting a slope through them recovers it.
+	 *
+	 * This is the runner as they are now. The per-day exponent stored on each row
+	 * is the same measurement kept in place, and is what a chart of how their
+	 * endurance has changed should read; do not use this for a past day.
 	 *
 	 * Per row, then the median across rows, rather than one fit over everything:
 	 * each row is one day at one fitness level, and pooling days puts several
@@ -219,7 +380,9 @@ export class PredictionHistoryDAO {
 	async riegelExponent(userId: number): Promise<number> {
 		const { data, error } = await supabase
 			.from('prediction_history')
-			.select('predicted_time_5k, predicted_time_10k, predicted_time_half, predicted_time_marathon')
+			.select(
+				'predicted_time, predicted_pace, predicted_time_5k, predicted_time_10k, predicted_time_half, predicted_time_marathon'
+			)
 			.eq('user_id', userId)
 			.not('predicted_time_10k', 'is', null)
 			.order('recorded_at', { ascending: false })
@@ -230,70 +393,129 @@ export class PredictionHistoryDAO {
 			return RIEGEL_EXPONENT;
 		}
 
-		const fitted = ((data ?? []) as RecordedSet[])
-			.map((row) => fitExponent(setPoints(row)))
+		const fitted = ((data ?? []) as CurveRow[])
+			.map((row) => fitExponent(curvePoints(row)))
 			.filter((e): e is number => e !== null);
 
 		return median(fitted) ?? RIEGEL_EXPONENT;
 	}
 
 	/**
-	 * Fill in the 10K equivalent for rows that never recorded one.
+	 * Fit and store the Riegel curve behind every row that has none yet.
 	 *
-	 * A back-fill rather than a conversion on read: the value belongs to the row
-	 * it was computed from, and converting again on every page load would put
-	 * the same arithmetic behind every chart that ever wants the series.
+	 * A back-fill rather than a conversion on read: the curve belongs to the row
+	 * it was measured from, and re-deriving it on every page load would put the
+	 * same arithmetic behind every chart that ever wants the series. It is also
+	 * what makes the derived 10K reproducible — that column is now exactly
+	 * `a * 10^e` for the row it sits on, rather than whatever a median over
+	 * recent rows happened to be on the day the back-fill ran.
 	 *
-	 * Converted on this user's own exponent, so the series a runner is shown is
-	 * on their curve rather than on a captured account's. The fit costs a second
-	 * query, and is only made once there is something to convert — a caught-up
-	 * user still pays for one empty query and nothing else.
+	 * Two passes, because the rows are not equally informative:
 	 *
-	 * Idempotent and best-effort — it only ever touches rows where both the
-	 * recorded and the derived 10K are missing, so a second run does nothing,
-	 * and a failure leaves the caller with whatever was already there.
+	 * A row that states two or more distances fixes its own exponent, and those
+	 * are `fitted`. A row that states one — the goal prediction, which is all
+	 * the older rows have — fixes a level and no slope, so it borrows the
+	 * exponent from the nearest day that could fit one, and is marked
+	 * `borrowed`. Nearest in time rather than a median over everything: the
+	 * exponent moves, slowly, and a runner's shape three years and four goals
+	 * ago is better described by the earliest day we can measure than by who
+	 * they are this month. `RIEGEL_EXPONENT` remains the answer for a user with
+	 * no fittable row anywhere, which is the conversion they were getting
+	 * before.
+	 *
+	 * Idempotent and best-effort: it only reads rows whose curve is missing, so
+	 * a second run does nothing, and a failure leaves the caller with whatever
+	 * was already there. Returns how many rows it wrote.
 	 */
-	async backfillDerivedTenK(userId: number, limit = 500): Promise<number> {
+	async backfillRiegelCurve(userId: number, limit = 500): Promise<number> {
 		const { data, error } = await supabase
 			.from('prediction_history')
-			.select('id, predicted_time, predicted_pace')
+			.select(
+				'id, recorded_at, predicted_time, predicted_pace, predicted_time_10k, predicted_time_5k, predicted_time_half, predicted_time_marathon'
+			)
 			.eq('user_id', userId)
-			.is('predicted_time_10k', null)
-			.is('derived_time_10k', null)
+			.is('riegel_exponent', null)
+			.order('recorded_at', { ascending: true })
 			.limit(limit);
 
 		if (error || !data?.length) {
-			if (error) console.error('Failed to read rows to back-fill:', error.message);
+			if (error) console.error('Failed to read rows to fit the curve:', error.message);
 			return 0;
 		}
 
-		const exponent = await this.riegelExponent(userId);
+		// Every fit first, then the writes: a row that cannot fit its own
+		// exponent borrows from the days around it, and those days may be in this
+		// same batch.
+		const rows = data as BackfillRow[];
+		const fitted = rows.map((row) => fitCurve(curvePoints(row)));
+		// Nothing to borrow for means nothing to borrow from, and the second query
+		// is skipped: a user whose rows all state a full set never pays for it.
+		const spine = fitted.every((curve) => curve !== null)
+			? []
+			: await this.exponentSpine(
+					userId,
+					rows.flatMap((row, i) =>
+						fitted[i] ? [{ recorded_at: row.recorded_at, exponent: fitted[i]!.exponent }] : []
+					)
+				);
 
-		let filled = 0;
-		for (const row of data as Array<{
-			id: number;
-			predicted_time: string;
-			predicted_pace: string;
-		}>) {
-			const equivalent = raceEquivalent(row.predicted_time, row.predicted_pace, exponent);
-			if (!equivalent) continue;
+		let written = 0;
+		for (let i = 0; i < rows.length; i++) {
+			const row = rows[i];
+			const curve = fitted[i] ?? borrowedCurve(row, spine);
+			if (!curve) continue;
+
+			const columns = curveColumns(curve, fitted[i] ? 'fitted' : 'borrowed');
+
+			// Only where the API never gave a 10K. The recorded columns are a
+			// measurement and nothing here is allowed to overwrite one.
+			const derived = row.predicted_time_10k ? {} : derivedTenK(storedCurve(columns));
 
 			const { error: writeError } = await supabase
 				.from('prediction_history')
-				.update({
-					derived_time_10k: secondsToTimeString(Math.round(equivalent.seconds)),
-					derived_pace_10k: secondsToPaceString(Math.round(equivalent.paceSeconds))
-				})
+				.update({ ...columns, ...derived })
 				.eq('id', row.id);
 
 			if (writeError) {
-				console.error('Failed to back-fill a prediction row:', writeError.message);
+				console.error('Failed to write a curve to a prediction row:', writeError.message);
 				continue;
 			}
-			filled++;
+			written++;
 		}
 
-		return filled;
+		return written;
+	}
+
+	/**
+	 * Every dated exponent this user has, to borrow from.
+	 *
+	 * The rows fitted in this batch plus the ones already stored, so a run that
+	 * only picks up old rows can still reach the recent days that can measure a
+	 * slope. Sorted, because `nearestExponent` walks it.
+	 *
+	 * A failed read is not fatal: it leaves whatever this batch fitted, and
+	 * beyond that the captured constant.
+	 */
+	private async exponentSpine(
+		userId: number,
+		fromBatch: DatedExponent[]
+	): Promise<DatedExponent[]> {
+		const { data, error } = await supabase
+			.from('prediction_history')
+			.select('recorded_at, riegel_exponent')
+			.eq('user_id', userId)
+			.eq('riegel_source', 'fitted')
+			.order('recorded_at', { ascending: true });
+
+		if (error) console.error('Failed to read stored exponents:', error.message);
+
+		const stored = ((data ?? []) as Array<{ recorded_at: string; riegel_exponent: number }>).map(
+			(row) => ({ recorded_at: row.recorded_at, exponent: Number(row.riegel_exponent) })
+		);
+
+		return [...stored, ...fromBatch]
+			.filter((e) => Number.isFinite(e.exponent))
+			.sort((a, b) => Date.parse(a.recorded_at) - Date.parse(b.recorded_at));
 	}
 
 	async storeIfChanged(
@@ -335,6 +557,25 @@ export class PredictionHistoryDAO {
 			extras.predicted_time_marathon = set.timeMarathon;
 		}
 
+		// The curve, measured while every distance the response carried is in
+		// hand. Fitting it now is what keeps the exponent a fact about this day:
+		// a row written today and fitted next year would be fitted from the same
+		// four columns, but a row that arrives incomplete would be filled in from
+		// whoever the runner had become by then.
+		const curve = fitCurve(
+			curvePoints({
+				predicted_time: time,
+				predicted_pace: pace,
+				predicted_time_10k: reference?.time ?? null,
+				...extras
+			})
+		);
+		// Fitted from this write's own points, so the source is always 'fitted'
+		// here: a row that cannot be fitted is left for the back-fill, which is
+		// the only thing that borrows. Rounded before anything is read off it, so
+		// the row and the 10K beside it agree.
+		const columns = curve ? curveColumns(curve, 'fitted') : null;
+
 		const latest = await this.getLatestPrediction(userId);
 		const unchanged =
 			latest !== null &&
@@ -350,7 +591,12 @@ export class PredictionHistoryDAO {
 			// a skipped write would quietly undo.
 			Object.entries(extras).every(
 				([column, value]) => latest[column as keyof PredictionRecord] === value
-			);
+			) &&
+			// A row from before the curve was stored, on a day whose predictions
+			// have not moved since, would otherwise never acquire one. Only when
+			// there is a curve to write: a row that states one distance cannot be
+			// fitted at all, and must not re-write itself every day over it.
+			(curve === null || latest.riegel_exponent !== null);
 
 		if (unchanged) {
 			return { stored: false };
@@ -373,6 +619,10 @@ export class PredictionHistoryDAO {
 					// client that cannot resolve a distance does not erase what an
 					// earlier one recorded.
 					...extras,
+					...(columns ?? {}),
+					// The API's own 10K is a measurement and is stored as one; this
+					// is only for the write that did not carry it.
+					...(!reference && columns ? derivedTenK(storedCurve(columns)) : {}),
 					recorded_at: today
 				},
 				{ onConflict: 'user_id,recorded_at' }

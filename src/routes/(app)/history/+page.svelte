@@ -3,6 +3,9 @@
 	import PredictionChart, {
 		type ChartDataPoint
 	} from '$lib/components/charts/prediction-chart.svelte';
+	import EnduranceChart, {
+		type EnduranceDataPoint
+	} from '$lib/components/charts/endurance-chart.svelte';
 	import { timeStringToSeconds, paceStringToSeconds } from '$lib/utils/format';
 	import { History, ArrowLeft, Loader2 } from 'lucide-svelte';
 	import { onMount } from 'svelte';
@@ -18,6 +21,8 @@
 		predicted_pace_10k: string | null;
 		derived_time_10k: string | null;
 		derived_pace_10k: string | null;
+		riegel_exponent: number | null;
+		riegel_source: 'fitted' | 'borrowed' | null;
 		recorded_at: string;
 		created_at: string;
 	}
@@ -67,12 +72,31 @@
 	const derivedCount = $derived(points.filter((p) => p.derived).length);
 	const unreadableCount = $derived(records.length - points.length);
 
+	/**
+	 * Endurance shape over time, from the days that measured their own.
+	 *
+	 * Fitted rows only. A borrowed exponent is a copy of a neighbouring day, so
+	 * plotting one would draw a flat stretch and a step that describe the
+	 * back-fill rather than the runner — and this is a chart about change.
+	 */
+	const enduranceSeries = $derived(
+		records
+			.filter((r) => r.riegel_source === 'fitted' && r.riegel_exponent !== null)
+			.map((r) => ({ date: r.recorded_at, exponent: Number(r.riegel_exponent) }))
+			.filter((p) => Number.isFinite(p.exponent))
+	);
+
+	/** The most recent 10K on the chart above, which is what prices the shape. */
+	const latestTenKSeconds = $derived(points.at(-1)?.predictedTime ?? null);
+
 	// Defer chart rendering to after mount so the page shell paints instantly
 	let chartReady = $state(false);
 	let chartData = $state<ChartDataPoint[]>([]);
+	let enduranceData = $state<EnduranceDataPoint[]>([]);
 
 	onMount(() => {
 		chartData = points;
+		enduranceData = enduranceSeries;
 		chartReady = true;
 	});
 </script>
@@ -113,6 +137,25 @@
 		{:else}
 			<div class="flex items-center justify-center py-16">
 				<Loader2 class="h-5 w-5 animate-spin text-muted-foreground" />
+				<span class="ml-2 text-sm text-muted-foreground">Loading chart...</span>
+			</div>
+		{/if}
+	</div>
+
+	<!-- Endurance shape -->
+	<div class="mt-6 rounded-lg border border-border bg-card p-6 shadow-sm">
+		<h2 class="text-sm font-medium text-muted-foreground">Endurance Shape</h2>
+		<p class="mb-4 mt-1 text-xs text-muted-foreground">
+			How much a long race costs you, relative to your 10K. This moves on its own: a block that
+			builds endurance pulls the line down even when your 10K barely shifts, and that is a faster
+			marathon off the same speed. Only days whose own predictions covered two distances are
+			plotted.
+		</p>
+		{#if chartReady}
+			<EnduranceChart data={enduranceData} referenceTenKSeconds={latestTenKSeconds} />
+		{:else}
+			<div class="flex items-center justify-center py-16" role="status">
+				<Loader2 class="h-5 w-5 animate-spin text-muted-foreground" aria-hidden="true" />
 				<span class="ml-2 text-sm text-muted-foreground">Loading chart...</span>
 			</div>
 		{/if}
