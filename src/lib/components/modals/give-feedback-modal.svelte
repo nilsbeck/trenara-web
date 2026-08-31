@@ -4,18 +4,24 @@
 	import RpeSlider from '$lib/components/training/rpe-slider.svelte';
 	import { rpeColors } from '$lib/components/training/rpe';
 	import { describeError, describeResponse } from '$lib/utils/network';
+	import { ratedEntry } from '$lib/utils/rated-entry';
 
 	/**
 	 * `training` is accepted and not read: callers pass the pair, and the RPE
 	 * dialog only ever needs the entry that was actually run. Kept in the
 	 * signature so the call sites stay honest about what this is rating.
+	 *
+	 * `onRated` carries the entry the server answered with, so the week can
+	 * hold the server's copy rather than the one this component patched.
 	 */
 	let {
 		training: _training,
-		entry
+		entry,
+		onRated
 	}: {
 		training: ScheduledTraining;
 		entry: Entry;
+		onRated?: (updated: Entry) => void;
 	} = $props();
 
 	let dialogEl: HTMLDialogElement | undefined = $state();
@@ -50,7 +56,19 @@
 				throw new Error(await describeResponse(res, 'Could not save your rating.'));
 			}
 
-			entry.rpe = rpeValue;
+			// The response is the whole updated entry. Prefer it over the value
+			// just sent — it is what was actually stored, and it carries
+			// `ask_feedback` already retired.
+			//
+			// A body that is not that entry is not a failed rating: the write
+			// already succeeded, so the rating stays on screen either way and
+			// only the week's copy is left for the next refresh to correct.
+			// That includes a body that is not JSON at all, which is why the
+			// parse cannot be allowed to reach the catch below.
+			const updated = ratedEntry(await res.json().catch(() => null), entry.id);
+			entry.rpe = updated?.rpe ?? rpeValue;
+			if (updated) onRated?.(updated);
+
 			close();
 		} catch (e) {
 			error = describeError(e, 'Could not save your rating.');

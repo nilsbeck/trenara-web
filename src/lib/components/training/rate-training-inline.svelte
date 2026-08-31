@@ -4,13 +4,18 @@
 	import RpeSlider from '$lib/components/training/rpe-slider.svelte';
 	import { rpeColors } from '$lib/components/training/rpe';
 	import { describeError, describeResponse } from '$lib/utils/network';
+	import { ratedEntry } from '$lib/utils/rated-entry';
 
+	/**
+	 * `onRated` carries the entry the server answered with, so the week can
+	 * hold the server's copy rather than the one this component patched.
+	 */
 	let {
 		entry,
 		onRated
 	}: {
 		entry: Entry;
-		onRated?: () => void;
+		onRated?: (updated: Entry) => void;
 	} = $props();
 
 	let rpeValue = $state(5);
@@ -34,8 +39,18 @@
 				throw new Error(await describeResponse(res, 'Could not save your rating.'));
 			}
 
-			entry.rpe = rpeValue;
-			onRated?.();
+			// The response is the whole updated entry. Prefer it over the value
+			// just sent — it is what was actually stored, and it carries
+			// `ask_feedback` already retired.
+			//
+			// A body that is not that entry is not a failed rating: the write
+			// already succeeded, so the rating stays on screen either way and
+			// only the week's copy is left for the next refresh to correct.
+			// That includes a body that is not JSON at all, which is why the
+			// parse cannot be allowed to reach the catch below.
+			const updated = ratedEntry(await res.json().catch(() => null), entry.id);
+			entry.rpe = updated?.rpe ?? rpeValue;
+			if (updated) onRated?.(updated);
 		} catch (e) {
 			error = describeError(e, 'Could not save your rating.');
 		} finally {

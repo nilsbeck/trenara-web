@@ -761,6 +761,261 @@ Medal `type` seen so far: `sum_time` (target in seconds) and `sum_distance`
 
 ---
 
+## PUT /api/entries/{id}/rpe
+
+How hard the session felt, on the ten-step RPE scale. Called by
+`trainingApi.putFeedback` behind our own `PUT /api/v1/feedback`, which takes
+`{ entryId, feedback }` and sends `{ rpe }` — the rename is ours, and worth
+knowing when reading a network log against this file.
+
+`{id}` is an **entry** id — the completed activity — not the scheduled-training
+id sitting beside it in the same week payload. The two are different spaces.
+
+### Request
+
+```json
+{
+	"rpe": 2
+}
+```
+
+`rpe` is an integer 1–10. `rpeFeedbackSchema` in `src/lib/schemas/feedback.ts`
+holds that range on our side; the ten steps and the wording shown against each
+live in `rpe-slider.svelte`.
+
+### Notable fields
+
+- **The response is the whole updated entry**, not an acknowledgement — the
+  same `Entry` the week payload carries, and the fullest capture of one taken
+  so far: `laps[]`, `splits[]` and `shoe` are all present here and all absent
+  from the dashboard's `last_entry`. Like the training mutations, a caller can
+  patch its copy from the response instead of refetching the week.
+- **`shoe` is a complete `Shoe`** — the same object `/api/me/shoes` returns,
+  field for field, `lifetime_percentage` float noise included. It was missing
+  from our `Entry` type until this capture; `allow_shoe` was there without it,
+  which read as though the shoe itself lived somewhere else.
+- **`ask_feedback` comes back `false`.** The write retires the prompt in the
+  same round trip, so a client that keeps the response does not have to infer
+  it from `rpe` no longer being `null`. The dashboard's `count_open_rpe` and
+  `ask_for_rpe` are the same signal one level up.
+- **`rpe` echoes what was sent**, so the response confirms the value stored
+  rather than only that something was stored.
+- `notification.metadata` here carries the four training fields
+  (`goal_daily_tss`, `goal_pvt_tss`, `done_tss`, `type`) and **nothing else** —
+  no `name`, no `goal`, which our `Entry` type had as required. Metadata varies
+  by `notification_type`, as `trainingLoad` already assumes; the type says so
+  now. `name` and `goal` are what `AddEntryResponse` carries — its notification
+  metadata is `{ name, goal, type }` with no load figures at all — so the two
+  shapes had been merged into one required set that no capture matches.
+- **`notification.server_actionable` is new here.** The `/api/dashboard/`
+  capture above, taken a week earlier, has no such field on its
+  `last_notification`; whether it is specific to this endpoint or was added
+  upstream in between cannot be told from two captures. Typed optional for
+  that reason.
+- The notification is the one written when the activity synced, not one the
+  rating produced: its `created_at` here predates the rating, and its copy is
+  about the training. **Nothing in the response is evidence that rating a
+  session changes the coach's message.**
+- `laps[].pace_percentage` is not a share of anything absolute — it spreads the
+  session's own laps across 0–100, fastest lap high and slowest lap low. On
+  this capture it tracks `(slowest − pace) / (slowest − fastest)` to within
+  three points on every lap, which is why the final lap at 05:22 min/km scores
+  `3` while the fastest at 04:59 scores `97`. Inferred from one session, and
+  from rounded paces at that; it is not a figure to display as a percentage of
+  a target.
+- `laps[].altitude` is `0` on every lap while the entry's `total_altitude` is
+  `null`. A treadmill run, so absent climb reads as zero per lap and as unknown
+  overall — the two are not the same field summed.
+- Lap distances are the honest ones (`999m`, `998m`), and `sum_distance` is
+  rounded (`9.01km` after nine laps of about a kilometre). The entry's
+  `distance_value` of `9.5` is neither: it includes what was run after the last
+  full lap.
+- `splits` was `[]` here, as in every capture so far. Shape still unknown, and
+  still `object[]` in the type.
+
+### Sample response
+
+Seven of the nine laps elided; the two kept and the last are verbatim, and the
+shape is identical across all nine.
+
+```json
+{
+	"id": 29626510,
+	"name": "Garmin Treadmill running",
+	"start_time": "2026-08-31T18:42:30+02:00",
+	"type": "run",
+	"icon": "https://<api-host>/icons/icon__step.svg",
+	"total_altitude": null,
+	"avg_heartbeat": 151,
+	"rpe": 2,
+	"comment": null,
+	"strava": false,
+	"strava_url": null,
+	"garmin": true,
+	"polar": false,
+	"trenara": false,
+	"allow_shoe": true,
+	"cross_type": null,
+	"cross_percentage": null,
+	"cross_percentage_min": null,
+	"cross_percentage_max": null,
+	"ask_feedback": false,
+	"distance": "9.5km",
+	"distance_value": 9.5,
+	"distance_unit": "km",
+	"distance_unit_text": "km",
+	"time": "48:15",
+	"time_in_sec": 2895,
+	"time_value": 2895,
+	"time_unit": "sec",
+	"pace": "05:04 min/km",
+	"pace_value": 304,
+	"pace_unit": "min/km",
+	"gps_media": [
+		{
+			"id": 18293769,
+			"path": "https://<cdn-host>/18293769/gps_data_garmin_29626510.json",
+			"original_path": "https://<cdn-host>/18293769/gps_data_garmin_29626510.json",
+			"meta": {
+				"gps": false,
+				"time": true,
+				"speed": true,
+				"points": 757,
+				"altitude": false,
+				"distance": true,
+				"heartbeat": true,
+				"compressed": true,
+				"normalized": true,
+				"integration": "garmin",
+				"normalized_version": 1,
+				"points_before_compression": 2898,
+				"points_before_normalization": 759
+			},
+			"size_in_kb": 199.614,
+			"created_at": 1788197814,
+			"custom_properties": { "…": "same object as meta" }
+		}
+	],
+	"notification": {
+		"id": 18299227,
+		"title": "Training",
+		"content": "Consistency brings results, you’re setting a great example.",
+		"notification_type": "training",
+		"metadata": {
+			"goal_daily_tss": 63.5395,
+			"goal_pvt_tss": 64,
+			"done_tss": 59.882,
+			"type": "training_normal"
+		},
+		"training_id": null,
+		"entry_id": 29626510,
+		"medal_id": null,
+		"created_at": "2026-08-31T19:36:48+02:00",
+		"actions": ["share"],
+		"server_actionable": false
+	},
+	"laps": [
+		{
+			"id": 290648519,
+			"order": 0,
+			"pace_percentage": 50,
+			"heartbeat": 141,
+			"altitude": 0,
+			"type": "lap",
+			"time": "05:02",
+			"time_in_sec": 302,
+			"time_value": 302,
+			"time_unit": "sec",
+			"pace": "05:10 min/km",
+			"pace_value": 310,
+			"pace_unit": "min/km",
+			"distance": "1km",
+			"distance_value": 1,
+			"distance_unit": "km",
+			"distance_unit_text": "km",
+			"sum_distance": "1km",
+			"sum_distance_value": 1,
+			"sum_distance_unit": "km",
+			"sum_distance_unit_text": "km"
+		},
+		{
+			"id": 290648520,
+			"order": 1,
+			"pace_percentage": 97,
+			"heartbeat": 150,
+			"altitude": 0,
+			"type": "lap",
+			"time": "05:00",
+			"time_in_sec": 300,
+			"time_value": 300,
+			"time_unit": "sec",
+			"pace": "04:59 min/km",
+			"pace_value": 299,
+			"pace_unit": "min/km",
+			"distance": "1km",
+			"distance_value": 1,
+			"distance_unit": "km",
+			"distance_unit_text": "km",
+			"sum_distance": "2km",
+			"sum_distance_value": 2,
+			"sum_distance_unit": "km",
+			"sum_distance_unit_text": "km"
+		},
+		{ "…": "six more laps, orders 2 to 7" },
+		{
+			"id": 290648527,
+			"order": 8,
+			"pace_percentage": 3,
+			"heartbeat": 154,
+			"altitude": 0,
+			"type": "lap",
+			"time": "05:05",
+			"time_in_sec": 305,
+			"time_value": 305,
+			"time_unit": "sec",
+			"pace": "05:22 min/km",
+			"pace_value": 322,
+			"pace_unit": "min/km",
+			"distance": "999m",
+			"distance_value": 999,
+			"distance_unit": "m",
+			"distance_unit_text": "m",
+			"sum_distance": "9.01km",
+			"sum_distance_value": 9.01,
+			"sum_distance_unit": "km",
+			"sum_distance_unit_text": "km"
+		}
+	],
+	"splits": [],
+	"shoe": {
+		"id": 4141,
+		"brand": "Nike",
+		"name": "Invincible Run 3",
+		"type": "long_run",
+		"preferred": false,
+		"buy_date": "2025-10-19",
+		"lifetime_percentage": 45.56250000000001,
+		"created_at": "2025-10-20T13:22:07+02:00",
+		"updated_at": "2025-10-20T13:22:07+02:00",
+		"retired_at": null,
+		"expected_lifetime_distance": "800km",
+		"expected_lifetime_distance_value": 800,
+		"expected_lifetime_distance_unit": "km",
+		"expected_lifetime_distance_unit_text": "km",
+		"distance_done": "364.5km",
+		"distance_done_value": 364.5,
+		"distance_done_unit": "km",
+		"distance_done_unit_text": "km",
+		"avg_pace": "05:14 min/km",
+		"avg_pace_value": 314,
+		"avg_pace_unit": "min/km",
+		"picture": null
+	}
+}
+```
+
+---
+
 ## GET /api/goal
 
 The current goal: target time and distance, the plan's window, its repeating

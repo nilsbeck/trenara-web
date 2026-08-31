@@ -1270,6 +1270,151 @@ describe('replaceTraining', () => {
 	});
 });
 
+describe('replaceEntry', () => {
+	function entry(overrides: Record<string, unknown> = {}) {
+		return {
+			id: 29626510,
+			name: 'Garmin Treadmill running',
+			start_time: '2025-03-05T08:00:00.000Z',
+			type: 'run',
+			rpe: null,
+			ask_feedback: true,
+			laps: [],
+			splits: [],
+			gps_media: [],
+			notification: null,
+			...overrides
+		} as unknown as Schedule['entries'][number];
+	}
+
+	beforeEach(() => {
+		mockFetch.mockReset();
+	});
+
+	it('swaps in the rated copy the server handed back', async () => {
+		const store = createCalendarStore(new Date('2025-03-05'));
+		mockFetch.mockResolvedValue({
+			ok: true,
+			json: async () => makeSchedule({ entries: [entry()] })
+		});
+		await store.loadMonthData(new Date('2025-03-05'));
+
+		// Rating answers with the whole entry, so the week is updated rather
+		// than refetched — and the prompt is retired by the same answer.
+		store.replaceEntry(entry({ rpe: 2, ask_feedback: false }));
+
+		expect(store.schedule?.entries[0].rpe).toBe(2);
+		expect(store.schedule?.entries[0].ask_feedback).toBe(false);
+	});
+
+	it('survives leaving the month and coming back', async () => {
+		const store = createCalendarStore(new Date('2025-03-05'));
+		mockFetch.mockResolvedValue({
+			ok: true,
+			json: async () => makeSchedule({ entries: [entry()] })
+		});
+		await store.loadMonthData(new Date('2025-03-05'));
+		store.replaceEntry(entry({ rpe: 2 }));
+
+		// The month cache holds the very object the store serves; without
+		// updating it too, coming back would ask for the rating again.
+		mockFetch.mockResolvedValue({ ok: true, json: async () => makeSchedule() });
+		await store.loadMonthData(new Date('2025-04-05'));
+		await store.loadMonthData(new Date('2025-03-05'));
+
+		expect(store.schedule?.entries[0].rpe).toBe(2);
+	});
+
+	it('leaves every other entry alone', async () => {
+		const store = createCalendarStore(new Date('2025-03-05'));
+		mockFetch.mockResolvedValue({
+			ok: true,
+			json: async () => makeSchedule({ entries: [entry(), entry({ id: 29626511 })] })
+		});
+		await store.loadMonthData(new Date('2025-03-05'));
+
+		store.replaceEntry(entry({ rpe: 2 }));
+
+		expect(store.schedule?.entries.map((e) => e.rpe)).toEqual([2, null]);
+	});
+
+	it('is not undone by a refresh that was already in flight', async () => {
+		const store = createCalendarStore(new Date('2025-03-05'));
+		mockFetch.mockResolvedValue({
+			ok: true,
+			status: 200,
+			statusText: 'OK',
+			headers: { get: () => null },
+			json: async () => makeSchedule({ entries: [entry()] })
+		});
+		await store.loadMonthData(new Date('2025-03-05'));
+
+		// A background refresh that left before the rating did. Its answer
+		// cannot know about the rating, and seating it would put the prompt
+		// back on a session the runner has just rated.
+		let answer: (value: unknown) => void = () => {};
+		mockFetch.mockReturnValueOnce(
+			new Promise((resolve) => {
+				answer = resolve;
+			})
+		);
+		const refreshing = store.revalidate();
+
+		store.replaceEntry(entry({ rpe: 2, ask_feedback: false }));
+		answer({
+			ok: true,
+			status: 200,
+			statusText: 'OK',
+			headers: { get: () => null },
+			json: async () => makeSchedule({ entries: [entry()] })
+		});
+		await refreshing;
+
+		expect(store.schedule?.entries[0].rpe).toBe(2);
+	});
+
+	it('takes a refresh that was asked for after the rating', async () => {
+		const store = createCalendarStore(new Date('2025-03-05'));
+		mockFetch.mockResolvedValue({
+			ok: true,
+			status: 200,
+			statusText: 'OK',
+			headers: { get: () => null },
+			json: async () => makeSchedule({ entries: [entry()] })
+		});
+		await store.loadMonthData(new Date('2025-03-05'));
+		store.replaceEntry(entry({ rpe: 2 }));
+
+		// The guard is against answers that predate the rating, not against
+		// the server: one asked for afterwards knows better than we do.
+		mockFetch.mockResolvedValue({
+			ok: true,
+			status: 200,
+			statusText: 'OK',
+			headers: { get: () => null },
+			json: async () => makeSchedule({ entries: [entry({ rpe: 7 })] })
+		});
+		await store.revalidate();
+
+		expect(store.schedule?.entries[0].rpe).toBe(7);
+	});
+
+	it('ignores an entry the week does not hold', async () => {
+		const store = createCalendarStore(new Date('2025-03-05'));
+		mockFetch.mockResolvedValue({
+			ok: true,
+			json: async () => makeSchedule({ entries: [entry()] })
+		});
+		await store.loadMonthData(new Date('2025-03-05'));
+
+		// The runner paged away while the rating was in flight.
+		store.replaceEntry(entry({ id: 999, rpe: 2 }));
+
+		expect(store.schedule?.entries).toHaveLength(1);
+		expect(store.schedule?.entries[0].rpe).toBeNull();
+	});
+});
+
 // ─────────────────────────────────────────────────────────────
 // Background revalidation
 // ─────────────────────────────────────────────────────────────

@@ -192,6 +192,22 @@ type CachedMonth = {
 	/** From the API response, for a conditional request next time. */
 	etag: string | null;
 	fetchedAt: number;
+	/**
+	 * How many times this month has been changed here rather than fetched.
+	 *
+	 * A mutation answers with the changed session and the store seats it
+	 * immediately — but a background refresh may already have been in flight
+	 * when that happened, and its answer predates the change. Seated, it takes
+	 * the change back off the screen: the rating prompt returns on a session
+	 * the runner has just rated, which reads as the rating having been lost.
+	 *
+	 * So a request notes this count before it leaves, and its answer is dropped
+	 * if the count has moved by the time it lands. A counter rather than a
+	 * timestamp because `Date.now()` cannot separate a request that left just
+	 * before a change from one that left just after: inside one millisecond
+	 * both compare equal, and the second is the one that must be seated.
+	 */
+	editSeq?: number;
 };
 
 // ─────────────────────────────────────────────────────────────
@@ -461,8 +477,26 @@ export function createCalendarStore(initialDate: Date, options: CalendarStoreOpt
 	 * refreshed so the next conditional request has something to send, and the
 	 * schedule the UI is deriving from is left exactly as it was.
 	 */
-	function commitSchedule(key: string, next: Schedule, etag: string | null = null): boolean {
+	function commitSchedule(
+		key: string,
+		next: Schedule,
+		etag: string | null = null,
+		/**
+		 * The month's `editSeq` when the request that produced `next` left.
+		 * Omitted by callers that are not answering a request — the page's own
+		 * seed — which are always seated.
+		 */
+		seenEditSeq?: number
+	): boolean {
 		const previous = scheduleCache.get(key);
+		const editSeq = previous?.editSeq ?? 0;
+
+		// The month changed here while this was in flight, so the answer cannot
+		// know about the change. Dropped rather than merged: `lastUpdatedAt` is
+		// left where it was, which is what has the revalidation trigger come
+		// back for an answer that does know.
+		if (seenEditSeq !== undefined && seenEditSeq !== editSeq) return false;
+
 		const print = fingerprint(next);
 		const changed = !previous || previous.fingerprint !== print;
 		const fetchedAt = Date.now();
@@ -475,7 +509,8 @@ export function createCalendarStore(initialDate: Date, options: CalendarStoreOpt
 			schedule: kept,
 			fingerprint: print,
 			etag: etag ?? (changed ? null : previous.etag),
-			fetchedAt
+			fetchedAt,
+			editSeq
 		});
 		bumpCacheRevision();
 
@@ -502,28 +537,28 @@ export function createCalendarStore(initialDate: Date, options: CalendarStoreOpt
 	}
 
 	/**
-	 * Swap one training for a newer copy of itself.
+	 * A list with one member swapped for a newer copy of itself, or `null` when
+	 * the list does not hold it.
 	 *
-	 * Every session mutation hands back the complete training, so changing the
-	 * terrain or swapping the workout does not need the week refetching — but it
-	 * does need the week updating, or the calendar goes on showing the distance,
-	 * title and colour the session had before.
-	 *
-	 * The month cache is updated alongside, since it holds the very object the
-	 * store is serving: without that, leaving the month and coming back would
-	 * resurrect the stale copy from cache.
+	 * `null` rather than the list unchanged, so a caller can tell "nothing to
+	 * do" from "done" without comparing: the runner who paged to another month
+	 * while a change was in flight must not have it committed underneath them.
 	 */
-	function replaceTraining(updated: ScheduledTraining) {
-		if (!schedule) return;
+	function withReplaced<T extends { id: number }>(items: T[] | undefined, updated: T): T[] | null {
+		if (!items?.some((item) => item.id === updated.id)) return null;
+		return items.map((item) => (item.id === updated.id ? updated : item));
+	}
 
-		const trainings = schedule.trainings ?? [];
-		if (!trainings.some((training) => training.id === updated.id)) return;
-
-		const next: Schedule = {
-			...schedule,
-			trainings: trainings.map((training) => (training.id === updated.id ? updated : training))
-		};
-
+	/**
+	 * Serve a schedule rebuilt around one changed member.
+	 *
+	 * The month cache is written alongside because it holds the very object the
+	 * store is serving: without that, leaving the month and coming back would
+	 * resurrect the stale copy from cache. `fetchedAt` is carried over rather
+	 * than reset — the week was not refetched, and pretending otherwise would
+	 * postpone the next revalidation.
+	 */
+	function commitReplacement(next: Schedule) {
 		schedule = next;
 		scheduleRevision += 1;
 
@@ -533,9 +568,45 @@ export function createCalendarStore(initialDate: Date, options: CalendarStoreOpt
 			schedule: next,
 			fingerprint: fingerprint(next),
 			etag: null,
-			fetchedAt: previous?.fetchedAt ?? Date.now()
+			fetchedAt: previous?.fetchedAt ?? Date.now(),
+			editSeq: (previous?.editSeq ?? 0) + 1
 		});
 		bumpCacheRevision();
+	}
+
+	/**
+	 * Swap one training for a newer copy of itself.
+	 *
+	 * Every session mutation hands back the complete training, so changing the
+	 * terrain or swapping the workout does not need the week refetching — but it
+	 * does need the week updating, or the calendar goes on showing the distance,
+	 * title and colour the session had before.
+	 */
+	function replaceTraining(updated: ScheduledTraining) {
+		const trainings = withReplaced(schedule?.trainings, updated);
+		if (!schedule || !trainings) return;
+
+		commitReplacement({ ...schedule, trainings });
+	}
+
+	/**
+	 * Swap one completed entry for a newer copy of itself.
+	 *
+	 * The same move as `replaceTraining` against the other half of the week —
+	 * the plan and what was actually run are two lists in one payload, with ids
+	 * from different spaces, so which list is being patched is the whole of the
+	 * difference.
+	 *
+	 * Rating a session answers with the whole entry — `rpe` set and
+	 * `ask_feedback` retired — so the rating lands on the calendar without a
+	 * refetch, which on this app is five or six upstream requests for a month
+	 * the runner is already looking at.
+	 */
+	function replaceEntry(updated: Entry) {
+		const entries = withReplaced(schedule?.entries, updated);
+		if (!schedule || !entries) return;
+
+		commitReplacement({ ...schedule, entries });
 	}
 
 	/** The oldest day a refresh still asks the server about. */
@@ -608,6 +679,8 @@ export function createCalendarStore(initialDate: Date, options: CalendarStoreOpt
 
 		const key = monthKey(date);
 		const cached = scheduleCache.get(key);
+		// Noted as the request leaves; see `CachedMonth.editSeq`.
+		const seenEditSeq = cached?.editSeq ?? 0;
 
 		try {
 			const result = await fetchMonth(date, {
@@ -632,7 +705,7 @@ export function createCalendarStore(initialDate: Date, options: CalendarStoreOpt
 			const next =
 				coveredFrom && cached ? mergeSchedule(cached.schedule, incoming, coveredFrom) : incoming;
 
-			commitSchedule(key, next, result.etag);
+			commitSchedule(key, next, result.etag, seenEditSeq);
 		} catch {
 			// Keep what we have.
 		}
@@ -705,10 +778,12 @@ export function createCalendarStore(initialDate: Date, options: CalendarStoreOpt
 			}
 
 			// Nothing cached to graft onto, so the whole month it is.
+			// Noted as the request leaves; see `CachedMonth.editSeq`.
+			const seenEditSeq = scheduleCache.get(key)?.editSeq ?? 0;
 			const result = await fetchMonth(date, { conditional: false, from: null });
 			if (result) {
 				const { covered_from: _coverage, ...incoming } = result.payload;
-				commitSchedule(key, incoming, result.etag);
+				commitSchedule(key, incoming, result.etag, seenEditSeq);
 			}
 		} catch (err) {
 			error = err instanceof Error ? err : new Error('Failed to load month data');
@@ -1000,6 +1075,7 @@ export function createCalendarStore(initialDate: Date, options: CalendarStoreOpt
 		toggleViewMode,
 		setSchedule,
 		replaceTraining,
+		replaceEntry,
 		loadMonthData,
 		revalidate,
 		syncToday,

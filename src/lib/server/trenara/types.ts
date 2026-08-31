@@ -328,19 +328,38 @@ export interface Entry {
 		title: string;
 		content: string;
 		notification_type: string;
+		/**
+		 * Varies by `notification_type`, so every field is optional.
+		 *
+		 * A `"training"` notification carries the three TSS figures and a
+		 * `type` naming the copy that was picked; `AddEntryResponse` carries
+		 * `{ name, goal, type }` and no load at all; a medal carries something
+		 * else again. This was one required set holding the union of two of
+		 * them, which no captured notification has ever matched — the RPE
+		 * response's is a `"training"` one with no `name` and no `goal`.
+		 * `trainingLoad` already reads it as unknown and checks each field;
+		 * anything else reading it must do the same.
+		 */
 		metadata: {
-			name: string;
-			goal: string;
-			goal_daily_tss: number;
-			goal_pvt_tss: number;
-			done_tss: number;
-			type: string;
+			name?: string;
+			goal?: string;
+			goal_daily_tss?: number;
+			goal_pvt_tss?: number;
+			done_tss?: number;
+			type?: string;
 		};
 		training_id: number | null;
 		entry_id: number;
 		medal_id: number | null;
 		created_at: string;
 		actions: string[];
+		/**
+		 * Seen only on the entry returned by `PUT /api/entries/{id}/rpe`; the
+		 * `/api/dashboard/` capture a week earlier has no such field. Optional
+		 * until a capture says which of the two it is — endpoint-specific, or
+		 * added upstream in between.
+		 */
+		server_actionable?: boolean;
 	} | null;
 	laps: Array<{
 		id: number;
@@ -366,6 +385,15 @@ export interface Entry {
 		sum_distance_unit_text: string;
 	}>;
 	splits: object[];
+	/**
+	 * The shoe the session was run in, when one is attached.
+	 *
+	 * Absent from the week payload and from the dashboard's `last_entry`; the
+	 * only capture holding it is the response to `PUT /api/entries/{id}/rpe`,
+	 * which is why it is optional as well as nullable. `allow_shoe` says
+	 * whether one *may* be attached and was typed long before this.
+	 */
+	shoe?: Shoe | null;
 }
 
 export interface Exercise {

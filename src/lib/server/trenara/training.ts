@@ -1,5 +1,6 @@
 import type { Cookies } from '@sveltejs/kit';
 import type {
+	Entry,
 	Goal,
 	Schedule,
 	NutritionAdvice,
@@ -104,15 +105,27 @@ export const trainingApi = {
 		});
 	},
 
-	async putFeedback(cookies: Cookies, entryId: number, feedback: number): Promise<unknown> {
-		return mutating(cookies, () =>
-			fetchClient.put(
-				`/api/entries/${entryId}/rpe`,
-				{ rpe: feedback },
-				{
-					headers: bearerHeader(cookies),
-					cookies
-				}
+	/**
+	 * Record how hard a completed session felt, on the 1–10 RPE scale.
+	 *
+	 * Answers with the whole updated `Entry` rather than an acknowledgement —
+	 * `rpe` set to what was sent and `ask_feedback` already `false` — so a
+	 * caller can replace its copy from the response instead of guessing at the
+	 * new state or refetching the week. Same convention as the training
+	 * mutations above; see `docs/backend-api.md`.
+	 */
+	async putFeedback(cookies: Cookies, entryId: number, feedback: number): Promise<Entry> {
+		return mutating(cookies, async () =>
+			expectObject<Entry>(
+				await fetchClient.put<unknown>(
+					`/api/entries/${entryId}/rpe`,
+					{ rpe: feedback },
+					{
+						headers: bearerHeader(cookies),
+						cookies
+					}
+				),
+				'/api/entries/{id}/rpe'
 			)
 		);
 	},

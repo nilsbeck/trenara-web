@@ -47,7 +47,8 @@
 		entry,
 		isLoading,
 		onScheduleChanged,
-		onTrainingChanged
+		onTrainingChanged,
+		onEntryChanged
 	}: {
 		selectedDate: string | null;
 		training: ScheduledTraining | null;
@@ -56,6 +57,8 @@
 		onScheduleChanged?: () => void;
 		/** A change came back from the server; the week needs the newer copy. */
 		onTrainingChanged?: (training: ScheduledTraining) => void;
+		/** A rating came back with the whole entry; the week needs that copy. */
+		onEntryChanged?: (entry: Entry) => void;
 	} = $props();
 
 	// True when the entry exists but has no RPE rating yet
@@ -343,7 +346,7 @@
 					<TreadmillMode training={shownTraining} />
 				{/if}
 				{#if entry && training}
-					<GiveFeedbackModal {training} {entry} />
+					<GiveFeedbackModal {training} {entry} onRated={onEntryChanged} />
 				{/if}
 				{#if training?.can_be_edited}
 					<ChangeDateModal
@@ -487,7 +490,7 @@
 
 		<!-- Inline rating prompt (shown when training is completed but not yet rated) -->
 		{#if needsRating && entry && training}
-			<RateTrainingInline {entry} />
+			<RateTrainingInline {entry} onRated={onEntryChanged} />
 		{/if}
 
 		<!-- Training detail content — blurred when rating is pending -->
