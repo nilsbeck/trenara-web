@@ -192,6 +192,22 @@ type CachedMonth = {
 	/** From the API response, for a conditional request next time. */
 	etag: string | null;
 	fetchedAt: number;
+	/**
+	 * How many times this month has been changed here rather than fetched.
+	 *
+	 * A mutation answers with the changed session and the store seats it
+	 * immediately — but a background refresh may already have been in flight
+	 * when that happened, and its answer predates the change. Seated, it takes
+	 * the change back off the screen: the rating prompt returns on a session
+	 * the runner has just rated, which reads as the rating having been lost.
+	 *
+	 * So a request notes this count before it leaves, and its answer is dropped
+	 * if the count has moved by the time it lands. A counter rather than a
+	 * timestamp because `Date.now()` cannot separate a request that left just
+	 * before a change from one that left just after: inside one millisecond
+	 * both compare equal, and the second is the one that must be seated.
+	 */
+	editSeq?: number;
 };
 
 // ─────────────────────────────────────────────────────────────
@@ -461,8 +477,26 @@ export function createCalendarStore(initialDate: Date, options: CalendarStoreOpt
 	 * refreshed so the next conditional request has something to send, and the
 	 * schedule the UI is deriving from is left exactly as it was.
 	 */
-	function commitSchedule(key: string, next: Schedule, etag: string | null = null): boolean {
+	function commitSchedule(
+		key: string,
+		next: Schedule,
+		etag: string | null = null,
+		/**
+		 * The month's `editSeq` when the request that produced `next` left.
+		 * Omitted by callers that are not answering a request — the page's own
+		 * seed — which are always seated.
+		 */
+		seenEditSeq?: number
+	): boolean {
 		const previous = scheduleCache.get(key);
+		const editSeq = previous?.editSeq ?? 0;
+
+		// The month changed here while this was in flight, so the answer cannot
+		// know about the change. Dropped rather than merged: `lastUpdatedAt` is
+		// left where it was, which is what has the revalidation trigger come
+		// back for an answer that does know.
+		if (seenEditSeq !== undefined && seenEditSeq !== editSeq) return false;
+
 		const print = fingerprint(next);
 		const changed = !previous || previous.fingerprint !== print;
 		const fetchedAt = Date.now();
@@ -475,7 +509,8 @@ export function createCalendarStore(initialDate: Date, options: CalendarStoreOpt
 			schedule: kept,
 			fingerprint: print,
 			etag: etag ?? (changed ? null : previous.etag),
-			fetchedAt
+			fetchedAt,
+			editSeq
 		});
 		bumpCacheRevision();
 
@@ -533,7 +568,8 @@ export function createCalendarStore(initialDate: Date, options: CalendarStoreOpt
 			schedule: next,
 			fingerprint: fingerprint(next),
 			etag: null,
-			fetchedAt: previous?.fetchedAt ?? Date.now()
+			fetchedAt: previous?.fetchedAt ?? Date.now(),
+			editSeq: (previous?.editSeq ?? 0) + 1
 		});
 		bumpCacheRevision();
 	}
@@ -643,6 +679,8 @@ export function createCalendarStore(initialDate: Date, options: CalendarStoreOpt
 
 		const key = monthKey(date);
 		const cached = scheduleCache.get(key);
+		// Noted as the request leaves; see `CachedMonth.editSeq`.
+		const seenEditSeq = cached?.editSeq ?? 0;
 
 		try {
 			const result = await fetchMonth(date, {
@@ -667,7 +705,7 @@ export function createCalendarStore(initialDate: Date, options: CalendarStoreOpt
 			const next =
 				coveredFrom && cached ? mergeSchedule(cached.schedule, incoming, coveredFrom) : incoming;
 
-			commitSchedule(key, next, result.etag);
+			commitSchedule(key, next, result.etag, seenEditSeq);
 		} catch {
 			// Keep what we have.
 		}
@@ -740,10 +778,12 @@ export function createCalendarStore(initialDate: Date, options: CalendarStoreOpt
 			}
 
 			// Nothing cached to graft onto, so the whole month it is.
+			// Noted as the request leaves; see `CachedMonth.editSeq`.
+			const seenEditSeq = scheduleCache.get(key)?.editSeq ?? 0;
 			const result = await fetchMonth(date, { conditional: false, from: null });
 			if (result) {
 				const { covered_from: _coverage, ...incoming } = result.payload;
-				commitSchedule(key, incoming, result.etag);
+				commitSchedule(key, incoming, result.etag, seenEditSeq);
 			}
 		} catch (err) {
 			error = err instanceof Error ? err : new Error('Failed to load month data');

@@ -1338,6 +1338,67 @@ describe('replaceEntry', () => {
 		expect(store.schedule?.entries.map((e) => e.rpe)).toEqual([2, null]);
 	});
 
+	it('is not undone by a refresh that was already in flight', async () => {
+		const store = createCalendarStore(new Date('2025-03-05'));
+		mockFetch.mockResolvedValue({
+			ok: true,
+			status: 200,
+			statusText: 'OK',
+			headers: { get: () => null },
+			json: async () => makeSchedule({ entries: [entry()] })
+		});
+		await store.loadMonthData(new Date('2025-03-05'));
+
+		// A background refresh that left before the rating did. Its answer
+		// cannot know about the rating, and seating it would put the prompt
+		// back on a session the runner has just rated.
+		let answer: (value: unknown) => void = () => {};
+		mockFetch.mockReturnValueOnce(
+			new Promise((resolve) => {
+				answer = resolve;
+			})
+		);
+		const refreshing = store.revalidate();
+
+		store.replaceEntry(entry({ rpe: 2, ask_feedback: false }));
+		answer({
+			ok: true,
+			status: 200,
+			statusText: 'OK',
+			headers: { get: () => null },
+			json: async () => makeSchedule({ entries: [entry()] })
+		});
+		await refreshing;
+
+		expect(store.schedule?.entries[0].rpe).toBe(2);
+	});
+
+	it('takes a refresh that was asked for after the rating', async () => {
+		const store = createCalendarStore(new Date('2025-03-05'));
+		mockFetch.mockResolvedValue({
+			ok: true,
+			status: 200,
+			statusText: 'OK',
+			headers: { get: () => null },
+			json: async () => makeSchedule({ entries: [entry()] })
+		});
+		await store.loadMonthData(new Date('2025-03-05'));
+		store.replaceEntry(entry({ rpe: 2 }));
+
+		// The guard is against answers that predate the rating, not against
+		// the server: one asked for afterwards knows better than we do.
+		mockFetch.mockResolvedValue({
+			ok: true,
+			status: 200,
+			statusText: 'OK',
+			headers: { get: () => null },
+			json: async () => makeSchedule({ entries: [entry({ rpe: 7 })] })
+		});
+		await store.revalidate();
+
+		expect(store.schedule?.entries[0].rpe).toBe(7);
+	});
+
 	it('ignores an entry the week does not hold', async () => {
 		const store = createCalendarStore(new Date('2025-03-05'));
 		mockFetch.mockResolvedValue({

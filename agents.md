@@ -176,6 +176,15 @@ the reason — that is what distinguishes a decision from a regression.
   in a backgrounded tab spends the budget for a screen nobody is looking at.
   `$lib/utils/revalidation` is the pattern; use it rather than a bare
   `setInterval`.
+- **A local edit outranks an answer to a request that left before it.** Every
+  session mutation hands back the changed object and the store seats it at
+  once, so a background refresh already in flight is holding a payload that
+  predates the change — seat that and the change is silently taken back off
+  the screen. The calendar's month cache counts local edits (`editSeq`) and a
+  request notes the count before it leaves; an answer that lands after the
+  count moved is dropped, and the revalidation trigger asks again. A timestamp
+  does not work here: two events inside one millisecond compare equal, and one
+  of them must be seated.
 - **Nothing unbounded sits on the first-paint critical path.** If a value is
   awaited in a layout load, either it is served from memory or its wait is
   bounded — `newsBadgeIfReady` races a 200ms timer for exactly this reason.
