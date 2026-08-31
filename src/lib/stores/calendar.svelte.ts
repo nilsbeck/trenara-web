@@ -502,28 +502,28 @@ export function createCalendarStore(initialDate: Date, options: CalendarStoreOpt
 	}
 
 	/**
-	 * Swap one training for a newer copy of itself.
+	 * A list with one member swapped for a newer copy of itself, or `null` when
+	 * the list does not hold it.
 	 *
-	 * Every session mutation hands back the complete training, so changing the
-	 * terrain or swapping the workout does not need the week refetching — but it
-	 * does need the week updating, or the calendar goes on showing the distance,
-	 * title and colour the session had before.
-	 *
-	 * The month cache is updated alongside, since it holds the very object the
-	 * store is serving: without that, leaving the month and coming back would
-	 * resurrect the stale copy from cache.
+	 * `null` rather than the list unchanged, so a caller can tell "nothing to
+	 * do" from "done" without comparing: the runner who paged to another month
+	 * while a change was in flight must not have it committed underneath them.
 	 */
-	function replaceTraining(updated: ScheduledTraining) {
-		if (!schedule) return;
+	function withReplaced<T extends { id: number }>(items: T[] | undefined, updated: T): T[] | null {
+		if (!items?.some((item) => item.id === updated.id)) return null;
+		return items.map((item) => (item.id === updated.id ? updated : item));
+	}
 
-		const trainings = schedule.trainings ?? [];
-		if (!trainings.some((training) => training.id === updated.id)) return;
-
-		const next: Schedule = {
-			...schedule,
-			trainings: trainings.map((training) => (training.id === updated.id ? updated : training))
-		};
-
+	/**
+	 * Serve a schedule rebuilt around one changed member.
+	 *
+	 * The month cache is written alongside because it holds the very object the
+	 * store is serving: without that, leaving the month and coming back would
+	 * resurrect the stale copy from cache. `fetchedAt` is carried over rather
+	 * than reset — the week was not refetched, and pretending otherwise would
+	 * postpone the next revalidation.
+	 */
+	function commitReplacement(next: Schedule) {
 		schedule = next;
 		scheduleRevision += 1;
 
@@ -536,6 +536,41 @@ export function createCalendarStore(initialDate: Date, options: CalendarStoreOpt
 			fetchedAt: previous?.fetchedAt ?? Date.now()
 		});
 		bumpCacheRevision();
+	}
+
+	/**
+	 * Swap one training for a newer copy of itself.
+	 *
+	 * Every session mutation hands back the complete training, so changing the
+	 * terrain or swapping the workout does not need the week refetching — but it
+	 * does need the week updating, or the calendar goes on showing the distance,
+	 * title and colour the session had before.
+	 */
+	function replaceTraining(updated: ScheduledTraining) {
+		const trainings = withReplaced(schedule?.trainings, updated);
+		if (!schedule || !trainings) return;
+
+		commitReplacement({ ...schedule, trainings });
+	}
+
+	/**
+	 * Swap one completed entry for a newer copy of itself.
+	 *
+	 * The same move as `replaceTraining` against the other half of the week —
+	 * the plan and what was actually run are two lists in one payload, with ids
+	 * from different spaces, so which list is being patched is the whole of the
+	 * difference.
+	 *
+	 * Rating a session answers with the whole entry — `rpe` set and
+	 * `ask_feedback` retired — so the rating lands on the calendar without a
+	 * refetch, which on this app is five or six upstream requests for a month
+	 * the runner is already looking at.
+	 */
+	function replaceEntry(updated: Entry) {
+		const entries = withReplaced(schedule?.entries, updated);
+		if (!schedule || !entries) return;
+
+		commitReplacement({ ...schedule, entries });
 	}
 
 	/** The oldest day a refresh still asks the server about. */
@@ -1000,6 +1035,7 @@ export function createCalendarStore(initialDate: Date, options: CalendarStoreOpt
 		toggleViewMode,
 		setSchedule,
 		replaceTraining,
+		replaceEntry,
 		loadMonthData,
 		revalidate,
 		syncToday,
