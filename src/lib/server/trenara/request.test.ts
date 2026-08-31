@@ -29,6 +29,8 @@ import {
 	isUnreachable,
 	parseBody,
 	passthrough,
+	passthroughOptional,
+	isMissingUpstream,
 	TIMEOUT_MESSAGE,
 	UNREACHABLE_MESSAGE,
 	MALFORMED_MESSAGE,
@@ -247,6 +249,62 @@ describe('passthrough', () => {
 	it('lets anything else through unchanged', async () => {
 		const bug = new TypeError('x is not a function');
 		await expect(passthrough(() => Promise.reject(bug))).rejects.toBe(bug);
+	});
+});
+
+describe('passthroughOptional', () => {
+	/** The status and message a SvelteKit error was thrown with. */
+	async function statusOf(fn: () => Promise<unknown>) {
+		try {
+			await fn();
+		} catch (e) {
+			return e as { status: number; body: { message: string } };
+		}
+		throw new Error('expected a failure');
+	}
+
+	it('returns the value when the record is there', async () => {
+		expect(await passthroughOptional(async () => ({ id: 1 }))).toEqual({ id: 1 });
+	});
+
+	// The state a runner puts their account in by deleting their goal. Relayed
+	// as an error it read as "No result found" in red, for something they chose.
+	it('reads a 404 as nothing rather than as a failure', async () => {
+		const missing = new HttpError('No result found', 404, { message: 'No result found' });
+
+		expect(await passthroughOptional(() => Promise.reject(missing))).toBeNull();
+	});
+
+	it('still fails the page on every other refusal', async () => {
+		const thrown = await statusOf(() =>
+			passthroughOptional(() => Promise.reject(new HttpError('Training already moved', 409)))
+		);
+
+		expect(thrown.status).toBe(409);
+		expect(thrown.body.message).toBe('Training already moved');
+	});
+
+	it('still fails the page when the connection did', async () => {
+		const thrown = await statusOf(() =>
+			passthroughOptional(() => Promise.reject(new NetworkError('Network request failed')))
+		);
+
+		expect(thrown.status).toBe(502);
+		expect(thrown.body.message).toBe(UNREACHABLE_MESSAGE);
+	});
+
+	it('lets a bug in this app through unchanged', async () => {
+		const bug = new TypeError('x is not a function');
+		await expect(passthroughOptional(() => Promise.reject(bug))).rejects.toBe(bug);
+	});
+});
+
+describe('isMissingUpstream', () => {
+	it('is only the not-found status', () => {
+		expect(isMissingUpstream(new HttpError('No result found', 404))).toBe(true);
+		expect(isMissingUpstream(new HttpError('Gone', 410))).toBe(false);
+		expect(isMissingUpstream(new NetworkError('Network request failed'))).toBe(false);
+		expect(isMissingUpstream(new TypeError('x is not a function'))).toBe(false);
 	});
 });
 

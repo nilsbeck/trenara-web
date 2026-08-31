@@ -114,6 +114,26 @@
 						</div>
 					</div>
 				</div>
+			{:else if isRenderableStats(userStats)}
+				<!--
+					No goal is not "some data could not be loaded".
+
+					The goal read fails soft here, so an account with no goal — one just
+					deleted, one not set yet — reached the same line as an outage did,
+					and the runner was told something had gone wrong with the app when
+					nothing had. The predictions stay: they are a fitness estimate and
+					do not depend on a goal existing.
+				-->
+				<div class="rounded-lg border border-border bg-card p-4 shadow-sm">
+					<p class="text-sm font-medium text-card-foreground">No goal set</p>
+					<p class="mt-1 text-sm text-muted-foreground">
+						Set a goal in the Trenara app to see it here.
+					</p>
+				</div>
+
+				<div class="pt-6">
+					<PredictionsCard {userStats} />
+				</div>
 			{:else}
 				<p class="text-sm text-muted-foreground">Some data could not be loaded</p>
 			{/if}

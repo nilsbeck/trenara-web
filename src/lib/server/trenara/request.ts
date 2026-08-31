@@ -272,3 +272,34 @@ export function parseBody<T>(schema: ZodType<T>, raw: unknown): T {
 
 	error(400, detail || 'Invalid request body');
 }
+
+/**
+ * Whether a refusal means "there is nothing there" rather than "this failed".
+ *
+ * Trenara answers a read for a record the account does not have with a 404 and
+ * a body of `{"message":"No result found"}`, which `passthrough` relays
+ * faithfully — correct for a write that was refused, and wrong for a read
+ * whose empty answer is a normal state of the account. A runner who has just
+ * deleted their goal has not hit an error; there is simply no goal.
+ */
+export function isMissingUpstream(e: unknown): boolean {
+	return e instanceof HttpError && e.status === 404;
+}
+
+/**
+ * `passthrough` for a read that is allowed to find nothing.
+ *
+ * A 404 becomes `null` for the page to render an empty state from; everything
+ * else keeps the status and message `passthrough` composes, so an outage, a
+ * rate limit and an expired session are still told apart.
+ */
+export async function passthroughOptional<T>(fn: () => Promise<T>): Promise<T | null> {
+	return passthrough(async () => {
+		try {
+			return await fn();
+		} catch (e) {
+			if (isMissingUpstream(e)) return null;
+			throw e;
+		}
+	});
+}

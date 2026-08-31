@@ -4,7 +4,7 @@
 	import PredictionsCard from '$lib/components/predictions/predictions-card.svelte';
 	import { isRenderableStats } from '$lib/utils/user-stats';
 	import { invalidateAll } from '$app/navigation';
-	import { Loader2, ArrowLeft, RefreshCw } from 'lucide-svelte';
+	import { Loader2, ArrowLeft, RefreshCw, Target, Archive } from 'lucide-svelte';
 
 	let { data }: { data: PageServerData } = $props();
 </script>
@@ -34,6 +34,35 @@
 		{:then [goal, userStats]}
 			{#if goal && isRenderableStats(userStats)}
 				<GoalCard {goal} {userStats} />
+				<PredictionsCard {userStats} />
+			{:else if isRenderableStats(userStats)}
+				<!--
+					No goal is a state of the account, not a failure of the page.
+
+					A deleted goal makes Trenara answer this page's own read with a 404,
+					which used to land here as "No result found" in error red beside a
+					"Try again" button — a wording from an API the runner never sees, for
+					something they did on purpose, offering a retry that could only
+					repeat it. Said plainly instead, and pointed at the two things that
+					are actually still there: the archive of the goals that came before,
+					and the predictions below, which are fitness estimates and do not
+					need a goal to mean anything.
+				-->
+				<div class="rounded-lg border border-border bg-card p-8 text-center shadow-sm">
+					<Target class="mx-auto mb-3 h-8 w-8 text-muted-foreground" aria-hidden="true" />
+					<h2 class="text-lg font-semibold text-card-foreground">No goal set</h2>
+					<p class="mx-auto mt-2 max-w-md text-sm text-muted-foreground">
+						There is no goal on this account right now. Set one in the Trenara app and it will show
+						up here, along with the plan built for it.
+					</p>
+					<a
+						href="/goal/history"
+						class="mt-4 inline-flex items-center justify-center gap-2 rounded-md border border-border px-3 py-1.5 text-sm font-medium text-foreground transition-colors hover:bg-secondary"
+					>
+						<Archive class="h-3.5 w-3.5" aria-hidden="true" />
+						View goal history
+					</a>
+				</div>
 				<PredictionsCard {userStats} />
 			{:else}
 				<p class="text-center text-sm text-muted-foreground">No goal or stats data available.</p>
