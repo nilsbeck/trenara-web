@@ -555,7 +555,21 @@ export function createCalendarStore(initialDate: Date, options: CalendarStoreOpt
 	 * replacing what they are looking at.
 	 */
 	function setSchedule(newSchedule: Schedule, forMonth?: Date) {
-		commitSchedule(monthKey(forMonth ?? currentDate), newSchedule);
+		// Untracked, and this is load-bearing rather than tidiness.
+		//
+		// The page hands its schedule down from an effect, and `commitSchedule`
+		// reads the very state it writes — `schedule`, `scheduleRevision`,
+		// `currentDate`. Tracked, that effect takes the store's own schedule as a
+		// dependency and becomes its own undo: a refresh seats the month that
+		// came back, the write wakes the effect, and the effect puts the page's
+		// original schedule straight back. The plan on screen is then whatever
+		// the last page load said, and *nothing* can move it — not a session
+		// moved to another day, not the refresh button — short of loading the
+		// page again.
+		//
+		// `bumpCacheRevision` untracks its own read for the same reason; this is
+		// the rest of that argument.
+		untrack(() => commitSchedule(monthKey(forMonth ?? currentDate), newSchedule));
 	}
 
 	/**
