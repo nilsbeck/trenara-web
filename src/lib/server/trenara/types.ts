@@ -169,6 +169,38 @@ export interface User {
 }
 
 /**
+ * One reason a plan can be paused, as served inside `GET /api/config/app`.
+ *
+ * Named rather than left inline on `AppConfig` because the picker, the
+ * fallback list and the request body all have to agree on it, and an inline
+ * shape can only be agreed with by copying it.
+ */
+export interface PauseType {
+	/** Display order, ascending. Not an id — `type` is the wire value. */
+	order: number;
+	/** What `POST /api/me/pause/` takes as its `type`. */
+	type: string;
+	/** The label, already localised by the backend. */
+	title: string;
+	/** True on the reasons that want a free-text follow-up. */
+	ask_extra_input: boolean;
+}
+
+/**
+ * The body `POST /api/me/pause/` takes.
+ *
+ * `extra_input` is sent on every request, empty string included: the capture
+ * that established this shape carried it alongside `type: "other"`, and an
+ * endpoint of a reverse-engineered API is only known to accept the body it was
+ * seen to accept. Omitting a field because it happens to be blank is the kind
+ * of tidying that gets refused with "The extra input field is required."
+ */
+export interface PauseGoalRequest {
+	type: string;
+	extra_input: string;
+}
+
+/**
  * Static configuration served by `GET /api/config/app`.
  *
  * The option lists a client builds its pickers from, plus copy. No user data,
@@ -180,13 +212,7 @@ export interface AppConfig {
 	perks: { title: string; description: string };
 	nutritional: { disclaimer: string };
 	/** Reasons a plan can be paused, in display `order`. */
-	pause_types: Array<{
-		order: number;
-		type: string;
-		title: string;
-		/** True on the reasons that want a free-text follow-up. */
-		ask_extra_input: boolean;
-	}>;
+	pause_types: PauseType[];
 	/**
 	 * Onboarding copy: three variants in one string, separated by blank lines
 	 * and a leading `-`, keyed to the starting-volume choice. Not structured.

@@ -1,5 +1,5 @@
 import type { Cookies } from '@sveltejs/kit';
-import type { User, UserStats, Shoe, ProfileUpdate } from './types';
+import type { User, UserStats, Shoe, ProfileUpdate, PauseGoalRequest } from './types';
 import { fetchClient } from './client';
 import { TokenType } from '$lib/server/auth/types';
 import { cachedRead, CacheKey, invalidate } from './read-cache';
@@ -94,5 +94,41 @@ export const userApi = {
 			}),
 			'/api/me/shoes'
 		);
+	},
+
+	/**
+	 * Pause the plan, with the reason the runner picked.
+	 *
+	 * Lives on the account rather than on the goal — the path is `/api/me/pause/`
+	 * and the state it sets is read back as `is_paused`, `paused_since` and
+	 * `pause_cause` on `GET /api/me`, not on `GET /api/goal`. The trailing slash
+	 * is load-bearing enough to be worth not tidying away: see the conventions in
+	 * `docs/backend-api.md`.
+	 *
+	 * **Answers with the whole account**, the three pause fields already set —
+	 * the same convention `updateProfile` follows, and the same shape. So the
+	 * response is the new state rather than an acknowledgement of it, and a
+	 * caller that only wanted to know whether the pause took has it here without
+	 * a second read.
+	 *
+	 * The whole cache is dropped all the same, and deliberately. A paused plan is
+	 * not only a flag on the profile: the sessions ahead of the pause are what
+	 * the runner is about to stop doing, so the weeks, the stats and the goal are
+	 * all suspect the moment this returns — none of which this response carries.
+	 * `updateProfile` narrows its invalidation because a change of weight cannot
+	 * reach the plan; this one can, and guessing how far would be exactly the
+	 * reasoning `read-cache.ts` warns against.
+	 */
+	async pausePlan(cookies: Cookies, body: PauseGoalRequest): Promise<User> {
+		const user = expectObject<User>(
+			await fetchClient.post<unknown>('/api/me/pause/', body, {
+				headers: bearerHeader(cookies),
+				cookies
+			}),
+			'/api/me/pause/'
+		);
+
+		invalidate(cookies);
+		return user;
 	}
 };

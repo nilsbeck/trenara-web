@@ -70,6 +70,37 @@ export const trainingApi = {
 	},
 
 	/**
+	 * Delete the current goal, and with it the plan built for it.
+	 *
+	 * Answers `{"message":"Success."}`, and afterwards `GET /api/goal` answers
+	 * `{"message":"No result found"}` — on a 404 or a 400 depending on the
+	 * capture, both of which `isMissingUpstream` reads as an empty account. That
+	 * is the state the goal page already renders an empty screen for, via
+	 * `passthroughOptional`, so there is nothing to seat from the response: the
+	 * caller reloads and the page falls into the branch that was written for a
+	 * goal deleted in Trenara's own app.
+	 *
+	 * No body is sent. The capture posts a literal `null`, which is a body, and
+	 * `fetchClient.delete` sends none at all. They are not the same request and
+	 * the difference has not been tested — but a DELETE with no body is what the
+	 * method means and what the other two deletes in this file send, and a
+	 * backend that reads a JSON body on a DELETE would be the surprise. If this
+	 * is ever refused, that untested difference is the first place to look.
+	 *
+	 * Irreversible from here: nothing in this app sets a goal, so a runner who
+	 * deletes one gets it back only by setting a new one in Trenara. The
+	 * confirmation in front of it is not decoration.
+	 */
+	async deleteGoal(cookies: Cookies): Promise<unknown> {
+		return mutating(cookies, () =>
+			fetchClient.delete('/api/goal', {
+				headers: bearerHeader(cookies),
+				cookies
+			})
+		);
+	},
+
+	/**
 	 * One week of the plan.
 	 *
 	 * Served from {@link cachedRead} unless `fresh` is asked for. There is no
