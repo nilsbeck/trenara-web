@@ -1,12 +1,25 @@
 <script lang="ts">
-	import type { PageServerData } from './$types';
+	import type { PageData } from './$types';
 	import GoalCard from '$lib/components/goal/goal-card.svelte';
 	import PredictionsCard from '$lib/components/predictions/predictions-card.svelte';
+	import PlanControls from '$lib/components/goal/plan-controls.svelte';
 	import { isRenderableStats } from '$lib/utils/user-stats';
 	import { invalidateAll } from '$app/navigation';
 	import { Loader2, ArrowLeft, RefreshCw, Target, Archive } from 'lucide-svelte';
 
-	let { data }: { data: PageServerData } = $props();
+	/**
+	 * `PageData` rather than `PageServerData`, because the pause state is not on
+	 * this page's own load: `is_paused`, `paused_since` and `pause_cause` live on
+	 * the account, which the app layout has already resolved and awaited. Reading
+	 * the layout's copy costs nothing — this page would otherwise fetch `/api/me`
+	 * a second time to learn something already on screen behind it.
+	 */
+	let { data }: { data: PageData } = $props();
+
+	// Null when the layout's own read of the account failed; the layout reports
+	// that as `null` so a chrome failure cannot take a page down. Pausing is
+	// then simply not offered, rather than offered against an unknown state.
+	const account = $derived(data.userData);
 </script>
 
 <div class="mx-auto max-w-4xl">
@@ -35,6 +48,15 @@
 			{#if goal && isRenderableStats(userStats)}
 				<GoalCard {goal} {userStats} />
 				<PredictionsCard {userStats} />
+				{#if account}
+					<PlanControls
+						paused={account.is_paused === true}
+						pausedSince={account.paused_since}
+						pauseCause={account.pause_cause}
+						goalName={goal.name}
+						onchanged={() => invalidateAll()}
+					/>
+				{/if}
 			{:else if isRenderableStats(userStats)}
 				<!--
 					No goal is a state of the account, not a failure of the page.

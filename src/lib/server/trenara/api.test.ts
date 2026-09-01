@@ -195,6 +195,99 @@ describe('userApi.updateProfile', () => {
 });
 
 // ─────────────────────────────────────────────────────────────
+describe('userApi.pausePlan', () => {
+	it('POSTs the reason to /api/me/pause/, trailing slash and all', async () => {
+		fetchMock().mockResolvedValue(mockResponse({ message: 'Success.' }));
+		await userApi.pausePlan(cookies, { type: 'other', extra_input: '' });
+
+		const req = lastRequest();
+		expect(req.url).toBe('https://backend-prod.trenara.com/api/me/pause/');
+		expect(req.method).toBe('POST');
+		expect(req.headers.Authorization).toBe(`Bearer ${ACCESS_TOKEN}`);
+	});
+
+	// The two field names are the whole contract here, and `extra_input` is
+	// snake_case on the wire while the app's own schema calls it `extraInput`.
+	// A camelCase body is accepted by nothing and fails silently against the
+	// real server.
+	it('sends `type` and `extra_input`, and nothing else', async () => {
+		fetchMock().mockResolvedValue(mockResponse({ message: 'Success.' }));
+		await userApi.pausePlan(cookies, { type: 'holiday', extra_input: 'Two weeks in Spain' });
+
+		expect(lastRequest().body).toEqual({ type: 'holiday', extra_input: 'Two weeks in Spain' });
+	});
+
+	// An empty follow-up is still sent. The capture that established this shape
+	// carried one, and dropping a blank field is exactly the kind of tidying a
+	// reverse-engineered endpoint refuses.
+	it('keeps an empty extra_input rather than omitting the field', async () => {
+		fetchMock().mockResolvedValue(mockResponse({ message: 'Success.' }));
+		await userApi.pausePlan(cookies, { type: 'illness', extra_input: '' });
+
+		expect(lastRequest().body).toHaveProperty('extra_input', '');
+	});
+
+	it('drops the cached account, so the next read sees is_paused', async () => {
+		fetchMock().mockResolvedValue(mockResponse({ id: 56540, is_paused: false }));
+		await userApi.getCurrentUser(cookies);
+		expect(fetchMock().mock.calls.length).toBe(1);
+
+		fetchMock().mockResolvedValue(mockResponse({ message: 'Success.' }));
+		await userApi.pausePlan(cookies, { type: 'illness', extra_input: '' });
+
+		fetchMock().mockResolvedValue(mockResponse({ id: 56540, is_paused: true }));
+		const user = await userApi.getCurrentUser(cookies);
+		expect(user.is_paused).toBe(true);
+	});
+
+	it('surfaces a refusal rather than swallowing it', async () => {
+		fetchMock().mockResolvedValue(mockResponse({ message: 'nope' }, 422));
+		await expect(
+			userApi.pausePlan(cookies, { type: 'other', extra_input: '' })
+		).rejects.toBeInstanceOf(HttpError);
+	});
+});
+
+// ─────────────────────────────────────────────────────────────
+describe('trainingApi.deleteGoal', () => {
+	it('DELETEs /api/goal', async () => {
+		fetchMock().mockResolvedValue(mockResponse({ message: 'Success.' }));
+		await trainingApi.deleteGoal(cookies);
+
+		const req = lastRequest();
+		expect(req.url).toBe('https://backend-prod.trenara.com/api/goal');
+		expect(req.method).toBe('DELETE');
+		expect(req.headers.Authorization).toBe(`Bearer ${ACCESS_TOKEN}`);
+	});
+
+	it('sends no body', async () => {
+		fetchMock().mockResolvedValue(mockResponse({ message: 'Success.' }));
+		await trainingApi.deleteGoal(cookies);
+
+		expect(lastRequest().body).toBeUndefined();
+	});
+
+	// The goal read is cached, and a deleted goal that keeps answering from the
+	// cache is a plan on screen for something that no longer exists.
+	it('drops the cached goal', async () => {
+		fetchMock().mockResolvedValue(mockResponse({ id: 8482, name: 'Valencia' }));
+		await trainingApi.getGoal(cookies);
+		expect(fetchMock().mock.calls.length).toBe(1);
+
+		fetchMock().mockResolvedValue(mockResponse({ message: 'Success.' }));
+		await trainingApi.deleteGoal(cookies);
+
+		fetchMock().mockResolvedValue(mockResponse({ message: 'No result found' }, 404));
+		await expect(trainingApi.getGoal(cookies)).rejects.toBeInstanceOf(HttpError);
+	});
+
+	it('leaves a refusal to the caller', async () => {
+		fetchMock().mockResolvedValue(mockResponse({ message: 'nope' }, 403));
+		await expect(trainingApi.deleteGoal(cookies)).rejects.toBeInstanceOf(HttpError);
+	});
+});
+
+// ─────────────────────────────────────────────────────────────
 describe('chatApi.sendMessage', () => {
 	// Trenara names this field `body`, matching the messages it returns.
 	// Sending `content` instead is silently wrong, so pin it down.

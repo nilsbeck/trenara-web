@@ -1,5 +1,5 @@
 import type { Cookies } from '@sveltejs/kit';
-import type { User, UserStats, Shoe, ProfileUpdate } from './types';
+import type { User, UserStats, Shoe, ProfileUpdate, PauseGoalRequest } from './types';
 import { fetchClient } from './client';
 import { TokenType } from '$lib/server/auth/types';
 import { cachedRead, CacheKey, invalidate } from './read-cache';
@@ -94,5 +94,37 @@ export const userApi = {
 			}),
 			'/api/me/shoes'
 		);
+	},
+
+	/**
+	 * Pause the plan, with the reason the runner picked.
+	 *
+	 * Lives on the account rather than on the goal — the path is `/api/me/pause/`
+	 * and the state it sets is read back as `is_paused`, `paused_since` and
+	 * `pause_cause` on `GET /api/me`, not on `GET /api/goal`. The trailing slash
+	 * is load-bearing enough to be worth not tidying away: see the conventions in
+	 * `docs/backend-api.md`.
+	 *
+	 * The whole cache is dropped rather than the account alone, and deliberately.
+	 * A paused plan is not only a flag on the profile: the sessions ahead of the
+	 * pause are what the runner is about to stop doing, so the weeks, the stats
+	 * and the goal are all suspect the moment this returns. `updateProfile` above
+	 * narrows its invalidation because a change of weight cannot reach the plan;
+	 * this one can, and guessing how far would be exactly the reasoning
+	 * `read-cache.ts` warns against.
+	 *
+	 * The response shape has not been captured, so it is passed back as-is rather
+	 * than typed into something it might not be. Nothing reads it — the caller
+	 * refetches, because the interesting part of the answer is the three fields
+	 * on `/api/me` and not whatever this returns.
+	 */
+	async pausePlan(cookies: Cookies, body: PauseGoalRequest): Promise<unknown> {
+		const result = await fetchClient.post<unknown>('/api/me/pause/', body, {
+			headers: bearerHeader(cookies),
+			cookies
+		});
+
+		invalidate(cookies);
+		return result;
 	}
 };

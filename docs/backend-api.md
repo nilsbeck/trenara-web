@@ -50,9 +50,11 @@ Endpoints the app already calls live in `src/lib/server/trenara/`:
 | POST        | `/oauth/token`                                                                                      | `authApi.login` / `refreshToken`                         |
 | GET         | `/api/me`                                                                                           | `userApi.getCurrentUser`                                 |
 | PUT         | `/api/me`                                                                                           | `userApi.updateProfile`                                  |
+| POST        | `/api/me/pause/`                                                                                    | `userApi.pausePlan`                                      |
 | GET         | `/api/me/stats`                                                                                     | `userApi.getUserStats`                                   |
 | GET         | `/api/me/shoes`                                                                                     | `userApi.getShoes`                                       |
 | GET         | `/api/goal`                                                                                         | `trainingApi.getGoal`                                    |
+| DELETE      | `/api/goal`                                                                                         | `trainingApi.deleteGoal`                                 |
 | GET         | `/api/schedule/week/?timestamp=`                                                                    | `trainingApi.getSchedule`                                |
 | GET         | `/api/schedule/trainings/{id}`                                                                      | `trainingApi.getScheduledTraining`                       |
 | PUT         | `/api/schedule/trainings/{id}/{intensity,distance,cooldown,suggested_shoe,cross_train,pacing_plan}` | `trainingApi.set*` / `crossTrain`                        |
@@ -175,15 +177,18 @@ enumerations we used to hard-code (`SHOE_TYPES`, `CROSS_TYPES` in
 of truth if they ever change.
 
 Read by `configApi.getAppConfig`, cached for the process and streamed from the
-app layout. The activity picker and shoe labels come from it; the brand list,
-pause reasons, percentage bound and copy are typed but have no screen yet. The
-constants remain as the fallback for a request that failed.
+app layout. The activity picker, the shoe labels and the pause dialog's reasons
+come from it; the brand list, the percentage bound and the copy are typed but
+have no screen yet. The constants remain as the fallback for a request that
+failed.
 
 ### Notable fields
 
 - `pause_types[]` — the reasons a plan can be paused, in display `order`.
   `ask_extra_input` marks the ones that want a free-text follow-up
-  (injury, motivation, other).
+  (injury, motivation, other). Read by `$lib/utils/pause`, which is what the
+  pause dialog renders from; `type` is the value `POST /api/me/pause/` takes,
+  and `title` is localised upstream, so nothing may key off it.
 - `shoes.brands[]` — flat list, `"Other"` last; `shoes.types[]` uses `tag` as
   the wire value and `name` as the label. `changes_intensity` is `false` for
   every type today, but it exists, so treat it as a real flag rather than
@@ -1093,6 +1098,331 @@ Verbatim.
 
 ---
 
+## DELETE /api/goal
+
+Deletes the current goal, and with it the plan built for it.
+`trainingApi.deleteGoal`, behind our own `DELETE /api/v1/goal`.
+
+Takes no path parameter and needs none: an account has one current goal and the
+token names the account. Answers:
+
+```json
+{ "message": "Success." }
+```
+
+Afterwards `GET /api/goal` answers 404 `{"message":"No result found"}` — the
+state the goal page already renders an empty screen for, via
+`passthroughOptional`. So there is nothing to seat from the response; the caller
+reloads.
+
+**One difference from the capture worth knowing about.** The capture sends a
+literal `null` as the request body; `fetchClient.delete` sends no body at all.
+A DELETE with no body is what the method means and what the other two deletes in
+this file send, so that is what the wrapper does — but the two are not the same
+request and the difference has not been tested. If this is ever refused, it is
+the first place to look.
+
+Irreversible from this app: nothing here sets a goal, so a runner who deletes
+one gets it back only by setting a new one in Trenara. The confirmation dialog
+in front of it is not decoration.
+
+---
+
+## Setting a new goal — the init and schemes flow
+
+**Not wired up.** Five endpoints, captured together, that the mobile app walks
+through when a runner sets a goal. Recorded here as a set because none of them
+means much alone, and because this app cannot currently set a goal at all —
+which is why the goal page's empty state points at the Trenara app rather than
+offering a form.
+
+The order they are called in:
+
+1. `GET /api/init/suggestion/` — which flow to steer the runner into.
+2. `GET /api/init/{flow}/` — what the backend already knows about their running.
+3. `POST /api/init/{flow}/` — the benchmark the runner confirms, which
+   recalibrates the account.
+4. `GET /api/schemes/{flow}/config` — the bounds the goal picker has to obey.
+5. `POST /api/schemes/advice` — the goal checked over, and how many sessions a
+   week it can be trained on.
+6. `GET /api/schemes/{flow}/week` — the session types that week can be built
+   from.
+
+Only the `ultimate` flow has been captured. The app names others — build your
+own journey, post-race recovery, rebuild fitness, maintenance — and **their wire
+values are unknown**: `ultimate` is the only one seen in a URL, so treat `{flow}`
+as a path segment whose vocabulary has not been established.
+
+What actually saves the goal is not among these six. The last two hand back the
+training counts on offer and the session types to fill them with, and something
+after that writes the goal — that request has not been captured.
+
+### GET /api/init/suggestion/
+
+Which flow the backend thinks this runner belongs in, and the copy explaining
+why. The distance is a suggested benchmark, in the usual formatted / raw / unit
+triple.
+
+```json
+{
+	"suggestion": "ultimate",
+	"text": "You seem to have a good training regime already, we suggest the ultimate goal flow to push yourself further.",
+	"distance": "10.11km",
+	"distance_value": 10.11,
+	"distance_unit": "km",
+	"distance_unit_text": "km"
+}
+```
+
+`text` is a whole sentence written for the runner and is safe to show. `suggestion`
+is the wire value, and is what picks the `{flow}` segment of the next two calls.
+
+### GET /api/init/{flow}/
+
+The best effort the backend can find in the runner's history, to seed the
+calibration with.
+
+```json
+{
+	"status": "no_init_data_hit",
+	"message": "api.split_init_data_hit",
+	"best_time_in_sec": 2469,
+	"best_entry_name": "Garmin Running",
+	"avg_trainings": 2,
+	"week_volume": 19,
+	"best_distance": "10km",
+	"best_distance_value": 10,
+	"best_distance_unit": "km",
+	"best_distance_unit_text": "km",
+	"pace": "14.63 km/h",
+	"pace_value": 246,
+	"pace_unit": "km/h",
+	"best_time": "41:09",
+	"best_time_value": 2469,
+	"best_time_unit": "sec",
+	"previous_calibration_time": 2430
+}
+```
+
+- **`message` is a translation key, not a sentence.** `"api.split_init_data_hit"`
+  is meant to be looked up, and `status` (`"no_init_data_hit"`) is the machine
+  half of the same statement. Neither is copy — do not put either on screen.
+  Every numeric field is populated regardless, so whatever the status is
+  reporting, it is not "nothing was found".
+- **`pace_value` is seconds per kilometre although `pace_unit` says `km/h`.**
+  246 against a printed `"14.63 km/h"`: 3600 ÷ 14.63 is 246.07, so the number and
+  the label describe the same speed in different units and only the label is
+  honest about which. Neither quite reconciles with `best_time_in_sec` over
+  `best_distance_value` (2469 ÷ 10 = 246.9 s/km, 14.58 km/h), so the pace pair is
+  derived from something slightly other than the two fields beside it. Use
+  `best_time_in_sec` and `best_distance_value` if the figure matters.
+- `best_entry_name` is the name of the run it came from — here an imported
+  Garmin activity, so this reads the runner's actual history rather than only
+  Trenara-planned sessions.
+- `avg_trainings` (per week) and `week_volume` (km) are what the advice call
+  later reasons about.
+- `previous_calibration_time` is what the last calibration recorded over the
+  same distance, so the two are a before-and-after pair: 2430 against a fresh 2469.
+
+### POST /api/init/{flow}/
+
+The benchmark the runner confirms, which is not necessarily the one the GET
+suggested — the capture posts `2430` and `10.0`, the _previous_ calibration
+time, against a GET that offered 2469 and 10.
+
+```json
+{
+	"best_distance_value": 10.0,
+	"best_time_in_sec": 2430,
+	"best_distance_unit": "km",
+	"shoe_type": null
+}
+```
+
+- `shoe_type` is null here and is presumably one of the `SHOE_TYPES` values
+  (`supershoe` and friends), so a time set in race shoes can be discounted. No
+  capture sets it.
+- **Answers with the whole account** — the same shape as `GET /api/me`, `User`
+  in `types.ts` — rather than an acknowledgement. So a caller can replace its
+  copy of the account from the response.
+- The lactate thresholds in that response differ from the ones in the `GET
+/api/me` sample below (`pace_lt1_value` 290 and `pace_lt2_value` 242, against
+  293 and 245), which is consistent with this call recalibrating them. The two
+  captures are from different days, so read that as the likely purpose rather
+  than as proof.
+- The capture was taken on a paused account, and carries `is_paused: true`,
+  `paused_since: 1788213600`, `pause_cause: "other"` — the same three fields
+  `POST /api/me/pause/` sets.
+
+The response is not repeated here; it is `GET /api/me`'s sample with those
+differences.
+
+### GET /api/schemes/{flow}/config
+
+The bounds the goal picker has to obey. No user data beyond the bounds
+themselves.
+
+```json
+{
+	"min_number_of_trainings": 2,
+	"max_number_of_trainings": 7,
+	"max_goal_date": 1819749600,
+	"min_distance": "4km",
+	"min_distance_value": 4,
+	"min_distance_unit": "km",
+	"min_distance_unit_text": "km",
+	"max_distance": "165km",
+	"max_distance_value": 165,
+	"max_distance_unit": "km",
+	"max_distance_unit_text": "km"
+}
+```
+
+- `max_goal_date` is unix seconds, and in this capture it is **exactly one year
+  ahead, at local midnight** — 1819749600 is 2027-09-01 00:00 in CEST, on a
+  request made on 2026-09-01. So it is computed per request rather than fixed,
+  and it is a date rather than an instant.
+- The training counts here (2–7) are a wider range than the ones
+  `/api/schemes/advice` offers back for a specific goal (3–7 in that capture),
+  so these are the picker's outer bounds and the advice call narrows them.
+- 165 km as a maximum distance is not a typo — ultras are in scope.
+
+### POST /api/schemes/advice
+
+The goal, checked over before it is saved: how many sessions a week it can be
+trained on, and anything the backend wants to say about it first.
+
+```json
+{
+	"flow": "ultimate",
+	"goal_date": "06/12/26",
+	"distance_value": 41.2,
+	"distance_unit": "km",
+	"time_in_sec": 10800,
+	"checked_codes": [],
+	"edit_flow": false
+}
+```
+
+```json
+{
+	"nr_of_trainings": [3, 4, 5, 6, 7],
+	"advices": [
+		{
+			"code": "two_week_consistency",
+			"title": "Training advice",
+			"message": "We noticed breaks in your recent training, including two weeks without any runs. After time off, it's important to ease back in and rebuild consistency gradually.\r\n\r\nIf needed, starting with a shorter goal and a manageable training frequency can help support a smooth return. Regular fitness benchmarks help keep your training zones and load aligned with your current fitness as you return to training.",
+			"url": null
+		}
+	]
+}
+```
+
+- **`checked_codes` is an acknowledgement, not a filter.** Posting the same goal
+  again with `"checked_codes": ["two_week_consistency"]` answers with the same
+  `nr_of_trainings` and `advices: []`. So the call is re-made after the runner
+  has read each advice, carrying the codes back, and an empty `advices` is the
+  signal that there is nothing left to show — the gate before the goal is saved.
+- **`goal_date` is `DD/MM/YY`, and is the only date in this file that is not
+  ISO.** Two digits per part settles nothing on its own; the capture does — a
+  marathon-length goal dated `06/12/26`, for a December race. Worth confirming
+  against a second capture before sending an ambiguous day, because
+  `12/06/26` would be silently accepted as a different date rather than refused.
+- `time_in_sec` is the target time (10800 = 3:00:00) and `distance_value` the
+  target distance, so the two are the goal itself rather than anything measured.
+- `edit_flow: false` distinguishes setting a first goal from changing an
+  existing one. Only `false` has been captured.
+- `advices[].message` carries `\r\n\r\n` between paragraphs — Windows line
+  endings in JSON, so anything rendering it has to split on them rather than
+  assume `\n`. `url` is null here and presumably links to a longer article.
+- `title` is `"Training advice"` on the only advice captured — generic, so it is
+  probably the same heading for every code rather than a per-advice title.
+
+### GET /api/schemes/{flow}/week
+
+The session types the week can be built from, once the goal and the number of
+sessions are settled. Everything is a query parameter:
+
+```
+/api/schemes/ultimate/week
+	?type=ultimate
+	&distance_value=41
+	&distance_unit=km
+	&number_of_trainings=3
+	&time_in_sec=10800
+	&selection_typing=true
+	&height_difference=flat
+	&surface=road
+	&height_value=0
+	&height_unit=m
+```
+
+```json
+[
+	{
+		"id": 2559,
+		"copied_value": null,
+		"prior": null,
+		"name": "LSD",
+		"description": "Your longest run of the week, here we work on improving your aerobic capacity.",
+		"hex_color": "#44A6D3",
+		"selection_type": "mandatory"
+	},
+	{
+		"id": 2557,
+		"copied_value": null,
+		"prior": null,
+		"name": "Intervals",
+		"description": "Often the session where you reach the highest speeds. Not necessarily the hardest though, depending on which stimulus we want to give.",
+		"hex_color": "#CC3311",
+		"selection_type": "recommended"
+	},
+	{
+		"id": 2555,
+		"copied_value": null,
+		"prior": null,
+		"name": "Recovery run",
+		"description": "Your slowest run of the week. A bit of a misleading name, as a recovery run also adds something to your training load, of course.",
+		"hex_color": "#90CFF1",
+		"selection_type": "optional"
+	}
+]
+```
+
+A bare array, not an envelope. Three of the seven entries are shown above; the
+full capture returned, in served order: Recovery run (optional), Endurance run
+(optional), Intervals (recommended), Tempo run (recommended), LSD (mandatory),
+a second Endurance run (optional) and Easy run + strides (mandatory).
+
+- **This is the menu, not the week.** `number_of_trainings=3` went out and seven
+  entries came back, two of them `mandatory`. So the response is the catalogue
+  the runner picks from, ranked by `selection_type` — `mandatory`,
+  `recommended`, `optional` — and the count is a constraint the client enforces
+  rather than a length the server honours.
+- **`id` is the identity, and nothing else is.** Two entries are both named
+  "Endurance run" with different ids, and one of them shares its `hex_color`
+  with the LSD entry. Do not key off the name or the colour.
+- The terrain parameters are the same vocabulary as
+  `POST /api/schedule/trainings/{id}/training_condition` — `surface=road`,
+  `height_difference=flat`, and the `height_value`/`height_unit` pair — so the
+  goal is set against a stated terrain from the start, and the values recorded
+  for that endpoint apply here.
+- `distance_value=41` against the `41.2` sent to `/api/schemes/advice`: this
+  capture rounded. Whether the endpoint accepts a fraction is untested.
+- `selection_typing=true` presumably switches on the `selection_type` field,
+  since without it there would be nothing to rank by. Not confirmed — no capture
+  omits it.
+- `type` duplicates the `{flow}` path segment. Sending only one of them has not
+  been tried.
+- `copied_value` and `prior` are null on every entry and their purpose is
+  unknown. `prior` shares its name with `hr_prior`/`heartbeat_prior` on the
+  account, which is unlikely to be a coincidence, but nothing here shows what it
+  does.
+- `description` is written for the runner and `hex_color` is the swatch to draw
+  it with; both are ready to show as they are.
+
+---
+
 ## GET /api/me
 
 The account: profile, units, premium state, integration flags, lactate
@@ -1102,17 +1432,18 @@ Used by `userApi.getCurrentUser`, typed as `User` in `src/lib/server/trenara/typ
 The fields below went undeclared for a long time and are the ones worth knowing
 about, since none of them appear anywhere in the UI yet:
 
-| Field                                                          | Notes                                                                                     |
-| -------------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
-| `uuid`                                                         | stable public id, distinct from the numeric `id`                                          |
-| `uses_pace_per_hour`                                           | picks `pace` vs. `pace_per_hour` in training blocks                                       |
-| `weight_unit_lang`, `height_unit_lang`                         | spelled-out unit names (`"kilograms"`)                                                    |
-| `hr_prior`, `hr_lt1`, `hr_lt2`                                 | heart-rate thresholds (null when uncalibrated)                                            |
-| `has_pace_lts`, `pace_lt1_*`, `pace_lt2_*`                     | pace thresholds; `*_value` is sec/km, `*_unit` is `"sec_km"`, `*_unit_trans` is the label |
-| `has_expired_trial`, `premium_trial`, `premium_trial_reminder` | trial state                                                                               |
-| `trainer`, `coupled_trainees`, `max_trainees`                  | coach-account fields, null for normal users                                               |
-| `notification_settings[]`                                      | per-channel toggles, some with a time                                                     |
-| `captains_team`, `teams[]`, `teams_awaiting_approval[]`        | team membership                                                                           |
+| Field                                                          | Notes                                                                                                                                     |
+| -------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| `uuid`                                                         | stable public id, distinct from the numeric `id`                                                                                          |
+| `uses_pace_per_hour`                                           | picks `pace` vs. `pace_per_hour` in training blocks                                                                                       |
+| `weight_unit_lang`, `height_unit_lang`                         | spelled-out unit names (`"kilograms"`)                                                                                                    |
+| `hr_prior`, `hr_lt1`, `hr_lt2`                                 | heart-rate thresholds (null when uncalibrated)                                                                                            |
+| `has_pace_lts`, `pace_lt1_*`, `pace_lt2_*`                     | pace thresholds; `*_value` is sec/km, `*_unit` is `"sec_km"`, `*_unit_trans` is the label                                                 |
+| `has_expired_trial`, `premium_trial`, `premium_trial_reminder` | trial state                                                                                                                               |
+| `is_paused`, `paused_since`, `pause_cause`                     | the plan pause set by `POST /api/me/pause/`; `paused_since` is unix seconds at local midnight, `pause_cause` a `pause_types[]` wire value |
+| `trainer`, `coupled_trainees`, `max_trainees`                  | coach-account fields, null for normal users                                                                                               |
+| `notification_settings[]`                                      | per-channel toggles, some with a time                                                                                                     |
+| `captains_team`, `teams[]`, `teams_awaiting_approval[]`        | team membership                                                                                                                           |
 
 All of them are declared now. What is left is finding them a screen: the
 thresholds explain how a session is scored, and the notification and team
@@ -1400,6 +1731,52 @@ Two things the response does **not** do:
 - Nothing echoes which fields were accepted. A field the backend ignores is
   indistinguishable from one it applied, except by comparing the response's
   values with what was sent.
+
+---
+
+## POST /api/me/pause/
+
+Pauses the plan, with the reason behind it. `userApi.pausePlan`, behind our own
+`POST /api/v1/goal/pause`.
+
+Filed under the account rather than under the goal, which is where the state is
+read back from too: `is_paused`, `paused_since` and `pause_cause` on
+`GET /api/me`, not on `GET /api/goal`. The **trailing slash is written here
+because it was captured here** — see the conventions at the top of this file.
+
+```json
+{
+	"type": "other",
+	"extra_input": ""
+}
+```
+
+- `type` is a wire value from `pause_types[]` in `/api/config/app` — `illness`,
+  `injury`, `holiday`, `motivation`, `other` at the time of capture, and the
+  served list is the source of truth rather than that five. Nothing in this app
+  validates against a fixed list, for exactly that reason.
+- `extra_input` is the free-text follow-up for the reasons `ask_extra_input`
+  marks. **It is sent on every request, empty string included**, because the
+  capture that established this shape carried it — omitting a blank field is the
+  kind of tidying a reverse-engineered endpoint refuses.
+- Whether the backend itself requires words for a reason flagged
+  `ask_extra_input` has not been established. The app requires them anyway: a
+  pause filed as "Other" with nothing after it tells a coach less than not
+  filing it at all.
+
+**The response shape has not been captured.** `pausePlan` passes it back as-is
+rather than typing it into something it might not be, and nothing reads it —
+the interesting part of the outcome is the three fields on `/api/me`, so the
+caller reloads instead.
+
+`paused_since` is a date, not an instant: a pause set on 2026-09-01 came back as
+1788213600, which is local midnight that morning rather than the moment of the
+request.
+
+**No resume endpoint has been captured.** Nothing here can unpause a plan, which
+is why the goal page states the paused state and points at the Trenara app
+rather than offering a button. Finding that endpoint is what a resume control
+waits on.
 
 ---
 
