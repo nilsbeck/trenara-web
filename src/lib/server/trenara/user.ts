@@ -105,26 +105,30 @@ export const userApi = {
 	 * is load-bearing enough to be worth not tidying away: see the conventions in
 	 * `docs/backend-api.md`.
 	 *
-	 * The whole cache is dropped rather than the account alone, and deliberately.
-	 * A paused plan is not only a flag on the profile: the sessions ahead of the
-	 * pause are what the runner is about to stop doing, so the weeks, the stats
-	 * and the goal are all suspect the moment this returns. `updateProfile` above
-	 * narrows its invalidation because a change of weight cannot reach the plan;
-	 * this one can, and guessing how far would be exactly the reasoning
-	 * `read-cache.ts` warns against.
+	 * **Answers with the whole account**, the three pause fields already set —
+	 * the same convention `updateProfile` follows, and the same shape. So the
+	 * response is the new state rather than an acknowledgement of it, and a
+	 * caller that only wanted to know whether the pause took has it here without
+	 * a second read.
 	 *
-	 * The response shape has not been captured, so it is passed back as-is rather
-	 * than typed into something it might not be. Nothing reads it — the caller
-	 * refetches, because the interesting part of the answer is the three fields
-	 * on `/api/me` and not whatever this returns.
+	 * The whole cache is dropped all the same, and deliberately. A paused plan is
+	 * not only a flag on the profile: the sessions ahead of the pause are what
+	 * the runner is about to stop doing, so the weeks, the stats and the goal are
+	 * all suspect the moment this returns — none of which this response carries.
+	 * `updateProfile` narrows its invalidation because a change of weight cannot
+	 * reach the plan; this one can, and guessing how far would be exactly the
+	 * reasoning `read-cache.ts` warns against.
 	 */
-	async pausePlan(cookies: Cookies, body: PauseGoalRequest): Promise<unknown> {
-		const result = await fetchClient.post<unknown>('/api/me/pause/', body, {
-			headers: bearerHeader(cookies),
-			cookies
-		});
+	async pausePlan(cookies: Cookies, body: PauseGoalRequest): Promise<User> {
+		const user = expectObject<User>(
+			await fetchClient.post<unknown>('/api/me/pause/', body, {
+				headers: bearerHeader(cookies),
+				cookies
+			}),
+			'/api/me/pause/'
+		);
 
 		invalidate(cookies);
-		return result;
+		return user;
 	}
 };

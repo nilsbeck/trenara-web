@@ -197,7 +197,7 @@ describe('userApi.updateProfile', () => {
 // ─────────────────────────────────────────────────────────────
 describe('userApi.pausePlan', () => {
 	it('POSTs the reason to /api/me/pause/, trailing slash and all', async () => {
-		fetchMock().mockResolvedValue(mockResponse({ message: 'Success.' }));
+		fetchMock().mockResolvedValue(mockResponse({ id: 56540, is_paused: true }));
 		await userApi.pausePlan(cookies, { type: 'other', extra_input: '' });
 
 		const req = lastRequest();
@@ -211,7 +211,7 @@ describe('userApi.pausePlan', () => {
 	// A camelCase body is accepted by nothing and fails silently against the
 	// real server.
 	it('sends `type` and `extra_input`, and nothing else', async () => {
-		fetchMock().mockResolvedValue(mockResponse({ message: 'Success.' }));
+		fetchMock().mockResolvedValue(mockResponse({ id: 56540, is_paused: true }));
 		await userApi.pausePlan(cookies, { type: 'holiday', extra_input: 'Two weeks in Spain' });
 
 		expect(lastRequest().body).toEqual({ type: 'holiday', extra_input: 'Two weeks in Spain' });
@@ -221,7 +221,7 @@ describe('userApi.pausePlan', () => {
 	// carried one, and dropping a blank field is exactly the kind of tidying a
 	// reverse-engineered endpoint refuses.
 	it('keeps an empty extra_input rather than omitting the field', async () => {
-		fetchMock().mockResolvedValue(mockResponse({ message: 'Success.' }));
+		fetchMock().mockResolvedValue(mockResponse({ id: 56540, is_paused: true }));
 		await userApi.pausePlan(cookies, { type: 'illness', extra_input: '' });
 
 		expect(lastRequest().body).toHaveProperty('extra_input', '');
@@ -232,12 +232,43 @@ describe('userApi.pausePlan', () => {
 		await userApi.getCurrentUser(cookies);
 		expect(fetchMock().mock.calls.length).toBe(1);
 
-		fetchMock().mockResolvedValue(mockResponse({ message: 'Success.' }));
+		fetchMock().mockResolvedValue(mockResponse({ id: 56540, is_paused: true }));
 		await userApi.pausePlan(cookies, { type: 'illness', extra_input: '' });
 
 		fetchMock().mockResolvedValue(mockResponse({ id: 56540, is_paused: true }));
 		const user = await userApi.getCurrentUser(cookies);
 		expect(user.is_paused).toBe(true);
+	});
+
+	// It answers with the account rather than an acknowledgement, the three pause
+	// fields already set — so the response is the new state, not a receipt.
+	it('returns the account with the pause already on it', async () => {
+		fetchMock().mockResolvedValue(
+			mockResponse({
+				id: 56540,
+				is_paused: true,
+				paused_since: 1788213600,
+				pause_cause: 'other',
+				has_premium: true
+			})
+		);
+
+		const user = await userApi.pausePlan(cookies, { type: 'other', extra_input: '' });
+
+		expect(user.is_paused).toBe(true);
+		expect(user.paused_since).toBe(1788213600);
+		// `pause_cause` comes back as the `type` that was sent.
+		expect(user.pause_cause).toBe('other');
+		expect(user.has_premium).toBe(true);
+	});
+
+	// The body is read for those three fields the moment it lands, so a response
+	// that is not an object has to fail here rather than deeper in a component.
+	it('refuses a response that is not an account', async () => {
+		fetchMock().mockResolvedValue(mockResponse(null));
+		await expect(
+			userApi.pausePlan(cookies, { type: 'other', extra_input: '' })
+		).rejects.toBeInstanceOf(MalformedResponseError);
 	});
 
 	it('surfaces a refusal rather than swallowing it', async () => {

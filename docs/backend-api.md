@@ -2095,14 +2095,36 @@ because it was captured here** — see the conventions at the top of this file.
   pause filed as "Other" with nothing after it tells a coach less than not
   filing it at all.
 
-**The response shape has not been captured.** `pausePlan` passes it back as-is
-rather than typing it into something it might not be, and nothing reads it —
-the interesting part of the outcome is the three fields on `/api/me`, so the
-caller reloads instead.
+### Response
 
-`paused_since` is a date, not an instant: a pause set on 2026-09-01 came back as
-1788213600, which is local midnight that morning rather than the moment of the
-request.
+**The whole account** — the same shape `GET /api/me` serves, `User` in
+`types.ts` — with the three pause fields already set, rather than an
+acknowledgement. The same convention `PUT /api/me` and `POST /api/init/{flow}/`
+follow. Not repeated here; it is `GET /api/me`'s sample with:
+
+```json
+{
+	"is_paused": true,
+	"paused_since": 1788213600,
+	"pause_cause": "other"
+}
+```
+
+- **`pause_cause` is the `type` that was sent**, stored verbatim — so it is a
+  `pause_types[]` wire value on the way back too, and needs the served list to
+  label it. `$lib/utils/pause` does that, and humanises a value the list does
+  not know about rather than printing a bare token.
+- **`paused_since` is a date, not an instant.** A pause set during the morning
+  of 2026-09-01 came back as 1788213600 — local midnight that day, not the
+  moment of the request. So it says which day the pause began and nothing
+  finer; do not render a time from it.
+- `extra_input` is not echoed anywhere in the account. Whatever the coach sees
+  it through, it is not readable from here.
+
+Because the response is the new state, a caller that only wanted to know
+whether the pause took does not need a second read. `pausePlan` still drops the
+whole read cache: the weeks, the stats and the goal are all affected by a pause
+and none of them is in this body.
 
 **No resume endpoint has been captured.** Nothing here can unpause a plan, which
 is why the goal page states the paused state and points at the Trenara app

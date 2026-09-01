@@ -13,6 +13,12 @@ import { pauseGoalSchema } from '$lib/schemas/goal';
  *
  * The reason arrives as the wire value from the served `pause_types` list, not
  * as a label — labels are localised upstream and nothing may key off them.
+ *
+ * Answers with the whole account, because Trenara does and relaying it is what
+ * every other route here does. The dialog discards it and reloads instead: the
+ * pause moves the weeks and the stats too, and neither is in this body. Nothing
+ * is exposed by relaying it that the layout does not already send the browser
+ * on every page.
  */
 export const POST: RequestHandler = async ({ request, cookies }) => {
 	const body = parseBody(pauseGoalSchema, await request.json());
