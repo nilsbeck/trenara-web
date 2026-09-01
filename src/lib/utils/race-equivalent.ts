@@ -48,13 +48,30 @@ const ROUND_TO_KM = 0.5;
  * distance anyone actually races is that distance.
  */
 export function impliedDistanceKm(time: string, pace: string): number | null {
-	const seconds = timeStringToSeconds(time);
-	const perKm = paceStringToSeconds(pace);
-	if (!Number.isFinite(seconds) || !Number.isFinite(perKm) || seconds <= 0 || perKm <= 0) {
+	return impliedDistance(timeStringToSeconds(time), paceStringToSeconds(pace));
+}
+
+/**
+ * The same thing from figures already in seconds.
+ *
+ * What a plotted series holds: the chart carries a time and a pace per point
+ * and never the strings they were parsed from. The units are whatever the pace
+ * is in — kilometres for a metric account, miles for the other — and the
+ * snapping is written in kilometres, so a mile account gets the rounding and
+ * not the snap. That costs a fraction of a percent, which is well inside what
+ * any caller here compares to.
+ */
+export function impliedDistance(seconds: number, paceSeconds: number): number | null {
+	if (
+		!Number.isFinite(seconds) ||
+		!Number.isFinite(paceSeconds) ||
+		seconds <= 0 ||
+		paceSeconds <= 0
+	) {
 		return null;
 	}
 
-	const raw = seconds / perKm;
+	const raw = seconds / paceSeconds;
 	const standard = STANDARD_DISTANCES.find((d) => Math.abs(raw - d) / d <= SNAP_TOLERANCE);
 	return standard ?? Math.round(raw / ROUND_TO_KM) * ROUND_TO_KM;
 }

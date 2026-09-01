@@ -2,6 +2,7 @@ import { describe, it, expect, beforeAll, afterEach, vi } from 'vitest';
 import { render, cleanup, screen, waitFor } from '@testing-library/svelte';
 import GoalCard from './goal-card.svelte';
 import type { Goal, UserStats } from '$lib/server/trenara/types';
+import { secondsToTimeString, secondsToPaceString } from '$lib/utils/format';
 
 // Same stub as the fold's tests: the card mounts a chart, and jsdom lays
 // nothing out. The badge is read from the heading, not from the chart.
@@ -39,16 +40,21 @@ const userStats = {
 	}
 } as unknown as UserStats;
 
-/** A stored prediction, `daysAgo` back, at `pace` seconds per kilometre. */
-function record(daysAgo: number, paceSeconds: number) {
+/**
+ * A stored prediction, `daysAgo` back, at `pace` seconds per kilometre.
+ *
+ * The time is the pace over the goal's distance rather than a constant, which
+ * is what a real row holds: the pair is what says which distance a reading was
+ * about, and the card now reads it — a fixed time under a moving pace would be
+ * a series that changes distance every day.
+ */
+function record(daysAgo: number, paceSeconds: number, distanceKm = goal.distance_value) {
 	const recorded = new Date(Date.now() - daysAgo * 86_400_000);
-	const mm = Math.floor(paceSeconds / 60);
-	const ss = String(Math.round(paceSeconds % 60)).padStart(2, '0');
 	return {
 		id: daysAgo,
 		user_id: 1,
-		predicted_time: '03:35:00',
-		predicted_pace: `${mm}:${ss}`,
+		predicted_time: secondsToTimeString(Math.round(paceSeconds * distanceKm)),
+		predicted_pace: secondsToPaceString(Math.round(paceSeconds)),
 		predicted_time_10k: null,
 		predicted_pace_10k: null,
 		recorded_at: recorded.toISOString(),

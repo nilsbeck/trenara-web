@@ -1,3 +1,5 @@
+import { impliedDistance } from './race-equivalent';
+
 /** The two numbers every prediction point carries. */
 export interface PredictionPoint {
 	predictedTime: number;
@@ -32,6 +34,80 @@ export function paceRatio(points: PredictionPoint[], tolerance = 0.02): number |
 	if (min <= 0 || (max - min) / min > tolerance) return null;
 
 	return ratios.reduce((sum, r) => sum + r, 0) / ratios.length;
+}
+
+/**
+ * How far a reading's implied distance may sit from the goal's and still be
+ * about it.
+ *
+ * The two numbers a reading is stored as are a time and a pace, and the pace is
+ * kept to the whole second, so the distance they divide out to lands near the
+ * goal rather than on it — a 15 km goal reads 15.048. `impliedDistance` snaps a
+ * near-miss onto a distance people actually race and rounds the rest to the
+ * half kilometre, which at 12 km is 2%; this sits above that.
+ *
+ * And well below the gap between any two distances a runner would pick: the
+ * closest pair on the board is 20 km and the half at 5.5%, and a goal change
+ * anyone would notice on a chart — 15 km to a marathon — is 180%.
+ */
+export const GOAL_DISTANCE_TOLERANCE = 0.03;
+
+/** A series split by whether its readings are about the goal on show. */
+export interface GoalDistanceSplit<T> {
+	forGoal: T[];
+	/** Readings left out, oldest first, as they were passed in. */
+	fromOtherGoals: T[];
+	/** The distances those readings were about, ascending, once each. */
+	otherDistances: number[];
+}
+
+/**
+ * Which of these readings were predicted over the goal's own distance.
+ *
+ * A prediction is a time over the goal's distance, and nothing in the row says
+ * which distance that was — so the day a runner swaps a 15 km goal for a
+ * marathon, yesterday's 1:03 and today's 3:11 land on one chart as a collapse
+ * in fitness, and the forecast prices the plan off the difference between them.
+ * They are not two points on one curve; they are two curves.
+ *
+ * The row does imply its distance, though: pace is the time over the distance,
+ * so the time over the pace is the distance back again. That is what this
+ * compares against the goal, and it is the only thing on hand that can tell a
+ * left-over reading from a current one.
+ *
+ * Everything is kept when the goal states no usable distance — a filter that
+ * cannot see what it is filtering for should not be dropping a runner's
+ * history — and a reading whose own numbers imply nothing is treated as the
+ * odd row it is and left out.
+ */
+export function splitByGoalDistance<T extends PredictionPoint>(
+	points: T[],
+	goalDistance: number | null | undefined,
+	tolerance = GOAL_DISTANCE_TOLERANCE
+): GoalDistanceSplit<T> {
+	if (!goalDistance || !Number.isFinite(goalDistance) || goalDistance <= 0) {
+		return { forGoal: points, fromOtherGoals: [], otherDistances: [] };
+	}
+
+	const forGoal: T[] = [];
+	const fromOtherGoals: T[] = [];
+	const otherDistances = new Set<number>();
+
+	for (const point of points) {
+		const distance = impliedDistance(point.predictedTime, point.predictedPace);
+		if (distance !== null && Math.abs(distance - goalDistance) / goalDistance <= tolerance) {
+			forGoal.push(point);
+			continue;
+		}
+		fromOtherGoals.push(point);
+		if (distance !== null) otherDistances.add(distance);
+	}
+
+	return {
+		forGoal,
+		fromOtherGoals,
+		otherDistances: [...otherDistances].sort((a, b) => a - b)
+	};
 }
 
 /** Where the prediction stands now, and how far it has moved. */
