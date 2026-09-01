@@ -1187,8 +1187,18 @@ as a path segment whose vocabulary has not been established.
 
 The last two are a pair, in the spirit of `change_test` / `change_save` on a
 training move but not in its mechanics: `test/` **writes a draft goal and hands
-back its id**, and `goal` confirms that id. So the dry run is not dry — see the
-note under `test/`.
+back its id**, and `goal` confirms that id, changing one field as it does. So
+the dry run is not dry — see the note under `test/`.
+
+Steps 5 to 7 repeat. The advice call is re-made as the goal is filled in, and
+`test/` is re-run for every revision — a different distance, a different week, a
+suggested time accepted — each run leaving its own draft. Only the last id
+reaches step 8.
+
+Afterwards the app re-reads `GET /api/me` and `GET /api/goal`: the save answers
+with the goal but not with the account, and a new goal moves things on the
+account that this app caches. Anything wiring this flow up has to invalidate the
+read cache the way every other write here does.
 
 ### GET /api/init/suggestion/
 
@@ -1463,9 +1473,15 @@ a second Endurance run (optional) and Easy run + strides (mandatory).
 
 ### POST /api/schemes/{flow}/test/
 
-The goal as the runner finished composing it, costed out: the plan it produces,
-whether it is reachable, and what the backend thinks they could actually run.
-The last call before whatever saves it.
+The goal as composed so far, costed out: the plan it produces, whether it is
+reachable, and what the backend thinks the runner could actually run.
+
+**Called once per revision, not once per goal.** Two captures exist for one
+goal, and the second is the first re-composed: `time_in_sec` 10800 the first
+time, then 9517 — the `possible_time` the first call answered with — when the
+runner took the suggestion. Each call writes its own draft row (2206723, then
+2206728), and it is the _second_ id the save then confirms. The request below is
+the first of the two.
 
 ```json
 {
@@ -1543,23 +1559,59 @@ The last call before whatever saves it.
 }
 ```
 
+The second capture is the same goal with the suggested time taken. Only what
+differs is shown — everything else in it is identical to the above, including
+the week, the dates and the terrain:
+
+```json
+// request
+{ "time_in_sec": 9517 }
+
+// response
+{
+	"goal": {
+		"id": 2206728,
+		"time_type_selected": "my_time",
+		"time": "02:38:37",
+		"time_in_sec": 9517,
+		"pace": "03:50 min/km",
+		"pace_value": 230,
+		"created_at": 1788255098,
+		"training_condition": { "id": 3837340, "updated_at": 1788255098 }
+	},
+	"goal_possible": true,
+	"possible_time": 9475
+}
+```
+
 - **`goal_possible` and `possible_time` are the answer; the goal is the
   receipt.** `possible_time` is 9517 (2:38:37) against the 10800 (3:00:00) that
   was asked for — the backend's read of what this runner could do over the
   distance, and here it is _faster_ than the target rather than a correction
   downwards. So the pair is a comparison to show the runner, not a rejection:
   `goal_possible` is what gates saving.
-- **`time_type_selected: "my_time"` on a goal whose time the runner named.**
-  Confirmed by the save call below, which sends `"trenara_time": true` and gets
-  back a goal reading `"time_type_selected": "trenara_time"` with
-  `time_in_sec` equal to this response's `possible_time`. So the field records
-  which of the two times was taken, and the runner's own is `my_time`.
-- **The time comes back changed.** 10794 against the 10800 sent, which is what
-  a whole-second pace of 262 s/km over 41.2 km works out to (10794.4, truncated).
-  `pace_value` then comes back as 261, because 10794 ÷ 41.2 is 261.99 and that
-  truncates too — so the stored pace is a second per kilometre quicker than the
-  one the time was built from, and `"04:21 min/km"` is the same truncation again
-  (261.99 s is 4:21.99). Do not assume any of the three echoes what was sent.
+- **`time_type_selected` is `"my_time"` on both captures**, including the one
+  whose `time_in_sec` is Trenara's own suggested figure copied back in. So this
+  call has no way of knowing which of the two the number came from — every
+  request carries an explicit time, and it records them all as the runner's. The
+  save call below is what sets the field to `"trenara_time"`, and it does so as
+  a label rather than by changing anything.
+- **`possible_time` moves with the goal you ask for.** 9517 against a requested
+  10800; then 9475 against a requested 9517. So it is not a fixed read on the
+  runner — asking for less brings the estimate down with it, and re-running this
+  call chasing the figure would not converge on anything meaningful. Treat it as
+  a comparison against the goal in hand, which is the only thing either capture
+  supports.
+- **The time is snapped to a whole second per kilometre, and the pace is then
+  truncated below it.** Two captures fix the rule: the time asked for is divided
+  by the distance, **rounded** to a whole second per km, and multiplied back,
+  truncated. 10800 ÷ 41.2 = 262.14 → 262 → 10794.4 → **10794**; 9517 ÷ 41.2 =
+  230.99 → 231 → 9517.2 → **9517**, which is why the second capture looks
+  untouched and is not. `pace_value` is then `floor(time ÷ distance)` — 261 and
+  230 — landing a second per km _below_ the pace the time was built from in both,
+  and the printed `pace` truncates the same way (`"04:21 min/km"` for 261.99 s).
+  So the time, the pace and the printed pace disagree by design; do not assume
+  any of the three echoes what was sent.
 - **`week[]` is not in day order and does not need to be.** The request sends
   days 1, 2, 5, 4, 6 and the response echoes that order; `day` carries the
   meaning. `training_id` is an `id` from `GET /api/schemes/{flow}/week`, and
@@ -1589,15 +1641,25 @@ that `id` as its `goal_id`. So the row exists after this call and the save
 confirms it; the two ids captured are different (2206723 here, 2206728 in the
 save), which is two runs of `test/` and therefore **two rows for one goal**.
 
-Anything calling this has to reckon with that: a runner who composes a goal
-three times and abandons it leaves three drafts behind, and nothing captured so
-far cleans them up. `change_test` on a training move is a genuine dry run —
-this shares its naming and not its behaviour.
+Anything calling this has to reckon with that, and the two captures are the
+proof rather than a worry about one: composing this single goal twice left rows
+2206723 and 2206728, of which only the second was ever confirmed. Nothing
+captured so far cleans up the first. Every revision the runner makes — a
+distance nudged, a session moved, a suggested time accepted — is another row.
+`change_test` on a training move is a genuine dry run; this shares its naming
+and not its behaviour.
 
 ### POST /api/schemes/{flow}/goal
 
-Confirms the draft `test/` left behind, and saves it as the current goal. The
-end of the flow.
+Confirms the draft the last `test/` left behind, and makes it the current goal.
+The end of the flow.
+
+**It changes exactly one field.** Set the draft from `test/` beside this
+response and `time_type_selected` is the only difference in the whole object —
+`my_time` becomes `trenara_time`. Same `id`, same `created_at` (1788255098 in
+both), same `time_in_sec` of 9517 and the same `pace_value` of 230, same
+`training_condition` down to its `id` and `updated_at`. The goal was already
+composed; this promotes the row.
 
 ```json
 {
@@ -1659,16 +1721,22 @@ envelope around it:
 ```
 
 - **The body is four fields and a reference.** Nothing about the goal is
-  re-sent: `goal_id` is the `goal.id` from `test/`, and the distance, the week,
-  the dates and the terrain all come from the draft. So a client cannot change
-  anything between the two calls except the time choice — to change the rest it
-  has to run `test/` again, which makes another draft.
-- **`trenara_time: true` is what swaps the time**, and it is the mechanism
-  behind `time_type_selected`. The draft was saved at `my_time` with
-  `time_in_sec: 10794`; this request sends `trenara_time: true` and the saved
-  goal comes back at **9517** — exactly the `possible_time` `test/` reported —
-  with `time_type_selected: "trenara_time"`. Sending `false` presumably keeps
-  the runner's own time; no capture does.
+  re-sent: `goal_id` is the `goal.id` from the last `test/`, and the distance,
+  the week, the dates, the terrain _and the time_ all come from that draft. So a
+  client cannot change anything here at all — every revision, the time included,
+  goes through another `test/` and another draft row.
+- **`trenara_time: true` records a choice already made; it does not apply one.**
+  The draft it confirms was _already_ at 9517, because the runner took the
+  suggestion by re-running `test/` with that figure. The saved goal is 9517 too —
+  and notably **not** the 9475 that same `test/` call offered as its new
+  `possible_time`, which is the reading to check this against: if the flag
+  applied a time, the goal would have come back at 9475. It did not. All the
+  flag does is set `time_type_selected`.
+- Which leaves the field a claim the backend takes on trust rather than a fact
+  it derives — nothing in the draft distinguishes a time the runner typed from
+  one they copied out of `possible_time`, so a client that sent `true` on a
+  hand-typed goal would have it recorded as Trenara's. Sending `false` presumably
+  yields `my_time`; no capture does.
 - `pace_value` truncates here too: 9517 ÷ 41.2 is 230.99, stored as 230 and
   printed as `"03:50 min/km"`. Same rounding as the draft, one field further on.
 - **`advice_codes` is `checked_codes` under another name.** The same values that
@@ -1678,9 +1746,9 @@ envelope around it:
 - `overrule_time` is sent and echoed, and was `false` in every capture. It is
   distinct from `trenara_time` — which time to use is one question, overruling
   it is evidently another — and what it overrules has not been established.
-- `created_at` is 1788255098 against the draft's, so it is stamped at save
-  rather than carried from `test/`. The `training_condition` gets a fresh `id`
-  too.
+- `created_at` and the `training_condition`'s `id` and `updated_at` are the
+  draft's, unchanged — the row is not re-created here, which is the other half of
+  the evidence that `test/` is what wrote it.
 - The goal's own `id` is the `goal_id` that went in, so the draft is promoted
   rather than copied.
 
