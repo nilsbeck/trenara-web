@@ -208,6 +208,20 @@ type CachedMonth = {
 	 * both compare equal, and the second is the one that must be seated.
 	 */
 	editSeq?: number;
+	/**
+	 * Set when the plan changed somewhere other than here.
+	 *
+	 * A session moved to another day is not a session edited in place: the
+	 * server reworks the schedule around it, and what comes back can land in a
+	 * month the runner is not looking at. Every month held here is therefore
+	 * suspect afterwards, and this says so — the copy is still good enough to
+	 * draw while the real answer is on its way, but it must not be served as if
+	 * it were current.
+	 *
+	 * Cleared by the next answer that is allowed to seat, which is any of them
+	 * that left after the change (see `editSeq`).
+	 */
+	stale?: boolean;
 };
 
 // ─────────────────────────────────────────────────────────────
@@ -262,6 +276,14 @@ export function createCalendarStore(initialDate: Date, options: CalendarStoreOpt
 
 	/** A refresh happening underneath the UI, as opposed to one blocking it. */
 	let isRevalidating = $state(false);
+	/**
+	 * That same refresh as something to wait on.
+	 *
+	 * Plain, not `$state`: nothing renders from it. It is here so a forced
+	 * refresh can queue behind a background one instead of being dropped for
+	 * arriving second — see `revalidate`.
+	 */
+	let inFlight: Promise<void> | null = null;
 	let lastUpdatedAt = $state<number | null>(null);
 
 	/**
@@ -609,6 +631,40 @@ export function createCalendarStore(initialDate: Date, options: CalendarStoreOpt
 		commitReplacement({ ...schedule, entries });
 	}
 
+	/**
+	 * The plan itself changed on the server — a session moved to another day,
+	 * one deleted, one added.
+	 *
+	 * These are not the per-session edits `replaceTraining` seats. Trenara
+	 * reworks the schedule around them, so the answer is a whole week rather
+	 * than one training, and it can fall in a month the runner is not looking
+	 * at: move Monday's session to the 2nd of next month and *two* months are
+	 * now wrong, only one of which is on screen.
+	 *
+	 * So every month held is marked, and the mark does two things. It bumps
+	 * `editSeq`, which drops any answer already in flight — those left before
+	 * the change and cannot carry it, and seated they would quietly put the old
+	 * plan back. And it sets `stale`, so a month reached later is fetched again
+	 * instead of being served from a copy that predates the change; without it
+	 * the destination month goes on showing the session on its old day until the
+	 * page is reloaded.
+	 *
+	 * The stored etag goes with them: it describes the copy from before the
+	 * change, and offering it would invite a 304 confirming exactly what is no
+	 * longer true.
+	 */
+	function markPlanChanged(): void {
+		for (const [key, cached] of scheduleCache) {
+			scheduleCache.set(key, {
+				...cached,
+				etag: null,
+				stale: true,
+				editSeq: (cached.editSeq ?? 0) + 1
+			});
+		}
+		bumpCacheRevision();
+	}
+
 	/** The oldest day a refresh still asks the server about. */
 	function lookbackFrom(): Date {
 		const from = new Date(today.getFullYear(), today.getMonth(), today.getDate());
@@ -682,20 +738,31 @@ export function createCalendarStore(initialDate: Date, options: CalendarStoreOpt
 		// Noted as the request leaves; see `CachedMonth.editSeq`.
 		const seenEditSeq = cached?.editSeq ?? 0;
 
+		// A month the plan changed under is asked the same way a forced refresh
+		// asks: the whole of it, unconditionally, and past the server's own
+		// minute-long hold on a week. Everything softer risks being answered
+		// with the copy that is already known to be wrong.
+		const wholeMonth = full || (cached?.stale ?? false);
+
 		try {
 			const result = await fetchMonth(date, {
-				conditional: !full,
-				fresh: full,
+				conditional: !wholeMonth,
+				fresh: wholeMonth,
 				// Only worth asking for part of a month when there is a whole one
 				// already in hand for the answer to be grafted onto. A forced
 				// refresh asks for all of it, since it is the button people press
 				// when they think something is wrong.
-				from: full || !cached ? null : lookbackFrom()
+				from: wholeMonth || !cached ? null : lookbackFrom()
 			});
 
 			if (!result) {
-				if (cached) {
-					scheduleCache.set(key, { ...cached, fetchedAt: Date.now() });
+				// Same guard as `commitSchedule`, for the answer with no body: a
+				// 304 earned by an etag from before a change confirms the copy
+				// from before the change, and taking it would clear `stale` and
+				// re-stamp `fetchedAt` on a month that is still wrong.
+				const current = scheduleCache.get(key);
+				if (current && (current.editSeq ?? 0) === seenEditSeq) {
+					scheduleCache.set(key, { ...current, stale: false, fetchedAt: Date.now() });
 					if (key === monthKey(currentDate)) lastUpdatedAt = Date.now();
 				}
 				return;
@@ -720,10 +787,20 @@ export function createCalendarStore(initialDate: Date, options: CalendarStoreOpt
 	 * itself, or the trimming here buys nothing.
 	 */
 	async function revalidate({ force = false }: { force?: boolean } = {}): Promise<void> {
-		if (isRevalidating) return;
-		isRevalidating = true;
+		// Two background checks want the same answer, so the second joins the
+		// first rather than asking again.
+		if (!force && isRevalidating) return inFlight ?? undefined;
 
-		try {
+		// A forced one cannot join it. Whatever forced it — the refresh button,
+		// a session just moved — happened after the request in flight left, so
+		// that request's answer cannot carry it, and dropping the forced call on
+		// the floor is how a change stays invisible until the page is reloaded.
+		// Queued behind instead: both answers arrive, and the one that left
+		// before the change is dropped on the way in (see `CachedMonth.editSeq`).
+		if (inFlight) await inFlight.catch(() => {});
+
+		isRevalidating = true;
+		const run = (async () => {
 			await Promise.all([
 				options.refreshPageData?.().catch(() => {}),
 				revalidateMonth(new Date(currentDate), { full: force }),
@@ -732,9 +809,31 @@ export function createCalendarStore(initialDate: Date, options: CalendarStoreOpt
 				// half the row goes stale.
 				...spilloverMonths().map((date) => revalidateMonth(date, { full: force }))
 			]);
-		} finally {
+		})();
+		inFlight = run;
+
+		// Cleared however it ends, and only if nothing has taken its place since.
+		const settle = () => {
 			isRevalidating = false;
-		}
+			if (inFlight === run) inFlight = null;
+		};
+		run.then(settle, settle);
+
+		return run;
+	}
+
+	/**
+	 * The plan changed on the server, so go and get it — and treat every month
+	 * held as suspect until it has been.
+	 *
+	 * This is what a move, a delete or an added session calls, rather than
+	 * `refresh` on its own: the refresh alone would fetch the month on screen
+	 * and leave the destination month sitting in the cache, still showing the
+	 * session where it used to be.
+	 */
+	async function planChanged(): Promise<void> {
+		markPlanChanged();
+		await revalidate({ force: true });
 	}
 
 	/** The months the folded week reaches into, other than the one on screen. */
@@ -767,12 +866,17 @@ export function createCalendarStore(initialDate: Date, options: CalendarStoreOpt
 				lastUpdatedAt = cached.fetchedAt;
 				// Shown straight away, and checked afterwards only if it was cached
 				// before today's rework — paging between months never costs a request
-				// on its own.
-				if (stalenessReason(cached.fetchedAt, Date.now()) && !isRevalidating) {
+				// on its own — or if the plan has changed under it since, which is
+				// the month a session was moved into.
+				if ((cached.stale || stalenessReason(cached.fetchedAt, Date.now())) && !isRevalidating) {
 					isRevalidating = true;
-					void revalidateMonth(new Date(date)).finally(() => {
+					const run = revalidateMonth(new Date(date));
+					inFlight = run;
+					const settle = () => {
 						isRevalidating = false;
-					});
+						if (inFlight === run) inFlight = null;
+					};
+					run.then(settle, settle);
 				}
 				return;
 			}
@@ -804,13 +908,23 @@ export function createCalendarStore(initialDate: Date, options: CalendarStoreOpt
 	 */
 	async function prefetchMonth(date: Date): Promise<void> {
 		const key = monthKey(date);
-		if (scheduleCache.has(key)) return;
+		const cached = scheduleCache.get(key);
+		// Held already and still trusted. A month the plan changed under is
+		// fetched again — its dots are what say a session moved out of one week
+		// and into the next.
+		if (cached && !cached.stale) return;
+
+		const seenEditSeq = cached?.editSeq ?? 0;
 
 		try {
-			const result = await fetchMonth(date, { conditional: false, from: null });
+			const result = await fetchMonth(date, {
+				conditional: false,
+				from: null,
+				fresh: cached?.stale
+			});
 			if (!result) return;
 			const { covered_from: _coverage, ...incoming } = result.payload;
-			commitSchedule(key, incoming, result.etag);
+			commitSchedule(key, incoming, result.etag, seenEditSeq);
 		} catch {
 			// Leave the day without its dots.
 		}
@@ -823,7 +937,10 @@ export function createCalendarStore(initialDate: Date, options: CalendarStoreOpt
 
 		for (const day of weekDays) {
 			const key = monthKeyOf(day.year, day.month);
-			if (keys.has(key) || scheduleCache.has(key)) continue;
+			if (keys.has(key)) continue;
+			// Already held, and nothing has happened since to doubt it.
+			const cached = scheduleCache.get(key);
+			if (cached && !cached.stale) continue;
 			keys.add(key);
 			pending.push(new Date(day.year, day.month, 1));
 		}
@@ -998,12 +1115,15 @@ export function createCalendarStore(initialDate: Date, options: CalendarStoreOpt
 	}
 
 	/**
-	 * The refresh button, and anything that has just changed the plan.
+	 * The refresh button.
 	 *
 	 * Deliberately not a reload: the month stays on screen and is replaced only
 	 * once something new has actually arrived. `force` skips the conditional
 	 * request, because someone pressing refresh is entitled to a real answer
 	 * rather than a 304 from a cache we may have got wrong.
+	 *
+	 * Something that has just changed the plan calls `planChanged` instead,
+	 * which does this and marks the months it cannot see.
 	 */
 	async function refresh() {
 		await revalidate({ force: true });
@@ -1080,6 +1200,7 @@ export function createCalendarStore(initialDate: Date, options: CalendarStoreOpt
 		revalidate,
 		syncToday,
 		refresh,
+		planChanged,
 
 		navigation: {
 			goToPrevious,

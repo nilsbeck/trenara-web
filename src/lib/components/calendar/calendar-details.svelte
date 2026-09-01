@@ -186,9 +186,12 @@
 					entry={selectedEntry}
 					isLoading={store.isLoading}
 					onScheduleChanged={() => {
-						// refresh() re-runs the page load too, so the cards beside the
-						// calendar move with it — no second invalidateAll needed.
-						store.refresh();
+						// planChanged() re-runs the page load too, so the cards beside
+						// the calendar move with it — no second invalidateAll needed —
+						// and it marks the months the refresh itself cannot see, so a
+						// session moved into next month is not still sitting on its old
+						// day when the runner pages over to it.
+						store.planChanged();
 					}}
 					onTrainingChanged={(updated) => store.replaceTraining(updated)}
 					onEntryChanged={(updated) => store.replaceEntry(updated)}
