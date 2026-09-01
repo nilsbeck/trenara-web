@@ -31,12 +31,18 @@
 	/**
 	 * Whether the reason wants words, and does not have them.
 	 *
-	 * `ask_extra_input` is upstream's flag for the reasons that come with a
-	 * follow-up question, and it is honoured here rather than only relayed: a
-	 * pause filed as "Other" with nothing after it tells a coach less than not
-	 * filing it at all. Whether the backend itself refuses an empty one is not
-	 * known — this is the app's own rule, and it is why the field is marked
-	 * required rather than merely offered.
+	 * `ask_extra_input` is upstream's flag for the reasons that can carry a
+	 * follow-up, and it is honoured here rather than only relayed: a pause filed
+	 * as "Other" with nothing after it tells a coach less than not filing it at
+	 * all.
+	 *
+	 * **This is deliberately stricter than Trenara's own app**, which puts a text
+	 * field on `other` alone although the flag is also true for injury and
+	 * motivation. Ours asks on all three and requires an answer. Whether the
+	 * backend refuses an empty one is untestable through the app — it never
+	 * offers to leave `other` blank — so this is the app's own rule either way,
+	 * and it is written down because our dialog and the mobile app's visibly
+	 * disagree. See `docs/backend-api.md` under `POST /api/me/pause/`.
 	 */
 	const needsWords = $derived(chosen?.askExtraInput === true && extraInput.trim() === '');
 

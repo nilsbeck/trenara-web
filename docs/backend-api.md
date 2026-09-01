@@ -77,6 +77,66 @@ times and are not all current — `Goal` was a version behind until a capture
 caught it. A captured response in this file outranks the type that claims to
 describe it.
 
+## What is not known yet
+
+Gaps in this file, with what would close each one. They are here rather than in
+a chat log because the answer to every one of them is a capture somebody has to
+go and take, and a list of those is worth more than the same list rediscovered
+in six months.
+
+Ranked by what they cost us, not by how hard they are.
+
+### Blocks a feature
+
+- **How a pause is lifted.** No endpoint for it has been captured and nobody
+  currently knows what it is — a guess at `DELETE /api/me/pause/` is a guess.
+  Until then the goal page can only state that the plan is paused and point at
+  the Trenara app. **Wanted:** the method and URL fired when a pause is lifted
+  in the app. Body and response are a bonus; the request line alone unblocks it.
+
+### Not known and not knowable through the app
+
+- **What `extra_input` carries for the four reasons with no text field.** The
+  app only offers one for `other`, so `""`, `null` and an omitted key are all
+  still on the table. See `POST /api/me/pause/`.
+- **Whether the backend requires the follow-up at all.** The app never offers to
+  leave `other` blank, so its own traffic cannot answer this. Only a
+  hand-made request would.
+
+### Holes in the goal-setting flow
+
+- **Editing an existing goal** — every capture is `edit_flow: false`. Whether
+  `test/` allocates a new draft or reuses the goal's id, and whether the save is
+  still `POST /api/schemes/{flow}/goal`, are unknown. The largest hole here,
+  since it is the path a returning runner takes.
+- **A goal the backend refuses.** Every capture is `goal_possible: true`, so
+  what a `false` carries — copy to show, a different status, or just the flag —
+  has never been seen. `overrule_time: true` presumably lives on that branch;
+  it is `false` in every capture and what it overrules is unestablished.
+- **The other flows.** `ultimate` is the only value ever seen in a `{flow}`
+  segment, and it appears in three paths. The app names four more — build your
+  own journey, post-race recovery, rebuild fitness, maintenance — with no wire
+  values attached. A single request line naming a different one would settle it.
+- **`intermediate_goals` going up.** Empty in every capture. The response shape
+  is documented under `GET /api/goal`; the request shape is not.
+- **`shoe_type` on `POST /api/init/{flow}/`.** Null in the only capture,
+  presumably a `SHOE_TYPES` value so a time set in race shoes can be discounted.
+- **Whether abandoned drafts leak.** `test/` writes a row per revision and
+  nothing captured cleans them up — but "nothing captured" is weaker than
+  "nothing does". What fires when the goal flow is backed out of would settle it
+  either way.
+
+### Small
+
+- **Which status `GET /api/goal` uses when.** 404 without the trailing slash,
+  400 with it, in the two captures we have — but whether the slash is the cause
+  has not been tested. No behaviour rides on it: `isMissingUpstream` reads both.
+- **`selection_typing=false`** on `GET /api/schemes/{flow}/week`. Every capture
+  sends `true`; what the response loses without it is a guess.
+- **Whether the rate limit is per token or per IP.** Recorded under **Rate
+  limit** below, and repeated here because it is the one open question that
+  changes this app's ceiling by orders of magnitude.
+
 ---
 
 ## Rate limit
@@ -185,10 +245,14 @@ failed.
 ### Notable fields
 
 - `pause_types[]` — the reasons a plan can be paused, in display `order`.
-  `ask_extra_input` marks the ones that want a free-text follow-up
-  (injury, motivation, other). Read by `$lib/utils/pause`, which is what the
-  pause dialog renders from; `type` is the value `POST /api/me/pause/` takes,
-  and `title` is localised upstream, so nothing may key off it.
+  `type` is the value `POST /api/me/pause/` takes, and `title` is localised
+  upstream, so nothing may key off it. Read by `$lib/utils/pause`, which is what
+  our pause dialog renders from.
+  - **`ask_extra_input` over-states what the mobile app asks.** It is true on
+    injury, motivation and other; Trenara's app puts a free-text field on
+    `other` alone. So the flag describes reasons that _could_ carry a follow-up
+    rather than the ones that are asked for one — see `POST /api/me/pause/`,
+    where it also means nobody knows what the other four send in `extra_input`.
 - `shoes.brands[]` — flat list, `"Other"` last; `shoes.types[]` uses `tag` as
   the wire value and `name` as the label. `changes_intensity` is `false` for
   every type today, but it exists, so treat it as a real flag rather than
@@ -2086,14 +2150,30 @@ because it was captured here** — see the conventions at the top of this file.
   `injury`, `holiday`, `motivation`, `other` at the time of capture, and the
   served list is the source of truth rather than that five. Nothing in this app
   validates against a fixed list, for exactly that reason.
-- `extra_input` is the free-text follow-up for the reasons `ask_extra_input`
-  marks. **It is sent on every request, empty string included**, because the
-  capture that established this shape carried it — omitting a blank field is the
-  kind of tidying a reverse-engineered endpoint refuses.
-- Whether the backend itself requires words for a reason flagged
-  `ask_extra_input` has not been established. The app requires them anyway: a
-  pause filed as "Other" with nothing after it tells a coach less than not
-  filing it at all.
+- `extra_input` is the free-text follow-up. **It is sent on every request, empty
+  string included**, because the capture that established this shape carried it
+  — omitting a blank field is the kind of tidying a reverse-engineered endpoint
+  refuses.
+- **`ask_extra_input` is not what Trenara's own app does.** The served config
+  marks injury, motivation and other; the app puts a text field on **`other`
+  only**. So the flag over-states the question by two reasons, and the only
+  reason anyone has been observed typing into is `other`.
+- **What the other four send is therefore unknown.** There is no field to fill,
+  so nothing has been captured for them: `""`, `null`, or the key omitted are
+  all consistent with what has been seen. An empty string is the likely one —
+  it is the value the `other` capture carries when nothing was typed, and one
+  code path is cheaper than three — and `pausePlan` sends `""`, which is at
+  worst the same shape the endpoint already accepts.
+- Whether the backend _requires_ words for any reason is untested, and cannot be
+  tested through the app: it never offers to leave `other` blank, and never
+  offers a field for the rest.
+- **This app is stricter than Trenara's on purpose.** The pause dialog follows
+  `ask_extra_input` rather than copying the app's one-reason behaviour, so it
+  asks for words on injury and motivation too, and requires them. That is a
+  product choice, not a constraint — a pause filed as "Injury" with nothing
+  after it tells a coach less than not filing it at all — and it is written down
+  here because a future reader will otherwise find our dialog and the mobile
+  app's disagreeing and assume one of them is a bug.
 
 ### Response
 
@@ -2126,10 +2206,13 @@ whether the pause took does not need a second read. `pausePlan` still drops the
 whole read cache: the weeks, the stats and the goal are all affected by a pause
 and none of them is in this body.
 
-**No resume endpoint has been captured.** Nothing here can unpause a plan, which
-is why the goal page states the paused state and points at the Trenara app
-rather than offering a button. Finding that endpoint is what a resume control
-waits on.
+**No resume endpoint has been captured, and nobody currently knows what it is.**
+Not merely absent from this file — the maintainer does not know either, so it
+cannot be filled in from memory. Nothing here can unpause a plan, which is why
+the goal page states the paused state and points at the Trenara app rather than
+offering a button. A capture of whatever the app fires when a pause is lifted is
+the whole of what a resume control waits on; the method and URL alone would do
+it.
 
 ---
 
