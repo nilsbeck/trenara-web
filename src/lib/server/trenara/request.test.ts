@@ -275,6 +275,24 @@ describe('passthroughOptional', () => {
 		expect(await passthroughOptional(() => Promise.reject(missing))).toBeNull();
 	});
 
+	// The same answer on the other status Trenara sends it with.
+	it('reads the 400 "No result found." as nothing either', async () => {
+		const missing = new HttpError('No result found.', 400, { message: 'No result found.' });
+
+		expect(await passthroughOptional(() => Promise.reject(missing))).toBeNull();
+	});
+
+	it('still fails the page on a 400 that is a real rejection', async () => {
+		const thrown = await statusOf(() =>
+			passthroughOptional(() =>
+				Promise.reject(new HttpError('The selected surface is invalid.', 400))
+			)
+		);
+
+		expect(thrown.status).toBe(400);
+		expect(thrown.body.message).toBe('The selected surface is invalid.');
+	});
+
 	it('still fails the page on every other refusal', async () => {
 		const thrown = await statusOf(() =>
 			passthroughOptional(() => Promise.reject(new HttpError('Training already moved', 409)))
@@ -300,11 +318,54 @@ describe('passthroughOptional', () => {
 });
 
 describe('isMissingUpstream', () => {
-	it('is only the not-found status', () => {
+	it('is the not-found status, whatever the body says', () => {
 		expect(isMissingUpstream(new HttpError('No result found', 404))).toBe(true);
+		expect(isMissingUpstream(new HttpError('Anything at all', 404))).toBe(true);
 		expect(isMissingUpstream(new HttpError('Gone', 410))).toBe(false);
 		expect(isMissingUpstream(new NetworkError('Network request failed'))).toBe(false);
 		expect(isMissingUpstream(new TypeError('x is not a function'))).toBe(false);
+	});
+
+	// Trenara uses two statuses for one answer: `/api/goal/` on an account with
+	// no goal answers 400 with the sentence a 404 carries elsewhere. Left as a
+	// failure it is the deleted-goal regression again — "No result found." in
+	// red, under a retry that can only repeat it.
+	it('reads the 400 Trenara sends for a goal that is not there', () => {
+		const missing = new HttpError('No result found.', 400, { message: 'No result found.' });
+		expect(isMissingUpstream(missing)).toBe(true);
+	});
+
+	it('takes the sentence with or without its full stop', () => {
+		expect(
+			isMissingUpstream(new HttpError('No result found', 400, { message: 'No result found' }))
+		).toBe(true);
+	});
+
+	// The narrow half of the rule, and the important half: a 400 is normally a
+	// request this app got wrong, and turning those into an empty screen would
+	// hide the one failure it is least able to notice.
+	it('leaves every other 400 the rejection it is', () => {
+		expect(isMissingUpstream(new HttpError('The selected surface is invalid.', 400))).toBe(false);
+		expect(
+			isMissingUpstream(
+				new HttpError('The given data was invalid.', 400, {
+					message: 'The given data was invalid.',
+					errors: { surface: ['The selected surface is invalid.'] }
+				})
+			)
+		).toBe(false);
+	});
+
+	it('does not take the sentence buried in a longer message', () => {
+		expect(
+			isMissingUpstream(new HttpError('No result found for team 470, and 2 more errors', 400))
+		).toBe(false);
+	});
+
+	// The transport puts the body's `message` on the error, but a body that
+	// carried none leaves the status text there instead.
+	it('falls back to the error message when the body carried none', () => {
+		expect(isMissingUpstream(new HttpError('No result found.', 400, null))).toBe(true);
 	});
 });
 

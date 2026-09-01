@@ -13,12 +13,16 @@ import type { PageServerLoad } from './$types';
  * it with a reason attached.
  *
  * The goal itself is read as optional. Deleting a goal in Trenara makes
- * `/api/goal` answer 404 `{"message":"No result found"}`, and relaying that
+ * `/api/goal` answer `{"message":"No result found"}`, and relaying that
  * faithfully put "No result found" on the page in error red, under a "Try
- * again" button that could only ever produce the same 404 — a normal, chosen
- * state of the account reported as a fault. `passthroughOptional` turns that
- * one status into `null` for the page to render an empty state from, and
- * leaves every other failure exactly as it was.
+ * again" button that could only ever produce the same refusal — a normal,
+ * chosen state of the account reported as a fault. `passthroughOptional` turns
+ * it into `null` for the page to render an empty state from, and leaves every
+ * other failure exactly as it was.
+ *
+ * Trenara sends that answer on two different statuses — a 404, and a 400 on a
+ * later capture of `/api/goal/` — so `isMissingUpstream` decides it, not the
+ * status here. Both land in the same empty state.
  */
 export const load: PageServerLoad = async ({ cookies }) => {
 	return {

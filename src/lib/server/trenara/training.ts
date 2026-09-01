@@ -73,10 +73,12 @@ export const trainingApi = {
 	 * Delete the current goal, and with it the plan built for it.
 	 *
 	 * Answers `{"message":"Success."}`, and afterwards `GET /api/goal` answers
-	 * 404 `{"message":"No result found"}` — the state the goal page already
-	 * renders an empty screen for, via `passthroughOptional`. So there is nothing
-	 * to seat from the response: the caller reloads and the page falls into the
-	 * branch that was written for a goal deleted in Trenara's own app.
+	 * `{"message":"No result found"}` — on a 404 or a 400 depending on the
+	 * capture, both of which `isMissingUpstream` reads as an empty account. That
+	 * is the state the goal page already renders an empty screen for, via
+	 * `passthroughOptional`, so there is nothing to seat from the response: the
+	 * caller reloads and the page falls into the branch that was written for a
+	 * goal deleted in Trenara's own app.
 	 *
 	 * No body is sent. The capture posts a literal `null`, which is a body, and
 	 * `fetchClient.delete` sends none at all. They are not the same request and

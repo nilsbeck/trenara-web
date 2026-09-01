@@ -274,24 +274,53 @@ export function parseBody<T>(schema: ZodType<T>, raw: unknown): T {
 }
 
 /**
+ * What Trenara says when the record is not there.
+ *
+ * The wording is the same on both statuses it uses for it, with and without the
+ * full stop, so it is matched rather than compared — see {@link isMissingUpstream}.
+ */
+const NOTHING_FOUND = /^\s*no result found\.?\s*$/i;
+
+/** Whether a refusal's body is Trenara's "nothing there" sentence. */
+function saysNothingFound(e: HttpError): boolean {
+	const body = e.data as { message?: unknown } | null | undefined;
+	const message = typeof body?.message === 'string' ? body.message : e.message;
+	return typeof message === 'string' && NOTHING_FOUND.test(message);
+}
+
+/**
  * Whether a refusal means "there is nothing there" rather than "this failed".
  *
- * Trenara answers a read for a record the account does not have with a 404 and
- * a body of `{"message":"No result found"}`, which `passthrough` relays
- * faithfully — correct for a write that was refused, and wrong for a read
- * whose empty answer is a normal state of the account. A runner who has just
- * deleted their goal has not hit an error; there is simply no goal.
+ * Trenara answers a read for a record the account does not have with
+ * `{"message":"No result found"}`, which `passthrough` relays faithfully —
+ * correct for a write that was refused, and wrong for a read whose empty answer
+ * is a normal state of the account. A runner who has just deleted their goal
+ * has not hit an error; there is simply no goal.
+ *
+ * **It uses two statuses for that one answer.** A 404 was captured first; a
+ * later capture of `/api/goal/` on an account with no goal answered **400** with
+ * the same sentence. So the status alone cannot decide this, and a 400 is read
+ * as missing only when the body says so — which keeps every other 400 the
+ * genuine rejection it usually is. A 404 stays unconditional: that status means
+ * this on its own, whatever the body.
+ *
+ * Matching on a sentence is not something to be pleased about, and it is the
+ * narrower of the two options available. The alternative — treating any 400 on
+ * an optional read as an empty account — would turn a malformed request into an
+ * empty screen, which is the failure this app is least able to notice.
  */
 export function isMissingUpstream(e: unknown): boolean {
-	return e instanceof HttpError && e.status === 404;
+	if (!(e instanceof HttpError)) return false;
+	if (e.status === 404) return true;
+	return e.status === 400 && saysNothingFound(e);
 }
 
 /**
  * `passthrough` for a read that is allowed to find nothing.
  *
- * A 404 becomes `null` for the page to render an empty state from; everything
- * else keeps the status and message `passthrough` composes, so an outage, a
- * rate limit and an expired session are still told apart.
+ * A not-found becomes `null` for the page to render an empty state from;
+ * everything else keeps the status and message `passthrough` composes, so an
+ * outage, a rate limit and an expired session are still told apart.
  */
 export async function passthroughOptional<T>(fn: () => Promise<T>): Promise<T | null> {
 	return passthrough(async () => {

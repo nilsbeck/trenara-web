@@ -1027,6 +1027,34 @@ The current goal: target time and distance, the plan's window, its repeating
 week, and the conditions the goal is run under. `Goal` in `types.ts`, read by
 `trainingApi.getGoal`.
 
+### When there is no goal
+
+An account with no goal set is not an error, and this endpoint says so twice
+over — with the same sentence on two different statuses:
+
+```
+HTTP 404
+{ "message": "No result found" }
+```
+
+```
+HTTP 400
+{ "message": "No result found." }
+```
+
+The 404 was captured first; the 400 came from `/api/goal/` — **with** the
+trailing slash — on an account with no goal. Which of the two you get, and
+whether the slash is what decides it, has not been established: the sentence is
+a semantic answer either way, not a routing error, and a wrong path would not
+carry it.
+
+So the status alone cannot be trusted to mean "no goal", and
+`isMissingUpstream` in `request.ts` reads **either**: a 404 unconditionally, and
+a 400 only when the body carries that sentence — narrow on purpose, because
+every other 400 from this API is a request we got wrong, and turning those into
+an empty screen would hide the failure this app is least able to notice. Note
+the full stop, which appears on one and not the other; the match allows both.
+
 ### Notable fields
 
 - `week[]` is the plan's repeating pattern — see `current_goal` under
@@ -1110,9 +1138,10 @@ token names the account. Answers:
 { "message": "Success." }
 ```
 
-Afterwards `GET /api/goal` answers 404 `{"message":"No result found"}` — the
+Afterwards `GET /api/goal` answers `{"message":"No result found"}` — see
+**When there is no goal** above for the two statuses it arrives on. That is the
 state the goal page already renders an empty screen for, via
-`passthroughOptional`. So there is nothing to seat from the response; the caller
+`passthroughOptional`, so there is nothing to seat from the response; the caller
 reloads.
 
 **One difference from the capture worth knowing about.** The capture sends a
@@ -1147,15 +1176,19 @@ The order they are called in:
    week it can be trained on.
 6. `GET /api/schemes/{flow}/week` — the session types that week can be built
    from.
+7. `POST /api/schemes/{flow}/test/` — the finished goal costed out, and whether
+   it is reachable.
+8. `POST /api/schemes/{flow}/goal` — the goal confirmed and saved.
 
 Only the `ultimate` flow has been captured. The app names others — build your
 own journey, post-race recovery, rebuild fitness, maintenance — and **their wire
 values are unknown**: `ultimate` is the only one seen in a URL, so treat `{flow}`
 as a path segment whose vocabulary has not been established.
 
-What actually saves the goal is not among these six. The last two hand back the
-training counts on offer and the session types to fill them with, and something
-after that writes the goal — that request has not been captured.
+The last two are a pair, in the spirit of `change_test` / `change_save` on a
+training move but not in its mechanics: `test/` **writes a draft goal and hands
+back its id**, and `goal` confirms that id. So the dry run is not dry — see the
+note under `test/`.
 
 ### GET /api/init/suggestion/
 
@@ -1323,11 +1356,18 @@ trained on, and anything the backend wants to say about it first.
   `nr_of_trainings` and `advices: []`. So the call is re-made after the runner
   has read each advice, carrying the codes back, and an empty `advices` is the
   signal that there is nothing left to show — the gate before the goal is saved.
-- **`goal_date` is `DD/MM/YY`, and is the only date in this file that is not
-  ISO.** Two digits per part settles nothing on its own; the capture does — a
-  marathon-length goal dated `06/12/26`, for a December race. Worth confirming
-  against a second capture before sending an ambiguous day, because
-  `12/06/26` would be silently accepted as a different date rather than refused.
+- **`goal_date` is `DD/MM/YY` — the only date in this file that is not ISO, and
+  it is day-first.** Two digits per part settles nothing on its own; the pair of
+  captures does. The same goal reaches `POST /api/schemes/{flow}/test/` below as
+  `"end_date": "2026-12-06"`, in ISO, against `"06/12/26"` here. So `06` is the
+  day, and this endpoint is the one place a date has to be reformatted on the
+  way out. Getting it backwards would not be refused — `12/06/26` is a perfectly
+  good date — so it is worth a second look at every call site.
+- **`number_of_trainings` is sent once the runner has picked one**, and is
+  absent before that: the first two captures omit it, a third sends `5` and
+  answers with the same `nr_of_trainings` and an empty `advices`. So the call is
+  re-made as the goal is filled in, and the field is optional rather than
+  required.
 - `time_in_sec` is the target time (10800 = 3:00:00) and `distance_value` the
   target distance, so the two are the goal itself rather than anything measured.
 - `edit_flow: false` distinguishes setting a first goal from changing an
@@ -1420,6 +1460,229 @@ a second Endurance run (optional) and Easy run + strides (mandatory).
   does.
 - `description` is written for the runner and `hex_color` is the swatch to draw
   it with; both are ready to show as they are.
+
+### POST /api/schemes/{flow}/test/
+
+The goal as the runner finished composing it, costed out: the plan it produces,
+whether it is reachable, and what the backend thinks they could actually run.
+The last call before whatever saves it.
+
+```json
+{
+	"name": "Valencia 42k",
+	"number_of_trainings": 5,
+	"distance_value": 41.2,
+	"distance_unit": "km",
+	"time_in_sec": 10800,
+	"end_date": "2026-12-06",
+	"week": [
+		{ "day": 1, "training_id": 2557 },
+		{ "day": 2, "training_id": 2563 },
+		{ "day": 5, "training_id": 2559 },
+		{ "day": 4, "training_id": 2558 },
+		{ "day": 6, "training_id": 2555 }
+	],
+	"training_condition": {
+		"height_difference": "flat",
+		"surface": "road",
+		"height_value": 0.0,
+		"height_unit": "m"
+	},
+	"intermediate_goals": []
+}
+```
+
+```json
+{
+	"goal": {
+		"id": 2206723,
+		"name": "Valencia 42k",
+		"number_of_trainings": 5,
+		"week": [
+			{ "day": 1, "training_id": 2557, "excel_id": 3 },
+			{ "day": 2, "training_id": 2563, "excel_id": 9 },
+			{ "day": 5, "training_id": 2559, "excel_id": 5 },
+			{ "day": 4, "training_id": 2558, "excel_id": 4 },
+			{ "day": 6, "training_id": 2555, "excel_id": 1 }
+		],
+		"start_date": "2026-08-31",
+		"end_date": "2026-12-06",
+		"training_scheme_type": "ultimate",
+		"time_type_selected": "my_time",
+		"overrule_time": false,
+		"can_be_edited": true,
+		"edit_warning": "Watch out! As troop captain, changing the goal will mean everyone's goal will be changed. Are you sure you want to change it?",
+		"created_at": 1788254879,
+		"time": "02:59:54",
+		"time_in_sec": 10794,
+		"time_value": 10794,
+		"time_unit": "sec",
+		"distance": "41.2km",
+		"distance_value": 41.2,
+		"distance_unit": "km",
+		"distance_unit_text": "km",
+		"pace": "04:21 min/km",
+		"pace_value": 261,
+		"pace_unit": "min/km",
+		"intermediate_goals": [],
+		"training_condition": {
+			"id": 3837337,
+			"type": "Goal",
+			"height_difference": "flat",
+			"surface": "road",
+			"intensity": 100,
+			"updated_at": 1788254879,
+			"height": null,
+			"height_value": null,
+			"height_unit": null,
+			"height_unit_text": null
+		}
+	},
+	"goal_possible": true,
+	"possible_time": 9517
+}
+```
+
+- **`goal_possible` and `possible_time` are the answer; the goal is the
+  receipt.** `possible_time` is 9517 (2:38:37) against the 10800 (3:00:00) that
+  was asked for — the backend's read of what this runner could do over the
+  distance, and here it is _faster_ than the target rather than a correction
+  downwards. So the pair is a comparison to show the runner, not a rejection:
+  `goal_possible` is what gates saving.
+- **`time_type_selected: "my_time"` on a goal whose time the runner named.**
+  Confirmed by the save call below, which sends `"trenara_time": true` and gets
+  back a goal reading `"time_type_selected": "trenara_time"` with
+  `time_in_sec` equal to this response's `possible_time`. So the field records
+  which of the two times was taken, and the runner's own is `my_time`.
+- **The time comes back changed.** 10794 against the 10800 sent, which is what
+  a whole-second pace of 262 s/km over 41.2 km works out to (10794.4, truncated).
+  `pace_value` then comes back as 261, because 10794 ÷ 41.2 is 261.99 and that
+  truncates too — so the stored pace is a second per kilometre quicker than the
+  one the time was built from, and `"04:21 min/km"` is the same truncation again
+  (261.99 s is 4:21.99). Do not assume any of the three echoes what was sent.
+- **`week[]` is not in day order and does not need to be.** The request sends
+  days 1, 2, 5, 4, 6 and the response echoes that order; `day` carries the
+  meaning. `training_id` is an `id` from `GET /api/schemes/{flow}/week`, and
+  `number_of_trainings` matches the array's length.
+- The response adds an **`excel_id`** to each week entry, which the goal's own
+  sessions carry too — see `goal_pvt_tss` under `/api/dashboard/`, where the
+  round-numbered load figure and this id together suggest a coach's spreadsheet
+  behind the plan. It is assigned here, not sent.
+- `start_date` is the backend's, not the client's: `2026-08-31` on a request
+  made on 2026-09-01 — the Monday of the current week. Only `end_date` is asked
+  for.
+- **`end_date` is ISO here** (`"2026-12-06"`), unlike the `goal_date` that
+  `/api/schemes/advice` takes for the same goal (`"06/12/26"`). Two endpoints in
+  one flow, two date formats.
+- `training_condition` goes up with `height_value: 0.0` and `height_unit: "m"`
+  and comes back with `height`, `height_value` and `height_unit` all null — the
+  zeros are dropped rather than stored, the same way they are on
+  `POST /api/schedule/trainings/{id}/training_condition`. `intensity: 100` and
+  `type: "Goal"` are assigned by the backend.
+- `name` is free text the runner types, and `intermediate_goals` was empty in
+  the capture. `edit_warning` is the same team copy `GET /api/goal` carries.
+
+**This is not a dry run, whatever it is called.** The response is a fully formed
+goal with an `id`, a `created_at` and a `training_condition` carrying its own
+`id` and `updated_at` — and `POST /api/schemes/{flow}/goal` below then takes
+that `id` as its `goal_id`. So the row exists after this call and the save
+confirms it; the two ids captured are different (2206723 here, 2206728 in the
+save), which is two runs of `test/` and therefore **two rows for one goal**.
+
+Anything calling this has to reckon with that: a runner who composes a goal
+three times and abandons it leaves three drafts behind, and nothing captured so
+far cleans them up. `change_test` on a training move is a genuine dry run —
+this shares its naming and not its behaviour.
+
+### POST /api/schemes/{flow}/goal
+
+Confirms the draft `test/` left behind, and saves it as the current goal. The
+end of the flow.
+
+```json
+{
+	"goal_id": 2206728,
+	"trenara_time": true,
+	"overrule_time": false,
+	"advice_codes": ["two_week_consistency"]
+}
+```
+
+The response is a bare `Goal` — the same shape `GET /api/goal` serves, with no
+envelope around it:
+
+```json
+{
+	"id": 2206728,
+	"name": "Valencia 42k",
+	"number_of_trainings": 5,
+	"week": [
+		{ "day": 1, "excel_id": 3, "training_id": 2557 },
+		{ "day": 2, "excel_id": 9, "training_id": 2563 },
+		{ "day": 5, "excel_id": 5, "training_id": 2559 },
+		{ "day": 4, "excel_id": 4, "training_id": 2558 },
+		{ "day": 6, "excel_id": 1, "training_id": 2555 }
+	],
+	"start_date": "2026-08-31",
+	"end_date": "2026-12-06",
+	"training_scheme_type": "ultimate",
+	"time_type_selected": "trenara_time",
+	"overrule_time": false,
+	"can_be_edited": true,
+	"edit_warning": "Watch out! As troop captain, changing the goal will mean everyone's goal will be changed. Are you sure you want to change it?",
+	"created_at": 1788255098,
+	"time": "02:38:37",
+	"time_in_sec": 9517,
+	"time_value": 9517,
+	"time_unit": "sec",
+	"distance": "41.2km",
+	"distance_value": 41.2,
+	"distance_unit": "km",
+	"distance_unit_text": "km",
+	"pace": "03:50 min/km",
+	"pace_value": 230,
+	"pace_unit": "min/km",
+	"intermediate_goals": [],
+	"training_condition": {
+		"id": 3837340,
+		"type": "Goal",
+		"height_difference": "flat",
+		"surface": "road",
+		"intensity": 100,
+		"updated_at": 1788255098,
+		"height": null,
+		"height_value": null,
+		"height_unit": null,
+		"height_unit_text": null
+	}
+}
+```
+
+- **The body is four fields and a reference.** Nothing about the goal is
+  re-sent: `goal_id` is the `goal.id` from `test/`, and the distance, the week,
+  the dates and the terrain all come from the draft. So a client cannot change
+  anything between the two calls except the time choice — to change the rest it
+  has to run `test/` again, which makes another draft.
+- **`trenara_time: true` is what swaps the time**, and it is the mechanism
+  behind `time_type_selected`. The draft was saved at `my_time` with
+  `time_in_sec: 10794`; this request sends `trenara_time: true` and the saved
+  goal comes back at **9517** — exactly the `possible_time` `test/` reported —
+  with `time_type_selected: "trenara_time"`. Sending `false` presumably keeps
+  the runner's own time; no capture does.
+- `pace_value` truncates here too: 9517 ÷ 41.2 is 230.99, stored as 230 and
+  printed as `"03:50 min/km"`. Same rounding as the draft, one field further on.
+- **`advice_codes` is `checked_codes` under another name.** The same values that
+  `POST /api/schemes/advice` takes as `checked_codes` are sent here as
+  `advice_codes`, so the acknowledgement is repeated at the point of saving
+  rather than carried over. Two names for one list, in one flow.
+- `overrule_time` is sent and echoed, and was `false` in every capture. It is
+  distinct from `trenara_time` — which time to use is one question, overruling
+  it is evidently another — and what it overrules has not been established.
+- `created_at` is 1788255098 against the draft's, so it is stamped at save
+  rather than carried from `test/`. The `training_condition` gets a fresh `id`
+  too.
+- The goal's own `id` is the `goal_id` that went in, so the draft is promoted
+  rather than copied.
 
 ---
 
@@ -1827,6 +2090,27 @@ capture matches that type field for field.
     to 564.57 km against a stated `todo` of 595.36; the goal starts 2026-06-29,
     ISO week 27, and the array starts at 28, so the missing 30.79 km is that
     first week. Read the totals the response gives rather than adding the rows.
+    - And the difference is not always in that direction. A second capture, on a
+      goal saved minutes earlier, states a `todo` of 96.73 against rows adding
+      to 106.22 — **9.49 km less than its own rows**, which is exactly the
+      session planned for the day of the request. One capture is not a rule, but
+      it rules out "the total is the rows plus what the array omits": here the
+      total is the rows minus something. Adding the rows yourself is wrong in
+      both captures, differently.
+  - **A newly saved goal is mostly empty here, and that is not a missing plan.**
+    In the capture above, taken just after `POST /api/schemes/{flow}/goal`, the
+    goal series runs fourteen weeks (36 to 49) and only the first two carry a
+    `todo` at all; twelve are null on both figures. The plan is evidently filled
+    in as it goes rather than laid out to the goal date at save time, so a chart
+    drawn from this in the first minutes of a goal has almost nothing to draw —
+    which is a state to render deliberately, not a response to treat as broken.
+    It is also a third reason a null appears here, alongside the pause and the
+    unsynced watch above.
+  - `graph_stats.goal.done` was **null in that same capture while its own week
+    36 carried `done: 9.5`**, and `graph_stats.weeks.done` agreed with the week
+    rather than the goal. So the goal-level `done` is not a sum of the rows
+    either, and on a fresh goal it can be null while runs have already been
+    recorded against it. Take the week series for anything about this week.
   - It is the whole plan, future weeks included, which makes it the cheap way
     to see where a plan gets hard before it does: week-on-week ramp is a
     subtraction away (this capture jumps +46% into its 64.1 km peak, and +50%

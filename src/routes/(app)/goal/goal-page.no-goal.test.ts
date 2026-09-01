@@ -6,12 +6,13 @@ import GoalPage from './+page.svelte';
 /**
  * What the goal page says when there is no goal.
  *
- * Deleting the goal in Trenara makes `/api/goal` answer 404 "No result found",
- * and the page used to relay that wording into its error branch: a line of red
- * copied from an API the runner never sees, under a "Try again" button whose
- * only possible outcome was the same 404. These pin the empty state that
- * replaced it, and that the predictions — which are fitness estimates and owe
- * nothing to a goal — still render beside it.
+ * Deleting the goal in Trenara makes `/api/goal` answer "No result found" — on
+ * a 404 or a 400, depending on the capture — and the page used to relay that
+ * wording into its error branch: a line of red copied from an API the runner
+ * never sees, under a "Try again" button whose only possible outcome was the
+ * same refusal. These pin the empty state that replaced it, and that the
+ * predictions — which are fitness estimates and owe nothing to a goal — still
+ * render beside it.
  */
 
 vi.mock('$app/navigation', () => ({ invalidateAll: vi.fn() }));
