@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
 	paceRatio,
+	splitByGoalDistance,
 	summarise,
 	formatDelta,
 	paceTrend,
@@ -52,6 +53,66 @@ describe('paceRatio', () => {
 	it('is null when there is nothing usable', () => {
 		expect(paceRatio([])).toBeNull();
 		expect(paceRatio([{ predictedTime: 0, predictedPace: 0 }])).toBeNull();
+	});
+});
+
+describe('splitByGoalDistance', () => {
+	it('keeps the readings recorded over the goal distance', () => {
+		const split = splitByGoalDistance([point(13500), point(13400), point(13320)], 42.2);
+		expect(split.forGoal).toHaveLength(3);
+		expect(split.fromOtherGoals).toHaveLength(0);
+		expect(split.otherDistances).toEqual([]);
+	});
+
+	it('leaves out the day the goal changed under it', () => {
+		// A 15 km goal swapped for a marathon: the morning's reading is a 1:03
+		// over 15 km, and every marathon reading after it is three hours.
+		const fifteen = point(3792, 15);
+		const split = splitByGoalDistance([fifteen, point(13500), point(13400)], 42.2);
+		expect(split.forGoal).toEqual([point(13500), point(13400)]);
+		expect(split.fromOtherGoals).toEqual([fifteen]);
+		expect(split.otherDistances).toEqual([15]);
+	});
+
+	it('survives the rounding in a stored pace', () => {
+		// What the row actually holds: a pace kept to the whole second, which
+		// divides back out to 15.048 km rather than 15.
+		const rounded = { predictedTime: 3792, predictedPace: Math.round(3792 / 15) };
+		expect(splitByGoalDistance([rounded], 15).forGoal).toEqual([rounded]);
+	});
+
+	it('tells a half marathon from a 20 km goal', () => {
+		const twenty = point(5400, 20);
+		const split = splitByGoalDistance([twenty, point(5700, 21.0975)], 21.0975);
+		expect(split.fromOtherGoals).toEqual([twenty]);
+		expect(split.otherDistances).toEqual([20]);
+	});
+
+	it('names every distance it dropped, once each', () => {
+		const split = splitByGoalDistance(
+			[point(3792, 15), point(2400, 10), point(3800, 15), point(13500)],
+			42.2
+		);
+		expect(split.forGoal).toEqual([point(13500)]);
+		expect(split.otherDistances).toEqual([10, 15]);
+	});
+
+	it('keeps everything when the goal states no distance', () => {
+		// A filter that cannot see what it is filtering for must not be the
+		// reason a runner's history disappears.
+		const points = [point(3792, 15), point(13500)];
+		expect(splitByGoalDistance(points, null).forGoal).toEqual(points);
+		expect(splitByGoalDistance(points, 0).forGoal).toEqual(points);
+		expect(splitByGoalDistance(points, NaN).forGoal).toEqual(points);
+	});
+
+	it('drops a row whose own numbers imply nothing', () => {
+		const broken = { predictedTime: 13500, predictedPace: 0 };
+		const split = splitByGoalDistance([broken, point(13500)], 42.2);
+		expect(split.forGoal).toEqual([point(13500)]);
+		expect(split.fromOtherGoals).toEqual([broken]);
+		// Nothing to name: the row does not say what distance it was about.
+		expect(split.otherDistances).toEqual([]);
 	});
 });
 

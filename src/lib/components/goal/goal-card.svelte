@@ -21,7 +21,8 @@
 	import { readWeekDistance, readGoalDistance } from '$lib/utils/distance-graph';
 	import { forecast, earnCutoff, type ForecastPoint } from '$lib/utils/forecast';
 	import { readPlanWeeks } from '$lib/utils/plan-weeks';
-	import { paceTrend } from '$lib/utils/prediction-graph';
+	import { paceTrend, splitByGoalDistance } from '$lib/utils/prediction-graph';
+	import { impliedDistanceKm } from '$lib/utils/race-equivalent';
 	import { toDate, weeksRemaining } from '$lib/utils/date';
 	import {
 		timeStringToSeconds,
@@ -229,7 +230,7 @@
 			raceDay,
 			planned: plan.weeks.map((w) => ({ startsOn: w.startsOn, km: w.plannedKm })),
 			done: plan.weeks.map((w) => ({ startsOn: w.startsOn, km: w.completedKm ?? 0 })),
-			samples: chartData.map((d) => ({ date: d.date, seconds: d.predictedTime })),
+			samples: history.forGoal.map((d) => ({ date: d.date, seconds: d.predictedTime })),
 			goalStart: startDate
 		});
 	});
@@ -374,7 +375,7 @@
 		if (readPlanWeeks(userStats?.graph_stats?.goal).weeks.length === 0) {
 			return 'No plan weeks to forecast against yet.';
 		}
-		if (chartData.length === 0) {
+		if (history.forGoal.length === 0) {
 			return 'No prediction recorded yet for this goal — the forecast needs at least one earlier reading to price the plan against.';
 		}
 		if (raceDay && earnCutoff(raceDay) <= now) {
@@ -385,6 +386,67 @@
 
 	// ── Prediction history & chart ─────────────────────────────────
 	let chartData = $state<ChartDataPoint[]>([]);
+
+	/**
+	 * The goal's own distance, in whatever unit its pace is written in.
+	 *
+	 * `distance_value` is the goal saying so itself. The fallback divides the
+	 * goal time by the goal pace, which is the same arithmetic the readings get
+	 * and gives an answer for a goal that arrives without the field.
+	 */
+	const goalDistance = $derived(
+		goal.distance_value > 0 ? goal.distance_value : impliedDistanceKm(goal.time, goal.pace)
+	);
+
+	/**
+	 * The history, minus whatever was recorded for a different goal.
+	 *
+	 * Changing a goal does not change what is already stored, and the window
+	 * this fetches — everything since the goal's start date — catches the day of
+	 * the change, whose reading was written before it. So a runner who swaps
+	 * 15 km for a marathon in the morning opens this card to a 1:03 sitting
+	 * under a 3:11 goal line, and every reader of the series takes it at face
+	 * value: the chart draws a cliff, the badge calls it detraining, and the
+	 * forecast prices the plan off a fall that never happened.
+	 *
+	 * Nothing in a row names its distance, but the row implies one — see
+	 * `splitByGoalDistance` — and that is enough to leave the old goal's
+	 * readings out of all four. They are still in the database, and the history
+	 * page still plots them: converted to a fixed 10K, where they are
+	 * comparable, which is exactly the thing they are not here.
+	 */
+	const history = $derived(splitByGoalDistance(chartData, goalDistance));
+
+	/**
+	 * What was left out, said plainly.
+	 *
+	 * A chart that quietly discards readings is a chart that disagrees with the
+	 * database for reasons the runner cannot see — and the day after a goal
+	 * change this one can be empty while the history behind it is not. The
+	 * distance is what makes it make sense, so it is the thing the note leads
+	 * with.
+	 */
+	const otherGoalNote = $derived.by(() => {
+		const dropped = history.fromOtherGoals.length;
+		if (dropped === 0) return null;
+
+		const readings = dropped === 1 ? '1 earlier reading' : `${dropped} earlier readings`;
+		const distances = history.otherDistances;
+		const about =
+			distances.length === 1
+				? ` for a ${formatDistance(distances[0])} goal`
+				: distances.length > 1
+					? ' for other goal distances'
+					: '';
+
+		return `${readings}${about} in this window ${dropped === 1 ? 'is' : 'are'} not plotted — a prediction is a time over one distance, and this goal's is another.`;
+	});
+
+	/** `15 km` / `42.195 km` — a goal distance, without trailing zeroes. */
+	function formatDistance(km: number): string {
+		return `${Number(km.toFixed(3))} ${goal.distance_unit || 'km'}`;
+	}
+
 	/**
 	 * True from the first paint, not from the moment the fetch starts.
 	 *
@@ -406,7 +468,7 @@
 	// show — and because on a phone the heading is all there is when the card is
 	// folded shut.
 
-	const trend = $derived(paceTrend(chartData, now));
+	const trend = $derived(paceTrend(history.forGoal, now));
 
 	/**
 	 * The arrow follows the curve, not the mood.
@@ -836,7 +898,7 @@
 		<DistanceChart series={goalSeries} emptyMessage="No weekly distances for this goal yet" />
 	{:else}
 		<PredictionChart
-			data={chartData}
+			data={history.forGoal}
 			loading={chartLoading}
 			error={chartError}
 			domainEnd={raceDay}
@@ -862,6 +924,9 @@
 				<p class="mt-1 text-xs leading-relaxed text-muted-foreground">{forecastBasis}</p>
 			{:else if noForecastReason}
 				<p class="mt-2 text-xs leading-relaxed text-muted-foreground">{noForecastReason}</p>
+			{/if}
+			{#if otherGoalNote}
+				<p class="mt-1 text-xs leading-relaxed text-muted-foreground">{otherGoalNote}</p>
 			{/if}
 		{/if}
 	</div>
