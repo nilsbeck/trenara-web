@@ -1664,6 +1664,127 @@ describe('revalidate', () => {
 });
 
 // ─────────────────────────────────────────────────────────────
+// planChanged — a session moved, deleted or added
+// ─────────────────────────────────────────────────────────────
+describe('planChanged', () => {
+	function okResponse(schedule: Schedule, etag: string | null = null) {
+		return {
+			ok: true,
+			status: 200,
+			statusText: 'OK',
+			headers: { get: (name: string) => (name.toLowerCase() === 'etag' ? etag : null) },
+			json: () => Promise.resolve(schedule)
+		};
+	}
+
+	/** A response that is handed back only once `release` is called. */
+	function pending(schedule: Schedule) {
+		let release: () => void = () => {};
+		const response = new Promise((resolve) => {
+			release = () => resolve(okResponse(schedule));
+		});
+		return { response, release: () => release() };
+	}
+
+	function paramsOf(call: number): URLSearchParams {
+		return new URL(mockFetch.mock.calls[call][0], 'http://localhost').searchParams;
+	}
+
+	beforeEach(() => {
+		vi.clearAllMocks();
+	});
+
+	it('refreshes the month even though a background check is already in flight', async () => {
+		const background = pending(makeSchedule({ id: 1 }));
+		mockFetch
+			.mockResolvedValueOnce(okResponse(makeSchedule({ id: 1 })))
+			.mockReturnValueOnce(background.response)
+			.mockResolvedValueOnce(okResponse(makeSchedule({ id: 2 })));
+
+		const store = createCalendarStore(new Date(2025, 2, 5));
+		await store.loadMonthData(new Date(2025, 2, 5));
+
+		const checking = store.revalidate();
+		// The change lands while that one is still out. Dropped for arriving
+		// second, it would leave the move invisible until a page reload.
+		const changed = store.planChanged();
+
+		background.release();
+		await Promise.all([checking, changed]);
+
+		expect(store.schedule?.id).toBe(2);
+	});
+
+	it('drops an answer that left before the change instead of putting the old plan back', async () => {
+		const background = pending(makeSchedule({ id: 2 }));
+		const forced = pending(makeSchedule({ id: 3 }));
+		mockFetch
+			.mockResolvedValueOnce(okResponse(makeSchedule({ id: 1 })))
+			.mockReturnValueOnce(background.response)
+			.mockReturnValueOnce(forced.response);
+
+		const store = createCalendarStore(new Date(2025, 2, 5));
+		await store.loadMonthData(new Date(2025, 2, 5));
+
+		const checking = store.revalidate();
+		const changed = store.planChanged();
+
+		background.release();
+		await checking;
+		// That answer was fetched before the move, so it cannot know about it.
+		// Seated, it would take the change straight back off the screen.
+		expect(store.schedule?.id).toBe(1);
+
+		forced.release();
+		await changed;
+		expect(store.schedule?.id).toBe(3);
+	});
+
+	it('asks again for a month it is not showing, which is where a session may have moved to', async () => {
+		mockFetch.mockResolvedValue(okResponse(makeSchedule()));
+
+		const store = createCalendarStore(new Date(2025, 2, 5));
+		await store.loadMonthData(new Date(2025, 2, 5));
+		await store.navigation.goToNextMonth();
+		await store.navigation.goToPreviousMonth();
+
+		vi.clearAllMocks();
+		mockFetch.mockResolvedValue(okResponse(makeSchedule()));
+
+		await store.planChanged();
+		const askedForMarch = mockFetch.mock.calls.length;
+		expect(askedForMarch).toBe(1);
+
+		await store.navigation.goToNextMonth();
+
+		// April was in the cache from before the change, and served from there it
+		// would still be showing the session on the day it was moved off.
+		expect(mockFetch).toHaveBeenCalledTimes(askedForMarch + 1);
+		expect(paramsOf(askedForMarch).get('fresh')).toBe('1');
+		expect(paramsOf(askedForMarch).get('from')).toBeNull();
+	});
+
+	it('sends no stale etag with the months it goes back for', async () => {
+		mockFetch.mockResolvedValue(okResponse(makeSchedule(), 'W/"abc"'));
+
+		const store = createCalendarStore(new Date(2025, 2, 5));
+		await store.loadMonthData(new Date(2025, 2, 5));
+		await store.navigation.goToNextMonth();
+		await store.navigation.goToPreviousMonth();
+
+		vi.clearAllMocks();
+		mockFetch.mockResolvedValue(okResponse(makeSchedule(), 'W/"def"'));
+
+		await store.planChanged();
+		await store.navigation.goToNextMonth();
+
+		for (const call of mockFetch.mock.calls) {
+			expect(call[1]?.headers ?? {}).toEqual({});
+		}
+	});
+});
+
+// ─────────────────────────────────────────────────────────────
 // setSchedule with an explicit month
 // ─────────────────────────────────────────────────────────────
 describe('setSchedule(schedule, forMonth)', () => {
