@@ -37,6 +37,21 @@ What follows is the design as it actually stands.
   disagreed last time, and the layout and its pages race. Routes read the
   runner with `requireUser(locals)`, which narrows the type — never
   `locals.user!`.
+- **One route is public on purpose: `/s/[token]`**, the shared-goal page.
+  It sits outside both `/api` and `/(app)`, which is exactly why it needs no
+  change to `handleGuard` — that hook only gates those two prefixes, and
+  everything else passes through unauthenticated by construction. There is no
+  session on this route and there must never be one: the token in the path
+  _is_ the authorisation, resolved through `goalShareDAO.getLiveByToken`,
+  which is scoped by the token's own unique index rather than by
+  `.eq('user_id', …)` — the one query in the app that is deliberately built
+  that way. What a token grants is exactly one read-only goal card, built from
+  a stored projection (`$lib/server/share/snapshot.ts`) rather than a live
+  Trenara call: this route makes **no Trenara request of any kind**, on any
+  path, because doing so would mean keeping a runner's Trenara credential
+  reachable by an anonymous visitor. If a change to this route ever needs to
+  read `cookies` or call `trainingApi`/`userApi`, that is a sign the design
+  has been broken, not a feature to add.
 - **State validation:** before any mutation, verify the current state
   server-side rather than trusting what the client sent. What a session allows
   is decided by the coach's own `can_*` flags on that training — check them
@@ -44,12 +59,14 @@ What follows is the design as it actually stands.
 - **Never store what the client composed.** The history endpoints take no body;
   they read `/api/me/stats` and `/api/goal` server-side. A record meant to
   outlive the data it describes must not be authored by a browser.
-- **Database security:** RLS is enabled on all four tables with no policies,
+- **Database security:** RLS is enabled on all five tables with no policies,
   which denies everything. The server connects with the service role key and is
   exempt by design, so this is a floor rather than the defence: it closes the
   anon key and the public REST endpoint, and the DAO's `.eq('user_id', …)` is
-  still what scopes a query the server makes. Every DAO must carry that filter.
-  See the RLS block at the end of `migration.sql`.
+  still what scopes a query the server makes. Every DAO must carry that filter
+  — `goalShareDAO.getLiveByToken` is the one documented exception, scoped by
+  the token's unique index instead; every other method on it still carries
+  `user_id`. See the RLS block at the end of `migration.sql`.
 - **Rate limiting:** login is limited by IP and by submitted username, and the
   endpoints that write to Supabase are limited per user
   (`$lib/server/security/rate-limit`). The limiters are per serverless instance
@@ -94,8 +111,11 @@ draws only two of them lies during the third.
   `true`.
 - **The placeholder holds the layout.** Give it the footprint of the thing it
   stands in for, so content settles in place instead of arriving and shoving
-  its neighbours sideways. `setup-rail-loading.svelte` and the goal card's
-  trend badge are the pattern.
+  its neighbours sideways. `setup-rail-loading.svelte` is the pattern. (The
+  goal card's trend badge used to be the second example here — it no longer
+  has a pending state at all, because `history` is now supplied to the card
+  already resolved rather than fetched on mount; see "Reusing the goal card"
+  in `.kiro/specs/goal-sharing/design.md`.)
 - **Say what is waiting.** `Loader2` from `lucide-svelte` with `animate-spin`
   and `aria-hidden="true"`, inside a `role="status"` wrapper carrying an
   `sr-only` sentence. A bare spinning glyph reads as nothing at all to a
@@ -248,7 +268,11 @@ crowd.
   out before assuming.
 - **A cold dashboard load costs about ten upstream requests** — five or six
   schedule weeks, the goal, the stats, the account, the news page, the thread
-  list — plus four Supabase queries. Warm, most of that is free.
+  list — plus half a dozen Supabase queries: the two `keepHistory` always
+  wrote, one more for the goal card's prediction chart (now read server-side
+  rather than fetched by the card), and one `UPDATE` for a shared goal's
+  snapshot that matches no row for the large majority of runners who have
+  never shared anything. Warm, most of that is free.
 - **Every cache is per serverless instance.** Scaling out therefore makes the
   upstream load _worse_, not better: each new instance starts cold and repeats
   the fetches a warm one would have skipped. This is the first thing to fix if
@@ -265,3 +289,17 @@ crowd.
 - **Supabase is on a free tier.** `prediction_history` writes one row per
   runner per day, which is durable and small for one person and roughly
   thirty-six million rows a year at a hundred thousand.
+- **`goal_share` is one row per shared goal, overwritten in place, never one
+  row per snapshot and never one row per view.** A visitor viewing the shared
+  page causes reads only — no write of any kind, on any path — so a link
+  passed around a running club costs read volume, bounded by the per-IP
+  `shareViews` limiter, and nothing else. There is no cron and no stored
+  Trenara credential behind any of this: a snapshot is only ever as fresh as
+  the owner's own last visit, by design — see
+  `.kiro/specs/goal-sharing/design.md` for the reasoning. The same "only on
+  the owner's next visit" rule is what closes a goal deleted or replaced in
+  Trenara: `revokeStaleShares` (`$lib/server/share/refresh.ts`), run from the
+  same `keepHistory` call as the snapshot refresh, revokes any live share
+  whose `goal_id` no longer matches the runner's current goal. Until the
+  owner opens the app again after deleting the goal, the old link still
+  answers with its last snapshot — there is no faster signal than that visit.

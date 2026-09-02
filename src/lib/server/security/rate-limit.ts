@@ -139,3 +139,14 @@ export const apiRequests = new RateLimiter({ limit: 240, windowMs: 60 * 1000 });
  * far above that and far below what it takes to fill a table.
  */
 export const storageWrites = new RateLimiter({ limit: 30, windowMs: 60 * 1000 });
+
+/**
+ * Views of a shared goal link, by IP.
+ *
+ * A token is 256 bits, so this is not what stops guessing — arithmetic does.
+ * It bounds the read volume one visitor can put on Supabase, which on a free
+ * tier is the resource actually worth protecting, and it makes a scripted
+ * sweep pointless rather than merely futile. Per instance and in memory, with
+ * the same honest caveat as the limiters above.
+ */
+export const shareViews = new RateLimiter({ limit: 60, windowMs: 60 * 1000 });

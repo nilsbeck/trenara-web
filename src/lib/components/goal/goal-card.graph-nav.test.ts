@@ -1,11 +1,10 @@
-import { describe, it, expect, beforeAll, beforeEach, afterEach, vi } from 'vitest';
+import { describe, it, expect, beforeAll, afterEach } from 'vitest';
 import { render, cleanup, screen, fireEvent } from '@testing-library/svelte';
 import GoalCard from './goal-card.svelte';
 import type { Goal, UserStats } from '$lib/server/trenara/types';
 
 // The card mounts a chart, and jsdom lays nothing out: it has no ResizeObserver
-// and every element measures zero. Only the picker is under test here, so a
-// stub that does nothing is enough to let the chart mount without throwing.
+// and every element measures zero. Only the picker is under test here.
 beforeAll(() => {
 	globalThis.ResizeObserver = class {
 		observe() {}
@@ -14,19 +13,8 @@ beforeAll(() => {
 	} as unknown as typeof ResizeObserver;
 });
 
-// Mounting fires three requests (load history, track prediction, archive goal);
-// none of them feed the picker, so they are answered with nothing rather than
-// with fixtures.
-beforeEach(() => {
-	vi.stubGlobal(
-		'fetch',
-		vi.fn(async () => new Response(JSON.stringify({ records: [] }), { status: 200 }))
-	);
-});
-
 afterEach(() => {
 	cleanup();
-	vi.unstubAllGlobals();
 });
 
 /** A goal still running, so the card renders its graph rather than the completed state. */
@@ -63,12 +51,12 @@ function step(label: string) {
 
 describe('goal card graph navigation', () => {
 	it('opens on the prediction graph', () => {
-		render(GoalCard, { goal, userStats });
+		render(GoalCard, { goal, userStats, history: [] });
 		expect(picker().value).toBe('prediction');
 	});
 
 	it('steps forward through the graphs and wraps round to the first', async () => {
-		render(GoalCard, { goal, userStats });
+		render(GoalCard, { goal, userStats, history: [] });
 
 		await step('Distance This Week');
 		expect(picker().value).toBe('week');
@@ -81,7 +69,7 @@ describe('goal card graph navigation', () => {
 	});
 
 	it('steps back from the opening view by wrapping to the last graph', async () => {
-		render(GoalCard, { goal, userStats });
+		render(GoalCard, { goal, userStats, history: [] });
 
 		// Two arrows point away from 'prediction': back to 'goal', forward to
 		// 'week'. Neither dead-ends, which is what the wrap is for.
@@ -90,7 +78,7 @@ describe('goal card graph navigation', () => {
 	});
 
 	it('keeps the dropdown working as the other way to switch', async () => {
-		render(GoalCard, { goal, userStats });
+		render(GoalCard, { goal, userStats, history: [] });
 
 		await fireEvent.change(picker(), { target: { value: 'week' } });
 		expect(picker().value).toBe('week');

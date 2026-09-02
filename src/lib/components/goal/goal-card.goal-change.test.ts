@@ -1,7 +1,8 @@
-import { describe, it, expect, beforeAll, afterEach, vi } from 'vitest';
+import { describe, it, expect, beforeAll, afterEach } from 'vitest';
 import { render, cleanup, screen, waitFor } from '@testing-library/svelte';
 import GoalCard from './goal-card.svelte';
 import type { Goal, UserStats } from '$lib/server/trenara/types';
+import type { ChartDataPoint } from '$lib/components/charts/prediction-chart.svelte';
 import { secondsToTimeString, secondsToPaceString } from '$lib/utils/format';
 
 // The card mounts a chart and jsdom lays nothing out.
@@ -15,7 +16,6 @@ beforeAll(() => {
 
 afterEach(() => {
 	cleanup();
-	vi.unstubAllGlobals();
 });
 
 /** The goal as it stands after the change: a marathon, started today. */
@@ -42,30 +42,21 @@ const userStats = {
 } as unknown as UserStats;
 
 /** A stored reading over `distanceKm`, `daysAgo` back, at `pace` s/km. */
-function record(daysAgo: number, paceSeconds: number, distanceKm: number) {
+function record(daysAgo: number, paceSeconds: number, distanceKm: number): ChartDataPoint {
 	const recorded = new Date(Date.now() - daysAgo * 86_400_000);
+	const time = Math.round(paceSeconds * distanceKm);
+	const pace = Math.round(paceSeconds);
 	return {
-		id: daysAgo,
-		user_id: 1,
-		predicted_time: secondsToTimeString(Math.round(paceSeconds * distanceKm)),
-		predicted_pace: secondsToPaceString(Math.round(paceSeconds)),
-		predicted_time_10k: null,
-		predicted_pace_10k: null,
-		recorded_at: recorded.toISOString(),
-		created_at: recorded.toISOString()
+		date: recorded.toISOString(),
+		predictedTime: time,
+		predictedPace: pace,
+		formattedTime: secondsToTimeString(time),
+		formattedPace: secondsToPaceString(pace)
 	};
 }
 
-function mount(records: ReturnType<typeof record>[]) {
-	vi.stubGlobal(
-		'fetch',
-		vi.fn(async (url: string, init?: RequestInit) =>
-			init?.method === 'POST'
-				? new Response(JSON.stringify({ stored: false }), { status: 200 })
-				: new Response(JSON.stringify({ records }), { status: 200 })
-		)
-	);
-	render(GoalCard, { props: { goal, userStats } });
+function mount(history: ChartDataPoint[]) {
+	render(GoalCard, { props: { goal, userStats, history } });
 }
 
 describe('goal card after a goal change', () => {

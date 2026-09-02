@@ -4,6 +4,7 @@
 	import type { Goal, UserStats } from '$lib/server/trenara/types';
 	import Calendar from '$lib/components/calendar/calendar.svelte';
 	import GoalCard from '$lib/components/goal/goal-card.svelte';
+	import GoalCardShare from '$lib/components/goal/goal-card-share.svelte';
 	import PredictionsCard from '$lib/components/predictions/predictions-card.svelte';
 	import { isRenderableStats } from '$lib/utils/user-stats';
 
@@ -16,6 +17,11 @@
 
 	const goal = $derived(refreshed?.goal ?? data.goal);
 	const userStats = $derived(refreshed?.userStats ?? data.userStats);
+
+	// Not part of `refreshed`: the manual refresh button only ever re-fetched
+	// goal and stats, never the chart, and this keeps that unchanged rather
+	// than reaching for a third endpoint response to widen it.
+	const history = $derived(data.history);
 
 	// Whether the goal card is open, while the cards are stacked above the
 	// calendar. Closed to begin with: its head carries the prediction, so
@@ -93,11 +99,17 @@
 				<GoalCard
 					{goal}
 					{userStats}
+					history={history.records}
+					historyError={history.error}
 					collapsible
 					expanded={goalOpen}
 					ontoggle={() => (goalOpen = !goalOpen)}
 					bodyId="goal-card-body"
-				/>
+				>
+					{#snippet headerExtra()}
+						<GoalCardShare share={data.share} goalName={goal.name} />
+					{/snippet}
+				</GoalCard>
 
 				<!--
 					The gap between the cards is inside the fold, not above it, so a
