@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeAll, afterEach } from 'vitest';
 import { render, cleanup, screen, fireEvent, within } from '@testing-library/svelte';
+import { createRawSnippet } from 'svelte';
 import GoalCard from './goal-card.svelte';
 import type { Goal, UserStats } from '$lib/server/trenara/types';
 
@@ -45,6 +46,16 @@ function mount(props: Record<string, unknown> = {}) {
 /** The fold's own control — the graph picker's arrows are buttons too. */
 function toggle() {
 	return screen.getByRole('button', { name: /goal details/i });
+}
+
+/** A stand-in for `headerExtra`, recording whether it was actually clicked. */
+function shareSnippet(onClick: () => void) {
+	return createRawSnippet(() => ({
+		render: () => '<button type="button" data-testid="fake-share">Share</button>',
+		setup: (node) => {
+			node.addEventListener('click', onClick);
+		}
+	}));
 }
 
 describe('goal card, folded', () => {
@@ -119,5 +130,60 @@ describe('goal card, folded', () => {
 		mount({ goal: { ...goal, end_date: '2020-01-01' }, collapsible: true, expanded: false });
 		expect(screen.getByRole('heading', { name: /goal completed/i })).toBeTruthy();
 		expect(toggle().getAttribute('aria-expanded')).toBe('false');
+	});
+
+	// The toggle is an invisible `-inset-2` button laid over the whole head so
+	// the head is one big tap target — which also made it, being the only
+	// *positioned* element there, paint on top of everything else in the row
+	// regardless of DOM order. A control passed as `headerExtra` (the share
+	// button) sat under it and never received a click.
+	//
+	// jsdom has no layout engine, so it cannot be asked "which element is
+	// visually on top here" the way a real browser can — `fireEvent.click` on
+	// a specific node dispatches straight to it no matter what CSS says, which
+	// means a test that fires the click and checks who handled it passes
+	// whether or not the stacking is actually fixed. What can be checked here
+	// is the CSS that decides the outcome in a real browser: the toggle pinned
+	// to the base stacking layer, and headerExtra's wrapper lifted above it.
+	it('gives the fold toggle a plain z-index rather than an implicit stacking order', () => {
+		mount({ collapsible: true, expanded: false });
+		expect(toggle().className).toContain('z-0');
+	});
+
+	it("wraps headerExtra in a layer above the toggle's, so it can still be clicked", () => {
+		const shared: number[] = [];
+		mount({
+			collapsible: true,
+			expanded: false,
+			headerExtra: shareSnippet(() => shared.push(1))
+		});
+
+		const wrapper = screen.getByTestId('fake-share').parentElement!;
+		expect(wrapper.className).toContain('relative');
+		expect(wrapper.className).toContain('z-10');
+	});
+
+	it('does the same on a completed goal, whose head renders on a separate branch', () => {
+		const shared: number[] = [];
+		mount({
+			goal: { ...goal, end_date: '2020-01-01' },
+			collapsible: true,
+			expanded: false,
+			headerExtra: shareSnippet(() => shared.push(1))
+		});
+
+		const wrapper = screen.getByTestId('fake-share').parentElement!;
+		expect(wrapper.className).toContain('relative');
+		expect(wrapper.className).toContain('z-10');
+	});
+
+	// A tap to expand the card used to leave the whole head ringed in the
+	// accent colour until something else took focus — `:focus` does not
+	// distinguish a pointer press from a keyboard tab. `:focus-visible` does.
+	it('rings the fold toggle only for keyboard focus, not for the tap that fires it', () => {
+		mount({ collapsible: true, expanded: false });
+		const cls = toggle().className;
+		expect(cls).toContain('focus-visible:ring-2');
+		expect(cls).not.toContain('focus:ring-2');
 	});
 });

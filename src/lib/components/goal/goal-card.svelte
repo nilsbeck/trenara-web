@@ -573,7 +573,9 @@
 			<div class="mb-4 flex items-center gap-3">
 				<Trophy class="h-6 w-6 shrink-0 text-primary" />
 				<h2 class="min-w-0 flex-1 text-xl font-semibold text-card-foreground">Goal Completed</h2>
-				{@render headerExtra?.()}
+				<!-- Above the fold toggle's `-inset-2` overlay below, which otherwise
+				     sits on top of everything in this row and swallows the click. -->
+				<div class="relative z-10 shrink-0">{@render headerExtra?.()}</div>
 				{@render foldIcon()}
 			</div>
 			<p class="text-muted-foreground">
@@ -587,7 +589,9 @@
 					{goal.name}
 				</h2>
 				{@render trendBadge()}
-				{@render headerExtra?.()}
+				<!-- Above the fold toggle's `-inset-2` overlay below, which otherwise
+				     sits on top of everything in this row and swallows the click. -->
+				<div class="relative z-10 shrink-0">{@render headerExtra?.()}</div>
 				{@render foldIcon()}
 			</div>
 
@@ -625,7 +629,7 @@
 				onclick={ontoggle}
 				aria-expanded={expanded}
 				aria-controls={bodyId}
-				class="absolute -inset-2 rounded-md focus:outline-none focus:ring-2 focus:ring-ring lg:hidden"
+				class="absolute -inset-2 z-0 rounded-md focus:outline-none focus-visible:ring-2 focus-visible:ring-ring lg:hidden"
 			>
 				<span class="sr-only">{expanded ? 'Hide' : 'Show'} goal details</span>
 			</button>
