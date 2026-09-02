@@ -262,10 +262,14 @@ describe('sessionSettings', () => {
 		expect(terrain?.value).toBe('Treadmill · Flat');
 	});
 
-	it('leaves terrain and shoe unset rather than inventing a default', () => {
+	it('falls back to Road and Flat for terrain, but leaves the shoe unset', () => {
+		// `training_condition: null` is Trenara's own resting state, the same one
+		// the setup sheet opens onto — not a value nobody has picked. The shoe has
+		// no such resting state to fall back to: a session either carries a
+		// recommendation or it does not.
 		const training = tempoRun({ training_condition: null, suggested_shoe: null });
 		const settings = sessionSettings(training);
-		expect(settings.find((s) => s.key === 'terrain')?.value).toBeNull();
+		expect(settings.find((s) => s.key === 'terrain')?.value).toBe('Road · Flat');
 		expect(settings.find((s) => s.key === 'shoe')?.value).toBeNull();
 	});
 

@@ -401,8 +401,16 @@ export function sessionSettings(training: ScheduledTraining): Setting[] {
 	// the runner what their race is set up as.
 	if (run) {
 		const condition = training.training_condition;
-		const surface = surfaceLabel(condition?.surface);
-		const height = heightLabel(condition?.height_difference);
+		const awaitingCondition = !('training_condition' in training);
+		// A `null` condition is not "nothing set" — it is Trenara's own resting
+		// state, and the setup sheet already treats it that way: it opens onto
+		// Road and Flat, not onto a blank picker, because that is what a session
+		// nobody has touched is run on. The pill matches the sheet once the field
+		// has actually arrived; while it is still awaiting (the week copy, which
+		// omits it entirely) there is nothing to fall back to yet, so the chip
+		// keeps spinning under its plain label rather than guessing early.
+		const surface = awaitingCondition ? null : (surfaceLabel(condition?.surface) ?? 'Road');
+		const height = awaitingCondition ? null : (heightLabel(condition?.height_difference) ?? 'Flat');
 		const climb = conditionClimb(training);
 		settings.push({
 			key: 'terrain',
@@ -410,11 +418,11 @@ export function sessionSettings(training: ScheduledTraining): Setting[] {
 			// The climb joins the label only once it is set: on the sessions that
 			// have none it would be a "0 m" nobody asked about.
 			value: surface
-				? [surface, height ?? 'Flat', climb > 0 ? `${climb} m` : null].filter(Boolean).join(' · ')
+				? [surface, height, climb > 0 ? `${climb} m` : null].filter(Boolean).join(' · ')
 				: null,
 			changed: false,
 			chip: true,
-			awaiting: !('training_condition' in training)
+			awaiting: awaitingCondition
 		});
 
 		settings.push({
