@@ -13,6 +13,7 @@ vi.mock('$app/navigation', () => ({ invalidateAll: mockInvalidateAll }));
 import GoalCardShare from './goal-card-share.svelte';
 
 const shareRow = { token: 'a'.repeat(43), title: 'Race day' };
+const GOAL_NAME = 'Berlin Marathon';
 
 // jsdom ships <dialog> without showModal/close, so a component that opens one
 // cannot be driven at all without this — same stub as the other dialogs use.
@@ -48,17 +49,35 @@ function openDialog() {
 	fireEvent.click(screen.getByRole('button', { name: /^share$/i }));
 }
 
+// A tap to open the dialog used to ring the trigger in the accent colour
+// until something else took focus — `:focus` fires for a pointer click as
+// readily as for keyboard focus. `:focus-visible` does not. Same fix, same
+// reasoning, as the goal card's fold toggle.
+it('rings the trigger only for keyboard focus, not for the tap that opens the dialog', () => {
+	render(GoalCardShare, { props: { share: null, goalName: GOAL_NAME } });
+	const cls = screen.getByRole('button', { name: /^share$/i }).className;
+	expect(cls).toContain('focus-visible:ring-2');
+	expect(cls).not.toContain('focus:ring-2');
+});
+
 describe('goal card share dialog, no live link', () => {
 	it('offers a title field and a create action, with no fetch on mount', () => {
-		render(GoalCardShare, { props: { share: null } });
+		render(GoalCardShare, { props: { share: null, goalName: GOAL_NAME } });
 		expect(fetch).not.toHaveBeenCalled();
 
 		openDialog();
 		expect(screen.getByRole('button', { name: /create link/i })).toBeTruthy();
 	});
 
+	it("pre-fills the title with the goal's own name rather than leaving it blank", () => {
+		render(GoalCardShare, { props: { share: null, goalName: GOAL_NAME } });
+		openDialog();
+
+		expect(screen.getByDisplayValue(GOAL_NAME)).toBeTruthy();
+	});
+
 	it('creates a link and refreshes the page data through invalidateAll', async () => {
-		render(GoalCardShare, { props: { share: null } });
+		render(GoalCardShare, { props: { share: null, goalName: GOAL_NAME } });
 		openDialog();
 
 		await fireEvent.click(screen.getByTestId('create-button'));
@@ -81,7 +100,7 @@ describe('goal card share dialog, no live link', () => {
 			})
 		);
 
-		render(GoalCardShare, { props: { share: null } });
+		render(GoalCardShare, { props: { share: null, goalName: GOAL_NAME } });
 		openDialog();
 
 		const button = screen.getByTestId('create-button') as HTMLButtonElement;
@@ -102,7 +121,7 @@ describe('goal card share dialog, no live link', () => {
 			)
 		);
 
-		render(GoalCardShare, { props: { share: null } });
+		render(GoalCardShare, { props: { share: null, goalName: GOAL_NAME } });
 		openDialog();
 		await fireEvent.click(screen.getByTestId('create-button'));
 
@@ -113,7 +132,7 @@ describe('goal card share dialog, no live link', () => {
 
 describe('goal card share dialog, a live link', () => {
 	it('shows the share URL, built from the page origin and the token', () => {
-		render(GoalCardShare, { props: { share: shareRow } });
+		render(GoalCardShare, { props: { share: shareRow, goalName: GOAL_NAME } });
 		openDialog();
 
 		const input = screen.getByDisplayValue(
@@ -123,7 +142,7 @@ describe('goal card share dialog, a live link', () => {
 	});
 
 	it('offers rotate and revoke, not a title field', () => {
-		render(GoalCardShare, { props: { share: shareRow } });
+		render(GoalCardShare, { props: { share: shareRow, goalName: GOAL_NAME } });
 		openDialog();
 
 		expect(screen.getByTestId('rotate-button')).toBeTruthy();
@@ -132,7 +151,7 @@ describe('goal card share dialog, a live link', () => {
 	});
 
 	it('rotates the token and refreshes through invalidateAll', async () => {
-		render(GoalCardShare, { props: { share: shareRow } });
+		render(GoalCardShare, { props: { share: shareRow, goalName: GOAL_NAME } });
 		openDialog();
 
 		await fireEvent.click(screen.getByTestId('rotate-button'));
@@ -145,7 +164,7 @@ describe('goal card share dialog, a live link', () => {
 	});
 
 	it('revokes and refreshes through invalidateAll', async () => {
-		render(GoalCardShare, { props: { share: shareRow } });
+		render(GoalCardShare, { props: { share: shareRow, goalName: GOAL_NAME } });
 		openDialog();
 
 		await fireEvent.click(screen.getByTestId('revoke-button'));
@@ -158,7 +177,7 @@ describe('goal card share dialog, a live link', () => {
 	});
 
 	it('confirms a copy, falling back to selecting the text when the Clipboard API is unavailable', async () => {
-		render(GoalCardShare, { props: { share: shareRow } });
+		render(GoalCardShare, { props: { share: shareRow, goalName: GOAL_NAME } });
 		openDialog();
 
 		const input = screen.getByDisplayValue(

@@ -36,7 +36,7 @@
 			{#if goal && isRenderableStats(userStats)}
 				<GoalCard {goal} {userStats} history={history.records} historyError={history.error}>
 					{#snippet headerExtra()}
-						<GoalCardShare {share} />
+						<GoalCardShare {share} goalName={goal.name} />
 					{/snippet}
 				</GoalCard>
 				<PredictionsCard {userStats} />

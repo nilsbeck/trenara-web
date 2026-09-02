@@ -107,7 +107,7 @@
 					bodyId="goal-card-body"
 				>
 					{#snippet headerExtra()}
-						<GoalCardShare share={data.share} />
+						<GoalCardShare share={data.share} goalName={goal.name} />
 					{/snippet}
 				</GoalCard>
 

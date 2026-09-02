@@ -17,7 +17,14 @@
 	 * back through the same load that seeded this one, so there is exactly one
 	 * source for it rather than two that could disagree.
 	 */
-	let { share }: { share: Pick<ShareRow, 'token' | 'title'> | null } = $props();
+	let {
+		share,
+		goalName
+	}: {
+		share: Pick<ShareRow, 'token' | 'title'> | null;
+		/** Pre-fills the title field for a first-time create — a sensible default, not a fixed value. */
+		goalName: string;
+	} = $props();
 
 	let dialogEl: HTMLDialogElement | undefined = $state();
 	let title = $state('');
@@ -29,7 +36,10 @@
 	const url = $derived(share ? `${page.url.origin}/s/${share.token}` : null);
 
 	function open() {
-		title = share?.title ?? '';
+		// The existing title if there is a link already, otherwise the goal's
+		// own name — a starting point the runner can edit or clear rather than
+		// an empty field with nothing but a placeholder to copy from.
+		title = share?.title ?? goalName;
 		error = null;
 		copied = false;
 		dialogEl?.showModal();
@@ -89,7 +99,7 @@
 <button
 	type="button"
 	onclick={open}
-	class="flex shrink-0 items-center gap-1 rounded-md px-1.5 py-1 text-xs font-medium whitespace-nowrap text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+	class="flex shrink-0 items-center gap-1 rounded-md px-1.5 py-1 text-xs font-medium whitespace-nowrap text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
 >
 	<Share2 class="h-3.5 w-3.5" aria-hidden="true" />
 	Share
@@ -194,7 +204,7 @@
 					type="text"
 					bind:value={title}
 					maxlength="80"
-					placeholder={share ? '' : 'e.g. Berlin Marathon'}
+					placeholder="e.g. Berlin Marathon"
 					class="w-full rounded-md border border-border bg-transparent px-3 py-2 text-sm text-card-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:ring-2 focus:ring-ring"
 				/>
 			</label>
