@@ -11,6 +11,9 @@ node_modules
 # Test output
 /coverage
 
+# Plan exports — a runner's own training data, written by scripts/extract-plan.ts
+/plan-export
+
 # OS
 .DS_Store
 Thumbs.db
