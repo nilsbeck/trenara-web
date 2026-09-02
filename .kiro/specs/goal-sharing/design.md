@@ -96,9 +96,14 @@ CREATE TABLE IF NOT EXISTS goal_share (
 -- twice.
 CREATE UNIQUE INDEX IF NOT EXISTS idx_goal_share_token ON goal_share(token);
 
--- The owner's own lookups: "is this goal shared?" on the goal page, and the
--- throttled refresh.
-CREATE INDEX IF NOT EXISTS idx_goal_share_user ON goal_share(user_id, goal_id);
+-- No index is declared for the owner's own lookups. `UNIQUE (user_id, goal_id)`
+-- above already creates one, and it serves both of them: the goal page's "is
+-- this goal shared?" is an equality probe on the whole key, and the row-cap
+-- trigger's `COUNT(… WHERE user_id = …)` is a scan of its leading column.
+-- A second index on the same pair would be paid for on every write and read
+-- from never. (`prediction_history` carries exactly that redundancy — a
+-- `UNIQUE (user_id, recorded_at)` and an `idx_…_user_date` over the same two
+-- columns. Not repeated here.)
 
 ALTER TABLE goal_share ENABLE ROW LEVEL SECURITY;
 REVOKE ALL ON goal_share FROM anon, authenticated;
@@ -240,24 +245,55 @@ class GoalShareDAO {
 	/**
 	 * Create the link, or rotate the token on the one that exists.
 	 *
-	 * Upsert on `(user_id, goal_id)` — one statement, so two taps on "Create
-	 * link" cannot race into two rows or into a unique violation. Rotating
-	 * keeps the row, so a regenerated link starts life with the snapshot the
-	 * old one had rather than blank.
+	 * `UPDATE … WHERE user_id = … AND goal_id = …` first, falling back to an
+	 * `INSERT` whose unique violation means another request created the row in
+	 * between — the shape `NewsReadStateDAO.advanceMark` already uses, and for
+	 * the same reason: two taps on "Create link" must not race into two rows.
+	 *
+	 * Deliberately *not* an upsert, which is what this said first. The row-cap
+	 * trigger is `BEFORE INSERT`, and Postgres fires that on the
+	 * `ON CONFLICT DO UPDATE` path too — so at the cap, upserting would refuse
+	 * to rotate a token on a row that already exists, which is a regenerate
+	 * failing for the reason "you have too many links". Update-then-insert
+	 * only reaches the trigger when a row is genuinely being added, which is
+	 * the only case the cap is about.
+	 *
+	 * Rotating keeps the row, so a regenerated link starts life with the
+	 * snapshot the old one had rather than blank, and the old token is dead
+	 * the moment the column changes.
 	 */
 	issue(userId: number, goalId: number, fields: IssueFields): Promise<ShareRow>;
 
-	/** Set `revoked_at`. Returns whether a row was actually live to revoke. */
+	/**
+	 * Set `revoked_at` and null out `snapshot` in the same statement.
+	 *
+	 * Clearing the copy, not just the door. A revoke that leaves the published
+	 * snapshot sitting in the table means the runner's "stop sharing this"
+	 * left the shared data where it was — true but invisible, and not what
+	 * they asked for. The row survives so the goal can be shared again later,
+	 * at which point the next refresh repopulates it.
+	 *
+	 * Returns whether a row was actually live to revoke.
+	 */
 	revoke(userId: number, goalId: number): Promise<{ revoked: boolean }>;
 
 	/**
 	 * Write the snapshot, but only if the stored one is older than `staleAfter`.
 	 *
-	 * One conditional `UPDATE … WHERE snapshot_at < $cutoff OR snapshot_at IS
-	 * NULL`, not a read followed by a decision followed by a write: two of the
-	 * owner's own page loads land together often (dashboard and goal page, or
-	 * two tabs), and the read-compare-write shape is the one the read-state
-	 * tables were already burned by.
+	 * One conditional `UPDATE`, not a read followed by a decision followed by
+	 * a write: two of the owner's own page loads land together often
+	 * (dashboard and goal page, or two tabs), and read-compare-write is the
+	 * shape the read-state tables were already burned by.
+	 *
+	 * The condition has to be written
+	 * `.or('snapshot_at.is.null,snapshot_at.lt.<iso>')`, not `.lt(…)` alone:
+	 * a comparison against NULL is NULL, not true, so the `.lt` form silently
+	 * never matches the one row that most needs writing — a link created but
+	 * not yet snapshotted. That row would stay blank forever, and the page
+	 * would sit on its "not updated yet" state with nothing to say why.
+	 *
+	 * `revoked_at IS NULL` is part of the condition too: a revoked link must
+	 * not quietly refill with fresh data on the owner's next page load.
 	 */
 	refreshSnapshot(
 		userId: number,
@@ -279,9 +315,16 @@ class GoalShareDAO {
 }
 ```
 
-`getLiveByToken` selects columns explicitly — `token, title, display_name,
-snapshot, snapshot_at, user_id, goal_id` — rather than `*`. `user_id` is needed
-to read the prediction history and never leaves the server.
+`getLiveByToken` is `.select(…).eq('token', token).is('revoked_at', null).maybeSingle()`.
+`maybeSingle`, not `single`: `single` raises PGRST116 when nothing matches, and
+nothing matching is the ordinary case here — every mistyped or revoked token.
+Through `storageFailed` that would surface as a 503 "your history could not be
+loaded", so the most common outcome of the most public route in the app would
+report itself as the database being down.
+
+Columns are listed explicitly — `token, title, display_name, snapshot,
+snapshot_at, user_id, goal_id` — rather than `*`. `user_id` is needed to read
+the prediction history and never leaves the server.
 
 ### `$lib/server/share/refresh.ts`
 
@@ -323,11 +366,24 @@ Wiring:
 Inside `/api`, so `handleGuard` authenticates it and rate-limits it already,
 and `requireUser(locals)` narrows the runner.
 
-| Method   | Does                                                         | Notes                                                                  |
-| -------- | ------------------------------------------------------------ | ---------------------------------------------------------------------- |
-| `GET`    | The link for the runner's current goal, or `{ share: null }` | Feeds the share dialog's opening state                                 |
-| `POST`   | Create or regenerate, body `{ title?: string }`              | `storageWrites` limiter; writes the first snapshot in the same request |
-| `DELETE` | Revoke                                                       | `storageWrites` limiter                                                |
+| Method   | Does                                            | Notes                                                                  |
+| -------- | ----------------------------------------------- | ---------------------------------------------------------------------- |
+| `POST`   | Create or regenerate, body `{ title?: string }` | `storageWrites` limiter; writes the first snapshot in the same request |
+| `DELETE` | Revoke                                          | `storageWrites` limiter                                                |
+
+There is no `GET`, which is a correction to this design's first draft. The
+dialog's opening state — does a link exist, and what is its URL — was going to
+be an `onMount` fetch, and §5 of `agents.md` says plainly: no `onMount` for
+data fetching where a `load` can do it. `/goal`'s load already runs
+server-side with the runner resolved, so it streams `share` alongside `goal`
+and `userStats`, and the dialog is handed its state as a prop. That removes a
+round trip, removes the dialog's whole "unknown" state, and leaves the
+endpoint holding only mutations — every one of them a method that is not GET,
+per the CSRF invariant.
+
+After a create or revoke the dialog calls `invalidateAll()`, so the new state
+comes back through the same load that seeded it rather than through a second
+code path that could disagree with it.
 
 The goal id is never taken from the request. `POST` reads `trainingApi.getGoal(cookies)`
 — cached, so it is usually free — and uses that id, per the invariant that the
@@ -354,13 +410,38 @@ chance of a future `(app)`-adjacent route accidentally inheriting it.
 ### `+page.server.ts`
 
 ```
-1. Rate-limit by IP (`shareViews`, 60/min). 429 if over.
+1. Rate-limit by IP (`getClientAddress()`, `shareViews`, 60/min). 429 if over.
 2. Shape-check the token; a miss is a 404 without a query.
 3. `getLiveByToken`. Null → 404.
-4. Read the owner's `prediction_history` from `snapshot.goal.start_date`,
+4. Parse `snapshot` with Zod. A parse failure is the "not updated yet" state.
+5. Read the owner's `prediction_history` from `snapshot.goal.start_date`,
    limit 200 — the same window and limit the owner's card uses.
-5. Return { title, name, goal, stats, snapshotAt, history }.
+6. Return { title, name, goal, stats, snapshotAt, history }.
 ```
+
+Step 4 is the one that was missing from this design's first draft. The
+snapshot is a JSONB column, so it comes back as `unknown` and the tempting
+thing is to cast it — but it was written by whichever version of this app was
+deployed when the owner last opened the dashboard, and it will be read by
+whichever version is deployed when a friend opens the link. Those are not the
+same version, which is what the `v` field is for and what nothing was checking.
+A cast makes a shape change a `TypeError` inside a component on a public page;
+a parse makes it the empty state, which is already drawn. So:
+`src/lib/schemas/share.ts` holds a Zod schema for `SharedSnapshot` — the app
+already validates upstream shapes with `expectObject`, and its own storage
+crossing a deploy boundary deserves no less.
+
+Step 1 uses `getClientAddress()`, as the login action already does — not a
+hand-read `x-forwarded-for`, which is spoofable where the platform's own
+resolution is not.
+
+Step 5 is the only place in the app where an anonymous request causes an
+owner-scoped read. It goes through the existing
+`predictionHistoryDAO.getUserPredictionHistory`, so it carries `.eq('user_id',
+…)` like everything else — and the id it filters on comes from the share row
+the token resolved to, never from anything in the request. Worth a comment at
+the call site: the token is the authorisation, and the row is what says whose
+history it authorises.
 
 `prerender = false`, `ssr = true`, `csr` left on so the chart's interactivity
 (tooltips) works. The load is entirely server-side: the visitor's browser
@@ -369,19 +450,22 @@ token and no session.
 
 `setHeaders({ 'x-robots-tag': 'noindex, nofollow', 'cache-control': 'public, max-age=60' })`.
 A minute of caching absorbs the refresh-hammering case without ever showing a
-number older than the snapshot already is.
+number older than the snapshot already is. `public` is safe here even though
+the content is personal: the cache key is the full path, the token is in the
+path, and the response never varies by cookie or header — the page reads no
+session and renders identically for the owner and for a stranger.
 
 ### Empty and failure states
 
 Per §4 of `agents.md`, absence must not stand for two things. The route has
 four outcomes and the page draws each:
 
-| Outcome                           | What the visitor sees                                                                                                                                                         |
-| --------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Live link with a snapshot         | The goal card                                                                                                                                                                 |
-| Live link, snapshot never written | "This goal hasn't been updated yet — check back once <name> next opens Trainara." Not an error: it is a link created seconds ago, or one whose owner has not been back since. |
-| Revoked or unknown token          | 404: "This link is no longer available." Identical text for both.                                                                                                             |
-| Storage failure                   | The existing `STORAGE_READ_MESSAGE`, through `fromStorage`                                                                                                                    |
+| Outcome                                    | What the visitor sees                                                                                                                                                                                                          |
+| ------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Live link with a snapshot                  | The goal card                                                                                                                                                                                                                  |
+| Live link, snapshot missing or unparseable | "This goal hasn't been updated yet — check back once <name> next opens Trainara." Not an error: it is a link created seconds ago, one whose owner has not been back since, or a snapshot written by an older shape of the app. |
+| Revoked or unknown token                   | 404: "This link is no longer available." Identical text for both.                                                                                                                                                              |
+| Storage failure                            | The existing `STORAGE_READ_MESSAGE`, through `fromStorage`                                                                                                                                                                     |
 
 There is no client-side loading state on this page at all, because there is no
 client-side fetch — the one place in the app where rendering nothing is
@@ -464,10 +548,19 @@ precede one.
 passed in as a snippet so the card itself gains no knowledge of sharing, and
 the dashboard's copy of the card is unaffected.
 
-States: _unknown_ (fetching, spinner with an `sr-only` sentence, flag starting
-`true` per the loading rules) → _none_ (title field + "Create link") → _live_
-(URL, copy, "Create new link", "Revoke"). The dialog follows the existing
-modals in `$lib/components/modals`.
+Two states, not three: _none_ (title field + "Create link") and _live_ (URL,
+copy, "Create new link", "Revoke"). There is no _unknown_ state, because the
+share row arrives from `/goal`'s load rather than from a fetch on mount — see
+the endpoint section. The dialog follows the existing modals in
+`$lib/components/modals`.
+
+The mutations still have the three outcomes every client-side call has, and
+they are drawn: the button holds a pending state while a create or revoke is
+in flight (disabled, spinner inside a `role="status"` wrapper with an `sr-only`
+sentence, tagged `data-testid`), and a failure says so in place rather than
+leaving the dialog looking untouched. What the loading rules in §4 of
+`agents.md` forbid is a component that draws only the good outcome; a dialog
+whose _data_ came from a load simply has fewer outcomes to draw.
 
 ## Rate limiting
 
@@ -491,16 +584,16 @@ Creates and revokes go through the existing `storageWrites`.
 
 ## Testing
 
-| File                         | Covers                                                                                                                                                                                                                    |
-| ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `token.test.ts`              | Length, alphabet, distinctness across many draws, `isShareToken` accepting an issued token and rejecting shape variants                                                                                                   |
-| `goal-share.test.ts`         | Every DAO method against the mocked Supabase client; `getLiveByToken` returning null for revoked and for missing; `refreshSnapshot` writing only past the cutoff; the `user_id` filter present on every owner-scoped call |
-| `snapshot.test.ts`           | The projection carries exactly the listed fields and drops the rest — asserted by comparing key sets against a full fixture, so a new upstream field cannot silently ride along                                           |
-| `refresh.test.ts`            | Throttle honoured; null goal or null stats writes nothing; a storage failure resolves rather than rejects                                                                                                                 |
-| `goal-share/+server.test.ts` | 401 without a session (through the hook), goal id taken from Trenara and not the body, title trimmed and capped, revoke idempotent, limiter refusals                                                                      |
-| `share-page.test.ts`         | Live token renders; revoked and unknown both 404 with identical output; a live token with no snapshot renders the waiting state; the `noindex` header is set                                                              |
-| `goal-card.shared.test.ts`   | With `history` supplied: no `fetch` occurs at all; with `views: ['prediction']`: no picker arrows, title still present, distance graphs absent                                                                            |
-| `goal-card-share.test.ts`    | The three dialog states, the copy confirmation, and the fetch's pending and failed outcomes                                                                                                                               |
+| File                         | Covers                                                                                                                                                                                                                                                                                                                                                                                                               |
+| ---------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `token.test.ts`              | Length, alphabet, distinctness across many draws, `isShareToken` accepting an issued token and rejecting shape variants                                                                                                                                                                                                                                                                                              |
+| `goal-share.test.ts`         | Every DAO method against the mocked Supabase client; `getLiveByToken` using `maybeSingle` and returning null for revoked and for missing alike; `refreshSnapshot` writing past the cutoff **and** when `snapshot_at` is null, and never on a revoked row; `issue` rotating in place rather than inserting when a row exists; `revoke` clearing the snapshot; the `user_id` filter present on every owner-scoped call |
+| `snapshot.test.ts`           | The projection carries exactly the listed fields and drops the rest — asserted by comparing key sets against a full fixture, so a new upstream field cannot silently ride along; the Zod schema accepts what `projectSnapshot` produces (round trip) and rejects a `v: 2` and a truncated blob                                                                                                                       |
+| `refresh.test.ts`            | Throttle honoured; null goal or null stats writes nothing; a storage failure resolves rather than rejects                                                                                                                                                                                                                                                                                                            |
+| `goal-share/+server.test.ts` | 401 without a session (through the hook), goal id taken from Trenara and not the body, title trimmed and capped, revoke idempotent, limiter refusals, and no `GET` handler exported                                                                                                                                                                                                                                  |
+| `share-page.test.ts`         | Live token renders; revoked and unknown both 404 with identical output; a live token with no snapshot renders the waiting state; an unparseable snapshot renders the same state rather than throwing; the history is read for the share row's `user_id` and not for anything in the request; the `noindex` header is set                                                                                             |
+| `goal-card.shared.test.ts`   | With `history` supplied: no `fetch` occurs at all; with `views: ['prediction']`: no picker arrows, title still present, distance graphs absent                                                                                                                                                                                                                                                                       |
+| `goal-card-share.test.ts`    | Both dialog states from a prop with no fetch on mount, the copy confirmation, and the create/revoke calls' pending and failed outcomes                                                                                                                                                                                                                                                                               |
 
 Coverage thresholds in `vitest.config.ts` are a gate in CI; this feature adds
 enough surface that they should be re-checked after, and raised if the number

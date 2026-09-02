@@ -109,18 +109,22 @@ that I can decide who to send it to.
 1. WHEN a snapshot is written THEN it SHALL contain only the fields the shared
    card renders, enumerated in the design as a type — not the whole `Goal` or
    `UserStats` object.
-2. WHEN the shared page renders THEN it SHALL NOT expose the runner's email,
+2. WHEN a stored snapshot is read THEN it SHALL be parsed against a schema
+   rather than cast, and a snapshot that does not parse — one written by an
+   older shape of the app — SHALL render the same "not updated yet" state as a
+   missing one, never an exception on a public page.
+3. WHEN the shared page renders THEN it SHALL NOT expose the runner's email,
    Trenara user id, last name, date of birth, location, subscription state, or
    any other account field.
-3. WHEN the shared page renders THEN it SHALL NOT expose the training schedule,
+4. WHEN the shared page renders THEN it SHALL NOT expose the training schedule,
    individual sessions, chat, news, shoes or nutrition.
-4. WHEN a token is presented for a link that does not exist or has been revoked
+5. WHEN a token is presented for a link that does not exist or has been revoked
    THEN the system SHALL answer 404 with the same page in both cases, so that
    a revoked token is indistinguishable from one that never existed.
-5. WHEN the shared page is served THEN it SHALL carry `noindex` as both a meta
+6. WHEN the shared page is served THEN it SHALL carry `noindex` as both a meta
    tag and an `X-Robots-Tag` header, and the app's `robots.txt` SHALL disallow
    `/s/`.
-6. WHEN the link is pasted into a chat application THEN its Open Graph preview
+7. WHEN the link is pasted into a chat application THEN its Open Graph preview
    SHALL read as a neutral "Trainara — a shared running goal" with no name, no
    target and no times, so that forwarding a link does not spill the numbers
    into a group chat before anyone opens it.
@@ -138,12 +142,17 @@ sharing is a decision I can take back.
    share control SHALL return to its create state.
 3. WHEN the runner creates a new link for a goal that already has one THEN the
    old token SHALL stop working and the new one SHALL serve the same goal.
-4. WHEN the runner revokes THEN the snapshot row MAY be kept, but the page
-   SHALL answer 404 as in 4.4.
-5. WHEN the runner sets a goal in Trenara that is not the goal a link was made
+4. WHEN the runner revokes THEN the system SHALL clear the stored snapshot as
+   well as marking the row revoked, so that revoking removes the published copy
+   and not merely the door to it. The row itself MAY be kept, so the goal can be
+   shared again later, and the page SHALL answer 404 as in 4.5.
+5. WHEN a link is revoked THEN a subsequent snapshot refresh SHALL NOT write to
+   it, so a revoked link cannot refill with fresh data on the owner's next page
+   load.
+6. WHEN the runner sets a goal in Trenara that is not the goal a link was made
    for THEN that link SHALL keep serving its own goal's last snapshot, and
    SHALL NOT begin serving the new goal.
-6. WHEN a shared goal's end date has passed THEN the page SHALL read as
+7. WHEN a shared goal's end date has passed THEN the page SHALL read as
    completed — the existing card already does this, and no expiry job, cron or
    scheduled cleanup SHALL be introduced for it.
 
@@ -196,9 +205,15 @@ invariants the rest of the app already holds to.
 7. WHEN the shared card renders THEN it SHALL make no client-side fetch and no
    `POST` — in particular it SHALL NOT call `/api/v1/prediction-history` or
    `/api/v1/goal-history`, both of which would 401 for a visitor.
-8. WHEN the work is done THEN unit tests SHALL cover the DAO, the snapshot
-   projection, the staleness wording and the token generation; component tests
-   SHALL cover the share dialog's states and the shared card's reduced mode;
-   and a load test SHALL cover live, revoked, missing and snapshot-less tokens.
-9. WHEN §3 of `agents.md` describes the security architecture THEN it SHALL be
-   updated in the same commit to describe the public route.
+8. WHEN the share dialog needs to know whether a link exists THEN that state
+   SHALL arrive from `/goal`'s `load`, not from a fetch on mount, since a
+   `load` can do it.
+9. WHEN a query is written against the new table THEN it SHALL follow the
+   conditional-`UPDATE`-then-`INSERT` pattern the read-state tables use rather
+   than a read, a comparison in JavaScript, and a write.
+10. WHEN the work is done THEN unit tests SHALL cover the DAO, the snapshot
+    projection, the staleness wording and the token generation; component tests
+    SHALL cover the share dialog's states and the shared card's reduced mode;
+    and a load test SHALL cover live, revoked, missing and snapshot-less tokens.
+11. WHEN §3 of `agents.md` describes the security architecture THEN it SHALL be
+    updated in the same commit to describe the public route.
