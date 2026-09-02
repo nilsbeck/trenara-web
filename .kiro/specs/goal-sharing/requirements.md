@@ -43,8 +43,12 @@ that I can send it to friends who want to follow my training.
    never from a value the browser sent.
 5. WHEN a link already exists for the current goal THEN the share control SHALL
    show that URL with a copy action rather than creating a second one.
-6. WHEN the runner has no goal THEN the share control SHALL NOT be shown.
-7. WHEN the copy action is used THEN the system SHALL confirm visibly that the
+6. WHEN a create request is repeated — a double tap, a retry, a replayed
+   request — THEN it SHALL return the existing link unchanged and SHALL NOT
+   issue a new token, so that a link already shared cannot be killed by
+   impatience.
+7. WHEN the runner has no goal THEN the share control SHALL NOT be shown.
+8. WHEN the copy action is used THEN the system SHALL confirm visibly that the
    URL was copied, and SHALL leave the URL selectable as text where the
    clipboard API is unavailable.
 
@@ -87,8 +91,10 @@ that I do not read a fortnight-old prediction as today's.
 1. WHEN the owner loads the dashboard or the goal page AND a live link exists
    for their current goal THEN the system SHALL refresh that link's snapshot
    from the data those pages already fetched.
-2. WHEN a snapshot was written less than the throttle interval ago THEN the
-   system SHALL NOT write again.
+2. WHEN the owner loads such a page THEN the snapshot SHALL be written on every
+   one of those loads rather than on a timer, so that it and the prediction row
+   are always written together. (An earlier revision throttled this; see
+   requirement 3.7 and "One consistency unit" for why that was wrong.)
 3. WHEN the snapshot refresh fails THEN it SHALL NOT fail the owner's page.
 4. WHEN the shared page renders THEN it SHALL show when the snapshot was taken,
    as a relative phrase ("Updated 3 hours ago", "Updated 6 days ago").
@@ -98,6 +104,10 @@ that I do not read a fortnight-old prediction as today's.
    owner's recorded history from the goal's start date, filtered to this goal's
    distance by the existing `splitByGoalDistance` — the same series, and the
    same exclusions, as the owner's own card.
+7. WHEN the snapshot is written THEN it SHALL be written in the same request,
+   and from the same reading of Trenara, as that request's prediction-history
+   write, so that the two sources the forecast mixes cannot report different
+   moments.
 
 ### Requirement 4 — What a link exposes, and what it never does
 
@@ -122,8 +132,9 @@ that I can decide who to send it to.
    THEN the system SHALL answer 404 with the same page in both cases, so that
    a revoked token is indistinguishable from one that never existed.
 6. WHEN the shared page is served THEN it SHALL carry `noindex` as both a meta
-   tag and an `X-Robots-Tag` header, and the app's `robots.txt` SHALL disallow
-   `/s/`.
+   tag and an `X-Robots-Tag` header, `Referrer-Policy: no-referrer` so the
+   token cannot travel in a `Referer` header to anywhere the page links, and
+   the app's `robots.txt` SHALL disallow `/s/`.
 7. WHEN the link is pasted into a chat application THEN its Open Graph preview
    SHALL read as a neutral "Trainara — a shared running goal" with no name, no
    target and no times, so that forwarding a link does not spill the numbers
@@ -140,8 +151,10 @@ sharing is a decision I can take back.
    "Create new link".
 2. WHEN the runner revokes THEN the link SHALL stop working immediately and the
    share control SHALL return to its create state.
-3. WHEN the runner creates a new link for a goal that already has one THEN the
-   old token SHALL stop working and the new one SHALL serve the same goal.
+3. WHEN the runner explicitly asks for a new link for a goal that already has
+   one THEN the old token SHALL stop working and the new one SHALL serve the
+   same goal. Rotation SHALL be a distinct request from creation, never a
+   repeat of it.
 4. WHEN the runner revokes THEN the system SHALL clear the stored snapshot as
    well as marking the row revoked, so that revoking removes the published copy
    and not merely the door to it. The row itself MAY be kept, so the goal can be
@@ -211,9 +224,15 @@ invariants the rest of the app already holds to.
 9. WHEN a query is written against the new table THEN it SHALL follow the
    conditional-`UPDATE`-then-`INSERT` pattern the read-state tables use rather
    than a read, a comparison in JavaScript, and a write.
-10. WHEN the work is done THEN unit tests SHALL cover the DAO, the snapshot
+10. WHEN the goal card is reused THEN it SHALL take its prediction history as a
+    required prop for every caller, with no flag or optional argument selecting
+    between two behaviours, and `/goal`'s own load SHALL supply it.
+11. WHEN the stored snapshot shape changes THEN the reader SHALL continue to
+    understand every version still in the wild, so that a deploy cannot blank
+    the shared pages of runners who have not opened the app since.
+12. WHEN the work is done THEN unit tests SHALL cover the DAO, the snapshot
     projection, the staleness wording and the token generation; component tests
     SHALL cover the share dialog's states and the shared card's reduced mode;
     and a load test SHALL cover live, revoked, missing and snapshot-less tokens.
-11. WHEN §3 of `agents.md` describes the security architecture THEN it SHALL be
+13. WHEN §3 of `agents.md` describes the security architecture THEN it SHALL be
     updated in the same commit to describe the public route.

@@ -20,10 +20,10 @@ logic.
                     │   goal + stats)             ▼
                     ▼                       ┌───────────────┐
               refreshSnapshot()  ─────────► │  goal_share   │
-              (throttled UPDATE)            │  token        │
+              (one UPDATE per load)         │  token        │
                                             │  snapshot     │
-   POST/DELETE /api/v1/goal-share ────────► │  snapshot_at  │
-   (create / revoke / regenerate)           └───────┬───────┘
+   POST/PUT/DELETE /api/v1/goal-share ────► │  snapshot_at  │
+   (create / rotate / revoke)               └───────┬───────┘
                                                     │
                                             prediction_history
                                             (owner's rows, by goal window)
@@ -43,8 +43,9 @@ means keeping a long-lived Trenara refresh token in the database and spending
 it on anonymous traffic — a stored credential for a reverse-engineered API, on
 an upstream budget of roughly sixty requests a minute shared by the whole app,
 driven by whoever holds a URL. A link that got passed around a running club
-would log the owner out. The snapshot costs one throttled `UPDATE` on pages the
-owner was loading anyway, and it cannot be made to spend anything by a stranger.
+would log the owner out. The snapshot costs one `UPDATE` of one small row on
+pages the owner was loading anyway, and it cannot be made to spend anything by
+a stranger.
 
 The price is honest and it is on the page: the numbers are as fresh as the
 owner's last visit, and the page says so.
@@ -87,7 +88,7 @@ CREATE TABLE IF NOT EXISTS goal_share (
     snapshot_at TIMESTAMPTZ,
     revoked_at TIMESTAMPTZ,
     created_at TIMESTAMPTZ DEFAULT NOW(),
-    -- One link per goal. `Create new link` rotates the token on this row.
+    -- One link per goal. `PUT` rotates the token on this row.
     UNIQUE (user_id, goal_id)
 );
 
@@ -278,28 +279,22 @@ class GoalShareDAO {
 	revoke(userId: number, goalId: number): Promise<{ revoked: boolean }>;
 
 	/**
-	 * Write the snapshot, but only if the stored one is older than `staleAfter`.
+	 * Write the snapshot for a live link.
 	 *
-	 * One conditional `UPDATE`, not a read followed by a decision followed by
-	 * a write: two of the owner's own page loads land together often
-	 * (dashboard and goal page, or two tabs), and read-compare-write is the
-	 * shape the read-state tables were already burned by.
+	 * One `UPDATE … WHERE user_id = … AND goal_id = … AND revoked_at IS NULL`.
+	 * No staleness condition, which is a reversal — this design carried a
+	 * fifteen-minute throttle, and the throttle was the bug. See "One
+	 * consistency unit" below.
 	 *
-	 * The condition has to be written
-	 * `.or('snapshot_at.is.null,snapshot_at.lt.<iso>')`, not `.lt(…)` alone:
-	 * a comparison against NULL is NULL, not true, so the `.lt` form silently
-	 * never matches the one row that most needs writing — a link created but
-	 * not yet snapshotted. That row would stay blank forever, and the page
-	 * would sit on its "not updated yet" state with nothing to say why.
-	 *
-	 * `revoked_at IS NULL` is part of the condition too: a revoked link must
-	 * not quietly refill with fresh data on the owner's next page load.
+	 * `revoked_at IS NULL` stays: a revoked link must not quietly refill with
+	 * fresh data on the owner's next page load. A row that does not match is
+	 * the ordinary case — most runners share nothing — and `{ written: false }`
+	 * says so without it being a failure.
 	 */
 	refreshSnapshot(
 		userId: number,
 		goalId: number,
-		snapshot: SharedSnapshot,
-		staleAfter: number
+		snapshot: SharedSnapshot
 	): Promise<{ written: boolean }>;
 
 	/**
@@ -347,11 +342,38 @@ export async function refreshShareSnapshot(
 ): Promise<void>;
 ```
 
-The throttle is fifteen minutes. Reasoning: the underlying numbers move roughly
-once a day (a prediction is recorded per day, a plan week per week), so
-fifteen minutes is far finer than the data and still collapses a session of
-clicking around the app into a single write. It is a named constant next to the
-function that uses it.
+### One consistency unit
+
+There is no throttle, and removing it is a correction to this design rather
+than a simplification of it.
+
+The shared page renders from two places: the `snapshot` column supplies the
+goal, the current prediction and the plan weeks, while the prediction _history_
+is read live from `prediction_history`. The forecast then mixes them — it
+anchors on `best_times.time_for_goal` from the snapshot and prices the plan
+from `history.forGoal` samples out of the table. Two sources feeding one
+calculation is only safe while they are written together.
+
+A fifteen-minute throttle is exactly what breaks that. `keepHistory` records
+today's prediction on every owner page load; the throttled snapshot wrote on
+some of them. So a prediction that moved — a session rated at lunchtime — could
+land in the history table while the snapshot still carried the morning's
+figure, and the forecast would anchor "today" at a number the curve beside it
+has already left behind. A line that starts off the end of its own history is
+the sort of wrongness nobody can explain from the page.
+
+Both writes ride the same request instead. `refreshShareSnapshot` runs
+wherever `keepHistory` runs, from the same `stats` object, so the snapshot and
+the history row are written from one reading of Trenara and cannot disagree by
+more than a failed write. `storeIfChanged` is already unconditional-per-load
+and decides internally whether there is anything to store; the snapshot now
+matches it.
+
+What the throttle was buying: one `UPDATE` of one small row per owner page
+load. Against a free tier bounded by storage and bandwidth rather than write
+count, that is not a cost worth a correctness hazard. It also deletes the
+`.or('snapshot_at.is.null,…')` subtlety the previous revision needed, since
+there is no longer a comparison to get wrong.
 
 Wiring:
 
@@ -366,10 +388,22 @@ Wiring:
 Inside `/api`, so `handleGuard` authenticates it and rate-limits it already,
 and `requireUser(locals)` narrows the runner.
 
-| Method   | Does                                            | Notes                                                                  |
-| -------- | ----------------------------------------------- | ---------------------------------------------------------------------- |
-| `POST`   | Create or regenerate, body `{ title?: string }` | `storageWrites` limiter; writes the first snapshot in the same request |
-| `DELETE` | Revoke                                          | `storageWrites` limiter                                                |
+| Method   | Does                                              | Notes                                                                                          |
+| -------- | ------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| `POST`   | Create if none is live, body `{ title?: string }` | Idempotent; returns the existing link untouched. Writes the first snapshot in the same request |
+| `PUT`    | Rotate the token on the live link                 | The explicit "Create new link", never reachable by repeating a `POST`                          |
+| `DELETE` | Revoke                                            | Sets `revoked_at` and clears the snapshot                                                      |
+
+All three take the `storageWrites` limiter.
+
+Splitting create from rotate is a correction. This design had one `POST`
+meaning "create or regenerate", which makes the mutation non-idempotent in the
+one way that actually hurts: a double-tap on "Create link" — or a retry after a
+flaky connection — issues a second token and silently kills the one just handed
+out. The runner would be looking at a URL they had already pasted into a
+message, now dead, with nothing on screen to say so. Rotation is a thing a
+runner should have to ask for, so it gets its own method, and `POST` becomes
+safe to repeat.
 
 There is no `GET`, which is a correction to this design's first draft. The
 dialog's opening state — does a link exist, and what is its URL — was going to
@@ -448,7 +482,19 @@ history it authorises.
 makes no API call, which is the requirement that keeps the page working with no
 token and no session.
 
-`setHeaders({ 'x-robots-tag': 'noindex, nofollow', 'cache-control': 'public, max-age=60' })`.
+`setHeaders({ 'x-robots-tag': 'noindex, nofollow', 'referrer-policy': 'no-referrer', 'cache-control': 'public, max-age=60' })`.
+
+`referrer-policy` was missing, and it is the one mitigation a capability URL
+actually needs. The token is in the path, so the whole URL travels in the
+`Referer` header of anything the page links to or loads — the footer's link
+back to the app today, and whatever gets added later. `no-referrer` stops the
+link reaching a destination it was never given to. It is belt and braces with
+the CSP, which already forbids external subresources, and it costs nothing.
+
+The rest of a capability URL's exposure is inherent and accepted: the token
+sits in browser history, in the recipient's chat log, and in any screenshot of
+the address bar. That is what "anyone with the link" means, and revocation is
+the answer to it.
 A minute of caching absorbs the refresh-hammering case without ever showing a
 number older than the snapshot already is. `public` is safe here even though
 the content is personal: the cache key is the full path, the token is in the
@@ -511,14 +557,15 @@ let {
 	bodyId,
 
 	/**
-	 * The prediction history, when the caller already has it.
+	 * The prediction history to plot. Required — the card does not fetch it.
 	 *
-	 * Supplied → the card neither fetches the history nor posts to record a
-	 * new prediction nor archives the goal. That is what makes it renderable
-	 * for a visitor: all three of those calls are authenticated, and all three
-	 * would 401. It is also why this is one prop rather than a `readOnly`
-	 * flag — the flag would have to be remembered alongside the data, and the
-	 * data's presence already says everything the flag would.
+	 * This is the whole of what made a shared card possible, and it is not a
+	 * mode: the card fetched its own history on mount, and all three of the
+	 * calls it made there (`GET` history, `POST` a prediction, `POST` an
+	 * archive) are authenticated and would 401 for a visitor. An earlier
+	 * revision of this design made the prop optional and branched on it, which
+	 * gave one component two behaviours distinguished by whether an argument
+	 * was passed. Handing the data in always is simpler and removes the branch.
 	 */
 	history,
 
@@ -531,11 +578,32 @@ let {
 }: Props = $props();
 ```
 
-`onMount` becomes conditional on `history === undefined`. Everything else —
-`isPast` giving the completed-goal reading after race day, `weeksRemaining`,
-the progress bar, `splitByGoalDistance` dropping a previous goal's readings —
-already behaves correctly against snapshot data, because it only ever read the
-props.
+`onMount` goes entirely, which is the part worth arguing for, because it also
+changes the owner's page.
+
+The card currently fetches its own history and fires two best-effort writes on
+mount. Two of those three are already redundant: the dashboard's load records
+the prediction and archives the goal server-side, and §5 of `agents.md` says no
+`onMount` for data fetching where a `load` can do it — so `/goal` has been
+carrying a rule violation and a duplicated write since the recording moved to
+the server. Moving the history read and the two writes into `/goal`'s load
+fixes that, and leaves the card a pure function of its props.
+
+Which is what makes the shared page not a special case. There is no `readOnly`
+flag, no optional prop, no `if` deciding which of two components this is: both
+callers hand the card its data, and the only difference between them is where
+the data came from. A mode flag would have been the seed of exactly the drift
+this reuse exists to avoid.
+
+The cost is honest: this touches a working page and its tests, and it is the
+one step in the plan that can regress something a runner uses today. It is
+sequenced before the public route for that reason — if it breaks anything, it
+breaks in isolation and not while a new feature is also in flight.
+
+Everything else — `isPast` giving the completed-goal reading after race day,
+`weeksRemaining`, the progress bar, `splitByGoalDistance` dropping a previous
+goal's readings — already behaves correctly against snapshot data, because it
+only ever read the props.
 
 The distance charts still enter the public page's bundle through the card's
 static imports. Left alone: they are small, and a dynamic import to shave them
@@ -598,6 +666,48 @@ Creates and revokes go through the existing `storageWrites`.
 Coverage thresholds in `vitest.config.ts` are a gate in CI; this feature adds
 enough surface that they should be re-checked after, and raised if the number
 moved up.
+
+## Evolving the snapshot
+
+The snapshot is a stored projection, which means every deploy reads rows
+written by earlier deploys. The `v` field exists for that, but a version tag
+only helps if something is prepared to act on it, so the rule is written down
+rather than left to whoever makes the change:
+
+**Never ship a snapshot shape that the reader cannot understand from the
+previous one.** A strict schema that rejects `v: 1` the day `v: 2` ships would
+blank every shared page in existence until each owner happened to open the app
+again — a silent, staggered outage measured in days, caused by a deploy that
+looked like a refactor. So the Zod schema is a union over the versions still in
+the wild, and `v: 1` is upgraded in code on read. A version may only be dropped
+once nothing can still be holding it.
+
+Adding an optional field needs no version bump. Removing one, renaming one, or
+changing what one means does.
+
+## Known costs
+
+Stated in the manner of §8 of `agents.md`, so nobody plans around capacity this
+does not have.
+
+- **One extra Supabase `UPDATE` on every owner page load**, including for the
+  large majority of runners who have never shared anything and whose statement
+  matches no row. It rides inside the existing `Promise.all`, so it costs no
+  wall-clock time, but it is a fifth round trip where there were four. Fixing
+  it properly means knowing whether a share exists without asking, which is a
+  per-instance cache — the same trade the read cache already makes, and not
+  worth making before the round trip is measured as a problem.
+- **The public route costs two reads per uncached view** — the share row and
+  the history window — bounded by the 60/min per-IP limiter and the
+  one-minute cache header.
+- **A share row is a few kilobytes** and there is at most one per goal, capped
+  at a hundred per runner. Storage is not the constraint here; the row count
+  cannot outgrow the goals a person trains for.
+- **There is no data retention or deletion path**, and this feature does not
+  add one. A revoked link keeps its row, with the runner's first name on it,
+  until someone deletes it by hand. That is true of every table in this app
+  already; it is worth saying once rather than pretending this feature is the
+  exception.
 
 ## What this design does not do
 
