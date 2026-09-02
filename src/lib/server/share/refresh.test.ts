@@ -1,11 +1,12 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { Goal, UserStats } from '$lib/server/trenara/types';
-import { refreshShareSnapshot } from './refresh';
+import { refreshShareSnapshot, revokeStaleShares } from './refresh';
 
 const mockRefreshSnapshot = vi.hoisted(() => vi.fn());
+const mockRevokeStale = vi.hoisted(() => vi.fn());
 
 vi.mock('$lib/server/db/goal-share', () => ({
-	goalShareDAO: { refreshSnapshot: mockRefreshSnapshot }
+	goalShareDAO: { refreshSnapshot: mockRefreshSnapshot, revokeStale: mockRevokeStale }
 }));
 
 const goal = {
@@ -41,6 +42,7 @@ const stats = {
 beforeEach(() => {
 	vi.clearAllMocks();
 	mockRefreshSnapshot.mockResolvedValue({ written: false });
+	mockRevokeStale.mockResolvedValue({ revoked: 0 });
 });
 
 describe('refreshShareSnapshot', () => {
@@ -84,5 +86,22 @@ describe('refreshShareSnapshot', () => {
 	it('resolves rather than rejects when the write fails', async () => {
 		mockRefreshSnapshot.mockRejectedValue(new Error('down'));
 		await expect(refreshShareSnapshot(42, goal, stats)).resolves.toBeUndefined();
+	});
+});
+
+describe('revokeStaleShares', () => {
+	it('asks the DAO to keep only the current goal, when there is one', async () => {
+		await revokeStaleShares(42, goal);
+		expect(mockRevokeStale).toHaveBeenCalledWith(42, 7);
+	});
+
+	it('asks the DAO to clear every live share when there is no current goal', async () => {
+		await revokeStaleShares(42, null);
+		expect(mockRevokeStale).toHaveBeenCalledWith(42, null);
+	});
+
+	it('resolves rather than rejects when the revoke fails', async () => {
+		mockRevokeStale.mockRejectedValue(new Error('down'));
+		await expect(revokeStaleShares(42, goal)).resolves.toBeUndefined();
 	});
 });

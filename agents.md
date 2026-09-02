@@ -296,4 +296,10 @@ crowd.
   `shareViews` limiter, and nothing else. There is no cron and no stored
   Trenara credential behind any of this: a snapshot is only ever as fresh as
   the owner's own last visit, by design — see
-  `.kiro/specs/goal-sharing/design.md` for the reasoning.
+  `.kiro/specs/goal-sharing/design.md` for the reasoning. The same "only on
+  the owner's next visit" rule is what closes a goal deleted or replaced in
+  Trenara: `revokeStaleShares` (`$lib/server/share/refresh.ts`), run from the
+  same `keepHistory` call as the snapshot refresh, revokes any live share
+  whose `goal_id` no longer matches the runner's current goal. Until the
+  owner opens the app again after deleting the goal, the old link still
+  answers with its last snapshot — there is no faster signal than that visit.

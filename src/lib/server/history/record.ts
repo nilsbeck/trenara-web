@@ -2,7 +2,7 @@ import type { Cookies } from '@sveltejs/kit';
 import { trainingApi, userApi } from '$lib/server/trenara';
 import { goalHistoryDAO } from '$lib/server/db/goal-history';
 import { predictionHistoryDAO } from '$lib/server/db/prediction-history';
-import { refreshShareSnapshot } from '$lib/server/share/refresh';
+import { refreshShareSnapshot, revokeStaleShares } from '$lib/server/share/refresh';
 
 /**
  * Writing the runner's history from what Trenara says, not from what a browser
@@ -133,6 +133,10 @@ export async function archiveCurrentGoal(cookies: Cookies, userId: number): Prom
  * one. That shared cache entry is also what keeps this reading and the one
  * `recordCurrentPrediction`/`archiveCurrentGoal` make internally in step —
  * see "One consistency unit" in `.kiro/specs/goal-sharing/design.md`.
+ *
+ * The same `goal` read is also what `revokeStaleShares` uses to reconcile a
+ * share against whichever goal is current now — the one signal this app ever
+ * gets that a shared goal was deleted or replaced.
  */
 export async function keepHistory(cookies: Cookies, userId: number): Promise<void> {
 	const [goal, stats] = await Promise.all([
@@ -143,6 +147,7 @@ export async function keepHistory(cookies: Cookies, userId: number): Promise<voi
 	await Promise.allSettled([
 		recordCurrentPrediction(cookies, userId),
 		archiveCurrentGoal(cookies, userId),
-		refreshShareSnapshot(userId, goal, stats)
+		refreshShareSnapshot(userId, goal, stats),
+		revokeStaleShares(userId, goal)
 	]);
 }

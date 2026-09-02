@@ -38,3 +38,31 @@ export async function refreshShareSnapshot(
 		// Side effect of a page load, not the point of it.
 	}
 }
+
+/**
+ * Revoke any share this runner still holds for a goal that is no longer
+ * their current one.
+ *
+ * The gap this closes: `refreshShareSnapshot` only ever updates a share row
+ * that matches the runner's *current* goal id, so a share for a goal that
+ * gets deleted (or replaced by a new one) never gets touched again — it just
+ * sits there, live, showing whatever it last showed, and the owner has no
+ * way back to it because the dialog only ever looks up a share by the
+ * current goal id too. Run from the same page loads as
+ * `refreshShareSnapshot`, so any owner who still opens the app eventually
+ * clears these out on their own, with no cron needed.
+ *
+ * `goal` is null both for "no active goal right now" and for "the read
+ * failed" — either way `revokeStale` is asked to clear everything that does
+ * not match, which for the ordinary case (no share at all) is a no-op.
+ *
+ * Best-effort in the same way `refreshShareSnapshot` is: a side effect of a
+ * page load, and one revoke failing must not fail the load itself.
+ */
+export async function revokeStaleShares(userId: number, goal: Goal | null): Promise<void> {
+	try {
+		await goalShareDAO.revokeStale(userId, goal?.id ?? null);
+	} catch {
+		// Side effect of a page load, not the point of it.
+	}
+}

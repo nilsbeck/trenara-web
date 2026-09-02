@@ -20,6 +20,7 @@ const { mockSingle, mockMaybeSingle, mockChain, mockFrom } = vi.hoisted(() => {
 	const mockChain: Record<string, unknown> = {
 		select: vi.fn().mockReturnThis(),
 		eq: vi.fn().mockReturnThis(),
+		neq: vi.fn().mockReturnThis(),
 		is: vi.fn().mockReturnThis(),
 		update: vi.fn().mockReturnThis(),
 		insert: vi.fn().mockReturnThis(),
@@ -40,7 +41,7 @@ vi.mock('$lib/server/db/client', () => ({
 	supabase: { from: mockFrom }
 }));
 
-const CHAIN_METHODS = ['select', 'eq', 'is', 'update', 'insert'] as const;
+const CHAIN_METHODS = ['select', 'eq', 'neq', 'is', 'update', 'insert'] as const;
 
 function setThenResult(data: unknown, error: unknown = null) {
 	(mockChain as Record<string, unknown>)['then'] = (
@@ -300,5 +301,47 @@ describe('GoalShareDAO.getLiveByToken', () => {
 	it('raises rather than reporting a failed read as an unknown token', async () => {
 		mockMaybeSingle.mockResolvedValue({ data: null, error: { message: 'down' } });
 		await expect(dao.getLiveByToken('some-token')).rejects.toBeInstanceOf(DatabaseError);
+	});
+});
+
+describe('GoalShareDAO.revokeStale', () => {
+	it('clears the snapshot alongside the revoked mark, same as revoke', async () => {
+		setThenResult([{ id: 5 }]);
+		await dao.revokeStale(42, 9);
+		expect(mockChain.update as ReturnType<typeof vi.fn>).toHaveBeenCalledWith(
+			expect.objectContaining({ snapshot: null, snapshot_at: null })
+		);
+		expect((mockChain.update as ReturnType<typeof vi.fn>).mock.calls[0][0].revoked_at).toEqual(
+			expect.any(String)
+		);
+	});
+
+	it('scopes to the owner, a row that is still live, and excludes the current goal', async () => {
+		setThenResult([{ id: 5 }]);
+		await dao.revokeStale(42, 9);
+		expect(mockChain.eq as ReturnType<typeof vi.fn>).toHaveBeenCalledWith('user_id', 42);
+		expect(mockChain.is as ReturnType<typeof vi.fn>).toHaveBeenCalledWith('revoked_at', null);
+		expect(mockChain.neq as ReturnType<typeof vi.fn>).toHaveBeenCalledWith('goal_id', 9);
+	});
+
+	it('excludes nothing when there is no current goal, so every live share goes', async () => {
+		setThenResult([{ id: 5 }]);
+		await dao.revokeStale(42, null);
+		expect(mockChain.neq).not.toHaveBeenCalled();
+	});
+
+	it('reports how many rows were revoked', async () => {
+		setThenResult([{ id: 5 }, { id: 6 }]);
+		expect(await dao.revokeStale(42, 9)).toEqual({ revoked: 2 });
+	});
+
+	it('is a no-op when the only live share already matches the current goal', async () => {
+		setThenResult([]);
+		expect(await dao.revokeStale(42, 9)).toEqual({ revoked: 0 });
+	});
+
+	it('raises rather than reporting a failed write as nothing to do', async () => {
+		setThenResult(null, { message: 'down' });
+		await expect(dao.revokeStale(42, 9)).rejects.toBeInstanceOf(DatabaseError);
 	});
 });

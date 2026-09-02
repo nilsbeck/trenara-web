@@ -195,6 +195,39 @@ export class GoalShareDAO {
 	}
 
 	/**
+	 * Revoke every live share this runner holds for a goal other than the one
+	 * given — or all of them, when `currentGoalId` is null.
+	 *
+	 * Trenara has no signal for "this goal was deleted"; the only sign this app
+	 * ever sees is that the runner's next goal read no longer matches a share
+	 * row's own `goal_id`. Left alone that row stays live and its snapshot
+	 * frozen forever — nothing else here ever revisits a share once the goal
+	 * behind it is gone. This is the reconciling half of that; see
+	 * `refreshShareSnapshot` for the half that keeps a still-matching share's
+	 * data current, and `revokeStaleShares` for the caller that runs both from
+	 * the same page load.
+	 *
+	 * Clears the snapshot in the same statement as `revoke` does, for the same
+	 * reason: this removes the published data, not only the door to it.
+	 */
+	async revokeStale(userId: number, currentGoalId: number | null): Promise<{ revoked: number }> {
+		let query = supabase
+			.from('goal_share')
+			.update({ revoked_at: new Date().toISOString(), snapshot: null, snapshot_at: null })
+			.eq('user_id', userId)
+			.is('revoked_at', null);
+
+		if (currentGoalId !== null) {
+			query = query.neq('goal_id', currentGoalId);
+		}
+
+		const { data, error } = await query.select('id');
+
+		if (error) storageFailed('stale share revoke', error);
+		return { revoked: (data ?? []).length };
+	}
+
+	/**
 	 * The public read. The only query a visitor can cause, and the only one in
 	 * this class without a `user_id` filter — scoped instead by the token's own
 	 * unique index, which is the whole capability a link grants.
