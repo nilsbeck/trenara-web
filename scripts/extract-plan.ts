@@ -11,7 +11,7 @@
  *
  * Usage:
  *   bun run scripts/extract-plan.ts --to 2026-12-06
- *   bun run scripts/extract-plan.ts --from 2026-09-01 --to 2026-12-06 --out ./export
+ *   bun run scripts/extract-plan.ts --from 2026-09-01 --to 2026-12-06 --format csv
  *
  * Credentials, from the environment or a `.env` beside this repo:
  *   TRENARA_ACCESS_TOKEN                        an existing Bearer, or
@@ -23,6 +23,7 @@ import type { Goal, Schedule } from '../src/lib/server/trenara/types';
 import { buildExport } from '../src/lib/plan-export/normalize';
 import { requireDate, todayKey, toUnixSeconds, weekAnchors } from '../src/lib/plan-export/range';
 import { blocksCsv, entriesCsv, sessionsCsv, weeksCsv } from '../src/lib/plan-export/tables';
+import { toJsonl } from '../src/lib/plan-export/jsonl';
 import { toLocalDateString } from '../src/lib/utils/date';
 
 /**
@@ -41,10 +42,20 @@ const BASE_URL = process.env.TRENARA_BASE_URL ?? 'https://backend-prod.trenara.c
  */
 const REQUEST_SPACING_MS = 250;
 
+/**
+ * `jsonl` is the default because it is the one shape that is both a single
+ * file and directly analysable: `jq` and `pandas.read_json(lines=True)` read it
+ * with no parser of their own, and a session keeps its blocks on its own line.
+ * `json` is the same data as one tree, `csv` the flat tables a spreadsheet wants.
+ */
+const FORMATS = ['jsonl', 'json', 'csv'] as const;
+type Format = (typeof FORMATS)[number];
+
 interface Args {
 	from: string;
 	to: string;
 	out: string;
+	format: Format;
 	includeRaw: boolean;
 }
 
@@ -53,6 +64,7 @@ function parseArgs(argv: string[]): Args {
 		from: todayKey(),
 		to: '',
 		out: './plan-export',
+		format: 'jsonl',
 		includeRaw: true
 	};
 
@@ -70,6 +82,13 @@ function parseArgs(argv: string[]): Args {
 				break;
 			case '--out':
 				args.out = value;
+				i++;
+				break;
+			case '--format':
+				if (!FORMATS.includes(value as Format)) {
+					throw new Error(`--format must be one of ${FORMATS.join(', ')}, got "${value}".`);
+				}
+				args.format = value as Format;
 				i++;
 				break;
 			case '--no-raw':
@@ -96,7 +115,8 @@ function usage(): string {
 		'  --from <YYYY-MM-DD>  First day to export. Default: today.',
 		'  --to   <YYYY-MM-DD>  Last day to export. Required.',
 		'  --out  <dir>         Output directory. Default: ./plan-export',
-		'  --no-raw             Omit the untouched upstream payloads from the JSON.'
+		'  --format <fmt>       jsonl (default, one file), json, or csv.',
+		'  --no-raw             Omit the untouched upstream payloads.'
 	].join('\n');
 }
 
@@ -228,20 +248,24 @@ async function main(): Promise<void> {
 
 	const outDir = resolve(process.cwd(), args.out);
 	await mkdir(outDir, { recursive: true });
-	const files: [string, string][] = [
-		['plan.json', JSON.stringify(plan, null, 2)],
-		['sessions.csv', sessionsCsv(plan)],
-		['blocks.csv', blocksCsv(plan)],
-		['entries.csv', entriesCsv(plan)],
-		['weeks.csv', weeksCsv(plan)]
-	];
+	const files: [string, string][] =
+		args.format === 'jsonl'
+			? [['plan.jsonl', toJsonl(plan)]]
+			: args.format === 'json'
+				? [['plan.json', JSON.stringify(plan, null, 2)]]
+				: [
+						['sessions.csv', sessionsCsv(plan)],
+						['blocks.csv', blocksCsv(plan)],
+						['entries.csv', entriesCsv(plan)],
+						['weeks.csv', weeksCsv(plan)]
+					];
 	for (const [name, contents] of files) {
 		await writeFile(join(outDir, name), contents, 'utf8');
 	}
 
 	const plannedKm = plan.weeks.reduce((total, week) => total + week.planned_distance_km, 0);
 	console.error(
-		`Wrote ${files.length} files to ${outDir}\n` +
+		`Wrote ${files.map(([name]) => name).join(', ')} to ${outDir}\n` +
 			`  ${plan.sessions.length} sessions, ${plan.strength.length} strength, ` +
 			`${plan.entries.length} logged activities across ${plan.weeks.length} weeks\n` +
 			`  ${plannedKm.toFixed(1)} km planned in range`

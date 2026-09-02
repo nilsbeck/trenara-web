@@ -1,7 +1,8 @@
 # Exporting the plan
 
-`scripts/extract-plan.ts` writes the training plan for a date range as JSON and
-CSV, so it can be diffed, charted or compared against another plan.
+`scripts/extract-plan.ts` writes the training plan for a date range to a single
+newline-delimited JSON file, so it can be diffed, charted or compared against
+another plan.
 
 It talks to Trenara directly — no dev server, no Supabase, no browser session —
 because the plan is a read and `/api/schedule/week/` will answer a Bearer token
@@ -13,15 +14,16 @@ the export in the same place it breaks the app.
 
 ```sh
 bun run extract:plan -- --to 2026-12-06
-bun run extract:plan -- --from 2026-09-01 --to 2026-12-06 --out ./export
+bun run extract:plan -- --from 2026-09-01 --to 2026-12-06 --format csv
 ```
 
-| Flag                  | Meaning                                                |
-| --------------------- | ------------------------------------------------------ |
-| `--to <YYYY-MM-DD>`   | Last day to export. **Required.**                      |
-| `--from <YYYY-MM-DD>` | First day. Default: today.                             |
-| `--out <dir>`         | Output directory. Default: `./plan-export`.            |
-| `--no-raw`            | Omit the untouched upstream payloads from `plan.json`. |
+| Flag                  | Meaning                                     |
+| --------------------- | ------------------------------------------- |
+| `--to <YYYY-MM-DD>`   | Last day to export. **Required.**           |
+| `--from <YYYY-MM-DD>` | First day. Default: today.                  |
+| `--out <dir>`         | Output directory. Default: `./plan-export`. |
+| `--format <fmt>`      | `jsonl` (default), `json`, or `csv`.        |
+| `--no-raw`            | Omit the untouched upstream payloads.       |
 
 `/plan-export` is git-ignored: an export is a runner's own training data and
 does not belong in the repository.
@@ -50,16 +52,48 @@ shell command that lands in your history.
 
 ## What comes out
 
-Five files, one grain each. A session and a block cannot share a row without one
-of them being repeated into nonsense, which is why they are separate tables.
+One `plan.jsonl`: a record per line, discriminated by `record`.
 
-| File           | One row per                                     |
-| -------------- | ----------------------------------------------- |
-| `plan.json`    | everything below, plus `meta`, `goal` and `raw` |
-| `sessions.csv` | planned session                                 |
-| `blocks.csv`   | block within a session, nesting flattened       |
-| `entries.csv`  | logged activity                                 |
-| `weeks.csv`    | week, with planned and completed volume         |
+| `record`   | One line per                                              |
+| ---------- | --------------------------------------------------------- |
+| `meta`     | the export itself — range, timezone, source, and the goal |
+| `week`     | week, with planned and completed volume                   |
+| `session`  | planned session, **blocks nested on the same line**       |
+| `strength` | strength session                                          |
+| `entry`    | logged activity                                           |
+| `raw_week` | fetched week, upstream payload untouched                  |
+
+Records are written in that order, and the order is stable, so two exports line
+up under `diff`. `raw_week` comes last because it is the bulk of the file and
+the least often read.
+
+A session keeps its blocks, so nothing has to be joined back:
+
+```sh
+# Planned distance per session
+jq -r 'select(.record == "session") | "\(.date)\t\(.total_distance_km)"' plan.jsonl
+
+# Every running block in the plan
+jq -c 'select(.record == "session") | .blocks[] | select(.type == "run")' plan.jsonl
+```
+
+```python
+import pandas as pd
+rows = pd.read_json('plan.jsonl', lines=True)
+sessions = rows[rows.record == 'session']
+```
+
+### The other two formats
+
+`--format json` writes the same data as one `plan.json` tree — the same keys,
+nested under `meta` / `goal` / `weeks` / `sessions` / `strength` / `entries` /
+`raw` instead of tagged per line.
+
+`--format csv` writes four files, one grain each, for a spreadsheet. A session
+and a block cannot share a row without one of them being repeated into
+nonsense, which is why they cannot be one table: `sessions.csv`, `blocks.csv`,
+`entries.csv`, `weeks.csv`. Every numeric column keeps its normalised form and
+gains a human twin — `4068` beside `1:07:48`, `319` beside `5:19`.
 
 ### What normalisation means here
 
@@ -70,8 +104,8 @@ a comparison:
   interval, `4` with `'km'` on the long run. Every distance in the export is
   kilometres.
 - **Pace is seconds per whatever `pace_unit` names** (`'min/km'` in every
-  capture so far). Every pace in the export is seconds per km, with a `m:ss`
-  twin beside it.
+  capture so far), which is a denominator to read rather than a unit to look
+  up. Every pace in the export is seconds per km.
 - **The applied intensity is not a field.** `training_condition` is `null` on
   any session whose terrain has never been set, even when an intensity step
   _is_ applied, so the export reads the `selected` step out of
@@ -91,5 +125,7 @@ exactly what they say.
 
 ### Fidelity
 
-`plan.json` carries the untouched week payloads under `raw` unless `--no-raw` is
-passed. Anything the normalisation chose not to model is still in the file.
+The export carries the untouched week payloads unless `--no-raw` is passed — as
+`raw_week` lines in JSONL, under `raw` in JSON. Anything the normalisation chose
+not to model is still in the file. CSV cannot hold them, so `--format csv` drops
+them whatever `--no-raw` says.
