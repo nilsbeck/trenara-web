@@ -4,6 +4,7 @@
 	import type { Goal, UserStats } from '$lib/server/trenara/types';
 	import Calendar from '$lib/components/calendar/calendar.svelte';
 	import GoalCard from '$lib/components/goal/goal-card.svelte';
+	import GoalCardShare from '$lib/components/goal/goal-card-share.svelte';
 	import PredictionsCard from '$lib/components/predictions/predictions-card.svelte';
 	import { isRenderableStats } from '$lib/utils/user-stats';
 
@@ -104,7 +105,11 @@
 					expanded={goalOpen}
 					ontoggle={() => (goalOpen = !goalOpen)}
 					bodyId="goal-card-body"
-				/>
+				>
+					{#snippet headerExtra()}
+						<GoalCardShare share={data.share} />
+					{/snippet}
+				</GoalCard>
 
 				<!--
 					The gap between the cards is inside the fold, not above it, so a

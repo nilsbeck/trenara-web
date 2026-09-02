@@ -81,13 +81,18 @@
 	}
 </script>
 
+<!--
+	Labelled, not icon-only: a bare icon here sat next to the trend badge —
+	which is icon *and* word — and read as decoration rather than as the one
+	interactive control in the header. Text is what made it discoverable.
+-->
 <button
 	type="button"
 	onclick={open}
-	aria-label="Share this goal"
-	class="rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+	class="flex shrink-0 items-center gap-1 rounded-md px-1.5 py-1 text-xs font-medium whitespace-nowrap text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
 >
-	<Share2 class="h-4 w-4" aria-hidden="true" />
+	<Share2 class="h-3.5 w-3.5" aria-hidden="true" />
+	Share
 </button>
 
 <dialog

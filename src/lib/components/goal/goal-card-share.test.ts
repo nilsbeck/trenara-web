@@ -45,7 +45,7 @@ beforeEach(() => {
 });
 
 function openDialog() {
-	fireEvent.click(screen.getByRole('button', { name: /share this goal/i }));
+	fireEvent.click(screen.getByRole('button', { name: /^share$/i }));
 }
 
 describe('goal card share dialog, no live link', () => {

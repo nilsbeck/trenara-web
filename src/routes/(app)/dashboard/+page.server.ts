@@ -5,6 +5,7 @@ import { getMonthTimestamps } from '$lib/utils/date';
 import { requireUser } from '$lib/server/auth/guard';
 import { keepHistory } from '$lib/server/history/record';
 import { predictionHistoryDAO } from '$lib/server/db/prediction-history';
+import { goalShareDAO, type ShareRow } from '$lib/server/db/goal-share';
 import { toChartData } from '$lib/server/history/chart-points';
 import { STORAGE_READ_MESSAGE } from '$lib/server/db/errors';
 import type { ChartDataPoint } from '$lib/components/charts/prediction-chart.svelte';
@@ -53,11 +54,23 @@ export const load: PageServerLoad = async ({ cookies, locals }) => {
 		history = { records: [], error: STORAGE_READ_MESSAGE };
 	}
 
+	/**
+	 * The runner's own share link for this goal, if they have one — same read
+	 * `/goal`'s load makes, so the share button reads the same way wherever the
+	 * goal card is stacked. This is the card a phone actually opens to; leaving
+	 * the button off it and only wiring it into `/goal` left sharing reachable
+	 * in principle and undiscoverable in practice.
+	 */
+	const share: Pick<ShareRow, 'token' | 'title'> | null = goal
+		? await goalShareDAO.getForGoal(user.id, goal.id).catch(() => null)
+		: null;
+
 	return {
 		schedule,
 		goal,
 		userStats,
-		history
+		history,
+		share
 	};
 };
 
