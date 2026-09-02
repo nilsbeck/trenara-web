@@ -24,6 +24,13 @@ import { buildExport } from '../src/lib/plan-export/normalize';
 import { requireDate, todayKey, toUnixSeconds, weekAnchors } from '../src/lib/plan-export/range';
 import { blocksCsv, entriesCsv, sessionsCsv, weeksCsv } from '../src/lib/plan-export/tables';
 import { toJsonl } from '../src/lib/plan-export/jsonl';
+import {
+	pauseBefore,
+	readRateLimit,
+	retryAfterMs,
+	windowsNeeded,
+	type RateLimit
+} from '../src/lib/plan-export/budget';
 import { toLocalDateString } from '../src/lib/utils/date';
 
 /**
@@ -34,13 +41,17 @@ import { toLocalDateString } from '../src/lib/utils/date';
 const BASE_URL = process.env.TRENARA_BASE_URL ?? 'https://backend-prod.trenara.com';
 
 /**
- * Trenara allows 60 requests a minute in a fixed window, and a week costs one
- * request. Three months is about fourteen — comfortably inside it — but a run
- * with a wide `--from` is not, so requests are spaced rather than fired at once.
- * Spacing does not help a fixed window on its own; what it buys is that a 429,
- * when it comes, arrives with most of the export already in hand.
+ * How many times a refused request is waited out and tried again.
+ *
+ * One, and only after sleeping the `retry-after` the refusal named. This is not
+ * the app's rule — there a 429 is never retried, because a person is waiting on
+ * a page and a retry only makes the refusal worse. A batch export is the other
+ * case: nobody is watching, the window's turnover is stated exactly, and
+ * throwing away forty already-fetched weeks to avoid one sleep is the more
+ * expensive mistake. It is still bounded, so a limit that is not about pacing
+ * (a blocked account, say) surfaces instead of looping.
  */
-const REQUEST_SPACING_MS = 250;
+const REFUSAL_RETRIES = 1;
 
 /**
  * `jsonl` is the default because it is the one shape that is both a single
@@ -182,28 +193,66 @@ async function resolveToken(env: Record<string, string>): Promise<string> {
 }
 
 /**
- * One GET, with the two failures that are worth telling apart.
+ * The budget the last response reported, or null if none has said yet.
  *
- * A 401 means the token is stale, which is a thing the operator can fix; a 429
- * means the minute's budget is spent, and is never retried here — retrying a
- * refusal for going too fast is the one response guaranteed to make it worse.
+ * Module state rather than threaded through every call: it is one process
+ * talking to one account, and every response updates it.
+ */
+let budget: RateLimit | null = null;
+
+/**
+ * One GET, inside the rate-limit budget.
+ *
+ * Waits before spending a request only when the window is nearly out — a fixed
+ * window counts requests however they are spread, so there is nothing to gain
+ * by pacing while it has room. A refusal is slept off and retried rather than
+ * thrown, which keeps the weeks already in hand.
+ *
+ * A 401 is not retried at any point: a stale token will still be stale in a
+ * minute, and it is the one failure the operator can actually fix.
  */
 async function get<T>(path: string, token: string): Promise<T> {
-	const response = await fetch(`${BASE_URL}${path}`, {
-		headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' }
-	});
+	for (let attempt = 0; ; attempt++) {
+		const wait = pauseBefore(budget, Date.now());
+		if (wait > 0) {
+			console.error(`\n  budget spent; waiting ${Math.ceil(wait / 1000)}s for the window`);
+			await sleep(wait);
+			// The window has turned over, so the count that caused the wait is
+			// stale. Clearing it stops a slow clock from waiting twice.
+			budget = null;
+		}
 
-	if (response.status === 401) {
-		throw new Error(`401 from ${path}. The access token is expired or not valid for this account.`);
+		const response = await fetch(`${BASE_URL}${path}`, {
+			headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' }
+		});
+		budget = readRateLimit(response.headers) ?? budget;
+
+		if (response.status === 401) {
+			throw new Error(
+				`401 from ${path}. The access token is expired or not valid for this account.`
+			);
+		}
+
+		if (response.status === 429) {
+			if (attempt >= REFUSAL_RETRIES) {
+				throw new Error(
+					`429 from ${path} after waiting it out once. ` +
+						"Something else is spending this account's budget — the app in a browser tab, " +
+						'or another export. Try again when it is idle.'
+				);
+			}
+			const retry = retryAfterMs(response.headers, Date.now());
+			console.error(`\n  429; waiting ${Math.ceil(retry / 1000)}s and trying again`);
+			await sleep(retry);
+			budget = null;
+			continue;
+		}
+
+		if (!response.ok) {
+			throw new Error(`${response.status} from ${path}: ${await response.text()}`);
+		}
+		return (await response.json()) as T;
 	}
-	if (response.status === 429) {
-		const retry = response.headers.get('retry-after') ?? '?';
-		throw new Error(`429 from ${path}. Rate limited; retry-after ${retry}s.`);
-	}
-	if (!response.ok) {
-		throw new Error(`${response.status} from ${path}: ${await response.text()}`);
-	}
-	return (await response.json()) as T;
 }
 
 const sleep = (ms: number) => new Promise((done) => setTimeout(done, ms));
@@ -218,9 +267,18 @@ async function main(): Promise<void> {
 	const token = await resolveToken(env);
 	const anchors = weekAnchors(from, to);
 
+	// One request per week plus one for the goal. Said up front because a long
+	// export is going to sit still waiting for the window, and a run that looks
+	// hung is a run somebody kills.
+	const requests = anchors.length + 1;
+	const windows = windowsNeeded(requests);
 	console.error(
 		`Exporting ${args.from} → ${args.to}: ${anchors.length} weeks ` +
-			`(${toLocalDateString(anchors[0])} → ${toLocalDateString(anchors[anchors.length - 1])})`
+			`(${toLocalDateString(anchors[0])} → ${toLocalDateString(anchors[anchors.length - 1])})` +
+			(windows > 1
+				? `\n  ${requests} requests against a 60/min budget: expect about ` +
+					`${windows - 1} pause${windows > 2 ? 's' : ''} of up to a minute.`
+				: '')
 	);
 
 	const goal = await get<Goal>('/api/goal', token).catch((error) => {
@@ -231,9 +289,12 @@ async function main(): Promise<void> {
 	const schedules: Schedule[] = [];
 	for (const [index, anchor] of anchors.entries()) {
 		const stamp = toUnixSeconds(anchor);
-		process.stderr.write(`  week ${index + 1}/${anchors.length} (${toLocalDateString(anchor)})\r`);
+		process.stderr.write(
+			`  week ${index + 1}/${anchors.length} (${toLocalDateString(anchor)})` +
+				(budget ? ` · ${budget.remaining}/${budget.limit} left this minute` : '') +
+				'   \r'
+		);
 		schedules.push(await get<Schedule>(`/api/schedule/week/?timestamp=${stamp}`, token));
-		if (index < anchors.length - 1) await sleep(REQUEST_SPACING_MS);
 	}
 	process.stderr.write('\n');
 

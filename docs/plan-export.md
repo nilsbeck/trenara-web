@@ -123,6 +123,35 @@ Weeks are fetched by Monday, so the first and last of them overhang the range
 asked for. Rows are filtered by their own date, so `--from` and `--to` mean
 exactly what they say.
 
+## Rate limit
+
+Trenara allows **60 requests a minute in a fixed window** — the budget refills
+all at once rather than draining request by request, and every response carries
+`x-ratelimit-limit`, `-remaining` and `-reset`, not just a refusal. One week
+costs one request, so a three-month export is fifteen and never comes near it.
+A year is 54. Only a multi-year `--from` spends more than one window.
+
+Two consequences, and the first catches people out:
+
+- **Spacing requests does nothing.** A fixed window counts sixty requests
+  however they are spread, so a delay between them buys no headroom — it only
+  makes the same refusal arrive later. The script does not pace.
+- **What works is stopping.** It reads the budget off every response and, once
+  two requests are left, waits for the window to turn over. The progress line
+  shows the remaining budget, and a run needing more than one window says so
+  before it starts, so a pause does not look like a hang.
+
+The reserve of two exists because the budget is shared: if the app is open in a
+browser tab it is spending from the same sixty. If a 429 arrives anyway, the
+script sleeps the `retry-after` and tries once more rather than discarding the
+weeks it already has — a second refusal is reported instead of retried.
+
+This deliberately differs from the app, where `src/lib/server/trenara/` never
+retries a 429: there a person is waiting on a page and a retry only makes the
+refusal worse. In a batch export nobody is watching, the window's turnover is
+stated exactly, and throwing away forty fetched weeks to avoid one sleep is the
+more expensive mistake.
+
 ### Fidelity
 
 The export carries the untouched week payloads unless `--no-raw` is passed — as
