@@ -2,6 +2,7 @@ import type { Cookies } from '@sveltejs/kit';
 import { trainingApi, userApi } from '$lib/server/trenara';
 import { goalHistoryDAO } from '$lib/server/db/goal-history';
 import { predictionHistoryDAO } from '$lib/server/db/prediction-history';
+import { refreshShareSnapshot } from '$lib/server/share/refresh';
 
 /**
  * Writing the runner's history from what Trenara says, not from what a browser
@@ -109,7 +110,8 @@ export async function archiveCurrentGoal(cookies: Cookies, userId: number): Prom
 }
 
 /**
- * Both of the above, for a page load that wants the record kept up to date.
+ * Both of the above, plus keeping any shared link's snapshot current, for a
+ * page load that wants the record kept up to date.
  *
  * Never rejects: a history write is a side effect of looking at the app, and a
  * page must not fail because one did.
@@ -121,10 +123,26 @@ export async function archiveCurrentGoal(cookies: Cookies, userId: number): Prom
  * calls the page is already making, it costs no wall-clock time: the upstream
  * reads it needs are the same cached ones the load has in hand, and the
  * database round trips finish long before six weeks of schedule do.
+ *
+ * The goal and stats are read once, here, rather than left to
+ * `recordCurrentPrediction` and `archiveCurrentGoal`'s own independent reads —
+ * `refreshShareSnapshot` needs them as arguments (see there for why), and
+ * reading them here costs nothing extra: `trainingApi.getGoal` and
+ * `userApi.getUserStats` are cached, so this joins the exact same upstream
+ * call the caller's own page load already made rather than issuing a second
+ * one. That shared cache entry is also what keeps this reading and the one
+ * `recordCurrentPrediction`/`archiveCurrentGoal` make internally in step —
+ * see "One consistency unit" in `.kiro/specs/goal-sharing/design.md`.
  */
 export async function keepHistory(cookies: Cookies, userId: number): Promise<void> {
+	const [goal, stats] = await Promise.all([
+		trainingApi.getGoal(cookies).catch(() => null),
+		userApi.getUserStats(cookies).catch(() => null)
+	]);
+
 	await Promise.allSettled([
 		recordCurrentPrediction(cookies, userId),
-		archiveCurrentGoal(cookies, userId)
+		archiveCurrentGoal(cookies, userId),
+		refreshShareSnapshot(userId, goal, stats)
 	]);
 }

@@ -24,17 +24,20 @@ export default defineConfig({
 			 * does not read, so even when run the suite passed with branches at
 			 * 75.9% against a stated 80. CI runs coverage now, and these are flat.
 			 *
-			 * Set just under where the suite actually stands (81.2 / 75.9 / 81.5 /
-			 * 84.0) rather than at the aspirational 80 across the board: a
-			 * threshold that fails on the day it is introduced teaches everyone to
-			 * ignore it. They are a ratchet against regression — raise them as
-			 * coverage rises, starting with branches, which is the weakest.
+			 * Set just under where the suite actually stands rather than at the
+			 * aspirational 80 across the board: a threshold that fails on the day
+			 * it is introduced teaches everyone to ignore it. They are a ratchet
+			 * against regression — raised here after the goal-sharing feature
+			 * (see `.kiro/specs/goal-sharing/`) moved the suite from
+			 * 81.2 / 75.9 / 81.5 / 84.0 to 82.91 / 77.23 / 82.61 / 85.77 — raise
+			 * them again the same way next time coverage rises, starting with
+			 * branches, which is still the weakest.
 			 */
 			thresholds: {
-				statements: 80,
-				branches: 75,
-				functions: 80,
-				lines: 83
+				statements: 82,
+				branches: 76,
+				functions: 82,
+				lines: 85
 			}
 		}
 	}

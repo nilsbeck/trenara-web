@@ -1,7 +1,8 @@
-import { describe, it, expect, beforeAll, afterEach, vi } from 'vitest';
+import { describe, it, expect, beforeAll, afterEach } from 'vitest';
 import { render, cleanup, screen, waitFor } from '@testing-library/svelte';
 import GoalCard from './goal-card.svelte';
 import type { Goal, UserStats } from '$lib/server/trenara/types';
+import type { ChartDataPoint } from '$lib/components/charts/prediction-chart.svelte';
 import { secondsToTimeString, secondsToPaceString } from '$lib/utils/format';
 
 // Same stub as the fold's tests: the card mounts a chart, and jsdom lays
@@ -16,7 +17,6 @@ beforeAll(() => {
 
 afterEach(() => {
 	cleanup();
-	vi.unstubAllGlobals();
 });
 
 const goal = {
@@ -45,39 +45,29 @@ const userStats = {
  *
  * The time is the pace over the goal's distance rather than a constant, which
  * is what a real row holds: the pair is what says which distance a reading was
- * about, and the card now reads it — a fixed time under a moving pace would be
- * a series that changes distance every day.
+ * about, and the card reads it — a fixed time under a moving pace would be a
+ * series that changes distance every day.
  */
-function record(daysAgo: number, paceSeconds: number, distanceKm = goal.distance_value) {
+function record(
+	daysAgo: number,
+	paceSeconds: number,
+	distanceKm = goal.distance_value
+): ChartDataPoint {
 	const recorded = new Date(Date.now() - daysAgo * 86_400_000);
+	const time = Math.round(paceSeconds * distanceKm);
+	const pace = Math.round(paceSeconds);
 	return {
-		id: daysAgo,
-		user_id: 1,
-		predicted_time: secondsToTimeString(Math.round(paceSeconds * distanceKm)),
-		predicted_pace: secondsToPaceString(Math.round(paceSeconds)),
-		predicted_time_10k: null,
-		predicted_pace_10k: null,
-		recorded_at: recorded.toISOString(),
-		created_at: recorded.toISOString()
+		date: recorded.toISOString(),
+		predictedTime: time,
+		predictedPace: pace,
+		formattedTime: secondsToTimeString(time),
+		formattedPace: secondsToPaceString(pace)
 	};
 }
 
-/**
- * Mount with a prediction history to read a trend from.
- *
- * Only the history GET matters; the other two calls the card makes on mount
- * (track the current prediction, archive the goal) are answered with nothing.
- */
-function mount(records: ReturnType<typeof record>[]) {
-	vi.stubGlobal(
-		'fetch',
-		vi.fn(async (url: string, init?: RequestInit) =>
-			init?.method === 'POST'
-				? new Response(JSON.stringify({ stored: false }), { status: 200 })
-				: new Response(JSON.stringify({ records }), { status: 200 })
-		)
-	);
-	render(GoalCard, { props: { goal, userStats } });
+/** Mount with a prediction history to read a trend from. */
+function mount(history: ChartDataPoint[]) {
+	render(GoalCard, { props: { goal, userStats, history } });
 }
 
 /** The heading the badge sits in — not the table rows further down. */
@@ -128,58 +118,24 @@ describe('goal card pace trend', () => {
 		await waitFor(() => expect(heading().textContent).toMatch(/detraining/i));
 	});
 
-	it("spins in the badge's place until the history has arrived", async () => {
-		// Hold the history open so the card is caught mid-fetch, which is the
-		// only moment this element exists.
-		let release!: (records: ReturnType<typeof record>[]) => void;
-		const held = new Promise<ReturnType<typeof record>[]>((resolve) => {
-			release = resolve;
-		});
-		vi.stubGlobal(
-			'fetch',
-			vi.fn(async (url: string, init?: RequestInit) => {
-				if (init?.method === 'POST') {
-					return new Response(JSON.stringify({ stored: false }), { status: 200 });
-				}
-				return new Response(JSON.stringify({ records: await held }), { status: 200 });
-			})
-		);
-		render(GoalCard, { props: { goal, userStats } });
-
-		// Present before the fetch resolves — and on the very first paint, not
-		// only once the request is in flight.
-		expect(screen.getByTestId('trend-loading')).toBeTruthy();
-		expect(heading().textContent).not.toMatch(/improving|maintaining|detraining/i);
-
-		release([record(13, 300), record(9, 298), record(4, 296), record(0, 294)]);
-		await waitFor(() => expect(heading().textContent).toMatch(/improving/i));
+	it('carries no trend badge on the very first paint', () => {
+		// `history` arrives resolved as a prop now — there is no fetch and so no
+		// gap between an empty first paint and the trend appearing. The badge
+		// (or its absence) is correct immediately.
+		mount([record(13, 300), record(9, 298), record(4, 296), record(0, 294)]);
+		expect(heading().textContent).toMatch(/improving/i);
 		expect(screen.queryByTestId('trend-loading')).toBeNull();
 	});
 
-	it('stops spinning when the history says there is no trend to report', async () => {
-		mount([record(3, 300), record(1, 290)]);
-		await waitFor(() => expect(screen.queryByTestId('trend-loading')).toBeNull());
-		expect(heading().textContent).not.toMatch(/improving|maintaining|detraining/i);
-	});
-
-	it('stops spinning when the history could not be read', async () => {
-		vi.stubGlobal(
-			'fetch',
-			vi.fn(async (url: string, init?: RequestInit) =>
-				init?.method === 'POST'
-					? new Response(JSON.stringify({ stored: false }), { status: 200 })
-					: new Response('nope', { status: 500 })
-			)
-		);
-		render(GoalCard, { props: { goal, userStats } });
-		await waitFor(() => expect(screen.queryByTestId('trend-loading')).toBeNull());
+	it('shows no trend badge when the history could not be read', () => {
+		render(GoalCard, {
+			props: { goal, userStats, history: [], historyError: 'Could not load your history.' }
+		});
 		expect(heading().textContent).not.toMatch(/improving|maintaining|detraining/i);
 	});
 
 	it('says nothing when there is not enough history to call a direction', async () => {
 		mount([record(3, 300), record(1, 290)]);
-		// The chart's own empty state would settle later than the badge would
-		// appear, so wait for the card to have finished loading either way.
 		await waitFor(() => expect(screen.getByText(/current prediction/i)).toBeTruthy());
 		expect(heading().textContent).not.toMatch(/improving|maintaining|detraining/i);
 	});

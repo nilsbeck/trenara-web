@@ -1,10 +1,10 @@
-import { describe, it, expect, beforeAll, beforeEach, afterEach, vi } from 'vitest';
+import { describe, it, expect, beforeAll, afterEach } from 'vitest';
 import { render, cleanup, screen, fireEvent, within } from '@testing-library/svelte';
 import GoalCard from './goal-card.svelte';
 import type { Goal, UserStats } from '$lib/server/trenara/types';
 
 // The card mounts a chart, and jsdom lays nothing out. Only the fold is under
-// test here, so a stub that does nothing lets the chart mount without throwing.
+// test here.
 beforeAll(() => {
 	globalThis.ResizeObserver = class {
 		observe() {}
@@ -13,18 +13,8 @@ beforeAll(() => {
 	} as unknown as typeof ResizeObserver;
 });
 
-// Mounting fires three requests (load history, track prediction, archive goal);
-// none of them feed the fold, so they are answered with nothing.
-beforeEach(() => {
-	vi.stubGlobal(
-		'fetch',
-		vi.fn(async () => new Response(JSON.stringify({ records: [] }), { status: 200 }))
-	);
-});
-
 afterEach(() => {
 	cleanup();
-	vi.unstubAllGlobals();
 });
 
 const goal = {
@@ -49,7 +39,7 @@ const userStats = {
 } as unknown as UserStats;
 
 function mount(props: Record<string, unknown> = {}) {
-	render(GoalCard, { props: { goal, userStats, ...props } });
+	render(GoalCard, { props: { goal, userStats, history: [], ...props } });
 }
 
 /** The fold's own control — the graph picker's arrows are buttons too. */

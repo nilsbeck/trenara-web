@@ -33,13 +33,28 @@ import type { Handle } from '@sveltejs/kit';
  */
 const HEADERS: Record<string, string> = {
 	'x-content-type-options': 'nosniff',
-	'referrer-policy': 'strict-origin-when-cross-origin',
 	'permissions-policy': 'camera=(), microphone=(), geolocation=(), payment=(), usb=()',
 	// The app is a single top-level document that opens nothing; isolating the
 	// browsing context group costs it nothing and removes cross-origin
 	// window references entirely.
 	'cross-origin-opener-policy': 'same-origin'
 };
+
+/**
+ * The default `Referrer-Policy`, for every route that does not ask for a
+ * stricter one of its own.
+ *
+ * Because the app's URLs carry training ids, and the default policy sends the
+ * whole path to any third-party origin a page reaches out to.
+ *
+ * Applied only when the route has not already set this header — `setHeaders`
+ * runs inside `resolve`, which this `handle` wraps, so a route's own value is
+ * already on the response by the time this reads it. The public share page
+ * sets `no-referrer` for a stronger reason: its URL is not just a path but a
+ * bearer token, and this default must not be allowed to overwrite that back
+ * to a looser policy on its way out.
+ */
+const DEFAULT_REFERRER_POLICY = 'strict-origin-when-cross-origin';
 
 /** Two years, which is what a preload list would require if one is ever wanted. */
 const HSTS = 'max-age=63072000; includeSubDomains';
@@ -49,6 +64,10 @@ export const securityHeaders: Handle = async ({ event, resolve }) => {
 
 	for (const [name, value] of Object.entries(HEADERS)) {
 		response.headers.set(name, value);
+	}
+
+	if (!response.headers.has('referrer-policy')) {
+		response.headers.set('referrer-policy', DEFAULT_REFERRER_POLICY);
 	}
 
 	// Never in dev: an HSTS header on localhost pins the whole of localhost to

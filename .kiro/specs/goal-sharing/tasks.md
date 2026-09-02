@@ -4,7 +4,7 @@ Ordered so that each step leaves the app working and testable. Steps 1–4 are
 invisible to the runner; the feature first appears on screen at step 6, and is
 usable end to end at step 8.
 
-- [ ] 1. Database schema
+- [x] 1. Database schema
 
   - Append the `goal_share` table, its one token index, the RLS enable, the
     `REVOKE`, and the row-cap trigger to `src/lib/server/db/migration.sql`,
@@ -14,7 +14,7 @@ usable end to end at step 8.
     table
   - _Requirements: 6.1, 6.4, 6.7, 7.5_
 
-- [ ] 2. Token generation
+- [x] 2. Token generation
 
   - `src/lib/server/share/token.ts`: `generateShareToken` (32 bytes from
     `crypto.getRandomValues`, base64url) and `isShareToken`
@@ -22,7 +22,7 @@ usable end to end at step 8.
     shape gate's accepts/rejects
   - _Requirements: 1.3, 6.4_
 
-- [ ] 3. The snapshot projection
+- [x] 3. The snapshot projection
 
   - `src/lib/server/share/snapshot.ts`: the `SharedSnapshot` type and
     `projectSnapshot(goal, stats)` returning null when either is unusable
@@ -37,7 +37,7 @@ usable end to end at step 8.
     full `Goal`/`UserStats` fixture, so an upstream field cannot ride along
   - _Requirements: 4.1, 4.2, 4.3, 4.4, 7.6, 7.11_
 
-- [ ] 4. Data access layer
+- [x] 4. Data access layer
 
   - `src/lib/server/db/goal-share.ts`: `getForGoal`, `issue` (conditional
     `UPDATE` then `INSERT` on no rows, per `advanceMark` — not an upsert, which
@@ -52,7 +52,7 @@ usable end to end at step 8.
     that every owner-scoped query carries `.eq('user_id', …)`
   - _Requirements: 5.2, 5.3, 5.4, 5.5, 6.1, 7.4, 7.9_
 
-- [ ] 5. Snapshot refresh on the owner's page loads
+- [x] 5. Snapshot refresh on the owner's page loads
 
   - `src/lib/server/share/refresh.ts`: `refreshShareSnapshot(userId, goal, stats)` — takes the
     data rather than fetching it, unthrottled so it rides the same request as the
@@ -65,7 +65,7 @@ usable end to end at step 8.
     one `keepHistory` recorded in the same call
   - _Requirements: 3.1, 3.2, 3.3, 3.7, 5.7, 7.2_
 
-- [ ] 6. Share API endpoint, and the share row on `/goal`'s load
+- [x] 6. Share API endpoint, and the share row on `/goal`'s load
 
   - `src/routes/api/v1/goal-share/+server.ts` with `POST` (create, idempotent —
     returns the existing link rather than rotating), `PUT` (rotate) and
@@ -86,7 +86,7 @@ usable end to end at step 8.
     limiter refusals, and a repeated `POST` returning the same token
   - _Requirements: 1.2, 1.3, 1.4, 1.5, 1.6, 5.1, 5.3, 6.6, 7.1, 7.2, 7.3, 7.8_
 
-- [ ] 7. Goal card: history as data, and reduced views
+- [x] 7. Goal card: history as data, and reduced views
 
   - Move the history read and the two best-effort writes out of the card's
     `onMount` and into `/goal`'s load, which removes a rule violation and a
@@ -101,7 +101,7 @@ usable end to end at step 8.
   - Confirm the dashboard and `/goal` are untouched in behaviour
   - _Requirements: 2.3, 2.4, 2.5, 2.6, 5.6, 7.6, 7.7, 7.10_
 
-- [ ] 8. The public route
+- [x] 8. The public route
 
   - `src/routes/s/[token]/+page.server.ts`: IP limiter via `getClientAddress()`,
     token shape gate, `getLiveByToken`, Zod parse of the stored snapshot,
@@ -122,13 +122,13 @@ usable end to end at step 8.
   - `share-page.test.ts` covering all four outcomes and the header
   - _Requirements: 2.1, 2.2, 2.7, 2.8, 3.4, 3.5, 3.6, 4.2, 4.5, 4.6, 4.7, 6.2, 6.3, 7.1_
 
-- [ ] 9. View limiter
+- [x] 9. View limiter
 
   - `shareViews` added to `$lib/server/security/rate-limit.ts` with the same
     per-instance caveat the neighbours carry, plus its test
   - _Requirements: 6.5_
 
-- [ ] 10. The share control
+- [x] 10. The share control
 
   - `src/lib/components/goal/goal-card-share.svelte`: the dialog with its two
     states (none / live, both handed in as a prop from the load), the copy
@@ -143,7 +143,7 @@ usable end to end at step 8.
     plus the mutations' pending and failed outcomes
   - _Requirements: 1.1, 1.2, 1.5, 1.7, 1.8, 5.1_
 
-- [ ] 11. Documentation
+- [x] 11. Documentation
 
   - `agents.md` §3: the public route, why it is public, and what a token grants
   - `agents.md` §8: the storage shape (one row per shared goal, no per-view
@@ -152,7 +152,7 @@ usable end to end at step 8.
     the freshness caveat in the runner's own terms
   - _Requirements: 7.13_
 
-- [ ] 12. Verify end to end
+- [x] 12. Verify end to end
 
   - `bun run check`, `bun run lint`, `bun run test:coverage`, `bun run build`
   - On a Vercel preview: create a link, open it in a private window, confirm no

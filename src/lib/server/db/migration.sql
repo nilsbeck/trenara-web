@@ -222,3 +222,79 @@ DROP TRIGGER IF EXISTS chat_read_state_row_cap_trigger ON chat_read_state;
 CREATE TRIGGER chat_read_state_row_cap_trigger
     BEFORE INSERT ON chat_read_state
     FOR EACH ROW EXECUTE FUNCTION chat_read_state_row_cap();
+
+-- Shared goal links (added later)
+-- Lets a runner hand a friend a link to their current goal: the friend sees a
+-- read-only goal card with no account of their own. The card cannot be
+-- rendered live for a visitor — Trenara only answers a request carrying the
+-- runner's own access token, and that token must never reach a public route —
+-- so this table holds a projection of the card's inputs instead, refreshed on
+-- the runner's own page loads. See .kiro/specs/goal-sharing/design.md.
+
+CREATE TABLE IF NOT EXISTS goal_share (
+    id SERIAL PRIMARY KEY,
+    user_id INTEGER NOT NULL,
+    -- The Trenara goal id this link is for. A link is bound to one goal: when
+    -- the runner starts training for something else, this link keeps serving
+    -- the goal it was made for rather than silently swapping what a friend is
+    -- looking at.
+    goal_id INTEGER NOT NULL,
+    -- 32 random bytes, base64url. Stored as it is issued rather than hashed,
+    -- deliberately: the runner must be able to come back and copy the link
+    -- again, which a hash makes impossible. What a leaked token grants is one
+    -- read-only goal card — no account access, no write, nothing upstream —
+    -- and the table is already unreachable except through the service role
+    -- key (see the RLS block below). A hash would be right if this were a
+    -- credential; it is a capability for a page of running numbers.
+    token VARCHAR(64) NOT NULL,
+    -- The runner's own words for the link, optional. Bounded so the column is
+    -- not a place to store a document.
+    title VARCHAR(80),
+    -- First name as it was when the link was made. Copied rather than joined:
+    -- the public read must not touch anything else, and there is nothing else
+    -- to join to — `/api/me` needs the owner's token.
+    display_name VARCHAR(80),
+    -- The goal card's inputs, projected. See `SharedSnapshot` in
+    -- `$lib/server/share/snapshot.ts` for what may appear here; the
+    -- projection is the privacy boundary, so it is a named type and not
+    -- `Goal`/`UserStats` passed through.
+    snapshot JSONB,
+    snapshot_at TIMESTAMPTZ,
+    revoked_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    -- One link per goal. `PUT /api/v1/goal-share` rotates the token on this
+    -- row rather than creating a second one.
+    UNIQUE (user_id, goal_id)
+);
+
+-- The public read is `WHERE token = $1`, and it is the only query a stranger
+-- can cause. Unique so it is an index probe and so a token cannot be issued
+-- twice.
+CREATE UNIQUE INDEX IF NOT EXISTS idx_goal_share_token ON goal_share(token);
+
+-- No index is declared for the owner's own lookups. `UNIQUE (user_id, goal_id)`
+-- above already creates one, and it serves both of them: the goal page's "is
+-- this goal shared?" is an equality probe on the whole key, and the row-cap
+-- trigger's `COUNT(… WHERE user_id = …)` is a scan of its leading column. A
+-- second index on the same pair would be paid for on every write and read
+-- from never.
+
+ALTER TABLE goal_share ENABLE ROW LEVEL SECURITY;
+REVOKE ALL ON goal_share FROM anon, authenticated;
+
+-- The backstop the other tables carry, sized far above any plausible number of
+-- goals one runner trains for.
+CREATE OR REPLACE FUNCTION goal_share_row_cap() RETURNS TRIGGER AS $$
+BEGIN
+    IF (SELECT COUNT(*) FROM goal_share WHERE user_id = NEW.user_id) >= 100 THEN
+        RAISE EXCEPTION 'share link limit reached for user %', NEW.user_id
+            USING ERRCODE = 'check_violation';
+    END IF;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS goal_share_row_cap_trigger ON goal_share;
+CREATE TRIGGER goal_share_row_cap_trigger
+    BEFORE INSERT ON goal_share
+    FOR EACH ROW EXECUTE FUNCTION goal_share_row_cap();

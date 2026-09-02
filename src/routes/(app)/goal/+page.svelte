@@ -1,6 +1,7 @@
 <script lang="ts">
 	import type { PageServerData } from './$types';
 	import GoalCard from '$lib/components/goal/goal-card.svelte';
+	import GoalCardShare from '$lib/components/goal/goal-card-share.svelte';
 	import PredictionsCard from '$lib/components/predictions/predictions-card.svelte';
 	import { isRenderableStats } from '$lib/utils/user-stats';
 	import { invalidateAll } from '$app/navigation';
@@ -27,13 +28,17 @@
 		stacked cards visibly out of step.
 	-->
 	<div class="flex flex-col space-y-6">
-		{#await Promise.all([data.goal, data.userStats])}
+		{#await Promise.all([data.goal, data.userStats, data.history, data.share])}
 			<div class="flex items-center justify-center py-12">
 				<Loader2 class="h-6 w-6 animate-spin text-muted-foreground" />
 			</div>
-		{:then [goal, userStats]}
+		{:then [goal, userStats, history, share]}
 			{#if goal && isRenderableStats(userStats)}
-				<GoalCard {goal} {userStats} />
+				<GoalCard {goal} {userStats} history={history.records} historyError={history.error}>
+					{#snippet headerExtra()}
+						<GoalCardShare {share} />
+					{/snippet}
+				</GoalCard>
 				<PredictionsCard {userStats} />
 			{:else if isRenderableStats(userStats)}
 				<!--

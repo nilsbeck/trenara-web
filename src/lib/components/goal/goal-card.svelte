@@ -1,6 +1,6 @@
 <script lang="ts">
 	import type { Goal, UserStats } from '$lib/server/trenara/types';
-	import { onMount } from 'svelte';
+	import { untrack, type Snippet } from 'svelte';
 	import {
 		Trophy,
 		Calendar,
@@ -10,8 +10,7 @@
 		ChevronDown,
 		TrendingDown,
 		TrendingUp,
-		Minus,
-		Loader2
+		Minus
 	} from 'lucide-svelte';
 	import PredictionStats from './prediction-stats.svelte';
 	import PredictionChart, {
@@ -33,18 +32,76 @@
 		shortenPaceUnit,
 		NO_VALUE
 	} from '$lib/utils/format';
-	import { describeError, describeResponse } from '$lib/utils/network';
+
+	/**
+	 * What the card actually reads off a goal — nothing about editing it,
+	 * intermediate goals, or the plan's raw week template.
+	 *
+	 * Exported so a caller can be checked against it rather than against a
+	 * promise: a shared-goal snapshot (`$lib/server/share/snapshot.ts`) is
+	 * built to satisfy exactly this, and if a future change to this component
+	 * reads a field the snapshot does not carry, that caller stops
+	 * type-checking instead of failing silently on a public page.
+	 */
+	export type GoalCardGoal = Pick<
+		Goal,
+		| 'name'
+		| 'start_date'
+		| 'end_date'
+		| 'distance'
+		| 'distance_unit'
+		| 'distance_value'
+		| 'time'
+		| 'time_in_sec'
+		| 'pace'
+	> & { description?: string };
+
+	/** What the card reads off the stats response. See `GoalCardGoal`. */
+	export type GoalCardStats = {
+		best_times?: Partial<UserStats['best_times']>;
+		graph_stats?: Partial<UserStats['graph_stats']>;
+	};
+
+	/** Which graphs the picker offers. */
+	export type GraphView = 'prediction' | 'week' | 'goal';
 
 	let {
 		goal,
 		userStats,
+		history,
+		historyError = null,
+		views = ['prediction', 'week', 'goal'],
 		collapsible = false,
 		expanded = true,
 		ontoggle,
-		bodyId = 'goal-card-body'
+		bodyId = 'goal-card-body',
+		headerExtra
 	}: {
-		goal: Goal;
-		userStats: UserStats;
+		goal: GoalCardGoal;
+		userStats: GoalCardStats;
+		/**
+		 * The prediction history to plot. Required — the card does not fetch it.
+		 *
+		 * This is what makes the card renderable for a visitor with no session:
+		 * it used to fetch its own history on mount and fire two best-effort
+		 * writes alongside it (record today's prediction, archive the current
+		 * goal), and all three of those calls are authenticated and would 401
+		 * off-session. Both callers — the dashboard and `/goal` — read this
+		 * from their own server load now, which is also where the two writes
+		 * moved to (`keepHistory`), and the shared page supplies its own from
+		 * the share row's owner. There is no `readOnly` flag: handing every
+		 * caller its data the same way is what keeps this one component rather
+		 * than two behaviours picked by whether an argument was passed.
+		 */
+		history: ChartDataPoint[];
+		/** Set when the caller could not read the history — shown inline, not as a failed page. */
+		historyError?: string | null;
+		/**
+		 * Which graphs the picker offers. All three by default; the shared page
+		 * passes `['prediction']`, and with one view available the picker
+		 * collapses to its title and the arrows are not rendered.
+		 */
+		views?: GraphView[];
 		/**
 		 * Whether this card folds down to its head on a phone.
 		 *
@@ -62,6 +119,13 @@
 		ontoggle?: () => void;
 		/** Id of the folding region, for the head's `aria-controls`. */
 		bodyId?: string;
+		/**
+		 * Extra control in the header, beside the trend badge — the share
+		 * button on `/goal`. A snippet rather than a boolean so the card itself
+		 * carries no knowledge of sharing; the dashboard's copy simply never
+		 * passes one.
+		 */
+		headerExtra?: Snippet;
 	} = $props();
 
 	/**
@@ -142,26 +206,33 @@
 	// it", which is what this card is for. The two distance graphs answer "what
 	// have I actually done", and are a click away.
 
-	type GraphView = 'prediction' | 'week' | 'goal';
-
 	// The picker is the heading — these read as titles, not as verbs.
-	const GRAPH_VIEWS: { value: GraphView; label: string }[] = [
+	const ALL_GRAPH_VIEWS: { value: GraphView; label: string }[] = [
 		{ value: 'prediction', label: 'Prediction Progress' },
 		{ value: 'week', label: 'Distance This Week' },
 		{ value: 'goal', label: 'Distance By Week' }
 	];
 
-	let graphView = $state<GraphView>('prediction');
+	/** The picker's own list, narrowed to what the caller offered — see `views`. */
+	const availableViews = $derived(ALL_GRAPH_VIEWS.filter((v) => views.includes(v.value)));
+
+	// `views` decides the opening view once, at mount — it does not change for
+	// either caller after that — so the read is untracked rather than left to
+	// warn about a reactivity this is deliberately not asking for.
+	let graphView = $state<GraphView>(untrack(() => views[0] ?? 'prediction'));
 
 	// The arrows and the picker are the same control in two shapes: the picker
 	// says where you are and jumps anywhere, the arrows step. Three graphs is a
 	// short enough ring to wrap rather than dead-end, which also keeps the back
-	// arrow live on the view the card opens on.
-	const graphIndex = $derived(GRAPH_VIEWS.findIndex((v) => v.value === graphView));
+	// arrow live on the view the card opens on. With one view offered — the
+	// shared page's case — there is nothing to step between, and the picker
+	// below drops the arrows entirely rather than rendering ones that would
+	// only wrap back to themselves.
+	const graphIndex = $derived(availableViews.findIndex((v) => v.value === graphView));
 	const previousGraph = $derived(
-		GRAPH_VIEWS[(graphIndex - 1 + GRAPH_VIEWS.length) % GRAPH_VIEWS.length]
+		availableViews[(graphIndex - 1 + availableViews.length) % availableViews.length]
 	);
-	const nextGraph = $derived(GRAPH_VIEWS[(graphIndex + 1) % GRAPH_VIEWS.length]);
+	const nextGraph = $derived(availableViews[(graphIndex + 1) % availableViews.length]);
 
 	function stepGraph(to: { value: GraphView }) {
 		graphView = to.value;
@@ -230,7 +301,7 @@
 			raceDay,
 			planned: plan.weeks.map((w) => ({ startsOn: w.startsOn, km: w.plannedKm })),
 			done: plan.weeks.map((w) => ({ startsOn: w.startsOn, km: w.completedKm ?? 0 })),
-			samples: history.forGoal.map((d) => ({ date: d.date, seconds: d.predictedTime })),
+			samples: splitHistory.forGoal.map((d) => ({ date: d.date, seconds: d.predictedTime })),
 			goalStart: startDate
 		});
 	});
@@ -368,14 +439,14 @@
 	 * and wondering whether it works.
 	 */
 	const noForecastReason = $derived.by(() => {
-		if (raceForecast || isPast || chartLoading || chartError) return null;
+		if (raceForecast || isPast || historyError) return null;
 		if (!userStats?.best_times?.time_for_goal || !goal.time_in_sec) {
 			return 'No prediction to forecast from yet.';
 		}
 		if (readPlanWeeks(userStats?.graph_stats?.goal).weeks.length === 0) {
 			return 'No plan weeks to forecast against yet.';
 		}
-		if (history.forGoal.length === 0) {
+		if (splitHistory.forGoal.length === 0) {
 			return 'No prediction recorded yet for this goal — the forecast needs at least one earlier reading to price the plan against.';
 		}
 		if (raceDay && earnCutoff(raceDay) <= now) {
@@ -385,7 +456,6 @@
 	});
 
 	// ── Prediction history & chart ─────────────────────────────────
-	let chartData = $state<ChartDataPoint[]>([]);
 
 	/**
 	 * The goal's own distance, in whatever unit its pace is written in.
@@ -399,11 +469,11 @@
 	);
 
 	/**
-	 * The history, minus whatever was recorded for a different goal.
+	 * The `history` prop, minus whatever was recorded for a different goal.
 	 *
 	 * Changing a goal does not change what is already stored, and the window
-	 * this fetches — everything since the goal's start date — catches the day of
-	 * the change, whose reading was written before it. So a runner who swaps
+	 * callers fetch — everything since the goal's start date — catches the day
+	 * of the change, whose reading was written before it. So a runner who swaps
 	 * 15 km for a marathon in the morning opens this card to a 1:03 sitting
 	 * under a 3:11 goal line, and every reader of the series takes it at face
 	 * value: the chart draws a cliff, the badge calls it detraining, and the
@@ -415,7 +485,7 @@
 	 * page still plots them: converted to a fixed 10K, where they are
 	 * comparable, which is exactly the thing they are not here.
 	 */
-	const history = $derived(splitByGoalDistance(chartData, goalDistance));
+	const splitHistory = $derived(splitByGoalDistance(history, goalDistance));
 
 	/**
 	 * What was left out, said plainly.
@@ -427,11 +497,11 @@
 	 * with.
 	 */
 	const otherGoalNote = $derived.by(() => {
-		const dropped = history.fromOtherGoals.length;
+		const dropped = splitHistory.fromOtherGoals.length;
 		if (dropped === 0) return null;
 
 		const readings = dropped === 1 ? '1 earlier reading' : `${dropped} earlier readings`;
-		const distances = history.otherDistances;
+		const distances = splitHistory.otherDistances;
 		const about =
 			distances.length === 1
 				? ` for a ${formatDistance(distances[0])} goal`
@@ -447,19 +517,6 @@
 		return `${Number(km.toFixed(3))} ${goal.distance_unit || 'km'}`;
 	}
 
-	/**
-	 * True from the first paint, not from the moment the fetch starts.
-	 *
-	 * The history is fetched on mount, so between the server's render and that
-	 * fetch there is always a gap — and a card that starts out `false` spends
-	 * that gap claiming there is nothing to show: an empty chart under a
-	 * heading with no reading in it. Starting true means the first thing drawn
-	 * is the wait itself, and the chart and the trend badge both settle in
-	 * place rather than appearing out of an emptiness that looked settled.
-	 */
-	let chartLoading = $state(true);
-	let chartError = $state<string | null>(null);
-
 	// ── Which way the pace curve is going ──────────────────────────
 	//
 	// The card already draws the curve; what it never said is which way it is
@@ -468,7 +525,7 @@
 	// show — and because on a phone the heading is all there is when the card is
 	// folded shut.
 
-	const trend = $derived(paceTrend(history.forGoal, now));
+	const trend = $derived(paceTrend(splitHistory.forGoal, now));
 
 	/**
 	 * The arrow follows the curve, not the mood.
@@ -496,102 +553,12 @@
 		return `Predicted pace is ${rate}s/km ${way} per week ${span}.`;
 	});
 
-	/** Fetch prediction records from Supabase via our API. */
-	async function loadPredictionHistory() {
-		chartLoading = true;
-		chartError = null;
-		try {
-			const params = new URLSearchParams({ limit: '200' });
-			if (goal.start_date) params.set('startDate', goal.start_date);
-			const res = await fetch(`/api/v1/prediction-history?${params}`);
-			if (!res.ok) throw new Error(await describeResponse(res, 'Could not load your history.'));
-			const { records } = await res.json();
-			chartData = transformRecords(records ?? []);
-		} catch (e) {
-			chartError = describeError(e, 'Could not load your history.');
-			chartData = [];
-		} finally {
-			chartLoading = false;
-		}
-	}
-
-	interface PredictionRecord {
-		id: number;
-		user_id: number;
-		predicted_time: string;
-		predicted_pace: string;
-		predicted_time_10k: string | null;
-		predicted_pace_10k: string | null;
-		recorded_at: string;
-		created_at: string;
-	}
-
-	function transformRecords(records: PredictionRecord[]): ChartDataPoint[] {
-		return records
-			.map((r) => {
-				try {
-					return {
-						date: r.recorded_at,
-						predictedTime: timeStringToSeconds(r.predicted_time),
-						predictedPace: paceStringToSeconds(r.predicted_pace),
-						formattedTime: r.predicted_time,
-						formattedPace: r.predicted_pace
-					};
-				} catch {
-					return null;
-				}
-			})
-			.filter((d): d is ChartDataPoint => d !== null);
-	}
-
-	/**
-	 * Ask the server to record today's prediction, and redraw if it did.
-	 *
-	 * Sends no figures. It used to compose them here — reading `userStats` off
-	 * the page and posting time and pace up — which made the runner's own
-	 * history client-authored for a record meant to outlive the data it
-	 * describes. The server reads Trenara directly now and ignores any body,
-	 * so all this needs to know is whether a new point exists.
-	 */
-	async function trackCurrentPrediction() {
-		try {
-			const res = await fetch('/api/v1/prediction-history', { method: 'POST' });
-			if (!res.ok) return; // non-critical, fail silently
-			const result = await res.json();
-			if (result.stored) {
-				// Reload chart to include the new point
-				await loadPredictionHistory();
-			}
-		} catch {
-			// Prediction tracking is best-effort
-		}
-	}
-
-	/**
-	 * Ask the server to archive the goal that is current right now.
-	 *
-	 * Also body-less, and for the same reason. The dashboard load does this on
-	 * its own now, so this call is only what keeps the archive current for
-	 * someone who came straight to the goal page.
-	 */
-	async function archiveGoal() {
-		try {
-			const res = await fetch('/api/v1/goal-history', { method: 'POST' });
-			if (!res.ok) {
-				// Not fatal, but silent failures here are why history stays empty.
-				console.warn(`Failed to archive goal (${res.status})`);
-			}
-		} catch (e) {
-			console.warn('Failed to archive goal:', e);
-		}
-	}
-
-	// Initialise on mount (browser-only; $effect can run during SSR in Svelte 5)
-	onMount(() => {
-		loadPredictionHistory();
-		trackCurrentPrediction();
-		archiveGoal();
-	});
+	// No fetch and no on-mount write happens here any more. `history` arrives
+	// resolved, and the two writes that used to follow it — recording today's
+	// prediction, archiving the current goal — moved to the server loads that
+	// supply it (`keepHistory`, in `$lib/server/history/record.ts`), which is
+	// also where §5 of `agents.md` says they belonged: no `onMount` for data a
+	// `load` can already hold.
 </script>
 
 <div class="rounded-lg border border-border bg-card p-6 shadow-sm">
@@ -606,6 +573,7 @@
 			<div class="mb-4 flex items-center gap-3">
 				<Trophy class="h-6 w-6 shrink-0 text-primary" />
 				<h2 class="min-w-0 flex-1 text-xl font-semibold text-card-foreground">Goal Completed</h2>
+				{@render headerExtra?.()}
 				{@render foldIcon()}
 			</div>
 			<p class="text-muted-foreground">
@@ -619,6 +587,7 @@
 					{goal.name}
 				</h2>
 				{@render trendBadge()}
+				{@render headerExtra?.()}
 				{@render foldIcon()}
 			</div>
 
@@ -802,25 +771,12 @@
 	pace curve under it is pointing. It sits beside the goal's name because it
 	is a reading of the goal rather than of a graph, and because a folded card
 	on a phone is nothing but this row.
+
+	No loading branch: `history` arrives resolved, so the trend is known from
+	the first render and there is nothing here to wait for.
 -->
 {#snippet trendBadge()}
-	{#if chartLoading}
-		<!--
-			The reading is a fetch away, and the badge is the narrowest thing in
-			the heading: appearing out of nothing shoves the goal's name sideways
-			just as it is being read. The spinner holds that width and says the
-			heading is not finished, which is the honest reading of the moment —
-			an absent badge means "no trend to report", and that is not yet known.
-		-->
-		<span
-			class="flex shrink-0 items-center gap-1 text-xs font-medium whitespace-nowrap text-muted-foreground"
-			role="status"
-			data-testid="trend-loading"
-		>
-			<Loader2 class="h-3.5 w-3.5 animate-spin" aria-hidden="true" />
-			<span class="sr-only">Reading the pace trend…</span>
-		</span>
-	{:else if trend}
+	{#if trend}
 		{@const look = TREND_LOOK[trend.direction]}
 		<span
 			class="flex shrink-0 items-center gap-1 text-xs font-medium whitespace-nowrap {look.tone}"
@@ -858,37 +814,49 @@
 {/snippet}
 
 {#snippet graphPicker()}
-	<div class="mb-2 flex items-center justify-between gap-2">
-		<label>
-			<span class="sr-only">Which graph to show</span>
-			<select
-				bind:value={graphView}
-				class="-ml-1 cursor-pointer rounded-md border-0 bg-transparent py-0.5 pl-1 pr-6 text-sm font-medium text-muted-foreground hover:text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
-			>
-				{#each GRAPH_VIEWS as view (view.value)}
-					<option value={view.value}>{view.label}</option>
-				{/each}
-			</select>
-		</label>
-		<div class="flex shrink-0 items-center gap-1">
-			<button
-				type="button"
-				onclick={() => stepGraph(previousGraph)}
-				aria-label="Show {previousGraph.label}"
-				class="rounded-md p-1 text-muted-foreground transition-colors hover:text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
-			>
-				<ChevronLeft class="h-4 w-4" />
-			</button>
-			<button
-				type="button"
-				onclick={() => stepGraph(nextGraph)}
-				aria-label="Show {nextGraph.label}"
-				class="rounded-md p-1 text-muted-foreground transition-colors hover:text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
-			>
-				<ChevronRight class="h-4 w-4" />
-			</button>
+	{#if availableViews.length <= 1}
+		<!--
+			One view offered — the shared page's case — so there is nowhere to
+			pick or step to. The title still says what the graph below is, just
+			as a static heading rather than as a control that would only ever do
+			nothing.
+		-->
+		<div class="mb-2 text-sm font-medium text-muted-foreground">
+			{availableViews[0]?.label ?? ALL_GRAPH_VIEWS.find((v) => v.value === graphView)?.label}
 		</div>
-	</div>
+	{:else}
+		<div class="mb-2 flex items-center justify-between gap-2">
+			<label>
+				<span class="sr-only">Which graph to show</span>
+				<select
+					bind:value={graphView}
+					class="-ml-1 cursor-pointer rounded-md border-0 bg-transparent py-0.5 pl-1 pr-6 text-sm font-medium text-muted-foreground hover:text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+				>
+					{#each availableViews as view (view.value)}
+						<option value={view.value}>{view.label}</option>
+					{/each}
+				</select>
+			</label>
+			<div class="flex shrink-0 items-center gap-1">
+				<button
+					type="button"
+					onclick={() => stepGraph(previousGraph)}
+					aria-label="Show {previousGraph.label}"
+					class="rounded-md p-1 text-muted-foreground transition-colors hover:text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+				>
+					<ChevronLeft class="h-4 w-4" />
+				</button>
+				<button
+					type="button"
+					onclick={() => stepGraph(nextGraph)}
+					aria-label="Show {nextGraph.label}"
+					class="rounded-md p-1 text-muted-foreground transition-colors hover:text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+				>
+					<ChevronRight class="h-4 w-4" />
+				</button>
+			</div>
+		</div>
+	{/if}
 {/snippet}
 
 {#snippet graph()}
@@ -898,9 +866,9 @@
 		<DistanceChart series={goalSeries} emptyMessage="No weekly distances for this goal yet" />
 	{:else}
 		<PredictionChart
-			data={history.forGoal}
-			loading={chartLoading}
-			error={chartError}
+			data={splitHistory.forGoal}
+			loading={false}
+			error={historyError}
 			domainEnd={raceDay}
 			projections={chartLines}
 			reference={goalReference}
