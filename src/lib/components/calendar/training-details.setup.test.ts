@@ -162,8 +162,8 @@ describe('training-details session setup', () => {
 
 		await waitFor(() => expect(screen.getAllByText('Cycling').length).toBeGreaterThan(0));
 		expect(screen.queryByRole('heading', { level: 4, name: /How you’ll/ })).toBeNull();
-		// The session is still replaceable — from its title, as always.
-		expect(screen.getByRole('button', { name: /Cycling/ })).toBeTruthy();
+		// The session is still replaceable — via the change-session action button.
+		expect(screen.getByRole('button', { name: 'Change session' })).toBeTruthy();
 		vi.unstubAllGlobals();
 	});
 
@@ -620,9 +620,12 @@ describe('switching back to a run', () => {
 			props: { selectedDate: '2026-08-22', training: base, entry: null, isLoading: false }
 		});
 
-		// The title is the way in: every setting has a chip now, so there is no
-		// trailing sliders button left to open a bare index from.
-		await fireEvent.click(await waitFor(() => screen.getByRole('button', { name: /Cycling/ })));
+		// The change-session action button is the way in: every setting has a
+		// chip now, so there is no trailing sliders button left to open a bare
+		// index from.
+		await fireEvent.click(
+			await waitFor(() => screen.getByRole('button', { name: 'Change session' }))
+		);
 
 		// The tile was disabled back when reverting was thought to be an
 		// exchange, which left it visible and dead.
@@ -649,19 +652,14 @@ describe('switching back to a run', () => {
 			props: { selectedDate: '2026-08-22', training: base, entry: null, isLoading: false }
 		});
 
-		// The title is the way in: every setting has a chip now, so there is no
-		// trailing sliders button left to open a bare index from.
-		await fireEvent.click(await waitFor(() => screen.getByRole('button', { name: /Cycling/ })));
+		// The change-session action button is the way in: every setting has a
+		// chip now, so there is no trailing sliders button left to open a bare
+		// index from.
+		await fireEvent.click(
+			await waitFor(() => screen.getByRole('button', { name: 'Change session' }))
+		);
 
-		// The card's title is a button named "Cycling" too now, so name alone no
-		// longer identifies the tile — aria-pressed does.
-		const tile = await waitFor(() => {
-			const found = screen
-				.getAllByRole('button', { name: 'Cycling' })
-				.find((b) => b.hasAttribute('aria-pressed'));
-			if (!found) throw new Error('activity tile not rendered yet');
-			return found;
-		});
+		const tile = await waitFor(() => screen.getByRole('button', { name: 'Cycling' }));
 		expect((tile as HTMLButtonElement).disabled).toBe(true);
 		vi.unstubAllGlobals();
 	});
@@ -670,7 +668,7 @@ describe('switching back to a run', () => {
 describe('changing the session from the card', () => {
 	const swappable: ScheduledTraining = { ...detail, can_cross_train: true, can_be_exchanged: true };
 
-	it('opens the session editor straight from the title', async () => {
+	it('opens the session editor from the change-session action button', async () => {
 		const fetchMock = vi
 			.fn()
 			.mockResolvedValueOnce({ ok: true, status: 200, json: async () => swappable })
@@ -681,16 +679,18 @@ describe('changing the session from the card', () => {
 			props: { selectedDate: '2026-08-22', training: base, entry: null, isLoading: false }
 		});
 
-		// Two taps deep behind the sliders chip put the biggest change furthest
-		// away, while the small tweaks sat on the card as chips.
-		const title = await waitFor(() => screen.getByRole('button', { name: /Tempo run/ }));
-		await fireEvent.click(title);
+		// The change-session button lives with the rest of the session-level
+		// actions — delete, change date — not buried in the title.
+		const changeSession = await waitFor(() =>
+			screen.getByRole('button', { name: 'Change session' })
+		);
+		await fireEvent.click(changeSession);
 
 		await waitFor(() => expect(screen.getByText('Change this session')).toBeTruthy());
 		vi.unstubAllGlobals();
 	});
 
-	it('leaves the title a plain heading when nothing can replace the session', async () => {
+	it('hides the change-session action button when nothing can replace the session', async () => {
 		const locked = { ...detail, can_cross_train: false, can_be_exchanged: false };
 		vi.stubGlobal(
 			'fetch',
@@ -702,7 +702,7 @@ describe('changing the session from the card', () => {
 		});
 
 		await waitFor(() => expect(screen.getAllByText('Treadmill · Flat').length).toBeGreaterThan(0));
-		expect(screen.queryByRole('button', { name: /Tempo run/ })).toBeNull();
+		expect(screen.queryByRole('button', { name: 'Change session' })).toBeNull();
 		vi.unstubAllGlobals();
 	});
 });
