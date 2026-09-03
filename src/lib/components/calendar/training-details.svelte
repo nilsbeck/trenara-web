@@ -187,8 +187,8 @@
 		void detailStore.setCooldown(next);
 	}
 
-	// Whether the session itself can be replaced, which decides if its title is
-	// a control or just a heading.
+	// Whether the session itself can be replaced, which decides whether the
+	// change-session button appears among the other actions.
 	const canChangeSession = $derived(
 		canShowSetup &&
 			!!setupTraining &&
@@ -205,7 +205,8 @@
 
 	// Always onto a specific editor now. Nothing opens the bare index any more:
 	// every setting has a chip, and the two that do not are reached from the
-	// card itself — the cool-down on its block, the session from its title.
+	// card itself — the cool-down on its block, the session from its own
+	// change button among the other actions.
 	function openSetup(key: SettingKey) {
 		setupSection = key;
 		setupOpen = true;
@@ -298,32 +299,13 @@
 				{/if}
 				<div class="min-w-0 flex-1">
 					<div class="flex min-w-0 flex-wrap items-baseline gap-1.5">
-						{#if canChangeSession && shownTraining}
-							<!--
-								The title is the session's badge, so by the same rule the chips
-								follow it is also the way to change it. Burying the biggest
-								change of all two taps deep, while the small tweaks sit on the
-								card as chips, had it exactly backwards.
-							-->
-							<button
-								type="button"
-								onclick={() => openSetup('session')}
-								class="group flex items-baseline gap-1.5 text-left"
-							>
-								<h3 class="text-base font-semibold text-foreground">{shownTraining.title}</h3>
-								<Repeat
-									class="h-3 w-3 shrink-0 self-center text-muted-foreground transition-colors group-hover:text-foreground"
-								/>
-							</button>
-						{:else}
-							<h3 class="text-base font-semibold text-foreground">
-								{#if entry && !training}
-									{entry.name}
-								{:else if shownTraining}
-									{shownTraining.title}
-								{/if}
-							</h3>
-						{/if}
+						<h3 class="text-base font-semibold text-foreground">
+							{#if entry && !training}
+								{entry.name}
+							{:else if shownTraining}
+								{shownTraining.title}
+							{/if}
+						</h3>
 					</div>
 					{#if shownTraining}
 						<!--
@@ -347,6 +329,21 @@
 				{/if}
 				{#if entry && training}
 					<GiveFeedbackModal {training} {entry} onRated={onEntryChanged} />
+				{/if}
+				{#if canChangeSession}
+					<!--
+						Moved off the title and in with the other session-level actions —
+						delete, change date — rather than living as a control hidden inside
+						the heading text.
+					-->
+					<button
+						type="button"
+						onclick={() => openSetup('session')}
+						class="rounded-md p-2.5 text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+						aria-label="Change session"
+					>
+						<Repeat class="h-5 w-5" />
+					</button>
 				{/if}
 				{#if training?.can_be_edited}
 					<ChangeDateModal
