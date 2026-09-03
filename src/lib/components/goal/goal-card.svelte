@@ -18,7 +18,7 @@
 	} from '$lib/components/charts/prediction-chart.svelte';
 	import DistanceChart from '$lib/components/charts/distance-chart.svelte';
 	import { readWeekDistance, readGoalDistance } from '$lib/utils/distance-graph';
-	import { forecast, earnCutoff, type ForecastPoint } from '$lib/utils/forecast';
+	import { forecast, earnCutoff, loadSlices, type ForecastPoint } from '$lib/utils/forecast';
 	import { readPlanWeeks } from '$lib/utils/plan-weeks';
 	import { paceTrend, splitByGoalDistance } from '$lib/utils/prediction-graph';
 	import { impliedDistanceKm } from '$lib/utils/race-equivalent';
@@ -272,6 +272,9 @@
 
 	const raceDay = $derived(endDate);
 
+	/** The plan's weekly kilometres, read once and shared by the forecast and the load bars. */
+	const plan = $derived(readPlanWeeks(userStats?.graph_stats?.goal));
+
 	/**
 	 * Where this runner lands on race day, given what they have actually done.
 	 *
@@ -285,7 +288,6 @@
 		const predicted = userStats?.best_times?.time_for_goal;
 		if (!raceDay || !startDate || isPast || !predicted || !goal.time_in_sec) return null;
 
-		const plan = readPlanWeeks(userStats?.graph_stats?.goal);
 		if (plan.weeks.length === 0) return null;
 
 		// `completedKm` is null for "no data" as well as for a week that has not
@@ -423,8 +425,27 @@
 			: []
 	);
 
-	/** The weekly volume the forecast is priced from, drawn under it. */
-	const chartLoad = $derived(raceForecast?.load ?? []);
+	/**
+	 * The weekly volume still to come, drawn under the graph.
+	 *
+	 * Kilometres ahead are real whether or not a forecast could be priced from
+	 * them — a runner too early in a block for `raceForecast` to trust a rate
+	 * still has a plan telling them what the coming weeks ask for, and that is
+	 * worth seeing on the chart on its own. Computed the same way the forecast
+	 * prices its own load (`loadSlices`, over the same window), so the bars
+	 * never change shape depending on whether a forecast happens to be drawn
+	 * beside them.
+	 */
+	const chartLoad = $derived.by(() => {
+		if (!raceDay || isPast || plan.weeks.length === 0) return [];
+		const cutoff = earnCutoff(raceDay);
+		if (!(cutoff.getTime() > now.getTime())) return [];
+		return loadSlices(
+			plan.weeks.map((w) => ({ startsOn: w.startsOn, km: w.plannedKm })),
+			now,
+			cutoff
+		);
+	});
 
 	const goalReference = $derived(
 		goal.time_in_sec ? { seconds: goal.time_in_sec, label: `Goal ${goal.time}` } : null
@@ -443,7 +464,7 @@
 		if (!userStats?.best_times?.time_for_goal || !goal.time_in_sec) {
 			return 'No prediction to forecast from yet.';
 		}
-		if (readPlanWeeks(userStats?.graph_stats?.goal).weeks.length === 0) {
+		if (plan.weeks.length === 0) {
 			return 'No plan weeks to forecast against yet.';
 		}
 		if (splitHistory.forGoal.length === 0) {
