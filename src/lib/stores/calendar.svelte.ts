@@ -20,6 +20,7 @@ import {
 	weeksStillOpen
 } from '$lib/utils/date';
 import { entryLocalDate, mergeSchedule, type SchedulePayload } from '$lib/utils/schedule';
+import { reconcileRatedEntries } from '$lib/utils/rated-locally';
 
 export type CalendarDate = {
 	year: number;
@@ -519,13 +520,19 @@ export function createCalendarStore(initialDate: Date, options: CalendarStoreOpt
 		// back for an answer that does know.
 		if (seenEditSeq !== undefined && seenEditSeq !== editSeq) return false;
 
-		const print = fingerprint(next);
+		// A read that has not caught up with a rating this browser already made
+		// — a stale instance, an upstream that has not propagated the write yet
+		// — gets that rating patched back in rather than shown as lost. See
+		// `rated-locally.ts`.
+		const reconciled: Schedule = { ...next, entries: reconcileRatedEntries(next.entries) };
+
+		const print = fingerprint(reconciled);
 		const changed = !previous || previous.fingerprint !== print;
 		const fetchedAt = Date.now();
 
 		// Unchanged: keep the object already in hand, so the identity every
 		// derived index is keyed on survives the refresh.
-		const kept = changed ? next : previous.schedule;
+		const kept = changed ? reconciled : previous.schedule;
 
 		scheduleCache.set(key, {
 			schedule: kept,

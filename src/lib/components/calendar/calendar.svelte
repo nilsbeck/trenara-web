@@ -3,6 +3,7 @@
 	import { createCalendarStore, type CalendarStore } from '$lib/stores/calendar.svelte';
 	import { createRevalidationTrigger } from '$lib/utils/revalidation';
 	import { initialCalendarDay } from '$lib/utils/initial-day';
+	import { reconcileRatedEntries } from '$lib/utils/rated-locally';
 	import type { Schedule } from '$lib/server/trenara/types';
 	import CalendarHeader from './calendar-header.svelte';
 	import CalendarGrid from './calendar-grid.svelte';
@@ -40,7 +41,18 @@
 	// standing one.
 	$effect(() => {
 		const day = untrack(() => today);
-		const opening = untrack(() => initialCalendarDay(schedule, day));
+		// The page's own schedule has not been through the store's reconciliation
+		// yet — that only happens once `setSchedule` runs, below, and this effect
+		// reads no further than the prop itself. Reconciled the same way here, or
+		// a reload landing on a read that has not caught up with a rating this
+		// browser just made opens right back on the session it was just cleared
+		// off, instead of moving past it.
+		const rawSchedule = untrack(() => schedule);
+		const reconciledSchedule: Schedule = {
+			...rawSchedule,
+			entries: reconcileRatedEntries(rawSchedule.entries)
+		};
+		const opening = untrack(() => initialCalendarDay(reconciledSchedule, day));
 
 		store.setSelectedDate({
 			year: opening.getFullYear(),
