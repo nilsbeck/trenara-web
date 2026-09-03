@@ -390,8 +390,15 @@ export function forecast({
 	};
 }
 
-/** Each planned week, clipped to the window where training still earns. */
-function loadSlices(planned: VolumeWeek[], now: Date, cutoff: Date): LoadSlice[] {
+/**
+ * Each planned week, clipped to the window where training still earns.
+ *
+ * Exported on its own because the kilometres ahead are real whether or not
+ * there is enough history to price a forecast from them — a caller that
+ * wants to draw the load bars without a forecast (or when one failed to
+ * build) still needs this half of the arithmetic.
+ */
+export function loadSlices(planned: VolumeWeek[], now: Date, cutoff: Date): LoadSlice[] {
 	const slices: LoadSlice[] = [];
 	for (const week of planned) {
 		const start = week.startsOn.getTime();
