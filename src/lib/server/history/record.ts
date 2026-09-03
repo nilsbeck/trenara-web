@@ -144,10 +144,27 @@ export async function keepHistory(cookies: Cookies, userId: number): Promise<voi
 		userApi.getUserStats(cookies).catch(() => null)
 	]);
 
-	await Promise.allSettled([
+	const labels = [
+		'record prediction',
+		'archive goal',
+		'refresh share snapshot',
+		'revoke stale shares'
+	];
+	const results = await Promise.allSettled([
 		recordCurrentPrediction(cookies, userId),
 		archiveCurrentGoal(cookies, userId),
 		refreshShareSnapshot(userId, goal, stats),
 		revokeStaleShares(userId, goal)
 	]);
+
+	// Best-effort means the page must never fail for these, not that a failure
+	// should vanish with no trace anywhere. Before this, a schema mismatch or a
+	// dead connection here left the runner with a page that looked fine and a
+	// history table that silently stopped growing, with nothing in the logs to
+	// say why.
+	for (const [i, result] of results.entries()) {
+		if (result.status === 'rejected') {
+			console.error(`[keepHistory] ${labels[i]} failed for user ${userId}:`, result.reason);
+		}
+	}
 }
