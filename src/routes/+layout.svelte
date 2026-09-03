@@ -18,7 +18,7 @@
 
 <svelte:head>
 	{#if showDefaultTitle}
-		<title>Trainara — your Trenara plan, faster</title>
+		<title>Trainara — your Trenara plan, with a better UI</title>
 	{/if}
 </svelte:head>
 
