@@ -5,6 +5,7 @@
 	import { rpeColors } from '$lib/components/training/rpe';
 	import { describeError, describeResponse } from '$lib/utils/network';
 	import { ratedEntry } from '$lib/utils/rated-entry';
+	import { rememberRating } from '$lib/utils/rated-locally';
 
 	/**
 	 * `onRated` carries the entry the server answered with, so the week can
@@ -38,6 +39,12 @@
 			if (!res.ok) {
 				throw new Error(await describeResponse(res, 'Could not save your rating.'));
 			}
+
+			// The write to Trenara has happened, whatever the body below turns out
+			// to hold — remembered so a read that has not caught up with it yet
+			// (a reload landing on a stale instance, an upstream still propagating
+			// the write) does not put the prompt back up. See `rated-locally.ts`.
+			rememberRating(entry.id, rpeValue);
 
 			// The response is the whole updated entry. Prefer it over the value
 			// just sent — it is what was actually stored, and it carries

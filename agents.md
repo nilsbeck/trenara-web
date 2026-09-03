@@ -205,6 +205,18 @@ the reason — that is what distinguishes a decision from a regression.
   count moved is dropped, and the revalidation trigger asks again. A timestamp
   does not work here: two events inside one millisecond compare equal, and one
   of them must be seated.
+- **`editSeq` only protects one page instance — a reload needs its own
+  memory.** This is a serverless deployment, so the instance that answers a
+  reload straight after a rating is not guaranteed to be the one that served
+  the write, and its own cache invalidation (`read-cache.ts`) never reaches
+  the other one. `rated-locally.ts` is what covers that: the rating flow
+  remembers what it just told the server, in `localStorage`, for a few
+  minutes, and `reconcileRatedEntries` patches it back onto any read that
+  still shows the entry unrated. Call it wherever a fetched schedule is about
+  to be trusted — `calendar.svelte.ts`'s `commitSchedule` covers the store,
+  but `calendar.svelte`'s own opening-day effect reads the page's schedule
+  prop directly and needs the same reconciliation before `initialCalendarDay`
+  runs, not after.
 - **Nothing unbounded sits on the first-paint critical path.** If a value is
   awaited in a layout load, either it is served from memory or its wait is
   bounded — `newsBadgeIfReady` races a 200ms timer for exactly this reason.

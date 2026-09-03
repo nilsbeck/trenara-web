@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/svelte';
 import Calendar from './calendar.svelte';
 import type { Entry, Schedule, ScheduledTraining } from '$lib/server/trenara/types';
+import { rememberRating, resetRatedLocally } from '$lib/utils/rated-locally';
 
 // Wednesday 2026-08-26.
 const TODAY = new Date(2026, 7, 26, 8, 0);
@@ -60,7 +61,29 @@ describe('the day the calendar opens on', () => {
 			)
 		);
 	});
-	afterEach(() => vi.unstubAllGlobals());
+	afterEach(() => {
+		vi.unstubAllGlobals();
+		resetRatedLocally();
+	});
+
+	it('does not reopen on a run this browser already rated, even if the read served on mount has not caught up with it', async () => {
+		// The write already landed — this is what the rating flow leaves behind
+		// once Trenara confirms it — but the schedule handed to the calendar is
+		// the stale, pre-rating read a reload can land on. See `rated-locally.ts`.
+		rememberRating(900, 6);
+
+		render(Calendar, {
+			props: {
+				today: TODAY,
+				schedule: schedule({
+					trainings: [training('2026-08-25'), training('2026-08-28')],
+					entries: [run('2026-08-25', null)]
+				})
+			}
+		});
+
+		expect(await selectedDay()).toBe('28');
+	});
 
 	it('opens on the last completed run while it still wants a rating', async () => {
 		render(Calendar, {
