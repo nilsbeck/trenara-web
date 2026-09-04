@@ -23,7 +23,7 @@ It has some drawbacks, that this web app aims to improve and mitigate.
 - It is a mobile app only, so it's not accessible from everywhere
   - It is a web app with a responsive design to work on any screensize
 - It's loading times are too long. It takes approx. 4-6s to load the main screen and every other screen as well
-  - Make the app blazing fast, by running API calls in parallel and caching data. It is surely about 60% faster than the original app.
+  - Make the app blazing fast, by running API calls in parallel and caching data. ~~It is surely about 60% faster than the original app.~~ Trenara has finally sped up their own app since then, so the gap isn't nearly as dramatic anymore — but Trainara is still the faster of the two, thanks to the parallel loading and caching below.
   - Cached data is fetched again only when it is actually out of date — the plan is reworked overnight, and a session you change comes back from the change itself — so a tab opened each morning refreshes once and a tab left open for a week refreshes once a day. When it does refresh, it asks only for the weeks that can still change: a finished week is settled, so late in the month that is two of six, and a month you are browsing in the past costs nothing at all. It happens underneath: the calendar's refresh icon spins, and nothing on screen is taken away until something new has arrived.
 - It does not give me the information I need at a glance since the dashboard is not informative
   - Make the (monthly!) calendar the center of the app, add goal and prediction data at the same time (on large screens, otherwise accessible via menu)
@@ -53,6 +53,9 @@ everything from the reverse-engineered Trenara API.
 
 - **A full monthly schedule** as the centre of the app — every week of the month fetched in parallel
   and merged into one calendar, with running, strength and nutrition on the same grid.
+- **A calendar that fits a phone**: it opens folded to a single week on small screens, a tap on the
+  month name folds or unfolds it anytime, and you swipe between weeks or months instead of hunting
+  for arrows.
 - **Training details** per day: the planned blocks, a shape bar of the session, and — once you have
   run it — your actual numbers next to the plan.
 - **Strength sessions** with their exercises, and the **nutrition advice** and meal plan for the day,
@@ -83,17 +86,23 @@ shown.
 
 ### Goals and predictions
 
-- **Current race predictions** across distances.
-- **Current goal predictions**, with the historic changes recorded over time.
+- **Current race predictions** across distances, readable at any distance with a slider rather than
+  only the handful Trenara names.
+- **Current goal predictions**, with the historic changes recorded over time, and a trend arrow on
+  the goal card showing which way your pace has been moving over the last fortnight.
 - **10K progress over time** in a chart — the 10K prediction rather than the goal distance, so the
-  series stays comparable across training blocks.
+  series stays comparable across training blocks — with the kilometres still planned drawn in
+  alongside it, even on days there isn't yet enough history for a forecast.
+- **A second chart pricing your endurance**: what a long race costs you against your current 10K,
+  in multiples of it rather than an abstract exponent, so a marathon block that builds endurance
+  without moving your 10K still shows up as progress.
 - **A goal archive** of everything you have trained for: period, target, final prediction, status.
   (This one may still be buggy.)
-- **A link to share your current goal.** Create one from the goal page and anyone who has it can
-  see your goal card — the target, your progress, the prediction graph — with no account of their
-  own. It carries no live connection to Trenara: what a friend sees is a copy taken the last time
-  you opened Trainara, so it is exactly as fresh as your last visit, and the page says so plainly
-  rather than pretending otherwise. Revoke it whenever you like.
+- **Share your goal progress with friends and family with a simple link.** Create one from the goal
+  page and anyone who has it can see your goal card — the target, your progress, the prediction
+  graph — with no account of their own. It carries no live connection to Trenara: what a friend sees
+  is a copy taken the last time you opened Trainara, so it is exactly as fresh as your last visit,
+  and the page says so plainly rather than pretending otherwise. Revoke it whenever you like.
 
 ### Staying in the loop
 
