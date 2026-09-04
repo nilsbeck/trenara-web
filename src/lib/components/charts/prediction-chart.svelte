@@ -182,12 +182,22 @@
 		return `${linePath} L${xPos(last)},${ch} L${xPos(0)},${ch} Z`;
 	});
 
+	/** Closest two y-axis labels are allowed to land without overlapping. */
+	const Y_TICK_MIN_SPACING = 14;
+
 	/**
 	 * The fastest and slowest predictions in view, plus the latest.
 	 *
 	 * Three labels rather than an even ladder, matching the distance charts: on
 	 * a series this tightly bunched the numbers worth reading off the axis are
 	 * the best, the worst, and where it stands now.
+	 *
+	 * Candidates are kept in that priority order and dropped by *pixel*
+	 * distance rather than by how far apart their values are: the y extent
+	 * usually stretches well past the readings themselves (a goal line, a
+	 * forecast), so a cluster of readings close in time can be seconds apart
+	 * in value but only a couple of pixels apart on the axis — close enough
+	 * for their labels to overlap even though the values differ.
 	 */
 	const yTicks = $derived.by(() => {
 		if (data.length === 0) return [];
@@ -195,17 +205,14 @@
 		const best = Math.min(...vals);
 		const worst = Math.max(...vals);
 		const latest = vals[vals.length - 1];
-		const ticks = [worst, best];
-		const span = worst - best;
-		// Only if it would not sit on top of one of the other two.
-		if (
-			span > 0 &&
-			Math.abs(latest - best) / span > 0.12 &&
-			Math.abs(worst - latest) / span > 0.12
-		) {
-			ticks.push(latest);
+		const candidates = [...new Set([worst, best, latest])];
+		const kept: number[] = [];
+		for (const v of candidates) {
+			if (kept.every((k) => Math.abs(yPos(k) - yPos(v)) >= Y_TICK_MIN_SPACING)) {
+				kept.push(v);
+			}
 		}
-		return [...new Set(ticks)];
+		return kept;
 	});
 
 	const MIN_LABEL_SPACING = 56;

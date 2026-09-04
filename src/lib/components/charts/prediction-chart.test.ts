@@ -140,4 +140,42 @@ describe('prediction chart', () => {
 		expect(container.textContent).toContain('Time 3:16:40');
 		expect(container.textContent).toContain('Pace 4:39');
 	});
+
+	it('drops y-axis labels that would overlap on a tightly clustered series', () => {
+		// Two readings a few seconds apart, but a goal far below them stretches
+		// the y extent — on the old value-only spacing check both labels stayed
+		// and landed on top of each other.
+		const clustered = [
+			{
+				date: '2026-08-27',
+				predictedTime: 11048,
+				predictedPace: 267.4,
+				formattedTime: '3:04:08',
+				formattedPace: '4:27'
+			},
+			{
+				date: '2026-09-03',
+				predictedTime: 11003,
+				predictedPace: 266.3,
+				formattedTime: '3:03:23',
+				formattedPace: '4:26'
+			}
+		];
+		const { container } = mount({
+			data: clustered,
+			domainEnd: new Date('2026-12-06'),
+			reference: { seconds: 9475, label: 'Goal 02:37:55' }
+		});
+
+		const labelYs = Array.from(container.querySelectorAll('g > text'))
+			.filter((el) => el.getAttribute('style')?.includes('font-size:10px'))
+			.map((el) => Number(el.getAttribute('y')));
+
+		const uniqueYs = [...new Set(labelYs)];
+		for (let i = 0; i < uniqueYs.length; i++) {
+			for (let j = i + 1; j < uniqueYs.length; j++) {
+				expect(Math.abs(uniqueYs[i] - uniqueYs[j])).toBeGreaterThanOrEqual(14);
+			}
+		}
+	});
 });
