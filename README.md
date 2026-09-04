@@ -98,11 +98,11 @@ shown.
   without moving your 10K still shows up as progress.
 - **A goal archive** of everything you have trained for: period, target, final prediction, status.
   (This one may still be buggy.)
-- **A link to share your current goal.** Create one from the goal page and anyone who has it can
-  see your goal card — the target, your progress, the prediction graph — with no account of their
-  own. It carries no live connection to Trenara: what a friend sees is a copy taken the last time
-  you opened Trainara, so it is exactly as fresh as your last visit, and the page says so plainly
-  rather than pretending otherwise. Revoke it whenever you like.
+- **Share your goal progress with friends and family with a simple link.** Create one from the goal
+  page and anyone who has it can see your goal card — the target, your progress, the prediction
+  graph — with no account of their own. It carries no live connection to Trenara: what a friend sees
+  is a copy taken the last time you opened Trainara, so it is exactly as fresh as your last visit,
+  and the page says so plainly rather than pretending otherwise. Revoke it whenever you like.
 
 ### Staying in the loop
 
