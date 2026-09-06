@@ -11,8 +11,24 @@ import { STORAGE_READ_MESSAGE } from '$lib/server/db/errors';
 import type { ChartDataPoint } from '$lib/components/charts/prediction-chart.svelte';
 import type { PageServerLoad } from './$types';
 
-export const load: PageServerLoad = async ({ cookies, locals }) => {
+export const load: PageServerLoad = async ({ cookies, locals, isDataRequest }) => {
 	const user = requireUser(locals);
+
+	/**
+	 * Whether this is a real navigation, as opposed to the `__data.json` fetch
+	 * SvelteKit uses to bring the page's data along on a client-side one.
+	 *
+	 * A soft navigation between pages of the app can run this `load` several
+	 * times in a burst — `cachedRead`'s minute-long hold on a week exists
+	 * exactly for that, and forcing every one of them past it would spend the
+	 * saving it was built for. A real navigation is different: typing the URL
+	 * again, a hard reload, or pulling to refresh in the installed PWA, which
+	 * has no other way to ask for the plan again — there is no in-page refresh
+	 * control on first load, and native pull-to-refresh is just this. Answering
+	 * it from a cache the runner has no way to bypass reads as the gesture
+	 * having done nothing.
+	 */
+	const fresh = !isDataRequest;
 
 	/**
 	 * The history write rides along with the page's own fetches.
@@ -29,7 +45,7 @@ export const load: PageServerLoad = async ({ cookies, locals }) => {
 	 * never rejects, so it cannot fail the page either.
 	 */
 	const [schedule, goal, userStats] = await Promise.all([
-		getMonthlySchedule(cookies),
+		getMonthlySchedule(cookies, fresh),
 		trainingApi.getGoal(cookies).catch(() => null),
 		userApi.getUserStats(cookies).catch(() => null),
 		keepHistory(cookies, user.id)
@@ -81,14 +97,17 @@ export const load: PageServerLoad = async ({ cookies, locals }) => {
  * calendar, so there is nothing already in hand for a partial answer to be
  * grafted onto. Refreshes go through the API route, which does trim.
  */
-async function getMonthlySchedule(cookies: import('@sveltejs/kit').Cookies): Promise<Schedule> {
+async function getMonthlySchedule(
+	cookies: import('@sveltejs/kit').Cookies,
+	fresh: boolean
+): Promise<Schedule> {
 	// The calendar is the page, so this one is allowed to fail it — but it has
 	// to fail it as a status the error page can speak to. Left bare, a Trenara
 	// outage told the runner "Internal Error", which points at the wrong server.
 	const schedules = await passthrough(() =>
 		Promise.all(
 			getMonthTimestamps(new Date()).map((ts) =>
-				trainingApi.getSchedule(cookies, Math.floor(ts.getTime() / 1000))
+				trainingApi.getSchedule(cookies, Math.floor(ts.getTime() / 1000), { fresh })
 			)
 		)
 	);
