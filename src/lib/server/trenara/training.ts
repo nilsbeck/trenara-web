@@ -84,15 +84,35 @@ export const trainingApi = {
 		return cachedRead(
 			cookies,
 			CacheKey.week(timestamp),
-			async () =>
-				expectCollections<Schedule>(
+			async () => {
+				const schedule = expectCollections<Schedule>(
 					await fetchClient.get<unknown>(`/api/schedule/week/?timestamp=${timestamp}`, {
 						headers: bearerHeader(cookies),
 						cookies
 					}),
 					'/api/schedule/week/',
 					['trainings', 'strength_trainings', 'entries']
-				),
+				);
+
+				// Temporary diagnostic: a week the runner can see on screen has come
+				// back with nothing in it more than once, and there is no client-side
+				// tool (a PWA has no devtools) to catch it in the act. One line,
+				// prefixed and parseable — same convention as `[rate-limit]` above —
+				// so it can be found in the platform's log the next time it happens.
+				// Remove once the empty-week report is understood.
+				console.error(
+					`[schedule-week] ${JSON.stringify({
+						timestamp,
+						weekOf: new Date(timestamp * 1000).toISOString(),
+						fresh,
+						trainings: schedule.trainings?.length ?? 0,
+						strengthTrainings: schedule.strength_trainings?.length ?? 0,
+						entries: schedule.entries?.length ?? 0
+					})}`
+				);
+
+				return schedule;
+			},
 			{ fresh }
 		);
 	},
