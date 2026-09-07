@@ -31,6 +31,29 @@
 
 	setContext<CalendarStore>('calendar', store);
 
+	// Keep schedule in sync whenever the parent passes a new one — on first
+	// render, and again after every background refresh. The month it covers goes
+	// with it: if the runner has paged to March while a refresh for August was in
+	// flight, August belongs in the cache, not on screen.
+	//
+	// Deliberately the first effect in the component, ahead of both the
+	// opening-day pick and the viewport fold below: each of those can go and
+	// fetch a month of its own the moment it runs, and the page already handed
+	// one down. Seated here first, `scheduleCache` already holds it by the time
+	// either looks — so instead of a fetch, they find it cached and current and
+	// do nothing. Run after them, this was firing a second, redundant request
+	// for the very month the page just loaded, landing moments after the first
+	// had already drawn it: whatever came back replaced dots that were already
+	// correct, and correct only by luck if it did not also replace them with a
+	// week that could not yet answer for itself.
+	$effect(() => {
+		const incoming = schedule;
+		store.setSchedule(
+			incoming,
+			untrack(() => today)
+		);
+	});
+
 	// Initialise selected date on mount inside an effect so Svelte 5 doesn't
 	// warn about capturing the initial prop value outside a closure.
 	//
@@ -42,11 +65,11 @@
 	$effect(() => {
 		const day = untrack(() => today);
 		// The page's own schedule has not been through the store's reconciliation
-		// yet — that only happens once `setSchedule` runs, below, and this effect
-		// reads no further than the prop itself. Reconciled the same way here, or
-		// a reload landing on a read that has not caught up with a rating this
-		// browser just made opens right back on the session it was just cleared
-		// off, instead of moving past it.
+		// yet — that happened in `setSchedule` above, and this effect reads no
+		// further than the prop itself. Reconciled the same way here, or a reload
+		// landing on a read that has not caught up with a rating this browser just
+		// made opens right back on the session it was just cleared off, instead of
+		// moving past it.
 		const rawSchedule = untrack(() => schedule);
 		const reconciledSchedule: Schedule = {
 			...rawSchedule,
@@ -89,18 +112,6 @@
 		apply();
 		query.addEventListener('change', apply);
 		return () => query.removeEventListener('change', apply);
-	});
-
-	// Keep schedule in sync whenever the parent passes a new one — on first
-	// render, and again after every background refresh. The month it covers goes
-	// with it: if the runner has paged to March while a refresh for August was in
-	// flight, August belongs in the cache, not on screen.
-	$effect(() => {
-		const incoming = schedule;
-		store.setSchedule(
-			incoming,
-			untrack(() => today)
-		);
 	});
 
 	// Sessions the runner changes come back from the mutation itself, so the only
