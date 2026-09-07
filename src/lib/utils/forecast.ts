@@ -255,10 +255,21 @@ export interface Forecast {
 	 *
 	 * Positive means the training still left cannot close the gap: the weeks
 	 * already gone took their kilometres with them, and no amount of work
-	 * remaining can run them again.
+	 * remaining can run them again. Never negative while today's own prediction
+	 * is behind the goal — see `gainSeconds` — so a goal that is still out of
+	 * reach today cannot be forecast as beaten.
 	 */
 	shortfallSeconds: number;
-	/** Seconds the remaining plan is worth in total. */
+	/**
+	 * Seconds the remaining plan is worth, capped at what is left to find.
+	 *
+	 * The fitted rate times the remaining kilometres, unless that outruns the
+	 * gap between today's prediction and the goal — closing more than the whole
+	 * gap is closing a gap that is not there, so the remaining plan is never
+	 * credited with more than the gap actually is. Only capped while a gap
+	 * remains: a prediction already at or past the goal has nothing left to cap
+	 * against.
+	 */
 	gainSeconds: number;
 	/** Kilometres left that still change race-day fitness. */
 	remainingKm: number;
@@ -336,8 +347,29 @@ export function forecast({
 	if (!(remainingKm > 0)) return null;
 
 	const { secondsPerKm } = rate;
-	const gainSeconds = remainingKm * secondsPerKm;
+	const uncappedGainSeconds = remainingKm * secondsPerKm;
+
+	// The remaining plan cannot buy back more than the runner is currently
+	// short by — closing more than the whole gap is closing a gap that is not
+	// there. Left uncapped, a rate fitted early or from a small sample (see
+	// MIN_INTERVALS, MIN_ANCHOR_SHARE) can extrapolate a training block into
+	// promising a finish faster than the goal itself, which is not a forecast
+	// worth reading as realistic. Only checked while a gap remains: a runner
+	// already ahead of goal is reading their own earned prediction, not a
+	// promise about training still to come, so nothing here caps how far
+	// ahead of goal that already is.
+	const currentGap = nowSeconds - goalSeconds;
+	const gainSeconds =
+		currentGap > 0 ? Math.min(uncappedGainSeconds, currentGap) : uncappedGainSeconds;
 	const endSeconds = nowSeconds - gainSeconds;
+
+	// The line has to be drawn at the same rate the cap actually applied, not
+	// the fitted one — otherwise a capped race-day point lands short of where
+	// the cutoff point (still drawn at the uncapped rate) already put it, and
+	// the flat taper between them runs backwards. Scaling the rate down keeps
+	// every vertex on one straight line into the same, capped endpoint.
+	const drawnRate =
+		uncappedGainSeconds > 0 ? secondsPerKm * (gainSeconds / uncappedGainSeconds) : secondsPerKm;
 
 	// A point at every week boundary, so the line bends where the volume does —
 	// flattening through the taper instead of running straight at the goal.
@@ -354,7 +386,7 @@ export function forecast({
 		const kmToDate = volumeBetween(planned, now, when);
 		points.push({
 			date: iso(when),
-			seconds: nowSeconds - kmToDate * secondsPerKm,
+			seconds: nowSeconds - kmToDate * drawnRate,
 			kmToDate,
 			segmentKm: kmToDate - points[points.length - 1].kmToDate,
 			kind
