@@ -346,6 +346,64 @@ describe('forecast', () => {
 		expect(total).toBeCloseTo(result.remainingKm, 9);
 	});
 
+	it('never promises beating a goal still out of reach today', () => {
+		// Same shape as "prefers the rate the runner has actually shown", but
+		// with a steep 5s/km measured rate against a goal only 50s ahead of
+		// today's own prediction — the uncapped line would run straight past it.
+		const done = weeks(10, 50);
+		const samples = [0, 7, 14, 21, 28, 35].map((n) => ({
+			date: iso(n),
+			seconds: 3600 - 5 * volumeBetween(done, day(0), day(n))
+		}));
+		const now = day(35);
+		const nowSeconds = 3600 - 5 * volumeBetween(done, day(0), now);
+		const goalSeconds = nowSeconds - 50;
+		const result = forecast({
+			nowSeconds,
+			now,
+			goalSeconds,
+			raceDay: race,
+			planned,
+			done,
+			samples,
+			goalStart: day(0)
+		})!;
+
+		expect(result.rate.source).toBe('observed');
+		// Capped at exactly the gap that stood between today and the goal.
+		expect(result.gainSeconds).toBeCloseTo(50, 6);
+		expect(result.endSeconds).toBeCloseTo(goalSeconds, 6);
+		expect(result.shortfallSeconds).toBeCloseTo(0, 6);
+
+		// The line drawn to get there stays flat into the same capped endpoint —
+		// the cutoff point does not overshoot past where race day lands.
+		const cutoffPoint = result.points.find((p) => p.kind === 'cutoff')!;
+		const racePoint = result.points.at(-1)!;
+		expect(cutoffPoint.seconds).toBeCloseTo(racePoint.seconds, 9);
+	});
+
+	it('leaves a prediction already ahead of goal uncapped', () => {
+		// Already 5 minutes inside the goal today: nothing here should stop
+		// further training from extending that lead in the forecast.
+		const goalSeconds = 3000;
+		const nowSeconds = goalSeconds - 300;
+		const now = day(35);
+		const result = forecast({
+			nowSeconds,
+			now,
+			goalSeconds,
+			raceDay: race,
+			planned,
+			done: planned,
+			samples: [{ date: iso(0), seconds: 3600 }],
+			goalStart: day(0)
+		})!;
+
+		const rate = result.rate.secondsPerKm;
+		expect(result.gainSeconds).toBeCloseTo(result.remainingKm * rate, 6);
+		expect(result.endSeconds).toBeCloseTo(nowSeconds - result.remainingKm * rate, 6);
+	});
+
 	it('draws nothing once race day is inside the lag window', () => {
 		expect(
 			forecast({
