@@ -22,7 +22,20 @@
 	}: {
 		training: ScheduledTraining;
 		selectedDate: string | null;
-		onMoved?: () => void;
+		/**
+		 * Carries the week `change_save` handed back, not just a "something
+		 * changed" signal.
+		 *
+		 * That response is Trenara's own answer to the write — the moved
+		 * session's new day, and any session it swapped places with — so it is
+		 * seated immediately rather than left for the background refetch a
+		 * schedule re-read afterwards would have to do. A re-read still follows
+		 * to catch anything outside this week, but it goes to the same backend
+		 * that just accepted the write and is not guaranteed to reflect it the
+		 * instant it is asked again; waiting on that alone is what left the
+		 * session on its old day until a hard refresh gave it time to catch up.
+		 */
+		onMoved?: (trainings: ScheduledTraining[]) => void;
 	} = $props();
 
 	let dialogEl: HTMLDialogElement | undefined = $state();
@@ -234,8 +247,11 @@
 				throw new Error(await describeResponse(saveRes, 'Could not move this session.'));
 			}
 
+			const saved = (await saveRes.json().catch(() => null)) as { trainings?: unknown } | null;
+			const trainings = Array.isArray(saved?.trainings) ? saved.trainings : [];
+
 			close();
-			onMoved?.();
+			onMoved?.(trainings as ScheduledTraining[]);
 		} catch (e) {
 			error = describeError(e, 'Could not move this session.');
 		} finally {

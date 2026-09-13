@@ -349,7 +349,15 @@
 					<ChangeDateModal
 						{training}
 						{selectedDate}
-						onMoved={() => {
+						onMoved={(trainings) => {
+							// Seat the save's own answer before the background refetch
+							// planChanged() below kicks off — that refetch goes back to the
+							// same upstream the write just landed on, and cannot be trusted
+							// to already reflect it. This is what fixes the moved session's
+							// old day without waiting on that read to catch up.
+							for (const updated of trainings) {
+								onTrainingChanged?.(updated);
+							}
 							onScheduleChanged?.();
 						}}
 					/>
