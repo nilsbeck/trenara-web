@@ -1268,6 +1268,26 @@ describe('replaceTraining', () => {
 		expect(store.schedule?.trainings).toHaveLength(1);
 		expect(store.schedule?.trainings[0].title).toBe('Tempo run');
 	});
+
+	it('lands in the month next door too, when the week spans both', async () => {
+		// Monday 31 March: its week runs into April, so both months hold it.
+		const store = createCalendarStore(new Date('2025-03-31T12:00:00'));
+		mockFetch.mockResolvedValue({
+			ok: true,
+			json: async () => makeSchedule({ trainings: [training({ day_long: '2025-03-31' })] })
+		});
+		await store.loadMonthData(new Date('2025-04-01T12:00:00'));
+		await store.loadMonthData(new Date('2025-03-31T12:00:00'));
+
+		store.replaceTraining(training({ day_long: '2025-03-31', title: 'Easy run' }));
+
+		mockFetch.mockReset();
+		mockFetch.mockRejectedValue(new Error('served from cache, not fetched'));
+		await store.loadMonthData(new Date('2025-04-01T12:00:00'));
+
+		expect(mockFetch).not.toHaveBeenCalled();
+		expect(store.schedule?.trainings[0].title).toBe('Easy run');
+	});
 });
 
 describe('replaceEntry', () => {
@@ -1412,6 +1432,48 @@ describe('replaceEntry', () => {
 
 		expect(store.schedule?.entries).toHaveLength(1);
 		expect(store.schedule?.entries[0].rpe).toBeNull();
+	});
+
+	it('lands in the month next door too, when the week spans both', async () => {
+		// Monday 31 March: its week runs into April, so both months hold the run.
+		const store = createCalendarStore(new Date('2025-03-31T12:00:00'));
+		const straddling = entry({ start_time: '2025-03-31T08:00:00.000Z' });
+		mockFetch.mockResolvedValue({
+			ok: true,
+			json: async () => makeSchedule({ entries: [straddling] })
+		});
+		await store.loadMonthData(new Date('2025-04-01T12:00:00'));
+		await store.loadMonthData(new Date('2025-03-31T12:00:00'));
+
+		store.replaceEntry(entry({ start_time: '2025-03-31T08:00:00.000Z', rpe: 2 }));
+
+		// April is served from its cache, not refetched — so a copy left
+		// unpatched there would ask for the rating again the moment the runner
+		// stepped into it.
+		mockFetch.mockReset();
+		mockFetch.mockRejectedValue(new Error('served from cache, not fetched'));
+		await store.loadMonthData(new Date('2025-04-01T12:00:00'));
+
+		expect(mockFetch).not.toHaveBeenCalled();
+		expect(store.schedule?.entries[0].rpe).toBe(2);
+	});
+
+	it('lands in the month that holds it when the runner has paged away', async () => {
+		const store = createCalendarStore(new Date('2025-03-05'));
+		mockFetch.mockResolvedValue({
+			ok: true,
+			json: async () => makeSchedule({ entries: [entry()] })
+		});
+		await store.loadMonthData(new Date('2025-03-05'));
+		mockFetch.mockResolvedValue({ ok: true, json: async () => makeSchedule() });
+		await store.loadMonthData(new Date('2025-04-05'));
+
+		// Rated from March, answered once the runner was already on April.
+		store.replaceEntry(entry({ rpe: 2 }));
+		expect(store.schedule?.entries).toHaveLength(0);
+
+		await store.loadMonthData(new Date('2025-03-05'));
+		expect(store.schedule?.entries[0].rpe).toBe(2);
 	});
 });
 

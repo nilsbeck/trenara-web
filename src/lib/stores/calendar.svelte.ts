@@ -584,8 +584,8 @@ export function createCalendarStore(initialDate: Date, options: CalendarStoreOpt
 	 * the list does not hold it.
 	 *
 	 * `null` rather than the list unchanged, so a caller can tell "nothing to
-	 * do" from "done" without comparing: the runner who paged to another month
-	 * while a change was in flight must not have it committed underneath them.
+	 * do" from "done" without comparing: a month that does not hold the member
+	 * is left alone, rather than rewritten and re-fingerprinted for nothing.
 	 */
 	function withReplaced<T extends { id: number }>(items: T[] | undefined, updated: T): T[] | null {
 		if (!items?.some((item) => item.id === updated.id)) return null;
@@ -593,27 +593,53 @@ export function createCalendarStore(initialDate: Date, options: CalendarStoreOpt
 	}
 
 	/**
-	 * Serve a schedule rebuilt around one changed member.
+	 * Seat one changed member in every month that holds it.
 	 *
-	 * The month cache is written alongside because it holds the very object the
-	 * store is serving: without that, leaving the month and coming back would
-	 * resurrect the stale copy from cache. `fetchedAt` is carried over rather
-	 * than reset — the week was not refetched, and pretending otherwise would
-	 * postpone the next revalidation.
+	 * Every month, not only the one on screen. A week that straddles the turn of
+	 * a month is fetched with both months, so its sessions sit in two cache
+	 * entries at once — and patching only the month on screen left the other
+	 * copy as it was. Stepping into that month is served from its cache without
+	 * a refetch, so a session rated on the 31st was asked about again on the
+	 * 1st. The same goes for an answer that lands after the runner has paged
+	 * away: the month that holds the member takes it, rather than nobody.
+	 *
+	 * `swap` answers `null` for a schedule that does not hold the member (see
+	 * `withReplaced`), and that month is left exactly as it was.
+	 *
+	 * Each month changed bumps its `editSeq`, so a refresh already in flight for
+	 * it is dropped on arrival rather than taking the change back. `fetchedAt`
+	 * is carried over rather than reset — the week was not refetched, and
+	 * pretending otherwise would postpone the next revalidation.
 	 */
-	function commitReplacement(next: Schedule) {
-		schedule = next;
-		scheduleRevision += 1;
+	function commitReplacement(swap: (from: Schedule) => Schedule | null) {
+		const onScreen = monthKey(currentDate);
 
-		const key = monthKey(currentDate);
-		const previous = scheduleCache.get(key);
-		scheduleCache.set(key, {
-			schedule: next,
-			fingerprint: fingerprint(next),
-			etag: null,
-			fetchedAt: previous?.fetchedAt ?? Date.now(),
-			editSeq: (previous?.editSeq ?? 0) + 1
-		});
+		const seat = (key: string, next: Schedule) => {
+			const previous = scheduleCache.get(key);
+			scheduleCache.set(key, {
+				schedule: next,
+				fingerprint: fingerprint(next),
+				etag: null,
+				fetchedAt: previous?.fetchedAt ?? Date.now(),
+				editSeq: (previous?.editSeq ?? 0) + 1
+			});
+		};
+
+		// The month on screen from the schedule being served, which the cache
+		// entry for it holds too — but the served one is what the UI derives from.
+		const shown = schedule ? swap(schedule) : null;
+		if (shown) {
+			schedule = shown;
+			scheduleRevision += 1;
+			seat(onScreen, shown);
+		}
+
+		for (const [key, cached] of scheduleCache) {
+			if (key === onScreen) continue;
+			const next = swap(cached.schedule);
+			if (next) seat(key, next);
+		}
+
 		bumpCacheRevision();
 	}
 
@@ -626,10 +652,10 @@ export function createCalendarStore(initialDate: Date, options: CalendarStoreOpt
 	 * title and colour the session had before.
 	 */
 	function replaceTraining(updated: ScheduledTraining) {
-		const trainings = withReplaced(schedule?.trainings, updated);
-		if (!schedule || !trainings) return;
-
-		commitReplacement({ ...schedule, trainings });
+		commitReplacement((from) => {
+			const trainings = withReplaced(from.trainings, updated);
+			return trainings ? { ...from, trainings } : null;
+		});
 	}
 
 	/**
@@ -646,10 +672,10 @@ export function createCalendarStore(initialDate: Date, options: CalendarStoreOpt
 	 * the runner is already looking at.
 	 */
 	function replaceEntry(updated: Entry) {
-		const entries = withReplaced(schedule?.entries, updated);
-		if (!schedule || !entries) return;
-
-		commitReplacement({ ...schedule, entries });
+		commitReplacement((from) => {
+			const entries = withReplaced(from.entries, updated);
+			return entries ? { ...from, entries } : null;
+		});
 	}
 
 	/**

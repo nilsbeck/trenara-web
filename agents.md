@@ -226,6 +226,9 @@ the reason — that is what distinguishes a decision from a regression.
   re-seated `data.schedule` that way on every `invalidate('app:news')`, and a
   PWA resumed the next day asked for a rating the runner had already given.
   Anything seeded from load data compares the reference before seating it.
+- **A local edit lands in every copy that holds it.** A week that straddles
+  two months sits in both months' caches; `replaceEntry` / `replaceTraining`
+  patch each month holding the id, not only the one on screen.
 - **Nothing unbounded sits on the first-paint critical path.** If a value is
   awaited in a layout load, either it is served from memory or its wait is
   bounded — `newsBadgeIfReady` races a 200ms timer for exactly this reason.
