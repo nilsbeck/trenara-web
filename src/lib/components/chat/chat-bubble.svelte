@@ -225,6 +225,10 @@
 		const deadline = Date.now() + REPLY_POLL_TIMEOUT_MS;
 		awaitingReply = true;
 
+		// Not `revalidation`: this poll runs only while the bubble is open and a
+		// reply is owed, and stops itself at REPLY_POLL_TIMEOUT_MS — it is bounded
+		// by its deadline rather than by visibility.
+		// eslint-disable-next-line no-restricted-syntax
 		replyPollTimer = setInterval(async () => {
 			if (Date.now() > deadline) {
 				stopReplyPolling();
@@ -373,6 +377,9 @@
 
 		function start() {
 			if (timer !== null) return;
+			// Gated on visibility by `onVisibility` below — the same shape as
+			// `revalidation`, written out because it also stops while the bubble is open.
+			// eslint-disable-next-line no-restricted-syntax
 			timer = setInterval(refreshThreads, THREAD_POLL_INTERVAL_MS);
 		}
 
