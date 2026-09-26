@@ -1,0 +1,24 @@
+{
+	"hooks": {
+		"SessionStart": [
+			{
+				"hooks": [
+					{
+						"type": "command",
+						"command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/session-start.sh"
+					}
+				]
+			}
+		]
+	},
+	"permissions": {
+		"allow": [
+			"Bash(bun install:*)",
+			"Bash(bun run check:*)",
+			"Bash(bun run lint:*)",
+			"Bash(bun run format:*)",
+			"Bash(bun run test:*)",
+			"Bash(bun run build:*)"
+		]
+	}
+}
