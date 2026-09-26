@@ -1,7 +1,8 @@
 import { json, error } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { chatApi } from '$lib/server/trenara';
-import { passthrough } from '$lib/server/trenara/request';
+import { parseBody, passthrough } from '$lib/server/trenara/request';
+import { sendMessageSchema } from '$lib/schemas/chat';
 
 export const GET: RequestHandler = async ({ params, url, cookies }) => {
 	const threadId = Number(params.id);
@@ -32,12 +33,7 @@ export const POST: RequestHandler = async ({ params, request, cookies }) => {
 		error(400, 'Invalid thread ID');
 	}
 
-	const body = await request.json();
-	const content = body?.content;
-
-	if (typeof content !== 'string' || !content.trim()) {
-		error(400, 'Missing or empty message content');
-	}
+	const { content } = parseBody(sendMessageSchema, await request.json());
 
 	return json(await passthrough(() => chatApi.sendMessage(cookies, threadId, content)));
 };

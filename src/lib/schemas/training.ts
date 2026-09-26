@@ -80,3 +80,14 @@ export const exchangeTrainingSchema = z.object({ candidateId: z.number().int().p
 export const setPacingPlanSchema = z.object({
 	pacingPlan: z.enum(PACING_PLANS).nullable()
 });
+
+/**
+ * A training to delete, and which of Trenara's two kinds it is: `entry` is a
+ * session already run and filed, `scheduled` one still ahead in the plan. They
+ * are deleted through different endpoints, so the kind is not a guess the
+ * server can make from the id.
+ */
+export const deleteTrainingSchema = z.object({
+	trainingId: z.number().int().positive(),
+	type: z.enum(['entry', 'scheduled']).default('entry')
+});

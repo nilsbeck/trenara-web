@@ -1,3 +1,5 @@
+import { toLocalDateString } from './date';
+
 const DAY_MS = 86_400_000;
 const WEEK_MS = 7 * DAY_MS;
 
@@ -379,13 +381,13 @@ export function forecast({
 	// week by construction and can only change slope where one week hands over
 	// to the next. Points in between would be collinear padding.
 	const points: ForecastPoint[] = [
-		{ date: iso(now), seconds: nowSeconds, kmToDate: 0, segmentKm: 0, kind: 'today' }
+		{ date: toLocalDateString(now), seconds: nowSeconds, kmToDate: 0, segmentKm: 0, kind: 'today' }
 	];
 
 	function at(when: Date, kind: ForecastPoint['kind']): void {
 		const kmToDate = volumeBetween(planned, now, when);
 		points.push({
-			date: iso(when),
+			date: toLocalDateString(when),
 			seconds: nowSeconds - kmToDate * drawnRate,
 			kmToDate,
 			segmentKm: kmToDate - points[points.length - 1].kmToDate,
@@ -402,7 +404,7 @@ export function forecast({
 	// Race day itself, held flat across the lag window: nothing in it earns, so
 	// the kilometres it is standing on are the cutoff's, not its own.
 	points.push({
-		date: iso(raceDay),
+		date: toLocalDateString(raceDay),
 		seconds: endSeconds,
 		kmToDate: remainingKm,
 		segmentKm: 0,
@@ -441,8 +443,4 @@ export function loadSlices(planned: VolumeWeek[], now: Date, cutoff: Date): Load
 		slices.push({ from, to, km: volumeBetween([week], from, to) });
 	}
 	return slices;
-}
-
-function iso(d: Date): string {
-	return new Date(d.getTime() - d.getTimezoneOffset() * 60_000).toISOString().slice(0, 10);
 }

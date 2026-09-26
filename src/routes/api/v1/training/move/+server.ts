@@ -1,18 +1,18 @@
-import { json, error } from '@sveltejs/kit';
+import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { trainingApi } from '$lib/server/trenara';
-import { passthrough } from '$lib/server/trenara/request';
+import { parseBody, passthrough } from '$lib/server/trenara/request';
 import { changeDateSchema } from '$lib/schemas/training';
 
+/**
+ * Move a session to another day. `test` asks Trenara what the move would do
+ * to the rest of the plan without making it; `save` makes it.
+ */
 export const PUT: RequestHandler = async ({ request, cookies }) => {
-	const body = await request.json();
-	const result = changeDateSchema.safeParse(body);
-
-	if (!result.success) {
-		error(400, 'Invalid request body');
-	}
-
-	const { entryId, newDate, includeFuture, action } = result.data;
+	const { entryId, newDate, includeFuture, action } = parseBody(
+		changeDateSchema,
+		await request.json()
+	);
 
 	if (action === 'test') {
 		return json(

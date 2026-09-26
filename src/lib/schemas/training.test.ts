@@ -8,7 +8,8 @@ import {
 	setCooldownSchema,
 	crossTrainSchema,
 	exchangeTrainingSchema,
-	setPacingPlanSchema
+	setPacingPlanSchema,
+	deleteTrainingSchema
 } from './training';
 
 // ─────────────────────────────────────────────────────────────
@@ -233,5 +234,31 @@ describe('trainingConditionSchema climb', () => {
 				heightValue: 99999999
 			}).success
 		).toBe(false);
+	});
+});
+
+// ─────────────────────────────────────────────────────────────
+// deleteTrainingSchema
+// ─────────────────────────────────────────────────────────────
+describe('deleteTrainingSchema', () => {
+	it('defaults the kind to a filed entry', () => {
+		expect(deleteTrainingSchema.parse({ trainingId: 7 })).toEqual({
+			trainingId: 7,
+			type: 'entry'
+		});
+	});
+
+	it('accepts a scheduled training', () => {
+		expect(deleteTrainingSchema.parse({ trainingId: 7, type: 'scheduled' }).type).toBe('scheduled');
+	});
+
+	it.each([
+		['a missing id', {}],
+		['a zero id', { trainingId: 0 }],
+		['a fractional id', { trainingId: 1.5 }],
+		['a numeric string', { trainingId: '7' }],
+		['an unknown kind', { trainingId: 7, type: 'strength' }]
+	])('rejects %s', (_label, body) => {
+		expect(deleteTrainingSchema.safeParse(body).success).toBe(false);
 	});
 });
