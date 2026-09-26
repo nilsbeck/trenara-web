@@ -14,6 +14,24 @@ You are a Senior Fullstack Engineer specializing in the **SvelteKit, Bun, and Su
 - **UI & Styling:** Tailwind CSS v4 (CSS-first `@theme` in `src/app.css`, no `tailwind.config.js`), Lucide Svelte.
 - **Validation:** Zod for schema and form validation.
 
+### What the tooling refuses outright
+
+These are errors, not advice — `bun run lint` and `bun run check:bundle` fail on
+them, and each message names the section that explains it. Where a site breaks
+one on purpose it carries an `eslint-disable-next-line` with the reason beside
+it (§7).
+
+| Pattern                                                       | Instead                                          | Why |
+| ------------------------------------------------------------- | ------------------------------------------------ | --- |
+| `locals.user!`                                                | `requireUser(locals)`                            | §7  |
+| `.toISOString().slice/split/substring(…)`                     | `$lib/utils/date`                                | §9  |
+| `setInterval(…)`                                              | `$lib/utils/revalidation`                        | §7  |
+| `innerHTML =`, `outerHTML =`, `insertAdjacentHTML`            | `loadSanitizer()` and `{@html}`                  | §3  |
+| `{@html}` without a reason                                    | `svelte/no-at-html-tags` is on; disable with why | §3  |
+| `import … from 'dompurify'`, or `import('dompurify')`         | `loadSanitizer()` from `$lib/utils/sanitize`     | §3  |
+| `axios`, `lodash`, `svelte/store`                             | `fetch`, native JS, runes                        | §5  |
+| DOMPurify reachable without `import()`; shell over its budget | `scripts/check-bundle.ts`, after `bun run build` | §7  |
+
 ## 3. Security Protocol (Strict)
 
 This section used to describe an architecture the code does not have — Supabase
@@ -27,18 +45,11 @@ What follows is the design as it actually stands.
   Supabase is a database here and nothing more — no Supabase Auth, no
   `auth.uid()`, no session helpers. `user_id` in every table is a Trenara id
   with no Supabase identity behind it.
-- **Identity comes from the token and from nowhere else.** `hooks.server.ts`
-  resolves the runner by calling `/api/me` through the read cache, keyed by the
-  access token. Do not reintroduce a second source (a `user_id` cookie, a
-  signed claim, a header): the previous design verified an HMAC over the id but
-  never checked it against the token beside it, which made a signed pair a
-  permanent capability valid alongside anybody's session.
-- **One gate, in `hooks.server.ts`.** `handleGuard` redirects an
-  unauthenticated visitor away from `/(app)` routes and refuses `/api` routes
-  in JSON, before any route runs. Do not add per-route guards: the copies
-  disagreed last time, and the layout and its pages race. Routes read the
-  runner with `requireUser(locals)`, which narrows the type — never
-  `locals.user!`.
+- **Identity and the gate** — one source of identity (the access token,
+  resolved in `hooks.server.ts`), one gate (`handleGuard`, which redirects
+  `/(app)` and refuses `/api` in JSON), and `requireUser(locals)` in every
+  route. The rules and the history behind them are in §7, Identity and access;
+  they are stated once, there.
 - **One route is public on purpose: `/s/[token]`**, the shared-goal page.
   It sits outside both `/api` and `/(app)`, which is exactly why it needs no
   change to `handleGuard` — that hook only gates those two prefixes, and
@@ -54,6 +65,19 @@ What follows is the design as it actually stands.
   reachable by an anonymous visitor. If a change to this route ever needs to
   read `cookies` or call `trainingApi`/`userApi`, that is a sign the design
   has been broken, not a feature to add.
+- **A second public route meets the same bar as the first**, or it is not
+  added. Before merging one, every line of this must be true and tested:
+  - it lives outside `/api` and `/(app)`, and reads no cookie and no `locals.user`;
+  - it makes no Trenara request, on any path — it serves a stored projection;
+  - the capability in the URL is random (`crypto.getRandomValues`, as
+    `$lib/server/share/token.ts` does, 256 bits), unique-indexed, and
+    revocable by its owner;
+  - its lookup is the only query scoped by something other than `user_id`,
+    and says so in a comment at the site;
+  - it has a per-IP limiter in `$lib/server/security/rate-limit`;
+  - it causes reads only — a view never writes;
+  - its `cache-control` is no longer than the revocation delay the owner has
+    been promised (§8).
 - **State validation:** before any mutation, verify the current state
   server-side rather than trusting what the client sent. What a session allows
   is decided by the coach's own `can_*` flags on that training — check them
@@ -73,9 +97,37 @@ What follows is the design as it actually stands.
   endpoints that write to Supabase are limited per user
   (`$lib/server/security/rate-limit`). The limiters are per serverless instance
   and in memory — a floor, not a wall; a shared store is the upgrade path.
-- **XSS & sanitization:** use Svelte's native escaping. For HTML that comes back
-  from the API (chat, news), sanitize with `dompurify` — imported dynamically at
-  the point of use, so it does not ride along in the layout chunk.
+- **XSS & sanitization:** use Svelte's native escaping. HTML that comes back
+  from the API (chat, news) reaches the DOM only through `loadSanitizer()` in
+  `$lib/utils/sanitize`, which owns DOMPurify's configuration and imports it
+  lazily. The configuration is part of the security model, not a detail:
+  DOMPurify's defaults keep `<img>`, and the CSP's `img-src https:` (needed for
+  avatars and news pictures) would then let a message load an image from any
+  host — a read receipt and the reader's IP for whoever wrote the markup. So
+  markup loses every tag that can fetch, embed, submit or restyle, and links
+  open with `rel="noopener noreferrer nofollow"`. Images the app shows come
+  from payload fields, rendered by a component, never from inside markup.
+  Widening the config — allowing a tag back — needs a test in
+  `sanitize.test.ts` and a reason in the commit.
+- **Request bodies are bounded by their schema.** Every string and array a
+  client can post has a `.max()`, so `parseBody` limits size as well as shape
+  and nothing arbitrary is forwarded upstream. The ceiling is a guard, set well
+  past real input; the product rule, where there is one, is applied after
+  parsing.
+- **Secrets stay in `$lib/server`.** `$env/static/private`, `$env/dynamic/private`
+  and the service-role client are imported only under `$lib/server` or from a
+  `*.server.ts` / `+server.ts` file — SvelteKit refuses the build otherwise; do
+  not route around it through a re-export. A `load` returns only what the page
+  renders: never a token, a cookie value, or a whole database row when the
+  page needs three of its fields, because a load's return value is serialised
+  into the HTML.
+- **Logging:** never log a token, a cookie, an `Authorization` header, a
+  request body, or an email. Identify the runner by their Trenara id. The
+  transport's error classes (`HttpError`, `RateLimitError`, …) are safe to log
+  whole because they carry a status and Trenara's refusal body, never the
+  request's headers — keep it that way when adding a field to one. A database
+  error is logged with its message only (`storageFailed` does this); its
+  details name columns.
 - **CSRF:** the mutations are JSON `+server.ts` routes, not Form Actions, and
   they are protected all the same. SvelteKit's origin check rejects a
   cross-origin `POST`/`PUT`/`DELETE` carrying any of the three form content
@@ -87,8 +139,9 @@ What follows is the design as it actually stands.
   _first_ in the hook sequence — `handleGuard` returns its 401 without calling
   `resolve`, so anything behind it would miss the refusals. The CSP lives in
   `svelte.config.js`.
-- always execute on the server-side
-- use tokens for auth
+- **Everything that touches Trenara or Supabase runs on the server.** The
+  browser talks only to this app (`connect-src 'self'`); it never holds a
+  Trenara token, a Supabase key, or a URL on either host.
 
 ## 4. UI Architecture & Reusability
 
@@ -96,6 +149,54 @@ What follows is the design as it actually stands.
 - **Icons:** Use `lucide-svelte`.
 - **Theming:** The app is dark only. The palette is defined once as `@theme` tokens in `src/app.css`; there is no light palette and no theme switcher.
 - **Native-First:** Use native HTML validation attributes alongside Zod. The login form is the one Form Action, with `enhance`; every other mutation is a `fetch` to a JSON route under `/api/v1` (see §3, CSRF, and §9).
+
+### View and view-model
+
+A component draws; a view-model knows. The split is Model–View–ViewModel, and
+the codebase already has one half of it — the model is `$lib/server/trenara/*`
+and the DAOs, reached through `/api/v1` — and the right shape for the other half
+in `SessionDetailStore` and `createCalendarStore`. What it does not yet have is
+the rule, and it shows: four components (`goal-card`, `training-details`,
+`chat-bubble`, `prediction-chart`) run to between seven and nine hundred lines,
+most of it logic rather than markup, and eight components call `fetch`
+themselves — logic that can only be tested by mounting it.
+
+- **Model** — the server: Trenara wrappers and DAOs. The browser reaches it
+  only through `fetch('/api/v1/…')`.
+- **View-model** — a `$lib/stores/*.svelte.ts` module: a factory
+  (`createCalendarStore`), a class with `$state` fields
+  (`SessionDetailStore`), or a module-level `$state` holder
+  (`app-config.svelte.ts`). It owns the requests, the loading / empty / error
+  state of each (below), the derived values, and the mutations. It imports
+  nothing from `.svelte` files and touches no DOM, so it is tested directly,
+  without jsdom rendering (`calendar.test.ts`, `session-detail.test.ts`).
+- **View** — a `.svelte` file that reads the view-model, renders, and calls
+  its methods on events. Its test asserts what is drawn for a given state; it
+  does not need to mock `fetch` to get there.
+
+When a component owns a request, more than one `$effect`, or passes roughly
+three hundred lines, the next change to it moves its logic into a view-model
+rather than adding to the pile. Refactor on the way through, in its own commit
+(§9) — not as a rewrite nobody asked for.
+
+Within either half:
+
+- **`$derived` for anything computed from other state; `$effect` only to sync
+  with something outside Svelte** — the DOM, a timer, `localStorage`, a
+  listener. An effect that writes `$state` is almost always a `$derived` that
+  has not been written yet; where it genuinely is not, say why beside it.
+  `untrack` is a sign of the same thing and needs the same comment.
+- **Props down, callbacks up.** A view-model has one owner: the component
+  that creates it (`calendar.svelte` creates the calendar store,
+  `training-details.svelte` its `SessionDetailStore`). Everything beneath
+  receives it, or the values it draws, as props — importing the store's
+  _type_ is fine, importing an instance is not — and reports intent through
+  callback props (`onchange`, `onsave`). `appConfig` is the one app-wide
+  singleton, by design; a second is how two screens end up sharing state
+  neither of them owns.
+- **Server data enters through `load`, once** (§7, "Load data is a
+  snapshot"). A view-model is seeded from it and then owns the copy; it does
+  not re-read `data.x` in an effect.
 
 ### Loading, empty, and error states
 
@@ -133,7 +234,10 @@ draws only two of them lies during the third.
   - Use `interface` for data models and component props.
 - **Linting:** ESLint + Prettier (`bun run lint`). Tabs for indentation, single quotes, semi-colons required, 100-column print width — all enforced by `.prettierrc`, so run `bun run format` rather than matching it by hand. ESLint covers `.svelte` files as well as `.ts`; two rules from the recommended Svelte set are off, each with its reason written beside it in `eslint.config.mjs`.
 - **Clean Code:** No `axios` (use `fetch`), no `lodash` (use native JS), no `onMount` for data fetching if a SvelteKit `load` function can do it.
-- **Performance** use db indexing, and other best practices
+- **Performance:** the rules are in §7 (Requests and caching, Storage, Bundle
+  and rendering) and the limits in §8. The short version: every upstream read
+  is cached, every list query is bounded, first paint waits on nothing
+  unbounded, and the signed-in shell has a byte budget CI enforces.
 
 ## 6. Testing Strategy (Vitest)
 
@@ -149,7 +253,7 @@ draws only two of them lies during the third.
   where a spinner is left turning forever — assert the placeholder is _gone_,
   not merely that the content never came.
 - **Coverage:** thresholds live in `vitest.config.ts` and CI runs `test:coverage`, so they are a gate rather than a wish. They sit just under where the suite actually stands; raise them as coverage rises rather than lowering them to fit a change.
-- **CI** (`.github/workflows/check.yml`) runs type-check, lint, coverage and a production build, on pushes and pull requests. A change that passes locally and not there is a change that is not finished.
+- **CI** (`.github/workflows/check.yml`) runs type-check, lint, coverage, a production build and the bundle budget, on pushes and pull requests. A change that passes locally and not there is a change that is not finished.
 - **Trying a branch:** the maintainer tests branches as **Vercel preview deployments**, not with a local dev server. Anything meant to be seen or exercised by hand must therefore work in a production build: no `dev`-only code paths, no env-var flags to set, and diagnostics on screen rather than in a terminal.
 
 ## 7. Invariants — the things that were wrong once
@@ -250,6 +354,20 @@ the reason — that is what distinguishes a decision from a regression.
 - **Anything a client can name is a key it can invent.** A thread id, a goal
   name — check it against something the runner actually owns, and put a row cap
   behind that in the database.
+- **A new query that returns a list is bounded** — by `.limit()`, or by a
+  row-cap trigger on the table — and the site says which. An unbounded read is
+  fine for one runner and is what falls over at a hundred thousand (§8). Of the
+  existing ones, `goal_history` reads are bounded by its row cap;
+  `prediction_history` reads take an optional `limit` and otherwise grow by a
+  row a day per runner, which is the ceiling in §8.
+- **A query that needs part of a row names the columns.** `select('*')` is
+  right only when the result is cast to an interface that is the whole table,
+  as the four existing ones are; a new column added to the table for another
+  feature then rides along with every such read, so do not reach for `*` to
+  save typing.
+- **A new filter or sort column gets its index in the same migration**, led by
+  `user_id` (§9, Touching the database). Check the query plan in the SQL
+  editor (`EXPLAIN`) for anything that reads more than one runner's day.
 
 ### Bundle and rendering
 
@@ -261,6 +379,24 @@ the reason — that is what distinguishes a decision from a regression.
 - **`{#each}` blocks are keyed**, with a key that identifies the item. Where
   position genuinely _is_ the identity — a chart column — say so with `(i)`
   rather than leaving it unkeyed.
+- **The signed-in shell has a byte budget.** `bun run check:bundle` (in CI,
+  after the build) sums the client entry, the root and `(app)` layouts and
+  everything they import statically, gzipped, and fails past the budget in
+  `scripts/check-bundle.ts`. It also fails if DOMPurify becomes reachable
+  without `import()`. The budget sits just above where the build stands; raise
+  it in the commit that needs the room and say why, as with coverage.
+- **A new dependency justifies its bytes.** Before adding one, check its
+  gzipped size and whether the platform already does the job (§1: native
+  first). If it is only needed on one branch — a modal, a chart, an export —
+  it is `import()`ed on that branch, and if it must stay that way it goes into
+  `LAZY_ONLY` in `scripts/check-bundle.ts` so the build proves it.
+- **Stream what is below the fold; await what is chrome.** A `load` that
+  returns a promise lets the page paint before it settles — right for a chart
+  further down the dashboard, wrong for the navbar, because a streamed value is
+  _always_ pending first and anything that is the same on every page then
+  flickers on every page (`(app)/+layout.server.ts` explains the case that
+  taught this). Streamed values render with `{#await}` and follow "Loading,
+  empty, and error states" (§4).
 
 ### The tooling has to actually run
 
@@ -269,8 +405,13 @@ the reason — that is what distinguishes a decision from a regression.
   nested under a `global` key Vitest does not read, so the suite passed at 75.9%
   against a stated 80. After changing a threshold or a lint rule, prove it fails
   when it should.
-- **CI runs what a contributor runs.** Type-check, lint, coverage and a
-  production build. Anything CI does not run will drift.
+- **CI runs what a contributor runs.** Type-check, lint, coverage, a
+  production build and its bundle budget. Anything CI does not run will drift.
+- **An invariant that grep can see is a lint rule, not a sentence.** The
+  table in §2 lists the ones that are. When a new rule in this file can be
+  expressed as a `no-restricted-syntax` selector or an import ban, add it to
+  `eslint.config.mjs` in the same commit, and prove it fires on a probe file
+  before trusting it.
 - **Documentation that describes an architecture the code does not have is
   worse than none**, because it is followed. This file claimed Supabase Auth
   helpers, RLS as the primary defence, and Form Actions for every mutation —
@@ -327,6 +468,20 @@ crowd.
   whose `goal_id` no longer matches the runner's current goal. Until the
   owner opens the app again after deleting the goal, the old link still
   answers with its last snapshot — there is no faster signal than that visit.
+- **The shared page is cached by the browser, not by Vercel's CDN.** It sends
+  `public, max-age=60` and no `s-maxage`, which is what Vercel's CDN caches on,
+  so every first view from a new visitor still reaches a serverless function
+  and Supabase (confirm with the `x-vercel-cache` header on a preview before
+  relying on either reading). Adding `s-maxage` would let the CDN answer
+  a link passed round a club without either — at the cost that a revoked link
+  keeps answering for as long as the CDN holds it. That trade is the owner's
+  revocation delay, and it is not made silently.
+- **`prediction_history.recorded_at` is the UTC day**, the one date in the app
+  that is not the runner's local day: it is computed on a server that has no
+  time zone for the runner, as the bucket behind the one-row-per-day upsert.
+  A runner well east or west of Greenwich can see a reading land on the
+  neighbouring day. Fixing it needs the runner's time zone on the server
+  first.
 
 ## 9. Making a change
 
@@ -344,7 +499,7 @@ the drift — fix it rather than copying it.
 | Upstream calls  | `$lib/server/trenara/{training,user,chat,news}.ts` | reads through `cachedRead` with a `CacheKey`; writes through `mutating`; shape checked with `expectObject` / `expectCollections`       |
 | Upstream types  | `$lib/server/trenara/types.ts`                     | what captured traffic held, not what we hope for                                                                                       |
 | Storage         | `$lib/server/db/*.ts`                              | singleton DAO, `.eq('user_id', …)`, `storageFailed()` on error; the route wraps the call in `fromStorage`                              |
-| Client state    | `$lib/stores/*.svelte.ts`                          | runes, not `svelte/store`; a factory (`createCalendarStore`) or a module-level `$state` holder (`app-config.svelte.ts`)                |
+| Client state    | `$lib/stores/*.svelte.ts`                          | the view-model (§4); runes, not `svelte/store`; a factory, a class with `$state` fields, or a module-level `$state` holder             |
 | Client → server | `fetch('/api/v1/…')` from a component or store     | a failure the runner sees is worded by `describeResponse` / `describeError` (`$lib/utils/network`)                                     |
 | Pure logic      | `$lib/utils/*.ts`, with a `*.test.ts` beside it    | no SvelteKit imports, so it tests without mocks                                                                                        |
 
@@ -419,6 +574,44 @@ chosen per field; the API reference says which.
 - **Time budgets come in a pair:** `DEFAULT_BUDGET_MS` in
   `$lib/server/trenara/client.ts` sits inside `maxDuration` in
   `svelte.config.js`. Change one, check the other.
+
+### Done means
+
+A change is finished when every line for its kind is true. The lines point at
+the rule; they do not restate it.
+
+**A new JSON endpoint**
+
+- [ ] under `src/routes/api/v1/`, on a method that is not GET if it changes anything (§7)
+- [ ] `requireUser(locals)`; no guard of its own (§7)
+- [ ] body through `parseBody` with a schema in `$lib/schemas/`, every string and array `.max()`ed (§3)
+- [ ] upstream through `passthrough` / `passthroughOptional`, storage through `fromStorage` (§9)
+- [ ] a read goes through `cachedRead`; a write `invalidate`s what it changes (§7)
+- [ ] a write to Supabase is behind a per-user limiter (§3)
+- [ ] `server.test.ts` beside it: rejected body, happy path, upstream refusal with its status (§9)
+
+**A new upstream call** — everything in "Touching the upstream API" above, in one commit.
+
+**A new table or column**
+
+- [ ] appended to `migration.sql`, idempotent (§9)
+- [ ] `user_id INTEGER NOT NULL`, an index led by `user_id`, RLS on, `anon`/`authenticated` revoked
+- [ ] a row cap if nothing else bounds it; every list query on it bounded (§7, Storage)
+- [ ] the maintainer-action block carries the exact SQL (§1)
+
+**A new component or screen**
+
+- [ ] logic that fetches or derives lives in a view-model, not the component (§4)
+- [ ] pending, empty and failed each drawn and each tested (§4, §6)
+- [ ] `{#each}` keyed; `$effect` only for outside-Svelte sync (§4, §7)
+- [ ] any library used only on one branch is `import()`ed there, and `bun run check:bundle` passes (§7)
+- [ ] `README.md` feature list updated if a runner can see it (below)
+
+**Any change**
+
+- [ ] `bun run check && bun run lint && bun run test:coverage && bun run build && bun run check:bundle`
+- [ ] a changed invariant updates §3 or §7, and a lint rule if grep can see it (§7)
+- [ ] anything the maintainer has to do by hand is in the block at the end of the reply (§1)
 
 ### Commits and pull requests
 
