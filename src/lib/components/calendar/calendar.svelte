@@ -32,7 +32,7 @@
 	setContext<CalendarStore>('calendar', store);
 
 	// Keep schedule in sync whenever the parent passes a new one — on first
-	// render, and again after every background refresh. The month it covers goes
+	// render, and again whenever a page load that really ran brings another. The month it covers goes
 	// with it: if the runner has paged to March while a refresh for August was in
 	// flight, August belongs in the cache, not on screen.
 	//
@@ -46,8 +46,22 @@
 	// had already drawn it: whatever came back replaced dots that were already
 	// correct, and correct only by luck if it did not also replace them with a
 	// week that could not yet answer for itself.
+	//
+	// Only a schedule it has not seated before, though. The page passes
+	// `data.schedule`, and SvelteKit hands the page a new `data` object whenever
+	// any load above it re-runs — `refreshPageData`'s `invalidate('app:news')`
+	// among them — with the page's own load not re-run and `data.schedule` the
+	// very same object as before. That object is the plan as it stood when the
+	// page loaded, and seating it again took back everything changed since: a
+	// PWA resumed the next day revalidated, re-ran the layout load, and asked
+	// for the rating of a session the runner had rated the evening before. A
+	// page load that really ran again brings a new object, and that one is
+	// seated as it always was.
+	let seated: Schedule | null = null;
 	$effect(() => {
 		const incoming = schedule;
+		if (incoming === seated) return;
+		seated = incoming;
 		store.setSchedule(
 			incoming,
 			untrack(() => today)

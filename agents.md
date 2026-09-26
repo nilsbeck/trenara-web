@@ -219,6 +219,16 @@ the reason — that is what distinguishes a decision from a regression.
   but `calendar.svelte`'s own opening-day effect reads the page's schedule
   prop directly and needs the same reconciliation before `initialCalendarDay`
   runs, not after.
+- **Load data is a snapshot from when the load ran; seat it once.**
+  SvelteKit hands a page a new `data` object whenever any load above it
+  re-runs, with the page's own fields carried over by reference — so an effect
+  that tracks `data.x` fires again with the same, older `x`. The calendar
+  re-seated `data.schedule` that way on every `invalidate('app:news')`, and a
+  PWA resumed the next day asked for a rating the runner had already given.
+  Anything seeded from load data compares the reference before seating it.
+- **A local edit lands in every copy that holds it.** A week that straddles
+  two months sits in both months' caches; `replaceEntry` / `replaceTraining`
+  patch each month holding the id, not only the one on screen.
 - **Nothing unbounded sits on the first-paint critical path.** If a value is
   awaited in a layout load, either it is served from memory or its wait is
   bounded — `newsBadgeIfReady` races a 200ms timer for exactly this reason.
