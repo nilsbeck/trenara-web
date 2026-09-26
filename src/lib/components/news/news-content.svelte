@@ -1,4 +1,6 @@
 <script lang="ts">
+	import { loadSanitizer } from '$lib/utils/sanitize';
+
 	/**
 	 * The body of a news item.
 	 *
@@ -8,9 +10,9 @@
 	 * render, markup is sanitised and inserted once the browser has it. Nothing
 	 * unsanitised is ever put in the document.
 	 *
-	 * DOMPurify is imported where it is needed rather than at the top, so the
-	 * ~27KB only travels for a feed that actually contains markup — most items
-	 * are plain text and take the branch below instead.
+	 * The sanitiser loads DOMPurify only when first asked, so the ~27KB only
+	 * travels for a feed that actually contains markup — most items are plain
+	 * text and take the branch below instead.
 	 */
 	let { content }: { content: string } = $props();
 
@@ -24,11 +26,11 @@
 		const target = host;
 		let current = true;
 
-		import('dompurify')
-			.then(({ default: DOMPurify }) => {
+		loadSanitizer()
+			.then((sanitize) => {
 				// The prop can change while the import is in flight; only the
 				// render this effect was started for may write to the node.
-				if (current) target.innerHTML = DOMPurify.sanitize(content);
+				if (current) target.innerHTML = sanitize(content);
 			})
 			.catch(() => {
 				// No sanitiser, no markup. The text is shown as text rather than

@@ -3,6 +3,7 @@
 	import { MessageCircle, X, Loader2, Bot, Send } from 'lucide-svelte';
 	import { onDestroy } from 'svelte';
 	import { describeError, describeResponse } from '$lib/utils/network';
+	import { loadSanitizer, type Sanitize } from '$lib/utils/sanitize';
 	import {
 		createPendingMessage,
 		hasNewReply,
@@ -80,13 +81,12 @@
 	 * Until it has landed, a message with markup renders as its plain-text
 	 * `body`. Nothing unsanitised is ever put in the document.
 	 */
-	let sanitize = $state<((html: string) => string) | null>(null);
+	let sanitize = $state<Sanitize | null>(null);
 
-	async function loadSanitizer(): Promise<void> {
+	async function ensureSanitizer(): Promise<void> {
 		if (sanitize) return;
 		try {
-			const { default: DOMPurify } = await import('dompurify');
-			sanitize = (html: string) => DOMPurify.sanitize(html);
+			sanitize = await loadSanitizer();
 		} catch {
 			// Left null, so every message falls back to its plain-text body.
 		}
@@ -155,7 +155,7 @@
 		// them, so it costs no extra wait on the way to a conversation.
 		const [res] = await Promise.all([
 			fetch(`/api/v1/chat/threads/${threadId}/messages`),
-			loadSanitizer()
+			ensureSanitizer()
 		]);
 		if (!res.ok) throw new Error(await describeResponse(res, 'Could not load these messages.'));
 		const data = await res.json();
