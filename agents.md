@@ -95,7 +95,7 @@ What follows is the design as it actually stands.
 - **Components:** Domain components live in `$lib/components`, grouped by feature (`calendar/`, `training/`, `chat/`, `charts/`). There is no UI primitive library — components are written directly against Tailwind classes.
 - **Icons:** Use `lucide-svelte`.
 - **Theming:** The app is dark only. The palette is defined once as `@theme` tokens in `src/app.css`; there is no light palette and no theme switcher.
-- **Native-First:** Use native HTML validation attributes alongside Zod. Use SvelteKit’s `enhance` for progressive enhancement.
+- **Native-First:** Use native HTML validation attributes alongside Zod. The login form is the one Form Action, with `enhance`; every other mutation is a `fetch` to a JSON route under `/api/v1` (see §3, CSRF, and §9).
 
 ### Loading, empty, and error states
 
@@ -317,3 +317,108 @@ crowd.
   whose `goal_id` no longer matches the runner's current goal. Until the
   owner opens the app again after deleting the goal, the old link still
   answers with its last snapshot — there is no faster signal than that visit.
+
+## 9. Making a change
+
+§3 and §7 say what must not break; this section says where a change goes and
+which helpers it uses. When a file disagrees with this section, the file is
+the drift — fix it rather than copying it.
+
+### Where things go
+
+| Layer           | Location                                           | Use                                                                                                                                    |
+| --------------- | -------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| Page data       | `+page.server.ts` / `+layout.server.ts`            | `requireUser(locals)`; await only what first paint needs, stream the rest (§7, first-paint)                                            |
+| JSON endpoint   | `src/routes/api/v1/**/+server.ts`                  | `parseBody(schema, await request.json())`, then `passthrough(() => …Api.x())`; never a hand-rolled `safeParse` or field-by-field check |
+| Body schemas    | `$lib/schemas/*.ts`, with a `*.test.ts`            | shape only; what is _allowed_ is Trenara's `can_*` flags                                                                               |
+| Upstream calls  | `$lib/server/trenara/{training,user,chat,news}.ts` | reads through `cachedRead` with a `CacheKey`; writes through `mutating`; shape checked with `expectObject` / `expectCollections`       |
+| Upstream types  | `$lib/server/trenara/types.ts`                     | what captured traffic held, not what we hope for                                                                                       |
+| Storage         | `$lib/server/db/*.ts`                              | singleton DAO, `.eq('user_id', …)`, `storageFailed()` on error; the route wraps the call in `fromStorage`                              |
+| Client state    | `$lib/stores/*.svelte.ts`                          | runes, not `svelte/store`; a factory (`createCalendarStore`) or a module-level `$state` holder (`app-config.svelte.ts`)                |
+| Client → server | `fetch('/api/v1/…')` from a component or store     | a failure the runner sees is worded by `describeResponse` / `describeError` (`$lib/utils/network`)                                     |
+| Pure logic      | `$lib/utils/*.ts`, with a `*.test.ts` beside it    | no SvelteKit imports, so it tests without mocks                                                                                        |
+
+Failures are told apart by which server failed, and each has one helper:
+
+- **Trenara** → `passthrough`, which answers 502 / 504 / 429 or relays
+  Trenara's own refusal with its message. A read that may legitimately find
+  nothing uses `passthroughOptional` (404 → `null`) rather than a try/catch.
+- **Our database** → `fromStorage`, which answers 503 with `storage: true`.
+- Never answer one with the other's status: the error page tells the runner
+  which server to blame from exactly this.
+
+### Touching the upstream API
+
+`docs/backend-api.md` is the contract, captured from live traffic. A new or
+changed endpoint updates, in the same commit: that file (with a redacted
+captured sample), `types.ts`, the wrapper in `$lib/server/trenara/`, and a
+fixture in `payloads.test.ts`. Never type a field that was not seen in a
+capture, and use the path exactly as recorded — trailing slashes vary.
+
+### Touching the database
+
+- Append to `src/lib/server/db/migration.sql`; never edit what is already
+  there, because it has already been run. Every statement is idempotent
+  (`IF NOT EXISTS`, `CREATE OR REPLACE`, `DROP TRIGGER IF EXISTS`), so the whole
+  file can be run again safely.
+- A new table has `user_id INTEGER NOT NULL`, an index that leads with
+  `user_id`, `ENABLE ROW LEVEL SECURITY` and `REVOKE ALL … FROM anon,
+authenticated`. When nothing bounds its rows per runner — a key the client
+  can name, a row per event — it also gets a row-cap trigger like the ones on
+  `goal_history`, `chat_read_state` and `goal_share`.
+- The migration is run by hand in the Supabase SQL editor. Say so in the
+  maintainer-action block at the end of the reply (§1), with the exact SQL to
+  paste — not the whole file.
+
+### Dates
+
+A training day is a local day. Calendar dates go through `$lib/utils/date`
+(`toLocalDateString`, `dayKeyOf`, `getMonthTimestamps`,
+`parseLocalDateString`) — never `toISOString().slice(0, 10)`, which is the UTC
+day and is wrong for a runner east or west of Greenwich for part of every
+day. Upstream sends unix seconds, ISO-8601 with an offset, and plain dates,
+chosen per field; the API reference says which.
+
+### Tests that can fail
+
+- **A bug fix starts with a test that fails on the old code**, and the commit
+  says that it did. A test written after the fix and never seen red proves
+  nothing about the bug.
+- **Mock Trenara as it behaves, not as it should.** A re-read straight after a
+  write may still return the state before it; a record the account does not
+  have is a 404 with `{"message":"No result found"}`; a 429 carries
+  `retry-after`. A mock more consistent than the upstream hides exactly the
+  bugs this app has had — the stale-day bug in the move flow passed its first
+  test for this reason.
+- **A `+server.ts` has a `server.test.ts` beside it.**
+  `api/v1/goal-share/server.test.ts` is the pattern: import the handlers, mock
+  `$lib/server/trenara` and the DAO, and cover a rejected body, the happy path,
+  and an upstream refusal passed through with its status.
+
+### Platform edges
+
+- **Environment:** only the variables in `.env.example`. A new one goes there,
+  into the CI placeholders in `check.yml`, into the `$env` mocks in
+  `src/lib/server/database/test-setup.ts`, and into the maintainer-action
+  block.
+- **CSP:** the browser talks only to this app. A new external origin — a font,
+  an image host, a script — needs its directive in `svelte.config.js`.
+- **Service worker:** caches the built shell and static files only, never an
+  API response or a rendered page; see the comment at the top of
+  `src/service-worker.ts` for why.
+- **Time budgets come in a pair:** `DEFAULT_BUDGET_MS` in
+  `$lib/server/trenara/client.ts` sits inside `maxDuration` in
+  `svelte.config.js`. Change one, check the other.
+
+### Commits and pull requests
+
+- One concern per pull request. A fix to drift found on the way goes in its
+  own commit.
+- Commit subjects are imperative and sentence-case, with no `feat:`/`fix:`
+  prefix ("Cap forecast gain at the current gap to goal"). The body says why,
+  and how the change was verified.
+- Comments explain _why_, including what was wrong before — match the density
+  of the file you are in; a bare function in a file of reasons reads as
+  unreviewed.
+- A feature a runner can see updates the feature list in `README.md` in the
+  same pull request. A changed invariant updates §3 or §7 in the same commit.

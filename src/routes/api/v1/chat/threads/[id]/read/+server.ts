@@ -5,6 +5,8 @@ import { chatApi } from '$lib/server/trenara';
 import { chatReadStateDAO } from '$lib/server/db/chat-read-state';
 import { fromStorage, STORAGE_WRITE_MESSAGE } from '$lib/server/db/errors';
 import { storageWrites } from '$lib/server/security/rate-limit';
+import { parseBody } from '$lib/server/trenara/request';
+import { chatMarkReadSchema } from '$lib/schemas/chat';
 
 /**
  * Records how far the reader has got in a thread.
@@ -33,11 +35,10 @@ export const POST: RequestHandler = async ({ params, request, cookies, locals })
 		error(429, 'Too many updates. Please slow down.');
 	}
 
-	const body = await request.json().catch(() => null);
-	const lastSeenMessageId = Number(body?.lastSeenMessageId);
-	if (!Number.isInteger(lastSeenMessageId) || lastSeenMessageId < 0) {
-		error(400, 'Invalid last seen message ID');
-	}
+	const { lastSeenMessageId } = parseBody(
+		chatMarkReadSchema,
+		await request.json().catch(() => null)
+	);
 
 	// A thread the reader is not in is a 404 rather than a 403: whether some
 	// other account has a thread with this id is not this caller's business.
