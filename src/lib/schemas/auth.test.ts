@@ -11,6 +11,12 @@ describe('loginSchema', () => {
 		expect(loginSchema.safeParse(valid).success).toBe(true);
 	});
 
+	it('rejects a username or password past its ceiling', () => {
+		const longUser = `${'a'.repeat(250)}@b.com`;
+		expect(loginSchema.safeParse({ ...valid, username: longUser }).success).toBe(false);
+		expect(loginSchema.safeParse({ ...valid, password: 'x'.repeat(1025) }).success).toBe(false);
+	});
+
 	it('rejects non-email username', () => {
 		expect(loginSchema.safeParse({ ...valid, username: 'notanemail' }).success).toBe(false);
 	});

@@ -27,6 +27,10 @@ describe('changeDateSchema', () => {
 		expect(changeDateSchema.safeParse(valid).success).toBe(true);
 	});
 
+	it('rejects a date string far longer than any timestamp', () => {
+		expect(changeDateSchema.safeParse({ ...valid, newDate: 'x'.repeat(33) }).success).toBe(false);
+	});
+
 	it('defaults includeFuture to false when omitted', () => {
 		const result = changeDateSchema.safeParse({
 			entryId: 1,
