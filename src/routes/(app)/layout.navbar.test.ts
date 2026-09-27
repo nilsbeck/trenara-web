@@ -150,6 +150,16 @@ describe('the navbar', () => {
 		expect(fetcher).not.toHaveBeenCalledWith('/api/v1/news/badge');
 	});
 
+	// The goal card is on the dashboard already; the menu no longer repeats it.
+	it('has no goal entry in the menu', async () => {
+		show(loadResult(user('Nils')));
+
+		screen.getByRole('button', { name: 'Menu' }).click();
+
+		await waitFor(() => expect(screen.getByRole('menu')).toBeTruthy());
+		expect(screen.queryByRole('menuitem', { name: /goal\/predictions/i })).toBeNull();
+	});
+
 	// Chrome on every page must never be able to take a page down, so the load
 	// resolves this to null rather than throwing.
 	it('says so, rather than spinning, when there is no account to show', () => {

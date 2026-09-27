@@ -6,7 +6,6 @@
 		LogOut,
 		LayoutDashboard,
 		UserCircle,
-		Target,
 		History,
 		Archive,
 		Newspaper
@@ -189,15 +188,6 @@
 							>
 								<UserCircle class="h-4 w-4" />
 								Profile
-							</a>
-							<a
-								href="/goal"
-								class="flex items-center gap-2 px-4 py-2 text-sm text-foreground hover:bg-accent sm:hidden"
-								role="menuitem"
-								onclick={closeMenu}
-							>
-								<Target class="h-4 w-4" />
-								Goal/Predictions
 							</a>
 							<a
 								href="/news"

@@ -26,7 +26,7 @@ It has some drawbacks, that this web app aims to improve and mitigate.
   - Make the app blazing fast, by running API calls in parallel and caching data. ~~It is surely about 60% faster than the original app.~~ Trenara has finally sped up their own app since then, so the gap isn't nearly as dramatic anymore — but Trainara is still the faster of the two, thanks to the parallel loading and caching below.
   - Cached data is fetched again only when it is actually out of date — the plan is reworked overnight, and a session you change comes back from the change itself — so a tab opened each morning refreshes once and a tab left open for a week refreshes once a day. When it does refresh, it asks only for the weeks that can still change: a finished week is settled, so late in the month that is two of six, and a month you are browsing in the past costs nothing at all. It happens underneath: the calendar's refresh icon spins, and nothing on screen is taken away until something new has arrived.
 - It does not give me the information I need at a glance since the dashboard is not informative
-  - Make the (monthly!) calendar the center of the app, add goal and prediction data at the same time (on large screens, otherwise accessible via menu)
+  - Make the (monthly!) calendar the center of the app, add goal and prediction data at the same time, on every screen size
 - Join data that belongs together (training, strength and nutrition details) but is currently split into multiple screens, each needing loading times.
   - Declutter the calendar data, by adding keeping things close but separated by context (using tabs, etc.)
 - Remove/hide data that is distracting and not useful for me (graphs that are not useful, etc.)
