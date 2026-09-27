@@ -21,7 +21,19 @@ const config = {
 			 * for the several upstream calls a page load runs in parallel, plus the
 			 * render, without the retry logic ever being cut off mid-backoff.
 			 */
-			maxDuration: 15
+			maxDuration: 15,
+			/**
+			 * Where the functions run: Frankfurt, beside the database.
+			 *
+			 * Unset, Vercel put them in Washington (`iad1`), an ocean away from
+			 * both things a page load waits on — Supabase is in `eu-central-1`
+			 * (Frankfurt) and `backend-prod.trenara.com` resolves to OVH in France.
+			 * Every upstream call and every query paid a transatlantic round trip,
+			 * and a cold dashboard makes them in chains: the identity check in the
+			 * hook, then the schedule, then the reads that wait on the goal.
+			 * `fra1` puts Supabase a few milliseconds away and Trenara a few more.
+			 */
+			regions: ['fra1']
 		}),
 		csp: {
 			directives: {
