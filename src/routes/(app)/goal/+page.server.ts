@@ -2,10 +2,8 @@ import { trainingApi, userApi } from '$lib/server/trenara';
 import { passthrough, passthroughOptional } from '$lib/server/trenara/request';
 import { requireUser } from '$lib/server/auth/guard';
 import { keepHistory } from '$lib/server/history/record';
-import { predictionHistoryDAO } from '$lib/server/db/prediction-history';
-import { goalShareDAO } from '$lib/server/db/goal-share';
-import { toChartData } from '$lib/server/history/chart-points';
-import { STORAGE_READ_MESSAGE } from '$lib/server/db/errors';
+import { readGoalChart, readGoalShare } from '$lib/server/history/goal-card-data';
+import { afterResponse } from '$lib/server/after-response';
 import type { PageServerLoad } from './$types';
 
 /**
@@ -42,54 +40,28 @@ export const load: PageServerLoad = async ({ cookies, locals }) => {
 	const userStats = passthrough(() => userApi.getUserStats(cookies));
 
 	/**
-	 * The two writes the card used to fire on mount, run from here instead.
-	 *
-	 * Not awaited on its own — `history` below awaits it, which is what keeps
-	 * it reliable on a serverless platform. A promise nothing in the returned
-	 * data depends on is not guaranteed to finish once the response has gone
-	 * out; see `keepHistory`'s own comment for why this shape, rather than
-	 * "fire and forget", is the one that actually runs to completion.
+	 * The two writes the card used to fire on mount, run from here instead —
+	 * and finished after the response rather than before the chart. The
+	 * history read used to wait for them so a prediction that changed moments
+	 * ago was already in the rows; it lays today's reading over the rows from
+	 * the stats instead (`readGoalChart`), and `afterResponse` keeps the
+	 * function alive until the writes are done. See `keepHistory`.
 	 */
-	const recorded = keepHistory(cookies, user.id).catch(() => {});
+	afterResponse(keepHistory(cookies, user.id));
+
+	const currentGoal = goal.catch(() => null);
+	const currentStats = userStats.catch(() => null);
 
 	/**
-	 * The prediction history, read after `keepHistory` has had its turn — so
-	 * a prediction that changed moments ago is already in the row this reads,
-	 * the same order the card's own `onMount` used to run in (post, then
-	 * reload only if something changed).
-	 *
-	 * Caught rather than thrown: this chart failing to load must not take the
-	 * goal card down with it, which is the same posture the client-fetched
-	 * version held before.
+	 * The prediction history, and the runner's own share link for this goal —
+	 * what seeds the share dialog. Neither throws: this chart failing to load
+	 * must not take the goal card down with it, and sharing is a side feature
+	 * of this page, not a reason to fail it.
 	 */
-	const history = (async () => {
-		await recorded;
-		const startDate = (await goal.catch(() => null))?.start_date || undefined;
-		try {
-			const records = await predictionHistoryDAO.getUserPredictionHistory(user.id, {
-				startDate,
-				limit: 200
-			});
-			return { records: toChartData(records), error: null as string | null };
-		} catch {
-			return { records: [], error: STORAGE_READ_MESSAGE };
-		}
-	})();
-
-	/**
-	 * The runner's own share link for this goal, if they have one — what
-	 * seeds the share dialog. Null on any failure to read it: sharing is a
-	 * side feature of this page, not a reason to fail the goal card itself.
-	 */
-	const share = (async () => {
-		const current = await goal.catch(() => null);
-		if (!current) return null;
-		try {
-			return await goalShareDAO.getForGoal(user.id, current.id);
-		} catch {
-			return null;
-		}
-	})();
+	const history = Promise.all([currentGoal, currentStats]).then(([g, s]) =>
+		readGoalChart(user.id, g, s)
+	);
+	const share = currentGoal.then((g) => readGoalShare(user.id, g));
 
 	return { goal, userStats, history, share };
 };

@@ -4,11 +4,8 @@ import type { Schedule } from '$lib/server/trenara/types';
 import { getMonthTimestamps } from '$lib/utils/date';
 import { requireUser } from '$lib/server/auth/guard';
 import { keepHistory } from '$lib/server/history/record';
-import { predictionHistoryDAO } from '$lib/server/db/prediction-history';
-import { goalShareDAO, type ShareRow } from '$lib/server/db/goal-share';
-import { toChartData } from '$lib/server/history/chart-points';
-import { STORAGE_READ_MESSAGE } from '$lib/server/db/errors';
-import type { ChartDataPoint } from '$lib/components/charts/prediction-chart.svelte';
+import { readGoalChart, readGoalShare } from '$lib/server/history/goal-card-data';
+import { afterResponse } from '$lib/server/after-response';
 import type { PageServerLoad } from './$types';
 
 export const load: PageServerLoad = async ({ cookies, locals, isDataRequest }) => {
@@ -31,55 +28,39 @@ export const load: PageServerLoad = async ({ cookies, locals, isDataRequest }) =
 	const fresh = !isDataRequest;
 
 	/**
-	 * The history write rides along with the page's own fetches.
+	 * The history write, finished after the response rather than before it.
 	 *
-	 * It used to happen in `goal-card.svelte`, which meant it only happened
-	 * when somebody opened the card — and the prediction series is
-	 * one-point-per-day with no way to fill a day in afterwards, so a fortnight
-	 * of not looking was a fortnight of gaps, permanently. The dashboard is the
-	 * page a runner actually opens, and it already holds everything the record
-	 * needs.
-	 *
-	 * Inside the same `Promise.all` as the schedule, so it costs no wall-clock
-	 * time: two database round trips against six weeks of upstream fetches. It
-	 * never rejects, so it cannot fail the page either.
+	 * It used to live in `goal-card.svelte`, which meant it only happened when
+	 * somebody opened the card — and the prediction series is
+	 * one-point-per-day with no way to fill a day in afterwards. So it moved
+	 * here, the page a runner actually opens, and was awaited alongside the
+	 * schedule on the reasoning that it cost no wall-clock time. It did cost
+	 * some: two Trenara reads, then a chain of database round trips, and then
+	 * the chart read waited for all of it. Nothing on this page needs what it
+	 * writes, so it no longer holds the page; `afterResponse` keeps the
+	 * function alive until it is done.
 	 */
-	const [schedule, goal, userStats] = await Promise.all([
+	afterResponse(keepHistory(cookies, user.id));
+
+	// Cached reads, shared with `keepHistory` above: one upstream call each.
+	const goalRead = trainingApi.getGoal(cookies).catch(() => null);
+	const statsRead = userApi.getUserStats(cookies).catch(() => null);
+
+	/**
+	 * The goal card's chart and share link, read beside the schedule instead
+	 * of one after the other behind it. Each waits only for what it needs —
+	 * the goal, and the stats for today's reading — which a cached read
+	 * settles long before six weeks of schedule do, so they cost the page no
+	 * time of their own. Awaited rather than streamed: the card's head shows
+	 * the trend and the share button, and it is the first thing on a phone.
+	 */
+	const [schedule, goal, userStats, history, share] = await Promise.all([
 		getMonthlySchedule(cookies, fresh),
-		trainingApi.getGoal(cookies).catch(() => null),
-		userApi.getUserStats(cookies).catch(() => null),
-		keepHistory(cookies, user.id)
+		goalRead,
+		statsRead,
+		Promise.all([goalRead, statsRead]).then(([g, s]) => readGoalChart(user.id, g, s)),
+		goalRead.then((g) => readGoalShare(user.id, g))
 	]);
-
-	/**
-	 * The goal card's chart, resolved server-side now rather than fetched by
-	 * the card on mount — see `(app)/goal/+page.server.ts` for the fuller
-	 * account. Read after `keepHistory`, so a prediction just recorded above
-	 * is already in the row this reads. Caught rather than thrown: a failure
-	 * here is a fact the chart shows inline, not a reason to fail the
-	 * dashboard.
-	 */
-	let history: { records: ChartDataPoint[]; error: string | null };
-	try {
-		const records = await predictionHistoryDAO.getUserPredictionHistory(user.id, {
-			startDate: goal?.start_date || undefined,
-			limit: 200
-		});
-		history = { records: toChartData(records), error: null };
-	} catch {
-		history = { records: [], error: STORAGE_READ_MESSAGE };
-	}
-
-	/**
-	 * The runner's own share link for this goal, if they have one — same read
-	 * `/goal`'s load makes, so the share button reads the same way wherever the
-	 * goal card is stacked. This is the card a phone actually opens to; leaving
-	 * the button off it and only wiring it into `/goal` left sharing reachable
-	 * in principle and undiscoverable in practice.
-	 */
-	const share: Pick<ShareRow, 'token' | 'title'> | null = goal
-		? await goalShareDAO.getForGoal(user.id, goal.id).catch(() => null)
-		: null;
 
 	return {
 		schedule,

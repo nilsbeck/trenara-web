@@ -1,6 +1,9 @@
 import { describe, it, expect, vi, beforeAll, beforeEach, afterEach } from 'vitest';
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/svelte';
 import Calendar from './calendar.svelte';
+// The picker is imported by its button on the first tap; loaded here so that
+// import is answered from the module cache inside the test's timeout.
+import '$lib/components/modals/change-date-dialog.svelte';
 import type { Schedule, ScheduledTraining } from '$lib/server/trenara/types';
 
 // Wednesday 2026-08-26, so "tomorrow" (the 27th) is still inside the same
@@ -151,7 +154,8 @@ describe('moving a session with the change-date modal', () => {
 
 		await fireEvent.click(await screen.findByLabelText('Change date'));
 
-		const dialog = screen.getByRole('dialog');
+		// The picker mounts once its code has loaded, a moment after the tap.
+		const dialog = await screen.findByRole('dialog');
 		const dayButtons = within(dialog)
 			.getAllByRole('button', { name: '27' })
 			.filter((b) => !b.hasAttribute('disabled'));

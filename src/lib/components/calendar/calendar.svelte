@@ -2,6 +2,7 @@
 	import { setContext, untrack } from 'svelte';
 	import { createCalendarStore, type CalendarStore } from '$lib/stores/calendar.svelte';
 	import { createRevalidationTrigger } from '$lib/utils/revalidation';
+	import { whenIdle } from '$lib/utils/load-once';
 	import { initialCalendarDay } from '$lib/utils/initial-day';
 	import { reconcileRatedEntries } from '$lib/utils/rated-locally';
 	import type { Schedule } from '$lib/server/trenara/types';
@@ -126,6 +127,17 @@
 		apply();
 		query.addEventListener('change', apply);
 		return () => query.removeEventListener('change', apply);
+	});
+
+	// The months the weeks either side of the folded one reach into, fetched
+	// once the page is idle after each step, so the next step across the turn
+	// of a month does not wait on the whole new month behind the overlay. Syncs
+	// with the network; nothing here writes state the component reads.
+	$effect(() => {
+		if (store.viewMode !== 'week') return;
+		// Re-run when the week moves.
+		void store.weekDays[0];
+		return whenIdle(() => void store.prefetchAdjacentWeeks());
 	});
 
 	// Sessions the runner changes come back from the mutation itself, so the only

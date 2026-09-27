@@ -337,6 +337,18 @@ the reason — that is what distinguishes a decision from a regression.
   awaited in a layout load, either it is served from memory or its wait is
   bounded — `newsBadgeIfReady` races a 200ms timer for exactly this reason.
   Advisory data renders as absent rather than holding the page.
+- **Work the page does not read finishes after the response.** A write that
+  rides along with a load — `keepHistory` is the case — goes through
+  `afterResponse` (`$lib/server/after-response`), which keeps the serverless
+  function alive with `waitUntil` until it settles. Awaiting it holds first
+  paint for nothing on screen; leaving it running bare is not reliable, since
+  the function can be frozen the moment it answers. If the page shows what the
+  write produced, derive that from what the load already holds, as
+  `withCurrentReading` does for the chart, rather than reading the write back.
+- **Reads that do not depend on each other run together.** A read that needs
+  one value (the goal's id) chains on that value's promise, not on the end of
+  the `Promise.all` it sits in — the dashboard's chart and share reads run
+  beside the schedule, not after it.
 - **Every module-scope `Map` has a ceiling and an eviction rule.** They live as
   long as the serverless instance does. `read-cache` and the rate limiters
   carry one; see the ceilings below for the one that does not.
@@ -375,7 +387,12 @@ the reason — that is what distinguishes a decision from a regression.
   is `await import`ed at the point of use; a module-scope import in a component
   that lives in the layout ships on every page. Check the build output, not the
   intent: the chunk should be reached by `import(…)`, not from a node's static
-  graph.
+  graph. The session card's dialogs follow the same rule: the button is drawn
+  with the card, the dialog behind it lives in its own file and is loaded
+  through `loadOnce` (`$lib/utils/load-once`), warmed with `whenIdle` and
+  mounted on the first tap (`change-date-modal.svelte` is the pattern). A
+  failed load on a tap reloads the page — after a deploy the old chunk names
+  are gone — and a failed warm-up stays quiet. Each is listed in `LAZY_ONLY`.
 - **`{#each}` blocks are keyed**, with a key that identifies the item. Where
   position genuinely _is_ the identity — a chart column — say so with `(i)`
   rather than leaving it unkeyed.
@@ -437,7 +454,14 @@ crowd.
   wrote, one more for the goal card's prediction chart (now read server-side
   rather than fetched by the card), and one `UPDATE` for a shared goal's
   snapshot that matches no row for the large majority of runners who have
-  never shared anything. Warm, most of that is free.
+  never shared anything. The `keepHistory` writes finish after the response
+  (§7), so they cost the function time, not the runner. Near the turn of a
+  month the folded week also warms the neighbouring month once the page is
+  idle (`prefetchAdjacentWeeks`) — another five or six schedule weeks, spent
+  so the step across the turn does not wait for them. Warm, most of that is
+  free. The functions run in `fra1` (`svelte.config.js`), beside Supabase in
+  `eu-central-1` and Trenara on OVH in France; a region further from either
+  puts a long round trip on every step of that chain.
 - **Every cache is per serverless instance.** Scaling out therefore makes the
   upstream load _worse_, not better: each new instance starts cold and repeats
   the fetches a warm one would have skipped. This is the first thing to fix if

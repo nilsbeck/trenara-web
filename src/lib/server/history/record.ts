@@ -3,6 +3,7 @@ import { trainingApi, userApi } from '$lib/server/trenara';
 import { goalHistoryDAO } from '$lib/server/db/goal-history';
 import { predictionHistoryDAO } from '$lib/server/db/prediction-history';
 import { refreshShareSnapshot, revokeStaleShares } from '$lib/server/share/refresh';
+import { stripPaceUnit } from './chart-points';
 
 /**
  * Writing the runner's history from what Trenara says, not from what a browser
@@ -27,13 +28,6 @@ import { refreshShareSnapshot, revokeStaleShares } from '$lib/server/share/refre
  * Both are best-effort by design: this is a side record, and failing to write
  * it must never fail the page that triggered it.
  */
-
-/** Trenara returns paces as `5:20 min/km`; the tables store the figure alone. */
-function stripPaceUnit(pace: string | undefined | null): string | null {
-	if (!pace) return null;
-	const bare = pace.replace(/\s*min\/(km|mi)\s*/i, '').trim();
-	return bare || null;
-}
 
 export interface RecordResult {
 	stored: boolean;
@@ -116,13 +110,15 @@ export async function archiveCurrentGoal(cookies: Cookies, userId: number): Prom
  * Never rejects: a history write is a side effect of looking at the app, and a
  * page must not fail because one did.
  *
- * Awaited by its caller rather than fired and forgotten. A promise left running
- * after the response is sent is not guaranteed to finish on a serverless
- * platform — the function can be frozen the moment it has answered — so
- * "fire and forget" here would mean "sometimes forget". Run alongside the
- * calls the page is already making, it costs no wall-clock time: the upstream
- * reads it needs are the same cached ones the load has in hand, and the
- * database round trips finish long before six weeks of schedule do.
+ * Handed to `afterResponse` by the page loads, not awaited by them. It used
+ * to be awaited — inside the dashboard's `Promise.all`, on the reasoning that
+ * it cost no wall-clock time beside six weeks of schedule — but it is two
+ * Trenara reads followed by a chain of database round trips, and the page
+ * needs nothing it writes: the chart overlays today's reading from the stats
+ * it already holds (`withCurrentReading`). Left running without
+ * `afterResponse` it would not be reliable, since a serverless function can be
+ * frozen the moment it has answered; with it, the invocation stays alive until
+ * this settles.
  *
  * The goal and stats are read once, here, rather than left to
  * `recordCurrentPrediction` and `archiveCurrentGoal`'s own independent reads —
