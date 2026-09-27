@@ -455,7 +455,10 @@ crowd.
   rather than fetched by the card), and one `UPDATE` for a shared goal's
   snapshot that matches no row for the large majority of runners who have
   never shared anything. The `keepHistory` writes finish after the response
-  (§7), so they cost the function time, not the runner. Warm, most of that is
+  (§7), so they cost the function time, not the runner. Near the turn of a
+  month the folded week also warms the neighbouring month once the page is
+  idle (`prefetchAdjacentWeeks`) — another five or six schedule weeks, spent
+  so the step across the turn does not wait for them. Warm, most of that is
   free. The functions run in `fra1` (`svelte.config.js`), beside Supabase in
   `eu-central-1` and Trenara on OVH in France; a region further from either
   puts a long round trip on every step of that chain.

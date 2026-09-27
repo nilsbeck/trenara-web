@@ -298,6 +298,13 @@ export function createCalendarStore(initialDate: Date, options: CalendarStoreOpt
 	const scheduleCache = new Map<string, CachedMonth>();
 
 	/**
+	 * Month fetches started by `prefetchMonth` and not yet settled, by month
+	 * key, so a second ask for the same month joins the first. Bounded by what
+	 * can be in flight at once: the months either side of one week.
+	 */
+	const monthsInFlight = new Map<string, Promise<void>>();
+
+	/**
 	 * Bumped whenever the cache is written to, so anything derived from a month
 	 * other than the one on screen — the neighbouring month a folded week reaches
 	 * into — re-runs when that month arrives. The Map itself is not reactive.
@@ -906,6 +913,13 @@ export function createCalendarStore(initialDate: Date, options: CalendarStoreOpt
 			currentDate = date;
 			const key = monthKey(date);
 
+			// A prefetch already on its way for this month is joined rather than
+			// repeated: the step that follows a warm-up usually lands while the
+			// warm-up is still out, and asking again would spend the upstream
+			// budget twice for one month.
+			const prefetching = monthsInFlight.get(key);
+			if (prefetching) await prefetching;
+
 			// Check cache first
 			const cached = scheduleCache.get(key);
 			if (cached) {
@@ -953,28 +967,75 @@ export function createCalendarStore(initialDate: Date, options: CalendarStoreOpt
 	 * moves. Failures are swallowed — a week missing next month's dots is a lot
 	 * better than a week replaced by an error.
 	 */
-	async function prefetchMonth(date: Date): Promise<void> {
+	function prefetchMonth(date: Date): Promise<void> {
 		const key = monthKey(date);
 		const cached = scheduleCache.get(key);
 		// Held already and still trusted. A month the plan changed under is
 		// fetched again — its dots are what say a session moved out of one week
 		// and into the next.
-		if (cached && !cached.stale) return;
+		if (cached && !cached.stale) return Promise.resolve();
+
+		// Already on its way — the idle warm-up and a week step can both ask.
+		const pending = monthsInFlight.get(key);
+		if (pending) return pending;
 
 		const seenEditSeq = cached?.editSeq ?? 0;
 
-		try {
-			const result = await fetchMonth(date, {
-				conditional: false,
-				from: null,
-				fresh: cached?.stale
-			});
-			if (!result) return;
-			const { covered_from: _coverage, ...incoming } = result.payload;
-			commitSchedule(key, incoming, result.etag, seenEditSeq);
-		} catch {
-			// Leave the day without its dots.
+		const run = (async () => {
+			try {
+				const result = await fetchMonth(date, {
+					conditional: false,
+					from: null,
+					fresh: cached?.stale
+				});
+				if (!result) return;
+				const { covered_from: _coverage, ...incoming } = result.payload;
+				commitSchedule(key, incoming, result.etag, seenEditSeq);
+			} catch {
+				// Leave the day without its dots.
+			} finally {
+				monthsInFlight.delete(key);
+			}
+		})();
+		monthsInFlight.set(key, run);
+		return run;
+	}
+
+	/**
+	 * Fetch, ahead of the tap, the months the weeks either side of the folded
+	 * one reach into.
+	 *
+	 * Stepping from the last week of a month into the next one used to wait on
+	 * the whole of the new month behind the loading overlay: the picked weekday
+	 * moves into it, so it becomes the month in hand, and nothing had asked for
+	 * it yet. The calendar calls this once the page is idle after each step, so
+	 * by the time the arrow is pressed the month is usually cached and the step
+	 * is immediate — and when it is not, `loadMonthData` joins the request
+	 * already out.
+	 *
+	 * Only months not held at all. A month held but stale is still drawn at once
+	 * on arrival and checked in the background, so warming it early buys
+	 * nothing. And only in the folded week, where it costs a month's fetch
+	 * only near the turn of a month — mid-month, both neighbouring weeks are in
+	 * the month already held — rather than both neighbours of every month view.
+	 */
+	function prefetchAdjacentWeeks(): Promise<void> {
+		if (viewMode !== 'week') return Promise.resolve();
+
+		const months = new Map<string, Date>();
+		for (const offset of [-7, 7]) {
+			const monday = addDays(weekAnchor, offset);
+			for (let i = 0; i < 7; i++) {
+				const day = addDays(monday, i);
+				const key = monthKey(day);
+				if (scheduleCache.has(key) || months.has(key)) continue;
+				months.set(key, firstOfMonth(day));
+			}
 		}
+
+		return Promise.all([...months.values()].map((month) => prefetchMonth(month))).then(
+			() => undefined
+		);
 	}
 
 	/** Fetch whatever months the folded week needs and does not already have. */
@@ -1244,6 +1305,7 @@ export function createCalendarStore(initialDate: Date, options: CalendarStoreOpt
 		replaceTraining,
 		replaceEntry,
 		loadMonthData,
+		prefetchAdjacentWeeks,
 		revalidate,
 		syncToday,
 		refresh,

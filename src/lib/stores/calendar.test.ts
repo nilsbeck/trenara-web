@@ -2189,3 +2189,108 @@ describe('a schedule carrying an undated row', () => {
 		}).not.toThrow();
 	});
 });
+
+// ─────────────────────────────────────────────────────────────
+// prefetchAdjacentWeeks
+// ─────────────────────────────────────────────────────────────
+describe('prefetchAdjacentWeeks', () => {
+	// A Sunday. The week after this one runs 28 September – 4 October, so
+	// stepping to it moves the picked weekday, and the month in hand, into
+	// October — the step that used to wait on October behind the overlay.
+	const SEPTEMBER_27 = new Date(2026, 8, 27);
+
+	function requestedMonth(url: string): string {
+		const date = new Date(Number(new URL(url, 'http://localhost').searchParams.get('date')));
+		return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+	}
+
+	function requestedMonths(): string[] {
+		return mockFetch.mock.calls.map((call) => requestedMonth(String(call[0])));
+	}
+
+	const october = makeSchedule({
+		trainings: [{ day_long: '2026-10-04' }] as unknown as Schedule['trainings']
+	});
+
+	async function foldedOn(date: Date) {
+		const store = createCalendarStore(date);
+		store.setSchedule(makeSchedule(), date);
+		store.setSelectedDate({
+			year: date.getFullYear(),
+			month: date.getMonth(),
+			day: date.getDate()
+		});
+		await store.setViewMode('week');
+		mockFetch.mockClear();
+		return store;
+	}
+
+	beforeEach(() => {
+		vi.clearAllMocks();
+		mockFetch.mockResolvedValue({ ok: true, json: () => Promise.resolve(october) });
+	});
+
+	it('fetches the month the next week reaches into, so the step does not wait for it', async () => {
+		const store = await foldedOn(SEPTEMBER_27);
+
+		await store.prefetchAdjacentWeeks();
+		expect(requestedMonths()).toEqual(['2026-10']);
+
+		const step = store.navigation.goToNextWeek();
+		const sawLoading = store.isLoading;
+		await step;
+
+		expect(sawLoading).toBe(false);
+		expect(mockFetch).toHaveBeenCalledTimes(1);
+		expect(store.currentDate.getMonth()).toBe(9);
+		expect(store.getTrainingStatusForDay({ year: 2026, month: 9, day: 4 }, 'run')).toBe(
+			'scheduled'
+		);
+	});
+
+	it('joins a prefetch still in flight instead of asking for the month again', async () => {
+		let answer!: (value: unknown) => void;
+		mockFetch.mockReturnValueOnce(new Promise((resolve) => (answer = resolve)));
+		const store = await foldedOn(SEPTEMBER_27);
+
+		const warming = store.prefetchAdjacentWeeks();
+		const step = store.navigation.goToNextWeek();
+
+		answer({ ok: true, json: () => Promise.resolve(october) });
+		await Promise.all([warming, step]);
+
+		expect(requestedMonths()).toEqual(['2026-10']);
+		expect(store.getTrainingStatusForDay({ year: 2026, month: 9, day: 4 }, 'run')).toBe(
+			'scheduled'
+		);
+	});
+
+	it('asks for nothing in the middle of a month, where both neighbours are held', async () => {
+		const store = await foldedOn(new Date(2026, 8, 16));
+
+		await store.prefetchAdjacentWeeks();
+
+		expect(mockFetch).not.toHaveBeenCalled();
+	});
+
+	it('asks for nothing in the month view', async () => {
+		const store = createCalendarStore(SEPTEMBER_27);
+		store.setSchedule(makeSchedule(), SEPTEMBER_27);
+
+		await store.prefetchAdjacentWeeks();
+
+		expect(mockFetch).not.toHaveBeenCalled();
+	});
+
+	it('leaves the week alone when the prefetch fails, and the step fetches for itself', async () => {
+		mockFetch.mockRejectedValueOnce(new Error('offline'));
+		const store = await foldedOn(SEPTEMBER_27);
+
+		await store.prefetchAdjacentWeeks();
+		expect(store.error).toBeNull();
+
+		await store.navigation.goToNextWeek();
+		expect(requestedMonths()).toEqual(['2026-10', '2026-10']);
+		expect(store.currentDate.getMonth()).toBe(9);
+	});
+});
