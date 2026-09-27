@@ -23,7 +23,7 @@
 	import SessionShapeBar from '$lib/components/training/session-shape-bar.svelte';
 	import SetupRail from '$lib/components/training/setup-rail.svelte';
 	import SetupRailLoading from '$lib/components/training/setup-rail-loading.svelte';
-	import SessionSetupSheet from '$lib/components/training/session-setup-sheet.svelte';
+	import { loadOnce, reloadOnStaleChunk, whenIdle } from '$lib/utils/load-once';
 	import { trainingLoad } from '$lib/utils/training-load';
 	import { describeError, describeResponse } from '$lib/utils/network';
 	import { SessionDetailStore } from '$lib/stores/session-detail.svelte';
@@ -210,7 +210,31 @@
 	function openSetup(key: SettingKey) {
 		setupSection = key;
 		setupOpen = true;
+		loadSetupSheet().then((module) => (SessionSetupSheet = module.default), reloadOnStaleChunk);
 	}
+
+	/**
+	 * The setup sheet, fetched rather than shipped with the dashboard.
+	 *
+	 * It is the largest thing on this card — every editor for every setting —
+	 * and it was mounted, closed, for every session on screen, although most
+	 * visits never open it. Now its chunk is warmed once the page is idle and
+	 * the sheet is mounted on the first open. It mounts with `open` already
+	 * true and its own effect calls `showModal()`, so it behaves as it did; once
+	 * mounted it stays, exactly as before.
+	 */
+	const loadSetupSheet = loadOnce(
+		() => import('$lib/components/training/session-setup-sheet.svelte')
+	);
+	let SessionSetupSheet = $state<
+		typeof import('$lib/components/training/session-setup-sheet.svelte').default | null
+	>(null);
+
+	// Warming a chunk is syncing with the network, not deriving state.
+	$effect(() => {
+		if (!setupTraining) return;
+		return whenIdle(() => void loadSetupSheet().catch(() => {}));
+	});
 
 	// Reset confirmation state whenever the training changes (user navigates to another day)
 	$effect(() => {
@@ -485,12 +509,14 @@
 					</button>
 				</div>
 			{/if}
-			<SessionSetupSheet
-				training={setupTraining}
-				store={detailStore}
-				bind:open={setupOpen}
-				bind:section={setupSection}
-			/>
+			{#if SessionSetupSheet}
+				<SessionSetupSheet
+					training={setupTraining}
+					store={detailStore}
+					bind:open={setupOpen}
+					bind:section={setupSection}
+				/>
+			{/if}
 		{/if}
 
 		<!-- Inline rating prompt (shown when training is completed but not yet rated) -->

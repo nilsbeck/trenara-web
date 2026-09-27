@@ -387,7 +387,12 @@ the reason — that is what distinguishes a decision from a regression.
   is `await import`ed at the point of use; a module-scope import in a component
   that lives in the layout ships on every page. Check the build output, not the
   intent: the chunk should be reached by `import(…)`, not from a node's static
-  graph.
+  graph. The session card's dialogs follow the same rule: the button is drawn
+  with the card, the dialog behind it lives in its own file and is loaded
+  through `loadOnce` (`$lib/utils/load-once`), warmed with `whenIdle` and
+  mounted on the first tap (`change-date-modal.svelte` is the pattern). A
+  failed load on a tap reloads the page — after a deploy the old chunk names
+  are gone — and a failed warm-up stays quiet. Each is listed in `LAZY_ONLY`.
 - **`{#each}` blocks are keyed**, with a key that identifies the item. Where
   position genuinely _is_ the identity — a chart column — say so with `(i)`
   rather than leaving it unkeyed.

@@ -34,7 +34,19 @@ const SHELL_BUDGET_BYTES = 64 * 1024;
  * but imported statically it is folded into a shared chunk and its name leaves
  * the manifest altogether — which is exactly the case this has to catch.
  */
-const LAZY_ONLY = [{ name: 'dompurify', marker: 'data-tt-policy-suffix' }];
+const LAZY_ONLY = [
+	{ name: 'dompurify', marker: 'data-tt-policy-suffix' },
+	// The session card's dialogs: each button is drawn with the card, and the
+	// dialog behind it is fetched once the page is idle or on the first tap.
+	// Markers are copy from each dialog's own markup.
+	{ name: 'session setup sheet', marker: 'Where you are running today' },
+	{
+		name: 'change-date dialog',
+		marker: 'If a training is already scheduled, they will be swapped'
+	},
+	{ name: 'rating dialog', marker: 'Rate Perceived Exertion' },
+	{ name: 'treadmill mode', marker: 'No instructions available for this training' }
+];
 
 const OUT = '.svelte-kit/output/client';
 const MANIFEST = join(OUT, '.vite/manifest.json');

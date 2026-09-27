@@ -1,6 +1,10 @@
 import { describe, it, expect, beforeAll, afterEach } from 'vitest';
 import { render, screen, cleanup, fireEvent, within } from '@testing-library/svelte';
 import TreadmillMode from '$lib/components/training/treadmill-mode.svelte';
+// The mode is imported by its button on the first tap. Loaded here, with the
+// file, so that first import is answered from the module cache rather than
+// spending a test's timeout transforming the dialog and its icon imports.
+import '$lib/components/training/treadmill-dialog.svelte';
 import type { ScheduledTraining, TrainingBlock } from '$lib/server/trenara/types';
 
 // ── Helpers ───────────────────────────────────────────────────
@@ -81,8 +85,10 @@ const threeSteps = [
 async function openMode(training: ScheduledTraining) {
 	render(TreadmillMode, { training });
 	await fireEvent.click(screen.getByLabelText('Start treadmill mode'));
+	// The mode's own code is fetched on the first tap, so it arrives a moment
+	// after the click rather than with it.
 	return {
-		swipeArea: screen.getByTestId('treadmill-swipe-area'),
+		swipeArea: await screen.findByTestId('treadmill-swipe-area'),
 		panes: () => screen.getAllByTestId('treadmill-pane')
 	};
 }
@@ -165,7 +171,7 @@ describe('treadmill mode split view', () => {
 		render(TreadmillMode, { training: makeTraining([]) });
 		await fireEvent.click(screen.getByLabelText('Start treadmill mode'));
 
-		expect(screen.getByText('No instructions available for this training.')).toBeTruthy();
+		expect(await screen.findByText('No instructions available for this training.')).toBeTruthy();
 	});
 });
 
