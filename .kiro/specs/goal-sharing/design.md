@@ -379,7 +379,8 @@ Wiring:
 
 - `keepHistory` in `$lib/server/history/record.ts` already runs on the
   dashboard load with the goal and the stats in hand. `refreshShareSnapshot`
-  joins it there, in the same `Promise.all`, costing no wall-clock time.
+  joins it there. (Since then `keepHistory` finishes after the response,
+  through `afterResponse`, rather than inside the load's `Promise.all`.)
 - `/goal`'s load streams `goal` and `userStats` as promises. The refresh hangs
   off those promises rather than being awaited, so the page still streams.
 
