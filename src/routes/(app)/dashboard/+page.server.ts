@@ -77,8 +77,14 @@ export const load: PageServerLoad = async ({ cookies, locals, isDataRequest }) =
 	 * the button off it and only wiring it into `/goal` left sharing reachable
 	 * in principle and undiscoverable in practice.
 	 */
-	const share: Pick<ShareRow, 'token' | 'title'> | null = goal
-		? await goalShareDAO.getForGoal(user.id, goal.id).catch(() => null)
+	//
+	// Narrowed to the two fields the button renders. The DAO returns the whole
+	// row — owner id, goal id, the stored snapshot — and a load's return value
+	// is serialised into the page's HTML (§3), so the annotation alone did not
+	// keep the rest out of it.
+	const row = goal ? await goalShareDAO.getForGoal(user.id, goal.id).catch(() => null) : null;
+	const share: Pick<ShareRow, 'token' | 'title'> | null = row
+		? { token: row.token, title: row.title }
 		: null;
 
 	return {

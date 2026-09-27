@@ -85,7 +85,10 @@ export const load: PageServerLoad = async ({ cookies, locals }) => {
 		const current = await goal.catch(() => null);
 		if (!current) return null;
 		try {
-			return await goalShareDAO.getForGoal(user.id, current.id);
+			// The two fields the dialog renders, not the row: a load's return
+			// value is serialised into the page's HTML (§3).
+			const row = await goalShareDAO.getForGoal(user.id, current.id);
+			return row ? { token: row.token, title: row.title } : null;
 		} catch {
 			return null;
 		}
