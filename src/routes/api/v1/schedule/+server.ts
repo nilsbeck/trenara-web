@@ -6,15 +6,36 @@ import { fingerprint } from '$lib/utils/fingerprint';
 import { getMonthTimestamps, parseLocalDateString, weeksStillOpen } from '$lib/utils/date';
 import type { SchedulePayload } from '$lib/utils/schedule';
 
-export const GET: RequestHandler = async ({ url, request, cookies }) => {
-	const dateParam = url.searchParams.get('date');
-	const dateMs = dateParam ? Number(dateParam) : NaN;
-	const date = Number.isFinite(dateMs) ? new Date(dateMs) : new Date();
+/**
+ * The month the caller means, from `date`.
+ *
+ * A calendar day, `YYYY-MM-DD`, read as the runner's own day. It used to be
+ * the millisecond timestamp of the runner's local midnight on the 1st, and
+ * this function runs in UTC: for anyone east of Greenwich that instant is
+ * still the last day of the month before, so a request for October was
+ * answered with September's weeks. The folded week then showed 28 September
+ * – 4 October (September's last week) and nothing from the 5th on.
+ *
+ * A number is still read, for a tab opened before the change that is still
+ * asking the old way; it carries the old ambiguity with it and goes when
+ * those tabs have gone.
+ */
+function monthAsked(param: string | null): Date {
+	if (!param) return new Date();
 
-	// Guard against invalid dates (NaN timestamp, out-of-range values)
-	if (isNaN(date.getTime())) {
+	const day = parseLocalDateString(param);
+	if (day) return day;
+
+	const ms = Number(param);
+	const date = new Date(ms);
+	if (!Number.isFinite(ms) || isNaN(date.getTime())) {
 		error(400, 'Invalid date parameter');
 	}
+	return date;
+}
+
+export const GET: RequestHandler = async ({ url, request, cookies }) => {
+	const date = monthAsked(url.searchParams.get('date'));
 
 	let timestamps = getMonthTimestamps(date);
 	let coveredFrom: string | null = null;

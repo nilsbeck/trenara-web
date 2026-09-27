@@ -1937,8 +1937,7 @@ describe('week view', () => {
 
 	/** The month a `/api/v1/schedule` call asked about, as `YYYY-MM`. */
 	function requestedMonth(url: string): string {
-		const date = new Date(Number(new URL(url, 'http://localhost').searchParams.get('date')));
-		return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+		return (new URL(url, 'http://localhost').searchParams.get('date') ?? '').slice(0, 7);
 	}
 
 	/** Serve a different schedule per month, so a fetched neighbour is visible. */
@@ -2200,8 +2199,7 @@ describe('prefetchAdjacentWeeks', () => {
 	const SEPTEMBER_27 = new Date(2026, 8, 27);
 
 	function requestedMonth(url: string): string {
-		const date = new Date(Number(new URL(url, 'http://localhost').searchParams.get('date')));
-		return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+		return (new URL(url, 'http://localhost').searchParams.get('date') ?? '').slice(0, 7);
 	}
 
 	function requestedMonths(): string[] {
@@ -2246,6 +2244,18 @@ describe('prefetchAdjacentWeeks', () => {
 		expect(store.getTrainingStatusForDay({ year: 2026, month: 9, day: 4 }, 'run')).toBe(
 			'scheduled'
 		);
+	});
+
+	it('names the month by its calendar day, not by the instant of local midnight', async () => {
+		const store = await foldedOn(SEPTEMBER_27);
+
+		await store.prefetchAdjacentWeeks();
+
+		// The instant was read back on a server in UTC, where midnight on
+		// 1 October east of Greenwich is still 30 September — and September's
+		// weeks came back filed under October.
+		const url = new URL(String(mockFetch.mock.calls[0][0]), 'http://localhost');
+		expect(url.searchParams.get('date')).toBe('2026-10-01');
 	});
 
 	it('joins a prefetch still in flight instead of asking for the month again', async () => {
