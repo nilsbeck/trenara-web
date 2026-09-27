@@ -13,8 +13,9 @@
 	} from 'lucide-svelte';
 	import ChatBubble from '$lib/components/chat/chat-bubble.svelte';
 	import RenderFailure from '$lib/components/shared/render-failure.svelte';
-	import { formatUnread } from '$lib/utils/news-unread';
 	import { appConfig } from '$lib/stores/app-config.svelte';
+	import { NewsBadgeStore, NEWS_BADGE_MAX_AGE_MS } from '$lib/stores/news-badge.svelte';
+	import { createRevalidationTrigger } from '$lib/utils/revalidation';
 	import type { Snippet } from 'svelte';
 
 	// `children` was typed `any`, which agents.md forbids — and survived a
@@ -34,19 +35,38 @@
 	const userData = $derived(data.userData);
 
 	/**
-	 * The unread count, resolved by the load like the account above it.
+	 * The unread count, resolved by the load like the account above it, so a
+	 * dot the load had is in the first paint rather than appearing afterwards
+	 * on the same button as the avatar.
 	 *
-	 * Null means nothing unread, or a badge that could not be computed — both
-	 * read as "show nothing". What it no longer means is "not here yet": the dot
-	 * used to be missing from the first paint and appear afterwards, on the same
-	 * button as the avatar.
+	 * But the load runs only on a full page load, and gives up on the badge
+	 * after a fifth of a second — so the store also asks for it itself, below.
+	 * See `news-badge.svelte.ts` for why that is what broke it on phones.
 	 */
-	const newsUnread = $derived(data.newsBadge);
+	const newsBadge = new NewsBadgeStore(() => data.newsBadge);
+	const newsBadgeLabel = $derived(newsBadge.label);
 
 	// Seeds the chat bubble's unread badge before the bubble is ever opened.
 	let chatThreads = $state<ChatThread[]>([]);
 	let chatSeen = $state<Record<number, number>>({});
-	const newsBadgeLabel = $derived(newsUnread ? formatUnread(newsUnread) : '');
+
+	// A load that could not say gets asked again now the page is up — and again
+	// whenever a load re-run still could not.
+	$effect(() => {
+		if (newsBadge.unknown) void newsBadge.refresh();
+	});
+
+	// And a badge on screen is asked for again once it is older than the
+	// server's cache of it, when the page is looked at: a PWA resumed from the
+	// background is the case, since nothing re-runs the layout load there.
+	$effect(() => {
+		const trigger = createRevalidationTrigger({
+			lastUpdatedAt: () => newsBadge.checkedAt,
+			onTrigger: () => void newsBadge.refresh(),
+			maxAgeMs: NEWS_BADGE_MAX_AGE_MS
+		});
+		return () => trigger.stop();
+	});
 
 	// Seeds the served option lists once. Anything that misses them renders from
 	// the constants instead, so there is nothing to wait for here.

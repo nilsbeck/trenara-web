@@ -2,6 +2,7 @@ import type { Cookies } from '@sveltejs/kit';
 import { newsApi } from '$lib/server/trenara';
 import { newsReadStateDAO } from '$lib/server/db/news-read-state';
 import { newestOf, summarizeUnread, type UnreadSummary } from '$lib/utils/news-unread';
+import { afterResponse } from '$lib/server/after-response';
 
 /**
  * The unread-news badge, ready for the navbar.
@@ -83,11 +84,14 @@ export function clearAllBadgeCache(): void {
  *
  * So it is awaited, briefly. A warm cache answers in microseconds and nothing
  * changes; a cold one gets a fifth of a second and then the page goes on
- * without a badge, which is exactly what the component already renders when
- * the answer is not knowable. The computation keeps running and populates the
- * cache for the next navigation.
+ * without a badge. The computation is kept alive past the response and fills
+ * the cache; the navbar asks for it again once the page is up, because a
+ * client-side navigation does not re-run the layout load that would have
+ * picked it up.
  */
 const BADGE_WAIT_MS = 200;
+
+const TIMED_OUT = Symbol('timed out');
 
 /**
  * The badge, or nothing if it is not ready in time.
@@ -105,10 +109,23 @@ export async function newsBadgeIfReady(
 
 	// `loadNewsBadge` reports its own failures as null and never rejects, so
 	// the race cannot reject either.
-	return Promise.race([
-		loadNewsBadge(cookies, userId),
-		new Promise<null>((resolve) => setTimeout(() => resolve(null), BADGE_WAIT_MS))
-	]);
+	const computing = loadNewsBadge(cookies, userId);
+	let timer: ReturnType<typeof setTimeout> | undefined;
+	const timedOut = new Promise<typeof TIMED_OUT>((resolve) => {
+		timer = setTimeout(() => resolve(TIMED_OUT), BADGE_WAIT_MS);
+	});
+
+	const winner = await Promise.race([computing, timedOut]);
+	clearTimeout(timer);
+	if (winner !== TIMED_OUT) return winner;
+
+	// Gave up waiting — but the answer is still wanted, by the next load and by
+	// the client's own follow-up request (`/api/v1/news/badge`). Left running
+	// bare, it was often never finished: a serverless function can be frozen
+	// the moment it has answered, so the cache stayed cold and the next cold
+	// load lost the same race again.
+	afterResponse(computing);
+	return null;
 }
 
 /**

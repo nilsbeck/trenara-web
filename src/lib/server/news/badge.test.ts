@@ -1,18 +1,20 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import type { Cookies } from '@sveltejs/kit';
 import type { NewsItem } from '$lib/server/trenara/types';
-import { clearAllBadgeCache, clearBadgeCache, loadNewsBadge } from './badge';
+import { clearAllBadgeCache, clearBadgeCache, loadNewsBadge, newsBadgeIfReady } from './badge';
 
-const { getNews, getMark, advanceMark } = vi.hoisted(() => ({
+const { getNews, getMark, advanceMark, afterResponse } = vi.hoisted(() => ({
 	getNews: vi.fn(),
 	getMark: vi.fn(),
-	advanceMark: vi.fn()
+	advanceMark: vi.fn(),
+	afterResponse: vi.fn()
 }));
 
 vi.mock('$lib/server/trenara', () => ({ newsApi: { getNews } }));
 vi.mock('$lib/server/db/news-read-state', () => ({
 	newsReadStateDAO: { getMark, advanceMark }
 }));
+vi.mock('$lib/server/after-response', () => ({ afterResponse }));
 
 const cookies = {} as Cookies;
 const DAY = 86400;
@@ -177,5 +179,43 @@ describe('the cache does not grow without bound', () => {
 		} finally {
 			vi.useRealTimers();
 		}
+	});
+});
+
+describe('newsBadgeIfReady', () => {
+	afterEach(() => {
+		vi.useRealTimers();
+	});
+
+	it('answers from the cache without waiting', async () => {
+		getNews.mockResolvedValue(envelope([item(82, 1)]));
+		getMark.mockResolvedValue({ id: 81, createdAt: 0 });
+		await loadNewsBadge(cookies, 1);
+		getNews.mockClear();
+
+		expect(await newsBadgeIfReady(cookies, 1)).toEqual({ count: 1, capped: false });
+		expect(getNews).not.toHaveBeenCalled();
+		expect(afterResponse).not.toHaveBeenCalled();
+	});
+
+	// The race it loses on a cold instance used to leave the computation
+	// running bare, and a serverless function can be frozen the moment it has
+	// answered — so the cache the next load was promised often never filled,
+	// and the next cold load lost the same race again.
+	it('keeps the computation alive past the response when it gives up waiting', async () => {
+		vi.useFakeTimers();
+		let answer: (value: unknown) => void = () => {};
+		getNews.mockReturnValue(new Promise((resolve) => (answer = resolve)));
+		getMark.mockResolvedValue({ id: 81, createdAt: 0 });
+
+		const pending = newsBadgeIfReady(cookies, 1);
+		await vi.advanceTimersByTimeAsync(250);
+
+		expect(await pending).toBeNull();
+		expect(afterResponse).toHaveBeenCalledTimes(1);
+
+		answer(envelope([item(82, 1)]));
+		await afterResponse.mock.calls[0][0];
+		expect(await newsBadgeIfReady(cookies, 1)).toEqual({ count: 1, capped: false });
 	});
 });

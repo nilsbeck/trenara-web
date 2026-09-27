@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest';
-import { render, cleanup, screen } from '@testing-library/svelte';
+import { render, cleanup, screen, waitFor } from '@testing-library/svelte';
 import { createRawSnippet } from 'svelte';
 import type { User } from '$lib/server/trenara/types';
 import Layout from './+layout.svelte';
@@ -119,6 +119,35 @@ describe('the navbar', () => {
 		} as never);
 
 		expect(screen.getByRole('button', { name: /3 unread news items/i })).toBe(before);
+	});
+
+	// The phone: opened from the home screen onto a cold instance, the load gave
+	// up on the badge, and nothing re-ran it — a client-side navigation does
+	// not, and neither does a PWA coming back from the background. The navbar
+	// has to ask for it itself.
+	it('asks for the badge the load had no time for, and draws the dot', async () => {
+		const fetcher = vi.fn((url: string) =>
+			Promise.resolve(
+				url === '/api/v1/news/badge'
+					? { ok: true, status: 200, json: async () => ({ badge: { count: 2, capped: false } }) }
+					: { ok: false, status: 503 }
+			)
+		);
+		vi.stubGlobal('fetch', fetcher);
+
+		show(loadResult(user('Nils'), null));
+
+		expect(await screen.findByRole('button', { name: /2 unread news items/i })).toBeTruthy();
+	});
+
+	it('does not ask when the load already knew', async () => {
+		const fetcher = vi.fn().mockResolvedValue({ ok: false, status: 503 });
+		vi.stubGlobal('fetch', fetcher);
+
+		show(loadResult(user('Nils'), { count: 0, capped: false }));
+		await waitFor(() => expect(screen.getByRole('button', { name: 'Menu' })).toBeTruthy());
+
+		expect(fetcher).not.toHaveBeenCalledWith('/api/v1/news/badge');
 	});
 
 	// Chrome on every page must never be able to take a page down, so the load

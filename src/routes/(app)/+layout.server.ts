@@ -44,7 +44,9 @@ export const load: LayoutServerLoad = async ({ cookies, locals, depends }) => {
 	 *
 	 * And the wait is bounded: a cold instance gives it a fifth of a second and
 	 * then renders without it, because a dot is worth no part of first paint.
-	 * The computation finishes in the background and the next navigation has it.
+	 * The computation is kept alive past the response, and the navbar asks for
+	 * it once the page is up — not "the next navigation", which does not re-run
+	 * this load. That assumption is why the dot never showed on a phone.
 	 */
 	const newsBadge = await newsBadgeIfReady(cookies, user.id);
 

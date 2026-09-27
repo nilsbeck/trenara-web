@@ -109,7 +109,8 @@ shown.
 - **Chat with Walter**, across threads, with an unread badge on the bubble that clears once you have
   read it.
 - **Trenara's in-app news**, with a badge that only ever counts items published since your first
-  visit — new content gets noticed, the backlog stays quiet.
+  visit — new content gets noticed, the backlog stays quiet. It keeps itself current while the app
+  stays open, so it shows up in the installed phone app too, not only after a reload.
 
 ## What is the future?
 
