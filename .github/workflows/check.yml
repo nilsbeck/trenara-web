@@ -109,3 +109,10 @@ jobs:
       # preview deployments rather than locally, so it was the *only* way.
       - name: Build
         run: bun run build
+
+      # Reads the build above. agents.md said to "check the build output, not
+      # the intent" for lazily imported libraries, and nothing did; this fails
+      # when DOMPurify is reachable without import() or the signed-in shell
+      # outgrows its gzipped budget.
+      - name: Bundle budget
+        run: bun run check:bundle

@@ -602,6 +602,12 @@ export class PredictionHistoryDAO {
 			return { stored: false };
 		}
 
+		// Deliberately the UTC day, unlike every calendar date in the app: this is
+		// the storage bucket behind the `(user_id, recorded_at)` upsert, computed on
+		// a server that has no time zone for the runner. Moving it to a local day
+		// would need that time zone first, and would split one day's bucket for
+		// rows already written.
+		// eslint-disable-next-line no-restricted-syntax
 		const today = new Date().toISOString().split('T')[0];
 		const { data, error } = await supabase
 			.from('prediction_history')

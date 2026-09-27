@@ -12,6 +12,7 @@ describe('sendMessageSchema', () => {
 		['an empty string', ''],
 		['whitespace only', '   \n'],
 		['a number', 42],
+		['a message past the ceiling', 'x'.repeat(10_001)],
 		['nothing', undefined]
 	])('rejects %s', (_label, content) => {
 		expect(sendMessageSchema.safeParse({ content }).success).toBe(false);

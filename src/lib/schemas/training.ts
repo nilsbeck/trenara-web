@@ -7,7 +7,9 @@ import {
 
 export const changeDateSchema = z.object({
 	entryId: z.number().int().positive(),
-	newDate: z.string(),
+	// The client sends `YYYY-MM-DDT00:00:00.000Z`, 24 characters; the ceiling
+	// only stops an arbitrary string being forwarded upstream.
+	newDate: z.string().max(32),
 	includeFuture: z.boolean().default(false),
 	action: z.enum(['test', 'save']).default('save')
 });

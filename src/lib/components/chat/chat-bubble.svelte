@@ -3,6 +3,7 @@
 	import { MessageCircle, X, Loader2, Bot, Send } from 'lucide-svelte';
 	import { onDestroy } from 'svelte';
 	import { describeError, describeResponse } from '$lib/utils/network';
+	import { loadSanitizer, type Sanitize } from '$lib/utils/sanitize';
 	import {
 		createPendingMessage,
 		hasNewReply,
@@ -80,13 +81,12 @@
 	 * Until it has landed, a message with markup renders as its plain-text
 	 * `body`. Nothing unsanitised is ever put in the document.
 	 */
-	let sanitize = $state<((html: string) => string) | null>(null);
+	let sanitize = $state<Sanitize | null>(null);
 
-	async function loadSanitizer(): Promise<void> {
+	async function ensureSanitizer(): Promise<void> {
 		if (sanitize) return;
 		try {
-			const { default: DOMPurify } = await import('dompurify');
-			sanitize = (html: string) => DOMPurify.sanitize(html);
+			sanitize = await loadSanitizer();
 		} catch {
 			// Left null, so every message falls back to its plain-text body.
 		}
@@ -155,7 +155,7 @@
 		// them, so it costs no extra wait on the way to a conversation.
 		const [res] = await Promise.all([
 			fetch(`/api/v1/chat/threads/${threadId}/messages`),
-			loadSanitizer()
+			ensureSanitizer()
 		]);
 		if (!res.ok) throw new Error(await describeResponse(res, 'Could not load these messages.'));
 		const data = await res.json();
@@ -225,6 +225,10 @@
 		const deadline = Date.now() + REPLY_POLL_TIMEOUT_MS;
 		awaitingReply = true;
 
+		// Not `revalidation`: this poll runs only while the bubble is open and a
+		// reply is owed, and stops itself at REPLY_POLL_TIMEOUT_MS — it is bounded
+		// by its deadline rather than by visibility.
+		// eslint-disable-next-line no-restricted-syntax
 		replyPollTimer = setInterval(async () => {
 			if (Date.now() > deadline) {
 				stopReplyPolling();
@@ -373,6 +377,9 @@
 
 		function start() {
 			if (timer !== null) return;
+			// Gated on visibility by `onVisibility` below — the same shape as
+			// `revalidation`, written out because it also stops while the bubble is open.
+			// eslint-disable-next-line no-restricted-syntax
 			timer = setInterval(refreshThreads, THREAD_POLL_INTERVAL_MS);
 		}
 
