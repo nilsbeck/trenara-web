@@ -746,7 +746,10 @@ export function createCalendarStore(initialDate: Date, options: CalendarStoreOpt
 			headers['If-None-Match'] = cached.etag;
 		}
 
-		const params = new URLSearchParams({ date: String(date.getTime()) });
+		// The day, not the instant: the server reads the month out of this in
+		// UTC, and the instant of local midnight on the 1st is still the month
+		// before there for anyone east of Greenwich.
+		const params = new URLSearchParams({ date: toLocalDateString(date) });
 		if (from) {
 			params.set('from', toLocalDateString(from));
 		}
