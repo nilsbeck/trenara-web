@@ -27,7 +27,7 @@
 	import { trainingLoad } from '$lib/utils/training-load';
 	import { describeError, describeResponse } from '$lib/utils/network';
 	import { SessionDetailStore } from '$lib/stores/session-detail.svelte';
-	import CooldownBlock from '$lib/components/training/cooldown-block.svelte';
+	import SessionBlocks from '$lib/components/training/session-blocks.svelte';
 	import {
 		activityIcon,
 		cooldownBlockIndex,
@@ -39,7 +39,6 @@
 		sessionSummary,
 		type SettingKey
 	} from '$lib/utils/session-setup';
-	import { blockTypeColor } from '$lib/utils/block-color';
 
 	let {
 		selectedDate,
@@ -579,93 +578,14 @@
 
 			<!-- Training blocks -->
 			{#if shownTraining?.training?.blocks && shownTraining.training.blocks.length > 0}
-				<div class="flex flex-col gap-3">
-					<h4 class="text-sm font-medium text-foreground">Training details</h4>
-					{#each shownTraining.training.blocks as block, blockIndex (blockIndex)}
-						{#if block.blocks && block.blocks.length > 0}
-							<!-- Composite block (intervals / repeat sets) -->
-							<div class="flex flex-col gap-1.5">
-								<!-- Header row: split-colour circle + label -->
-								<div class="flex items-center gap-2.5">
-									<div class="relative h-4 w-4 shrink-0 overflow-hidden rounded-full">
-										<div
-											class="absolute inset-0 right-1/2"
-											style="background-color: {blockTypeColor(block.blocks[0]?.type)}"
-										></div>
-										<div
-											class="absolute inset-0 left-1/2"
-											style="background-color: {blockTypeColor(
-												block.blocks[block.blocks.length - 1]?.type
-											)}"
-										></div>
-									</div>
-									<span class="text-sm font-medium text-foreground">
-										{#if block.text}
-											{block.text}{#if block.repeat && block.repeat > 1}&nbsp;×{block.repeat}{/if}
-										{:else}
-											Block{#if block.repeat && block.repeat > 1}
-												×{block.repeat}{/if}:
-										{/if}
-									</span>
-								</div>
-								<!-- Sub-blocks with coloured vertical bar -->
-								<div class="ml-[26px] flex flex-col gap-1">
-									{#each block.blocks as sub, subIndex (subIndex)}
-										<div class="flex items-start gap-2 text-sm">
-											<div
-												class="mt-[4px] w-[3px] shrink-0 self-stretch rounded-full"
-												style="background-color: {blockTypeColor(sub.type)}; min-height: 12px"
-											></div>
-											<span class="leading-snug text-foreground">{sub.text}</span>
-										</div>
-									{/each}
-								</div>
-							</div>
-						{:else if blockIndex === cooldownIndex}
-							<CooldownBlock
-								hasCooldown={true}
-								text={block.text ?? 'Cool-down'}
-								color={blockTypeColor(block.type)}
-								pending={detailStore.pending === 'cooldown'}
-								onchange={setCooldown}
-							/>
-						{:else}
-							<!-- Simple block: solid circle + text -->
-							<div class="flex items-center gap-2.5 text-sm">
-								<div
-									class="h-4 w-4 shrink-0 rounded-full"
-									style="background-color: {blockTypeColor(block.type)}"
-								></div>
-								<span class="text-foreground">{block.text}</span>
-							</div>
-						{/if}
-					{/each}
-
-					{#if cooldownNeedsOwnRow}
-						<!-- The session has a cool-down but did not name its block in a
-						     way we recognise, so the control gets a row of its own rather
-						     than being attached to whichever block happens to be last. -->
-						<CooldownBlock
-							hasCooldown={true}
-							text="Cool-down"
-							color={blockTypeColor('cooldown')}
-							pending={detailStore.pending === 'cooldown'}
-							onchange={setCooldown}
-						/>
-					{/if}
-
-					{#if cooldownRemoved}
-						<!-- Removed, the cool-down stays in place as a ghost: the plan shows
-						     what is missing and offers it straight back. -->
-						<CooldownBlock
-							hasCooldown={false}
-							text="Cool-down removed"
-							color={blockTypeColor('cooldown')}
-							pending={detailStore.pending === 'cooldown'}
-							onchange={setCooldown}
-						/>
-					{/if}
-				</div>
+				<SessionBlocks
+					blocks={shownTraining.training.blocks}
+					{cooldownIndex}
+					{cooldownNeedsOwnRow}
+					{cooldownRemoved}
+					cooldownPending={detailStore.pending === 'cooldown'}
+					onCooldownChange={setCooldown}
+				/>
 			{/if}
 
 			<!-- Plan vs Actual metrics table -->
