@@ -62,15 +62,6 @@ interface Step extends StepPosition {
 const SNAP_KM = 0.05;
 
 /**
- * How close a rep's end must be for the turn to wait for it. A turn is never
- * placed inside a rep — "1.3 km into the step above" is not something to
- * work out mid-interval — and before the rep is the default; finishing it
- * first is worth it only when that costs a few hundred metres. Out and back,
- * the shift counts twice at home.
- */
-const CALM_SHIFT_KM = 0.3;
-
-/**
  * Where to turn on an out-and-back so the runner is home when the session ends.
  *
  * It is the halfway point of the blocks as planned, which is what makes it
@@ -105,8 +96,7 @@ export function findTurnaround(training: ScheduledTraining): Turnaround | null {
 	const cooldownKm = isCooldown(last.block) ? last.endKm - last.startKm : 0;
 
 	const moved = step.isRep && intoKm < step.endKm - step.startKm;
-	const repEnd = moved ? chooseRepEnd(steps, i, halfKm, cooldownKm) : null;
-	if (repEnd) return { ...repEnd, cooldownKm, totalKm, unit };
+	if (moved) return { ...chooseRepEnd(steps, i, halfKm), cooldownKm, totalKm, unit };
 
 	return { point: pointIn(step, intoKm), extraKm: 0, cooldownKm, totalKm, unit };
 }
@@ -124,35 +114,25 @@ function pointIn(step: Step, intoKm: number): TurnPoint {
 }
 
 /**
- * Which end of the rep at `i` to turn at instead of inside it. Its start is
- * expressed as the end of the step before, so the marker keeps its one rule
- * of sitting after a step. Out and back, turning `d` later adds `d` both
- * ways — hence the doubling.
+ * The nearer end of the rep at `i`, to turn at instead of inside it: "1.3 km
+ * into the step above" is not something to work out mid-interval, and a rep
+ * is run whole. Its start is expressed as the end of the step before, so the
+ * marker keeps its one rule of sitting after a step; a rep that opens the
+ * session has no step before it and turns at its end. Out and back, turning
+ * `d` later adds `d` both ways — hence the doubling.
  *
- * Before the rep, unless its end is within `CALM_SHIFT_KM` and there is no
- * cool-down long enough to absorb turning early. Turning early brings the
- * runner home with distance still to run, which the cool-down can give up;
- * without one, a few hundred metres on after the session is the lighter cost.
- * Null only for a rep that opens the session, which has no start to turn at
- * and so is split after all.
+ * Nearer rather than always before or always after: either way the cool-down
+ * is what gives — shortened when the runner comes home early, run on when
+ * late — and the nearer end asks the least of it.
  */
 function chooseRepEnd(
 	steps: Step[],
 	i: number,
-	halfKm: number,
-	cooldownKm: number
-): { point: TurnPoint; extraKm: number } | null {
+	halfKm: number
+): { point: TurnPoint; extraKm: number } {
 	const rep = steps[i];
-	const toStart = halfKm - rep.startKm;
-	const toEnd = rep.endKm - halfKm;
-
-	const start = i > 0 ? steps[i - 1] : null;
-	const endIsClose = toEnd <= CALM_SHIFT_KM;
-
-	let at: Step | null = start;
-	if (endIsClose && !(start && cooldownKm >= 2 * toStart)) at = rep;
-	if (!at) return null;
-
+	const useStart = i > 0 && halfKm - rep.startKm < rep.endKm - halfKm;
+	const at = useStart ? steps[i - 1] : rep;
 	return {
 		point: pointIn(at, at.endKm - at.startKm),
 		extraKm: 2 * (at.endKm - halfKm)

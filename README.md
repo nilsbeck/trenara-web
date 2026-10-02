@@ -67,9 +67,8 @@ everything from the reverse-engineered Trenara API.
   screen, swipeable, with the speeds in your own units.
 - **A turnaround point** for out-and-back runs: a line across the plan at the halfway distance, so
   you are home as the session ends. It follows the cool-down when you remove or restore it, and when
-  halfway falls inside a rep it never splits it: it turns before the rep, or after it when the rep's
-  end is within a few hundred metres and no cool-down could take up turning early, and says what is
-  left to run once you are home.
+  halfway falls inside a rep it never splits it: it turns at whichever end of the rep is nearer, and
+  says what that does to the cool-down — cut short when you are home early, run on when late.
 
 ### Changing a session
 
