@@ -107,6 +107,12 @@ const ladderX3 = () => [
 	group(3, [m(600), m(166, 'rest'), km(1), m(125, 'rest'), m(800), m(586, 'rest')])
 ];
 
+const shortRepShortCooldown = () => [
+	m(600, 'warmup'),
+	group(1, [m(400, 'rest'), m(800), m(400, 'rest')]),
+	km(1, 'cooldown')
+];
+
 describe('findTurnaround', () => {
 	it('turns halfway through a single steady run', () => {
 		const t = findTurnaround(makeTraining([km(8)]));
@@ -114,36 +120,65 @@ describe('findTurnaround', () => {
 		expect(t?.extraKm).toBe(0);
 	});
 
-	it('turns at the nearer end of a long rep rather than inside it', () => {
+	it('turns halfway through a long rep when that only shortens the cool-down', () => {
 		// 13.02 km in all, so halfway is 6.51 km — 1.28 km into the second 2 km
-		// rep, 0.72 km from its end. The rep is run whole and the turn comes
-		// after it, at 7.23 km: 1.45 km more to run home after the session.
-		const t = findTurnaround(makeTraining(pyramid(), {}))!;
+		// rep. Before the rep would cost 2.55 km, more than the 2 km cool-down;
+		// after it would lengthen the cool-down. The rep's own halfway, 1 km in,
+		// takes 550 m off the cool-down.
+		const t = findTurnaround(makeTraining(pyramid()))!;
 		expect(t.totalKm).toBeCloseTo(13.022);
 		expect(t.point).toMatchObject({ blockIndex: 1, subIndex: 2, round: null });
-		expect(t.point.atKm).toBeCloseTo(7.234);
-		expect(t.point.intoKm).toBeCloseTo(t.point.stepKm);
-		expect(t.extraKm).toBeCloseTo(1.446);
+		expect(t.point.intoKm).toBeCloseTo(1);
+		expect(t.point.atKm).toBeCloseTo(6.234);
+		expect(t.extraKm).toBeCloseTo(-0.554);
 	});
 
-	it('turns after a rep that opens the session, which has no start to turn at', () => {
-		// 2.4 km, halfway 1.2 — nearer the rep's start, but nothing comes before it.
-		const t = findTurnaround(makeTraining([group(1, [km(2), m(400, 'rest')])]))!;
-		expect(t.point).toMatchObject({ blockIndex: 0, subIndex: 0 });
-		expect(t.point.atKm).toBeCloseTo(2);
-		expect(t.extraKm).toBeCloseTo(1.6);
-	});
-
-	it('moves back when the cool-down is removed, and out of the rep it lands in', () => {
-		// The server drops the block: 11.02 km, halfway at 5.51 — only 0.28 km
-		// into the second rep, so the turn moves to just before it, at the end
-		// of the recovery, and the runner is 0.55 km short of home at the end.
-		const blocks = pyramid().slice(0, 2);
-		const t = findTurnaround({ ...makeTraining(blocks), has_cooldown: false })!;
+	it('turns before the rep without a cool-down', () => {
+		// 11.02 km, halfway 5.51 — 0.28 km into the second rep. With nothing to
+		// shorten, coming home early (and running on round the block) still wins.
+		const t = findTurnaround({ ...makeTraining(pyramid().slice(0, 2)), has_cooldown: false })!;
 		expect(t.point).toMatchObject({ blockIndex: 1, subIndex: 1 });
 		expect(t.point.atKm).toBeCloseTo(5.234);
-		expect(t.point.intoKm).toBeCloseTo(t.point.stepKm);
 		expect(t.extraKm).toBeCloseTo(-0.554);
+	});
+
+	it('turns before a short rep even when its end is nearer, without a cool-down', () => {
+		// 6.4 km, halfway 3.2 — 0.2 km before the 1 km rep ends. A 1 km rep is
+		// not split at its middle, and early beats late.
+		const t = findTurnaround(
+			makeTraining([km(2, 'warmup'), group(1, [m(400, 'rest'), km(1), m(500, 'rest')]), km(2.5)])
+		)!;
+		expect(t.point).toMatchObject({ blockIndex: 1, subIndex: 0 });
+		expect(t.extraKm).toBeCloseTo(-1.6);
+	});
+
+	it('turns before a short rep when the cool-down can give up the difference', () => {
+		// 6 km, halfway 3.0 — 0.6 km into the 800 m rep. Turning before it takes
+		// 1.2 km off the 2.4 km cool-down.
+		const t = findTurnaround(
+			makeTraining([
+				km(2, 'warmup'),
+				group(1, [m(400, 'rest'), m(800), m(400, 'rest')]),
+				km(2.4, 'cooldown')
+			])
+		)!;
+		expect(t.point).toMatchObject({ blockIndex: 1, subIndex: 0 });
+		expect(t.extraKm).toBeCloseTo(-1.2);
+	});
+
+	it('turns after a short rep when the cool-down is too short to give it up', () => {
+		// 3.2 km, halfway 1.6 — turning before would cost 1.2 km of a 1 km
+		// cool-down, so the nearest place wins: after the rep, 0.4 km longer.
+		const t = findTurnaround(makeTraining(shortRepShortCooldown()))!;
+		expect(t.point).toMatchObject({ blockIndex: 1, subIndex: 1 });
+		expect(t.extraKm).toBeCloseTo(0.4);
+	});
+
+	it('turns halfway through a long rep that opens the session', () => {
+		const t = findTurnaround(makeTraining([group(1, [km(2), m(400, 'rest')])]))!;
+		expect(t.point).toMatchObject({ blockIndex: 0, subIndex: 0 });
+		expect(t.point.intoKm).toBeCloseTo(1);
+		expect(t.extraKm).toBeCloseTo(-0.4);
 	});
 
 	it('leaves out a cool-down block still sent on a session without one', () => {
@@ -174,53 +209,6 @@ describe('findTurnaround', () => {
 		const t = findTurnaround(makeTraining([km(4.06, 'warmup'), km(4.02)]))!;
 		expect(t.point).toMatchObject({ blockIndex: 0 });
 		expect(t.point.intoKm).toBeCloseTo(t.point.stepKm);
-	});
-
-	it('moves to the end of a rep that is close enough', () => {
-		// 2 + 0.4 + 1 + 0.5 + 2.5 = 6.4, halfway 3.2 — 0.2 km before the 1 km
-		// rep ends, so the turn waits for its end: 0.4 km more on the way home.
-		const t = findTurnaround(
-			makeTraining([km(2, 'warmup'), group(1, [m(400, 'rest'), km(1), m(500, 'rest')]), km(2.5)])
-		)!;
-		expect(t.point).toMatchObject({ blockIndex: 1, subIndex: 1 });
-		expect(t.point.atKm).toBeCloseTo(3.4);
-		expect(t.extraKm).toBeCloseTo(0.4);
-	});
-
-	it('moves to the start of a rep that is close enough', () => {
-		// 2 + 0.4 + 1 + 0.5 + 1.4 = 5.3, halfway 2.65 — 0.25 into the 1 km rep.
-		// Turning at its start (2.4 km) leaves 0.5 km short of home.
-		const t = findTurnaround(
-			makeTraining([km(2, 'warmup'), group(1, [m(400, 'rest'), km(1), m(500, 'rest')]), km(1.4)])
-		)!;
-		expect(t.point).toMatchObject({ blockIndex: 1, subIndex: 0 });
-		expect(t.extraKm).toBeCloseTo(-0.5);
-	});
-
-	it('never splits a short rep, however far its end is', () => {
-		// 2 + 0.4 + 0.8 + 0.4 + 1.9 = 5.5, halfway 2.75 — 0.35 km into the
-		// 800 m rep, further from either end than a long rep would be moved. A
-		// fast 800 m is run whole: the turn comes just before it, 0.7 km short.
-		const t = findTurnaround(
-			makeTraining([km(2, 'warmup'), group(1, [m(400, 'rest'), m(800), m(400, 'rest')]), km(1.9)])
-		)!;
-		expect(t.point).toMatchObject({ blockIndex: 1, subIndex: 0 });
-		expect(t.point.atKm).toBeCloseTo(2.4);
-		expect(t.extraKm).toBeCloseTo(-0.7);
-	});
-
-	it('takes the nearer end whatever the cool-down', () => {
-		// 0.6 + 0.4 + 0.8 + 0.4 + 1.0 cool-down = 3.2, halfway 1.6 — 0.6 km into
-		// the rep, so its end is nearer: 0.4 km on after the session.
-		const t = findTurnaround(
-			makeTraining([
-				m(600, 'warmup'),
-				group(1, [m(400, 'rest'), m(800), m(400, 'rest')]),
-				km(1, 'cooldown')
-			])
-		)!;
-		expect(t.point).toMatchObject({ blockIndex: 1, subIndex: 1 });
-		expect(t.extraKm).toBeCloseTo(0.4);
 	});
 
 	it('treats a lone run in a group as steady, not a rep', () => {
@@ -279,41 +267,25 @@ describe('describeTurnaround', () => {
 		expect(text.home).toBeNull();
 	});
 
-	it('says how much more there is to run home after a late turn', () => {
+	it('names the shorter cool-down when the turn comes in the middle of a rep', () => {
 		const text = describeTurnaround(findTurnaround(makeTraining(pyramid()))!);
-		expect(text.headline).toBe('Turn around at 7.2 km');
-		expect(text.detail).toBe('Once the step above is done');
-		expect(text.home).toBe('Cool-down 1.4 km longer');
+		expect(text).toEqual({
+			headline: 'Turn around at 6.2 km',
+			detail: '1.0 km into the step above',
+			home: 'Cool-down 550 m shorter'
+		});
 	});
 
-	it('takes what is left on reaching home out of the cool-down', () => {
-		// The rep is 2.4–3.4 km and halfway 2.65, so the turn comes before it,
-		// 0.5 km early — out of the cool-down when it is long enough.
-		const rep = () => group(1, [m(400, 'rest'), km(1), m(500, 'rest')]);
-		const within = describeTurnaround(
-			findTurnaround(makeTraining([km(2, 'warmup'), rep(), km(1.4, 'cooldown')]))!
-		);
-		expect(within.home).toBe('Cool-down 500 m shorter');
-
-		const beyond = describeTurnaround(
-			findTurnaround(makeTraining([km(2, 'warmup'), rep(), km(1.2), m(200, 'cooldown')]))!
-		);
-		expect(beyond.home).toBe('Home 500 m early');
+	it('names a longer cool-down when turning early would cost more than it holds', () => {
+		const text = describeTurnaround(findTurnaround(makeTraining(shortRepShortCooldown()))!);
+		expect(text.home).toBe('Cool-down 400 m longer');
 	});
 
-	it('says what a turn kept out of a rep does to the way home', () => {
-		const blocks = pyramid().slice(0, 2);
-		const short = describeTurnaround(
-			findTurnaround({ ...makeTraining(blocks), has_cooldown: false })!
-		);
-		expect(short.detail).toBe('Once the step above is done');
-		expect(short.home).toBe('Home 550 m early');
+	it('says home early, or extra to get home, without a cool-down', () => {
+		const early = findTurnaround({ ...makeTraining(pyramid().slice(0, 2)), has_cooldown: false })!;
+		expect(describeTurnaround(early).home).toBe('Home 550 m early');
 
-		const long = describeTurnaround(
-			findTurnaround(
-				makeTraining([km(2, 'warmup'), group(1, [m(400, 'rest'), km(1), m(500, 'rest')]), km(2.5)])
-			)!
-		);
-		expect(long.home).toBe('400 m extra to get home');
+		const late = findTurnaround(makeTraining([group(1, [m(800), m(400, 'rest')])]))!;
+		expect(describeTurnaround(late).home).toBe('400 m extra to get home');
 	});
 });

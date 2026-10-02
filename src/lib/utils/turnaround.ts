@@ -36,7 +36,7 @@ export interface Turnaround {
 	 * What turning at `point` rather than at exactly halfway does to the way
 	 * home: positive is that much further to run once the session is over,
 	 * negative that much of the session still to run on reaching the door.
-	 * Zero unless the turn was moved out of a rep (see `chooseRepEnd`).
+	 * Zero unless the turn was moved out of a rep (see `chooseRepTurn`).
 	 */
 	extraKm: number;
 	/** Length of the cool-down the session ends with, or 0 without one. */
@@ -96,7 +96,7 @@ export function findTurnaround(training: ScheduledTraining): Turnaround | null {
 	const cooldownKm = isCooldown(last.block) ? last.endKm - last.startKm : 0;
 
 	const moved = step.isRep && intoKm < step.endKm - step.startKm;
-	if (moved) return { ...chooseRepEnd(steps, i, halfKm), cooldownKm, totalKm, unit };
+	if (moved) return { ...chooseRepTurn(steps, i, halfKm, cooldownKm), cooldownKm, totalKm, unit };
 
 	return { point: pointIn(step, intoKm), extraKm: 0, cooldownKm, totalKm, unit };
 }
@@ -114,29 +114,47 @@ function pointIn(step: Step, intoKm: number): TurnPoint {
 }
 
 /**
- * The nearer end of the rep at `i`, to turn at instead of inside it: "1.3 km
- * into the step above" is not something to work out mid-interval, and a rep
- * is run whole. Its start is expressed as the end of the step before, so the
- * marker keeps its one rule of sitting after a step; a rep that opens the
- * session has no step before it and turns at its end. Out and back, turning
- * `d` later adds `d` both ways — hence the doubling.
- *
- * Nearer rather than always before or always after: either way the cool-down
- * is what gives — shortened when the runner comes home early, run on when
- * late — and the nearer end asks the least of it.
+ * A rep longer than this may also be turned at its own halfway — "1 km into
+ * the 2 km rep" is a point a runner can hold mid-interval, where 1.28 km is
+ * not. A shorter rep is run fast and run whole.
  */
-function chooseRepEnd(
+const LONG_REP_KM = 1;
+
+/**
+ * Where to turn when halfway falls inside the rep at `i`, which is never at
+ * the exact point: "1.3 km into the step above" is not something to work out
+ * mid-interval. The places on offer are the rep's start (expressed as the end
+ * of the step before, so the marker keeps its one rule of sitting after a
+ * step), its end, and — for a long rep — its own halfway. Out and back,
+ * turning `d` later adds `d` both ways, hence the doubling.
+ *
+ * The lean is towards turning early, because the runner would rather cut the
+ * cool-down short than run on past the end of the session: of the places that
+ * bring them home early, the latest whose shortfall the cool-down can give up
+ * — or any of them, without a cool-down, where the rest is a loop round the
+ * block. Only when none fits does the turn go to whichever place is nearest.
+ */
+function chooseRepTurn(
 	steps: Step[],
 	i: number,
-	halfKm: number
+	halfKm: number,
+	cooldownKm: number
 ): { point: TurnPoint; extraKm: number } {
 	const rep = steps[i];
-	const useStart = i > 0 && halfKm - rep.startKm < rep.endKm - halfKm;
-	const at = useStart ? steps[i - 1] : rep;
-	return {
-		point: pointIn(at, at.endKm - at.startKm),
-		extraKm: 2 * (at.endKm - halfKm)
-	};
+	const repKm = rep.endKm - rep.startKm;
+	const places = [
+		...(i > 0 ? [pointIn(steps[i - 1], steps[i - 1].endKm - steps[i - 1].startKm)] : []),
+		...(repKm > LONG_REP_KM ? [pointIn(rep, repKm / 2)] : []),
+		pointIn(rep, repKm)
+	].map((point) => ({ point, extraKm: 2 * (point.atKm - halfKm) }));
+
+	const fits = places.filter(
+		(p) => p.extraKm <= 0 && (cooldownKm === 0 || -p.extraKm <= cooldownKm)
+	);
+	if (fits.length > 0) {
+		return fits.reduce((best, p) => (p.extraKm > best.extraKm ? p : best));
+	}
+	return places.reduce((best, p) => (Math.abs(p.extraKm) < Math.abs(best.extraKm) ? p : best));
 }
 
 /**
