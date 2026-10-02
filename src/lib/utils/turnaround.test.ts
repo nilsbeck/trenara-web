@@ -188,6 +188,18 @@ describe('findTurnaround', () => {
 		expect(t.extraKm).toBeCloseTo(-0.5);
 	});
 
+	it('never splits a short rep, however far its end is', () => {
+		// 2 + 0.4 + 0.8 + 0.4 + 1.9 = 5.5, halfway 2.75 — 0.35 km into the
+		// 800 m rep, further from either end than a long rep would be moved. A
+		// fast 800 m is run whole: the turn comes just before it, 0.7 km short.
+		const t = findTurnaround(
+			makeTraining([km(2, 'warmup'), group(1, [m(400, 'rest'), m(800), m(400, 'rest')]), km(1.9)])
+		)!;
+		expect(t.point).toMatchObject({ blockIndex: 1, subIndex: 0 });
+		expect(t.point.atKm).toBeCloseTo(2.4);
+		expect(t.extraKm).toBeCloseTo(-0.7);
+	});
+
 	it('treats a lone run in a group as steady, not a rep', () => {
 		const t = findTurnaround(makeTraining([km(2, 'warmup'), group(1, [km(4)]), km(2)]))!;
 		expect(t.point).toMatchObject({ blockIndex: 1, subIndex: 0 });

@@ -36,7 +36,7 @@ export interface Turnaround {
 	 * What turning at `point` rather than at exactly halfway does to the way
 	 * home: positive is that much further to run once the session is over,
 	 * negative that much short of the door when it ends. Zero unless the turn
-	 * was moved out of a rep (see `CALM_SHIFT_KM`).
+	 * was moved out of a rep (see `SHORT_REP_KM` and `CALM_SHIFT_KM`).
 	 */
 	extraKm: number;
 	totalKm: number;
@@ -66,6 +66,13 @@ const SNAP_KM = 0.05;
  * is the better of the two. Out and back, the shift counts twice at home.
  */
 const CALM_SHIFT_KM = 0.3;
+
+/**
+ * A rep this short is never split, however far its nearer end is. Up to a
+ * kilometre it is run fast, and stopping to turn in the middle of a fast
+ * 800 m spoils it more than half of it — at most 500 m — does at the door.
+ */
+const SHORT_REP_KM = 1;
 
 /**
  * Where to turn on an out-and-back so the runner is home when the session ends.
@@ -100,7 +107,8 @@ export function findTurnaround(training: ScheduledTraining): Turnaround | null {
 
 	const midRep = step.isRep && intoKm < step.endKm - step.startKm;
 	const calm = midRep ? repBoundary(steps, i, halfKm) : null;
-	if (calm && Math.abs(calm.extraKm) <= 2 * CALM_SHIFT_KM) {
+	const stepKm = step.endKm - step.startKm;
+	if (calm && (stepKm <= SHORT_REP_KM || Math.abs(calm.extraKm) <= 2 * CALM_SHIFT_KM)) {
 		return { ...calm, totalKm, unit };
 	}
 
