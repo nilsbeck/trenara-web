@@ -62,19 +62,13 @@ interface Step extends StepPosition {
 const SNAP_KM = 0.05;
 
 /**
- * How far a turn may move to get out of a rep. Wheeling round mid-interval
- * breaks it, and a few hundred metres either way costs little at the door —
- * but past that the split stops being even, and turning 1 km into a 2 km rep
- * is the better of the two. Out and back, the shift counts twice at home.
+ * How close a rep's end must be for the turn to wait for it. A turn is never
+ * placed inside a rep — "1.3 km into the step above" is not something to
+ * work out mid-interval — and before the rep is the default; finishing it
+ * first is worth it only when that costs a few hundred metres. Out and back,
+ * the shift counts twice at home.
  */
 const CALM_SHIFT_KM = 0.3;
-
-/**
- * A rep this short is never split, however far its nearer end is. Up to a
- * kilometre it is run fast, and stopping to turn in the middle of a fast
- * 800 m spoils it more than half of it — at most 500 m — does at the door.
- */
-const SHORT_REP_KM = 1;
 
 /**
  * Where to turn on an out-and-back so the runner is home when the session ends.
@@ -130,16 +124,17 @@ function pointIn(step: Step, intoKm: number): TurnPoint {
 }
 
 /**
- * Which end of the rep at `i` to turn at instead of inside it, or null to
- * turn inside it after all. Its start is expressed as the end of the step
- * before, so the marker keeps its one rule of sitting after a step. Out and
- * back, turning `d` later adds `d` both ways — hence the doubling.
+ * Which end of the rep at `i` to turn at instead of inside it. Its start is
+ * expressed as the end of the step before, so the marker keeps its one rule
+ * of sitting after a step. Out and back, turning `d` later adds `d` both
+ * ways — hence the doubling.
  *
- * An end is on offer when the rep is short (`SHORT_REP_KM`) or the end is
- * close (`CALM_SHIFT_KM`). Of those, the start wins whenever the cool-down
- * can absorb what turning early leaves to run: the runner is then home with
- * part of the cool-down left, to cut short or run on, which beats running on
- * past the end of the session. Otherwise the nearer end.
+ * Before the rep, unless its end is within `CALM_SHIFT_KM` and there is no
+ * cool-down long enough to absorb turning early. Turning early brings the
+ * runner home with distance still to run, which the cool-down can give up;
+ * without one, a few hundred metres on after the session is the lighter cost.
+ * Null only for a rep that opens the session, which has no start to turn at
+ * and so is split after all.
  */
 function chooseRepEnd(
 	steps: Step[],
@@ -148,19 +143,16 @@ function chooseRepEnd(
 	cooldownKm: number
 ): { point: TurnPoint; extraKm: number } | null {
 	const rep = steps[i];
-	const short = rep.endKm - rep.startKm <= SHORT_REP_KM;
 	const toStart = halfKm - rep.startKm;
 	const toEnd = rep.endKm - halfKm;
 
-	const start = i > 0 && (short || toStart <= CALM_SHIFT_KM) ? steps[i - 1] : null;
-	const end = short || toEnd <= CALM_SHIFT_KM ? rep : null;
+	const start = i > 0 ? steps[i - 1] : null;
+	const endIsClose = toEnd <= CALM_SHIFT_KM;
 
-	let at: Step | null;
-	if (start && cooldownKm >= 2 * toStart) at = start;
-	else if (start && end) at = toStart < toEnd ? start : end;
-	else at = start ?? end;
-
+	let at: Step | null = start;
+	if (endIsClose && !(start && cooldownKm >= 2 * toStart)) at = rep;
 	if (!at) return null;
+
 	return {
 		point: pointIn(at, at.endKm - at.startKm),
 		extraKm: 2 * (at.endKm - halfKm)
@@ -273,6 +265,8 @@ export function describeTurnaround(t: Turnaround): TurnaroundText {
 			home = `Kept out of the rep: ${fmt(extraKm)} more to run home after the session`;
 		} else if (cooldownKm >= -extraKm) {
 			home = `Kept out of the rep: home with ${fmt(-extraKm)} of the cool-down left — cut it short or run on`;
+		} else if (cooldownKm > 0) {
+			home = `Kept out of the rep: home with ${fmt(-extraKm)} still to run, the cool-down and ${fmt(-extraKm - cooldownKm)} more`;
 		} else {
 			home = `Kept out of the rep: home with ${fmt(-extraKm)} still to run`;
 		}

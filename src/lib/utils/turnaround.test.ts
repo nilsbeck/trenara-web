@@ -114,14 +114,21 @@ describe('findTurnaround', () => {
 		expect(t?.extraKm).toBe(0);
 	});
 
-	it('turns mid-rep when the rep is too long to step out of', () => {
+	it('turns before a long rep rather than inside it', () => {
 		// 13.02 km in all, so halfway is 6.51 km — 1.28 km into the second 2 km
-		// rep. Its nearer end is 0.72 km away, too far for an even split, so the
-		// turn stays mid-rep.
+		// rep, 0.72 km from its end. The turn comes before the rep, after the
+		// recovery at 5.23 km: home with 2.55 km to go, 2 km of it cool-down.
 		const t = findTurnaround(makeTraining(pyramid(), {}))!;
 		expect(t.totalKm).toBeCloseTo(13.022);
-		expect(t.point).toMatchObject({ blockIndex: 1, subIndex: 2, round: null });
-		expect(t.point.intoKm).toBeCloseTo(1.277);
+		expect(t.point).toMatchObject({ blockIndex: 1, subIndex: 1, round: null });
+		expect(t.point.atKm).toBeCloseTo(5.234);
+		expect(t.extraKm).toBeCloseTo(-2.554);
+	});
+
+	it('splits a rep only when it opens the session', () => {
+		const t = findTurnaround(makeTraining([group(1, [km(2), m(400, 'rest')])]))!;
+		expect(t.point).toMatchObject({ blockIndex: 0, subIndex: 0 });
+		expect(t.point.intoKm).toBeCloseTo(1.2);
 		expect(t.extraKm).toBe(0);
 	});
 
@@ -287,9 +294,17 @@ describe('describeTurnaround', () => {
 	});
 
 	it('says nothing about home when the split is even', () => {
-		const text = describeTurnaround(findTurnaround(makeTraining(pyramid()))!);
-		expect(text.detail).toBe('1.3 km into the step above');
+		const text = describeTurnaround(findTurnaround(makeTraining(ladderX3()))!);
 		expect(text.home).toBeNull();
+	});
+
+	it('counts the cool-down into what is left on reaching home', () => {
+		const text = describeTurnaround(findTurnaround(makeTraining(pyramid()))!);
+		expect(text.headline).toBe('Turn around at 5.2 km');
+		expect(text.detail).toBe('Once the step above is done');
+		expect(text.home).toBe(
+			'Kept out of the rep: home with 2.6 km still to run, the cool-down and 550 m more'
+		);
 	});
 
 	it('says what a turn kept out of a rep does to the way home', () => {
