@@ -214,7 +214,7 @@ export interface TurnaroundText {
 	headline: string;
 	/** Where that is in the plan, or null where the headline already says it. */
 	detail: string | null;
-	/** What a turn moved out of a rep does to the way home, when it was moved. */
+	/** What a turn moved out of a rep does to the cool-down or the way home, when it was moved. */
 	home: string | null;
 }
 
@@ -237,18 +237,16 @@ export function describeTurnaround(t: Turnaround): TurnaroundText {
 		detail = `${fmt(point.intoKm)} into the step above${round}`;
 	}
 
+	// One short consequence. The cool-down is what gives either way — run on
+	// when the turn is late, cut short when it is early — so it is named where
+	// there is one that can take the difference.
 	let home: string | null = null;
 	if (Math.abs(extraKm) >= SNAP_KM) {
-		// Turning early brings the runner home before the session is over, with
-		// the rest still to run — out of the cool-down, where there is one.
+		const by = fmt(Math.abs(extraKm));
 		if (extraKm > 0) {
-			home = `Kept out of the rep: ${fmt(extraKm)} more to run home after the session`;
-		} else if (cooldownKm >= -extraKm) {
-			home = `Kept out of the rep: home with ${fmt(-extraKm)} of the cool-down left — cut it short or run on`;
-		} else if (cooldownKm > 0) {
-			home = `Kept out of the rep: home with ${fmt(-extraKm)} still to run, the cool-down and ${fmt(-extraKm - cooldownKm)} more`;
+			home = cooldownKm > 0 ? `Cool-down ${by} longer` : `${by} extra to get home`;
 		} else {
-			home = `Kept out of the rep: home with ${fmt(-extraKm)} still to run`;
+			home = cooldownKm >= -extraKm ? `Cool-down ${by} shorter` : `Home ${by} early`;
 		}
 	}
 

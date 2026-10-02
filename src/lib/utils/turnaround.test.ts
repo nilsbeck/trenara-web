@@ -283,7 +283,7 @@ describe('describeTurnaround', () => {
 		const text = describeTurnaround(findTurnaround(makeTraining(pyramid()))!);
 		expect(text.headline).toBe('Turn around at 7.2 km');
 		expect(text.detail).toBe('Once the step above is done');
-		expect(text.home).toBe('Kept out of the rep: 1.4 km more to run home after the session');
+		expect(text.home).toBe('Cool-down 1.4 km longer');
 	});
 
 	it('takes what is left on reaching home out of the cool-down', () => {
@@ -293,16 +293,12 @@ describe('describeTurnaround', () => {
 		const within = describeTurnaround(
 			findTurnaround(makeTraining([km(2, 'warmup'), rep(), km(1.4, 'cooldown')]))!
 		);
-		expect(within.home).toBe(
-			'Kept out of the rep: home with 500 m of the cool-down left — cut it short or run on'
-		);
+		expect(within.home).toBe('Cool-down 500 m shorter');
 
 		const beyond = describeTurnaround(
 			findTurnaround(makeTraining([km(2, 'warmup'), rep(), km(1.2), m(200, 'cooldown')]))!
 		);
-		expect(beyond.home).toBe(
-			'Kept out of the rep: home with 500 m still to run, the cool-down and 300 m more'
-		);
+		expect(beyond.home).toBe('Home 500 m early');
 	});
 
 	it('says what a turn kept out of a rep does to the way home', () => {
@@ -311,13 +307,13 @@ describe('describeTurnaround', () => {
 			findTurnaround({ ...makeTraining(blocks), has_cooldown: false })!
 		);
 		expect(short.detail).toBe('Once the step above is done');
-		expect(short.home).toBe('Kept out of the rep: home with 550 m still to run');
+		expect(short.home).toBe('Home 550 m early');
 
 		const long = describeTurnaround(
 			findTurnaround(
 				makeTraining([km(2, 'warmup'), group(1, [m(400, 'rest'), km(1), m(500, 'rest')]), km(2.5)])
 			)!
 		);
-		expect(long.home).toBe('Kept out of the rep: 400 m more to run home after the session');
+		expect(long.home).toBe('400 m extra to get home');
 	});
 });
