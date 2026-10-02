@@ -381,6 +381,42 @@ describe('cool-down', () => {
 		vi.unstubAllGlobals();
 	});
 
+	it('moves the turnaround back when the cool-down is removed', async () => {
+		const measured: ScheduledTraining = {
+			...withCooldown,
+			training: {
+				...withCooldown.training,
+				blocks: [
+					{ order: 1, type: 'warmup', calc_distance_in_km: 2, text: 'Warm-up: 2km' },
+					{ order: 2, type: 'run', calc_distance_in_km: 8, text: 'Run 8km' },
+					{ order: 3, type: 'cooldown', calc_distance_in_km: 2, text: 'Cool-down: 2km easy' }
+				]
+			}
+		};
+		const dropped = {
+			...measured,
+			has_cooldown: false,
+			training: { ...measured.training, blocks: measured.training.blocks.slice(0, 2) }
+		};
+		vi.stubGlobal(
+			'fetch',
+			vi
+				.fn()
+				.mockResolvedValueOnce({ ok: true, status: 200, json: async () => measured })
+				.mockResolvedValueOnce({ ok: true, status: 200, json: async () => dropped })
+		);
+
+		render(TrainingDetails, {
+			props: { selectedDate: '2026-08-22', training: base, entry: null, isLoading: false }
+		});
+
+		// 12 km out and back turns at 6; without the 2 km cool-down, at 5.
+		await waitFor(() => expect(screen.getByText('Turn around at 6.0 km')).toBeTruthy());
+		await fireEvent.click(screen.getByText('Remove'));
+		await waitFor(() => expect(screen.getByText('Turn around at 5.0 km')).toBeTruthy());
+		vi.unstubAllGlobals();
+	});
+
 	it('shows a removed cool-down in the plan rather than on a chip', async () => {
 		const dropped = { ...withCooldown, has_cooldown: false };
 		vi.stubGlobal(

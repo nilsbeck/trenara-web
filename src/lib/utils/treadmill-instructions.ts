@@ -79,7 +79,7 @@ export function buildTreadmillInstructions(training: ScheduledTraining): Treadmi
  * contribute 0 since there's no fixed distance — as do cross-trained
  * sessions, where every distance field comes back null.
  */
-function blockDistanceKm(block: TrainingBlock): number {
+export function blockDistanceKm(block: TrainingBlock): number {
 	if (typeof block.calc_distance_in_km === 'number' && block.calc_distance_in_km > 0) {
 		return block.calc_distance_in_km;
 	}
@@ -100,13 +100,13 @@ function blockDistanceKm(block: TrainingBlock): number {
  * than assumed, so the running total is never labelled in a unit the rest of
  * the app isn't using.
  */
-function sessionDistanceUnit(training: ScheduledTraining): string {
+export function sessionDistanceUnit(training: ScheduledTraining): string {
 	const t = training.training;
 	return t?.total_distance_unit_text || t?.total_distance_unit || 'km';
 }
 
 /** Whether a unit string names kilometres (the unit `calc_distance_in_km` is in). */
-function isKilometres(unit: string): boolean {
+export function isKilometres(unit: string): boolean {
 	return unit.toLowerCase().startsWith('km');
 }
 

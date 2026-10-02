@@ -1,7 +1,9 @@
 <script lang="ts">
 	import type { TrainingBlock } from '$lib/server/trenara/types';
 	import CooldownBlock from '$lib/components/training/cooldown-block.svelte';
+	import TurnaroundMarker from '$lib/components/training/turnaround-marker.svelte';
 	import { blockTypeColor } from '$lib/utils/block-color';
+	import { describeTurnaround, type Turnaround } from '$lib/utils/turnaround';
 
 	let {
 		blocks,
@@ -9,7 +11,8 @@
 		cooldownNeedsOwnRow,
 		cooldownRemoved,
 		cooldownPending,
-		onCooldownChange
+		onCooldownChange,
+		turnaround = null
 	}: {
 		blocks: TrainingBlock[];
 		/** The block that is the cool-down control, or -1 where none is. */
@@ -20,7 +23,20 @@
 		cooldownRemoved: boolean;
 		cooldownPending: boolean;
 		onCooldownChange: (next: boolean) => void;
+		/** Where to turn on an out-and-back, drawn after the step it falls in. */
+		turnaround?: Turnaround | null;
 	} = $props();
+
+	const turnText = $derived(turnaround ? describeTurnaround(turnaround) : null);
+
+	/** Whether the turn marker goes straight after this step. */
+	function turnsAfter(blockIndex: number, subIndex: number | null): boolean {
+		return (
+			turnaround !== null &&
+			turnaround.exact.blockIndex === blockIndex &&
+			turnaround.exact.subIndex === subIndex
+		);
+	}
 </script>
 
 <!--
@@ -67,6 +83,9 @@
 							></div>
 							<span class="leading-snug text-foreground">{sub.text}</span>
 						</div>
+						{#if turnText && turnsAfter(blockIndex, subIndex)}
+							<TurnaroundMarker text={turnText} />
+						{/if}
 					{/each}
 				</div>
 			</div>
@@ -87,6 +106,9 @@
 				></div>
 				<span class="text-foreground">{block.text}</span>
 			</div>
+		{/if}
+		{#if turnText && turnsAfter(blockIndex, null)}
+			<TurnaroundMarker text={turnText} />
 		{/if}
 	{/each}
 

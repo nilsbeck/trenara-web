@@ -28,6 +28,7 @@
 	import { describeError, describeResponse } from '$lib/utils/network';
 	import { SessionDetailStore } from '$lib/stores/session-detail.svelte';
 	import SessionBlocks from '$lib/components/training/session-blocks.svelte';
+	import { findTurnaround } from '$lib/utils/turnaround';
 	import {
 		activityIcon,
 		cooldownBlockIndex,
@@ -181,6 +182,13 @@
 
 	/** True when the cool-down has been dropped, so the plan shows what is gone. */
 	const cooldownRemoved = $derived(canToggleCooldown && !setupTraining?.has_cooldown);
+
+	// Halfway, for a runner who goes out and back. Read off the shown copy, so
+	// it moves as soon as a cool-down change lands; a run already done has no
+	// way home left to plan.
+	const turnaround = $derived(
+		shownTraining && entry === null ? findTurnaround(shownTraining) : null
+	);
 
 	function setCooldown(next: boolean) {
 		void detailStore.setCooldown(next);
@@ -585,6 +593,7 @@
 					{cooldownRemoved}
 					cooldownPending={detailStore.pending === 'cooldown'}
 					onCooldownChange={setCooldown}
+					{turnaround}
 				/>
 			{/if}
 
