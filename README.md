@@ -65,6 +65,10 @@ everything from the reverse-engineered Trenara API.
   the training card.
 - **Treadmill mode**: the session as step-by-step instructions with the current and next step on
   screen, swipeable, with the speeds in your own units.
+- **A turnaround point** for out-and-back runs: a line across the plan at the halfway distance, so
+  you are home as the session ends. It follows the cool-down when you remove or restore it, and when
+  halfway falls inside a rep it turns before the rep, or halfway through a long one, leaning towards a
+  shorter cool-down rather than a longer one, and says by how much.
 
 ### Changing a session
 
