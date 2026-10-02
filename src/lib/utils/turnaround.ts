@@ -35,10 +35,12 @@ export interface Turnaround {
 	/**
 	 * What turning at `point` rather than at exactly halfway does to the way
 	 * home: positive is that much further to run once the session is over,
-	 * negative that much short of the door when it ends. Zero unless the turn
-	 * was moved out of a rep (see `SHORT_REP_KM` and `CALM_SHIFT_KM`).
+	 * negative that much of the session still to run on reaching the door.
+	 * Zero unless the turn was moved out of a rep (see `chooseRepEnd`).
 	 */
 	extraKm: number;
+	/** Length of the cool-down the session ends with, or 0 without one. */
+	cooldownKm: number;
 	totalKm: number;
 	/** The session's own distance unit, so the figures are never labelled in another. */
 	unit: string;
@@ -105,14 +107,14 @@ export function findTurnaround(training: ScheduledTraining): Turnaround | null {
 	const step = steps[i];
 	const intoKm = step.endKm - halfKm < SNAP_KM ? step.endKm - step.startKm : halfKm - step.startKm;
 
-	const midRep = step.isRep && intoKm < step.endKm - step.startKm;
-	const calm = midRep ? repBoundary(steps, i, halfKm) : null;
-	const stepKm = step.endKm - step.startKm;
-	if (calm && (stepKm <= SHORT_REP_KM || Math.abs(calm.extraKm) <= 2 * CALM_SHIFT_KM)) {
-		return { ...calm, totalKm, unit };
-	}
+	const last = steps[steps.length - 1];
+	const cooldownKm = isCooldown(last.block) ? last.endKm - last.startKm : 0;
 
-	return { point: pointIn(step, intoKm), extraKm: 0, totalKm, unit };
+	const moved = step.isRep && intoKm < step.endKm - step.startKm;
+	const repEnd = moved ? chooseRepEnd(steps, i, halfKm, cooldownKm) : null;
+	if (repEnd) return { ...repEnd, cooldownKm, totalKm, unit };
+
+	return { point: pointIn(step, intoKm), extraKm: 0, cooldownKm, totalKm, unit };
 }
 
 function pointIn(step: Step, intoKm: number): TurnPoint {
@@ -128,18 +130,37 @@ function pointIn(step: Step, intoKm: number): TurnPoint {
 }
 
 /**
- * The nearer end of the rep at `i`. Its start is expressed as the end of the
- * step before, so the marker keeps its one rule of sitting after a step. Out
- * and back, turning `d` later adds `d` both ways — hence the doubling.
+ * Which end of the rep at `i` to turn at instead of inside it, or null to
+ * turn inside it after all. Its start is expressed as the end of the step
+ * before, so the marker keeps its one rule of sitting after a step. Out and
+ * back, turning `d` later adds `d` both ways — hence the doubling.
+ *
+ * An end is on offer when the rep is short (`SHORT_REP_KM`) or the end is
+ * close (`CALM_SHIFT_KM`). Of those, the start wins whenever the cool-down
+ * can absorb what turning early leaves to run: the runner is then home with
+ * part of the cool-down left, to cut short or run on, which beats running on
+ * past the end of the session. Otherwise the nearer end.
  */
-function repBoundary(
+function chooseRepEnd(
 	steps: Step[],
 	i: number,
-	halfKm: number
-): { point: TurnPoint; extraKm: number } {
+	halfKm: number,
+	cooldownKm: number
+): { point: TurnPoint; extraKm: number } | null {
 	const rep = steps[i];
-	const useStart = i > 0 && halfKm - rep.startKm < rep.endKm - halfKm;
-	const at = useStart ? steps[i - 1] : rep;
+	const short = rep.endKm - rep.startKm <= SHORT_REP_KM;
+	const toStart = halfKm - rep.startKm;
+	const toEnd = rep.endKm - halfKm;
+
+	const start = i > 0 && (short || toStart <= CALM_SHIFT_KM) ? steps[i - 1] : null;
+	const end = short || toEnd <= CALM_SHIFT_KM ? rep : null;
+
+	let at: Step | null;
+	if (start && cooldownKm >= 2 * toStart) at = start;
+	else if (start && end) at = toStart < toEnd ? start : end;
+	else at = start ?? end;
+
+	if (!at) return null;
 	return {
 		point: pointIn(at, at.endKm - at.startKm),
 		extraKm: 2 * (at.endKm - halfKm)
@@ -164,7 +185,7 @@ function flatten(training: ScheduledTraining): Step[] {
 	};
 
 	blocks.forEach((block, blockIndex) => {
-		if (dropCooldown && (block.type ?? '').toLowerCase().includes('cool')) return;
+		if (dropCooldown && isCooldown(block)) return;
 
 		const subs = block.blocks ?? [];
 		if (subs.length === 0) {
@@ -193,6 +214,10 @@ function flatten(training: ScheduledTraining): Step[] {
 	});
 
 	return steps;
+}
+
+function isCooldown(block: TrainingBlock): boolean {
+	return (block.type ?? '').toLowerCase().includes('cool');
 }
 
 function isRunType(type: string | undefined): boolean {
@@ -227,7 +252,7 @@ export interface TurnaroundText {
  */
 export function describeTurnaround(t: Turnaround): TurnaroundText {
 	const fmt = (km: number) => formatTurnDistance(km, t.unit);
-	const { point, extraKm } = t;
+	const { point, extraKm, cooldownKm } = t;
 	const round = point.round ? ` in round ${point.round} of ${point.rounds}` : '';
 
 	let detail: string | null;
@@ -242,10 +267,15 @@ export function describeTurnaround(t: Turnaround): TurnaroundText {
 
 	let home: string | null = null;
 	if (Math.abs(extraKm) >= SNAP_KM) {
-		home =
-			extraKm > 0
-				? `Kept out of the rep: ${fmt(extraKm)} more to run home after the session`
-				: `Kept out of the rep: ${fmt(-extraKm)} short of home when it ends`;
+		// Turning early brings the runner home before the session is over, with
+		// the rest still to run — out of the cool-down, where there is one.
+		if (extraKm > 0) {
+			home = `Kept out of the rep: ${fmt(extraKm)} more to run home after the session`;
+		} else if (cooldownKm >= -extraKm) {
+			home = `Kept out of the rep: home with ${fmt(-extraKm)} of the cool-down left — cut it short or run on`;
+		} else {
+			home = `Kept out of the rep: home with ${fmt(-extraKm)} still to run`;
+		}
 	}
 
 	return { headline: `Turn around at ${fmt(point.atKm)}`, detail, home };

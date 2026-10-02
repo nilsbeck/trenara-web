@@ -31,6 +31,7 @@ const turnAfterWalk: Turnaround = {
 		stepKm: 0.166
 	},
 	extraKm: 0,
+	cooldownKm: 0,
 	totalKm: 13.8,
 	unit: 'km'
 };

@@ -200,6 +200,41 @@ describe('findTurnaround', () => {
 		expect(t.extraKm).toBeCloseTo(-0.7);
 	});
 
+	it('turns before a short rep when the cool-down can take up the difference', () => {
+		// 2 + 0.4 + 0.8 + 0.4 + 2.4 cool-down = 6, halfway 3.0 — 0.6 km into the
+		// 800 m rep, so its end is nearer. Turning before it instead brings the
+		// runner home with 1.2 km of the 2.4 km cool-down still to go, which can
+		// be cut — better than 0.4 km to run on after the session.
+		const t = findTurnaround(
+			makeTraining([
+				km(2, 'warmup'),
+				group(1, [m(400, 'rest'), m(800), m(400, 'rest')]),
+				km(2.4, 'cooldown')
+			])
+		)!;
+		expect(t.point).toMatchObject({ blockIndex: 1, subIndex: 0 });
+		expect(t.extraKm).toBeCloseTo(-1.2);
+		expect(t.cooldownKm).toBeCloseTo(2.4);
+		expect(describeTurnaround(t).home).toBe(
+			'Kept out of the rep: home with 1.2 km of the cool-down left — cut it short or run on'
+		);
+	});
+
+	it('takes the nearer end when the cool-down is too short to take it up', () => {
+		// 0.6 + 0.4 + 0.8 + 0.4 + 1.0 cool-down = 3.2, halfway 1.6 — 0.6 km into
+		// the rep. Turning before it would leave 1.2 km, more than the 1 km
+		// cool-down, so the turn waits for the rep's end: 0.4 km on after.
+		const t = findTurnaround(
+			makeTraining([
+				m(600, 'warmup'),
+				group(1, [m(400, 'rest'), m(800), m(400, 'rest')]),
+				km(1, 'cooldown')
+			])
+		)!;
+		expect(t.point).toMatchObject({ blockIndex: 1, subIndex: 1 });
+		expect(t.extraKm).toBeCloseTo(0.4);
+	});
+
 	it('treats a lone run in a group as steady, not a rep', () => {
 		const t = findTurnaround(makeTraining([km(2, 'warmup'), group(1, [km(4)]), km(2)]))!;
 		expect(t.point).toMatchObject({ blockIndex: 1, subIndex: 0 });
@@ -263,7 +298,7 @@ describe('describeTurnaround', () => {
 			findTurnaround({ ...makeTraining(blocks), has_cooldown: false })!
 		);
 		expect(short.detail).toBe('Once the step above is done');
-		expect(short.home).toBe('Kept out of the rep: 550 m short of home when it ends');
+		expect(short.home).toBe('Kept out of the rep: home with 550 m still to run');
 
 		const long = describeTurnaround(
 			findTurnaround(
