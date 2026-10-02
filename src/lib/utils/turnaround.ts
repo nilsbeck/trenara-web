@@ -30,15 +30,15 @@ export interface TurnPoint extends StepPosition {
 }
 
 export interface Turnaround {
-	/** The halfway point: turning here brings the runner home as the session ends. */
-	exact: TurnPoint;
+	/** Where to turn. */
+	point: TurnPoint;
 	/**
-	 * Halfway falls inside a repetition, where wheeling round costs the rep its
-	 * rhythm. This is the nearer end of that rep, and `extraKm` what turning
-	 * there does to the way home: positive is that much further to run once the
-	 * session is over, negative that much short of the door when it ends.
+	 * What turning at `point` rather than at exactly halfway does to the way
+	 * home: positive is that much further to run once the session is over,
+	 * negative that much short of the door when it ends. Zero unless the turn
+	 * was moved out of a rep (see `CALM_SHIFT_KM`).
 	 */
-	atRepBoundary: (TurnPoint & { extraKm: number }) | null;
+	extraKm: number;
 	totalKm: number;
 	/** The session's own distance unit, so the figures are never labelled in another. */
 	unit: string;
@@ -58,6 +58,14 @@ interface Step extends StepPosition {
  * hairs below it would only put "20 m into the walk" on screen.
  */
 const SNAP_KM = 0.05;
+
+/**
+ * How far a turn may move to get out of a rep. Wheeling round mid-interval
+ * breaks it, and a few hundred metres either way costs little at the door —
+ * but past that the split stops being even, and turning 1 km into a 2 km rep
+ * is the better of the two. Out and back, the shift counts twice at home.
+ */
+const CALM_SHIFT_KM = 0.3;
 
 /**
  * Where to turn on an out-and-back so the runner is home when the session ends.
@@ -90,15 +98,13 @@ export function findTurnaround(training: ScheduledTraining): Turnaround | null {
 	const step = steps[i];
 	const intoKm = step.endKm - halfKm < SNAP_KM ? step.endKm - step.startKm : halfKm - step.startKm;
 
-	const exact = pointIn(step, intoKm);
 	const midRep = step.isRep && intoKm < step.endKm - step.startKm;
+	const calm = midRep ? repBoundary(steps, i, halfKm) : null;
+	if (calm && Math.abs(calm.extraKm) <= 2 * CALM_SHIFT_KM) {
+		return { ...calm, totalKm, unit };
+	}
 
-	return {
-		exact,
-		atRepBoundary: midRep ? repBoundary(steps, i, halfKm) : null,
-		totalKm,
-		unit
-	};
+	return { point: pointIn(step, intoKm), extraKm: 0, totalKm, unit };
 }
 
 function pointIn(step: Step, intoKm: number): TurnPoint {
@@ -118,12 +124,16 @@ function pointIn(step: Step, intoKm: number): TurnPoint {
  * step before, so the marker keeps its one rule of sitting after a step. Out
  * and back, turning `d` later adds `d` both ways — hence the doubling.
  */
-function repBoundary(steps: Step[], i: number, halfKm: number): TurnPoint & { extraKm: number } {
+function repBoundary(
+	steps: Step[],
+	i: number,
+	halfKm: number
+): { point: TurnPoint; extraKm: number } {
 	const rep = steps[i];
 	const useStart = i > 0 && halfKm - rep.startKm < rep.endKm - halfKm;
 	const at = useStart ? steps[i - 1] : rep;
 	return {
-		...pointIn(at, at.endKm - at.startKm),
+		point: pointIn(at, at.endKm - at.startKm),
 		extraKm: 2 * (at.endKm - halfKm)
 	};
 }
@@ -199,8 +209,8 @@ export interface TurnaroundText {
 	headline: string;
 	/** Where that is in the plan, or null where the headline already says it. */
 	detail: string | null;
-	/** The rep-boundary option and what it does to the way home, when there is one. */
-	alternative: string | null;
+	/** What a turn moved out of a rep does to the way home, when it was moved. */
+	home: string | null;
 }
 
 /**
@@ -209,28 +219,26 @@ export interface TurnaroundText {
  */
 export function describeTurnaround(t: Turnaround): TurnaroundText {
 	const fmt = (km: number) => formatTurnDistance(km, t.unit);
-	const { exact, atRepBoundary: alt } = t;
-	const round = exact.round ? ` in round ${exact.round} of ${exact.rounds}` : '';
+	const { point, extraKm } = t;
+	const round = point.round ? ` in round ${point.round} of ${point.rounds}` : '';
 
 	let detail: string | null;
-	if (exact.intoKm >= exact.stepKm) {
+	if (point.intoKm >= point.stepKm) {
 		detail = `Once the step above is done${round}`;
-	} else if (exact.intoKm === exact.atKm) {
+	} else if (point.intoKm === point.atKm) {
 		// Still in the first step, where the distance into it is the distance run.
 		detail = null;
 	} else {
-		detail = `${fmt(exact.intoKm)} into the step above${round}`;
+		detail = `${fmt(point.intoKm)} into the step above${round}`;
 	}
 
-	let alternative: string | null = null;
-	if (alt) {
-		const where = alt.atKm > exact.atKm ? 'at the end of this rep' : 'just before this rep';
-		const home =
-			alt.extraKm >= 0
-				? `${fmt(alt.extraKm)} more to run home after the session`
-				: `${fmt(-alt.extraKm)} short of home when it ends`;
-		alternative = `Halfway is mid-rep. Turning ${where} (${fmt(alt.atKm)}) leaves ${home}.`;
+	let home: string | null = null;
+	if (Math.abs(extraKm) >= SNAP_KM) {
+		home =
+			extraKm > 0
+				? `Kept out of the rep: ${fmt(extraKm)} more to run home after the session`
+				: `Kept out of the rep: ${fmt(-extraKm)} short of home when it ends`;
 	}
 
-	return { headline: `Turn around at ${fmt(exact.atKm)}`, detail, alternative };
+	return { headline: `Turn around at ${fmt(point.atKm)}`, detail, home };
 }

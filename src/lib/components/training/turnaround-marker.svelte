@@ -21,7 +21,7 @@
 	{#if text.detail}
 		<p class="text-center text-muted-foreground">{text.detail}</p>
 	{/if}
-	{#if text.alternative}
-		<p class="text-center text-muted-foreground">{text.alternative}</p>
+	{#if text.home}
+		<p class="text-center text-muted-foreground">{text.home}</p>
 	{/if}
 </div>

@@ -110,34 +110,31 @@ const ladderX3 = () => [
 describe('findTurnaround', () => {
 	it('turns halfway through a single steady run', () => {
 		const t = findTurnaround(makeTraining([km(8)]));
-		expect(t?.exact).toMatchObject({ blockIndex: 0, subIndex: null, atKm: 4, intoKm: 4 });
-		expect(t?.atRepBoundary).toBeNull();
+		expect(t?.point).toMatchObject({ blockIndex: 0, subIndex: null, atKm: 4, intoKm: 4 });
+		expect(t?.extraKm).toBe(0);
 	});
 
-	it('offers the end of the rep when halfway falls inside one', () => {
-		// 13.02 km in all, so halfway is 6.51 km — 1.28 km into the second 2 km rep.
+	it('turns mid-rep when the rep is too long to step out of', () => {
+		// 13.02 km in all, so halfway is 6.51 km — 1.28 km into the second 2 km
+		// rep. Its nearer end is 0.72 km away, too far for an even split, so the
+		// turn stays mid-rep.
 		const t = findTurnaround(makeTraining(pyramid(), {}))!;
 		expect(t.totalKm).toBeCloseTo(13.022);
-		expect(t.exact).toMatchObject({ blockIndex: 1, subIndex: 2, round: null });
-		expect(t.exact.intoKm).toBeCloseTo(1.277);
-		// The nearer end is the finish of that rep, at 7.23 km: 0.72 km later
-		// each way, so 1.45 km more to run once the session is over.
-		expect(t.atRepBoundary).toMatchObject({ blockIndex: 1, subIndex: 2 });
-		expect(t.atRepBoundary!.atKm).toBeCloseTo(7.234);
-		expect(t.atRepBoundary!.extraKm).toBeCloseTo(1.446);
+		expect(t.point).toMatchObject({ blockIndex: 1, subIndex: 2, round: null });
+		expect(t.point.intoKm).toBeCloseTo(1.277);
+		expect(t.extraKm).toBe(0);
 	});
 
-	it('moves back when the cool-down is removed', () => {
-		// The server drops the block: 11.02 km, halfway at 5.51 — 0.28 km into
-		// the second rep now, so its start is the nearer end: turning there
-		// leaves 0.55 km short of home.
+	it('moves back when the cool-down is removed, and out of the rep it lands in', () => {
+		// The server drops the block: 11.02 km, halfway at 5.51 — only 0.28 km
+		// into the second rep, so the turn moves to just before it, at the end
+		// of the recovery, and the runner is 0.55 km short of home at the end.
 		const blocks = pyramid().slice(0, 2);
 		const t = findTurnaround({ ...makeTraining(blocks), has_cooldown: false })!;
-		expect(t.exact).toMatchObject({ blockIndex: 1, subIndex: 2 });
-		expect(t.exact.atKm).toBeCloseTo(5.511);
-		expect(t.atRepBoundary).toMatchObject({ blockIndex: 1, subIndex: 1 });
-		expect(t.atRepBoundary!.atKm).toBeCloseTo(5.234);
-		expect(t.atRepBoundary!.extraKm).toBeCloseTo(-0.554);
+		expect(t.point).toMatchObject({ blockIndex: 1, subIndex: 1 });
+		expect(t.point.atKm).toBeCloseTo(5.234);
+		expect(t.point.intoKm).toBeCloseTo(t.point.stepKm);
+		expect(t.extraKm).toBeCloseTo(-0.554);
 	});
 
 	it('leaves out a cool-down block still sent on a session without one', () => {
@@ -148,9 +145,9 @@ describe('findTurnaround', () => {
 	it('names the round inside a repeated group', () => {
 		// 4 + 3 × 3.277 = 13.83 km; halfway 6.92 lands in round 1's last recovery.
 		const t = findTurnaround(makeTraining(ladderX3()))!;
-		expect(t.exact).toMatchObject({ blockIndex: 1, subIndex: 5, round: 1, rounds: 3 });
-		expect(t.exact.intoKm).toBeCloseTo(0.2245);
-		expect(t.atRepBoundary).toBeNull();
+		expect(t.point).toMatchObject({ blockIndex: 1, subIndex: 5, round: 1, rounds: 3 });
+		expect(t.point.intoKm).toBeCloseTo(0.2245);
+		expect(t.extraKm).toBe(0);
 	});
 
 	it('snaps to a boundary within fifty metres of it', () => {
@@ -158,33 +155,43 @@ describe('findTurnaround', () => {
 		// that is "after the 600 m of round 2".
 		const blocks = [...ladderX3(), m(1990, 'cooldown')];
 		const t = findTurnaround(makeTraining(blocks))!;
-		expect(t.exact).toMatchObject({ blockIndex: 1, subIndex: 0, round: 2 });
-		expect(t.exact.intoKm).toBeCloseTo(t.exact.stepKm);
-		expect(t.atRepBoundary).toBeNull();
+		expect(t.point).toMatchObject({ blockIndex: 1, subIndex: 0, round: 2 });
+		expect(t.point.intoKm).toBeCloseTo(t.point.stepKm);
+		expect(t.extraKm).toBe(0);
 	});
 
 	it('snaps forward to the end of a step it is just short of', () => {
 		// 8.08 km, halfway 4.04 — twenty metres before the warm-up ends.
 		const t = findTurnaround(makeTraining([km(4.06, 'warmup'), km(4.02)]))!;
-		expect(t.exact).toMatchObject({ blockIndex: 0 });
-		expect(t.exact.intoKm).toBeCloseTo(t.exact.stepKm);
+		expect(t.point).toMatchObject({ blockIndex: 0 });
+		expect(t.point.intoKm).toBeCloseTo(t.point.stepKm);
 	});
 
-	it('offers the start of the rep when that is nearer', () => {
+	it('moves to the end of a rep that is close enough', () => {
+		// 2 + 0.4 + 1 + 0.5 + 2.5 = 6.4, halfway 3.2 — 0.2 km before the 1 km
+		// rep ends, so the turn waits for its end: 0.4 km more on the way home.
+		const t = findTurnaround(
+			makeTraining([km(2, 'warmup'), group(1, [m(400, 'rest'), km(1), m(500, 'rest')]), km(2.5)])
+		)!;
+		expect(t.point).toMatchObject({ blockIndex: 1, subIndex: 1 });
+		expect(t.point.atKm).toBeCloseTo(3.4);
+		expect(t.extraKm).toBeCloseTo(0.4);
+	});
+
+	it('moves to the start of a rep that is close enough', () => {
 		// 2 + 0.4 + 1 + 0.5 + 1.4 = 5.3, halfway 2.65 — 0.25 into the 1 km rep.
 		// Turning at its start (2.4 km) leaves 0.5 km short of home.
 		const t = findTurnaround(
 			makeTraining([km(2, 'warmup'), group(1, [m(400, 'rest'), km(1), m(500, 'rest')]), km(1.4)])
 		)!;
-		expect(t.exact).toMatchObject({ subIndex: 1 });
-		expect(t.atRepBoundary).toMatchObject({ blockIndex: 1, subIndex: 0 });
-		expect(t.atRepBoundary!.extraKm).toBeCloseTo(-0.5);
+		expect(t.point).toMatchObject({ blockIndex: 1, subIndex: 0 });
+		expect(t.extraKm).toBeCloseTo(-0.5);
 	});
 
 	it('treats a lone run in a group as steady, not a rep', () => {
 		const t = findTurnaround(makeTraining([km(2, 'warmup'), group(1, [km(4)]), km(2)]))!;
-		expect(t.exact).toMatchObject({ blockIndex: 1, subIndex: 0 });
-		expect(t.atRepBoundary).toBeNull();
+		expect(t.point).toMatchObject({ blockIndex: 1, subIndex: 0 });
+		expect(t.extraKm).toBe(0);
 	});
 
 	it('says nothing for a cross-trained session', () => {
@@ -216,7 +223,7 @@ describe('describeTurnaround', () => {
 		expect(describeTurnaround(findTurnaround(makeTraining([km(8)]))!)).toEqual({
 			headline: 'Turn around at 4.0 km',
 			detail: null,
-			alternative: null
+			home: null
 		});
 	});
 
@@ -232,21 +239,25 @@ describe('describeTurnaround', () => {
 		expect(text.detail).toBe('Once the step above is done in round 2 of 3');
 	});
 
-	it('offers the end of a rep with the extra distance home', () => {
+	it('says nothing about home when the split is even', () => {
 		const text = describeTurnaround(findTurnaround(makeTraining(pyramid()))!);
 		expect(text.detail).toBe('1.3 km into the step above');
-		expect(text.alternative).toBe(
-			'Halfway is mid-rep. Turning at the end of this rep (7.2 km) leaves 1.4 km more to run home after the session.'
-		);
+		expect(text.home).toBeNull();
 	});
 
-	it('offers the start of a rep with the distance short', () => {
+	it('says what a turn kept out of a rep does to the way home', () => {
 		const blocks = pyramid().slice(0, 2);
-		const text = describeTurnaround(
+		const short = describeTurnaround(
 			findTurnaround({ ...makeTraining(blocks), has_cooldown: false })!
 		);
-		expect(text.alternative).toBe(
-			'Halfway is mid-rep. Turning just before this rep (5.2 km) leaves 550 m short of home when it ends.'
+		expect(short.detail).toBe('Once the step above is done');
+		expect(short.home).toBe('Kept out of the rep: 550 m short of home when it ends');
+
+		const long = describeTurnaround(
+			findTurnaround(
+				makeTraining([km(2, 'warmup'), group(1, [m(400, 'rest'), km(1), m(500, 'rest')]), km(2.5)])
+			)!
 		);
+		expect(long.home).toBe('Kept out of the rep: 400 m more to run home after the session');
 	});
 });

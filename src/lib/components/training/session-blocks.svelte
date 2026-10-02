@@ -33,8 +33,8 @@
 	function turnsAfter(blockIndex: number, subIndex: number | null): boolean {
 		return (
 			turnaround !== null &&
-			turnaround.exact.blockIndex === blockIndex &&
-			turnaround.exact.subIndex === subIndex
+			turnaround.point.blockIndex === blockIndex &&
+			turnaround.point.subIndex === subIndex
 		);
 	}
 </script>

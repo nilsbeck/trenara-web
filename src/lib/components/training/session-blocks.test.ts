@@ -21,7 +21,7 @@ const blocks = [
 ];
 
 const turnAfterWalk: Turnaround = {
-	exact: {
+	point: {
 		blockIndex: 1,
 		subIndex: 1,
 		round: 2,
@@ -30,7 +30,7 @@ const turnAfterWalk: Turnaround = {
 		intoKm: 0.1,
 		stepKm: 0.166
 	},
-	atRepBoundary: null,
+	extraKm: 0,
 	totalKm: 13.8,
 	unit: 'km'
 };
@@ -63,7 +63,7 @@ describe('SessionBlocks turnaround marker', () => {
 	it('sits after a simple block', () => {
 		renderBlocks({
 			...turnAfterWalk,
-			exact: { ...turnAfterWalk.exact, blockIndex: 0, subIndex: null, round: null, rounds: null }
+			point: { ...turnAfterWalk.point, blockIndex: 0, subIndex: null, round: null, rounds: null }
 		});
 		const warmUp = screen.getByText('Warm-up: 4km').parentElement!;
 		expect(warmUp.nextElementSibling).toBe(screen.getByTestId('turnaround-marker'));
