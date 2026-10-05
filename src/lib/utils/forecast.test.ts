@@ -3,9 +3,15 @@ import {
 	volumeBetween,
 	earnCutoff,
 	observedRate,
+	measureRate,
+	recentTrend,
+	isRecentTrend,
+	MIN_RECENT_DAYS,
+	type RecentTrend,
 	planRate,
 	forecast,
 	FITNESS_LAG_DAYS,
+	MIN_INTERVALS,
 	type VolumeWeek
 } from './forecast';
 
@@ -445,5 +451,229 @@ describe('forecast against a race day it cannot read', () => {
 		});
 
 		expect(result).toBeNull();
+	});
+});
+
+describe('measureRate says why a rate was not measured', () => {
+	const iso = (n: number) => {
+		const d = day(n);
+		return new Date(d.getTime() - d.getTimezoneOffset() * 60_000).toISOString().slice(0, 10);
+	};
+	const done = weeks(12, 50);
+	const series = (days: number[], perKm: number) =>
+		days.map((n) => ({
+			date: iso(n),
+			seconds: 3600 - perKm * volumeBetween(done, day(0), day(n))
+		}));
+
+	it('counts the readings it has against the ones it needs', () => {
+		expect(measureRate(series([0, 7, 14], 0.8), done)).toEqual({
+			reason: 'few-readings',
+			readings: 3,
+			needed: MIN_INTERVALS + 1
+		});
+	});
+
+	it('names a runner who has not improved', () => {
+		expect(measureRate(series([0, 14, 28, 42, 56], -0.5), done)).toEqual({
+			reason: 'not-improving'
+		});
+	});
+
+	it('names readings with no kilometres between them', () => {
+		expect(measureRate(series([0, 14, 28, 42, 56], 0.8), weeks(12, 0))).toEqual({
+			reason: 'no-volume'
+		});
+	});
+
+	it('names a fit too poor to trust, with how poor', () => {
+		const offsets = [0, -300, 50, -230, -30, -300];
+		const lurching = [0, 14, 28, 42, 56, 70].map((n, i) => ({
+			date: iso(n),
+			seconds: 3600 + offsets[i]
+		}));
+		const result = measureRate(lurching, done);
+		expect(result).toMatchObject({ reason: 'poor-fit' });
+		expect('rSquared' in result && result.rSquared).toBeLessThan(0.5);
+	});
+});
+
+describe('recentTrend', () => {
+	const iso = (n: number) => {
+		const d = day(n);
+		return new Date(d.getTime() - d.getTimezoneOffset() * 60_000).toISOString().slice(0, 10);
+	};
+	// Run through day 35; the weeks after it have not happened, and the plan
+	// reports them as nothing done.
+	const done = weeks(10, [50, 50, 50, 50, 50, 0, 0, 0, 0, 0]);
+
+	it('prices the last fortnight, not the whole goal', () => {
+		// Flat for a fortnight, then 150s gained over the next.
+		// The reading on day 14 is what the prediction still was when the
+		// window opened on day 21, so the gain is measured from there.
+		const now = day(35);
+		const result = recentTrend({
+			nowSeconds: 3450,
+			now,
+			goalSeconds: 3000,
+			samples: [
+				{ date: iso(0), seconds: 3600 },
+				{ date: iso(14), seconds: 3600 },
+				{ date: iso(28), seconds: 3500 }
+			],
+			done,
+			planned: weeks(10, 50),
+			raceDay: day(70)
+		}) as RecentTrend;
+
+		expect(result.days).toBe(14);
+		expect(result.gainSeconds).toBe(150);
+		// Days 21–35 are weeks four and five, both run in full: 100 km.
+		expect(result.km).toBeCloseTo(100, 6);
+		expect(result.secondsPerKm).toBeCloseTo(1.5, 6);
+		// Priced over the plan still to come: day 35 to the cutoff on day 60.
+		const remaining = volumeBetween(weeks(10, 50), day(35), earnCutoff(day(70)));
+		expect(result.endSeconds).toBeCloseTo(3450 - 1.5 * remaining, 6);
+		// And drawn the same way, ending where the figure does.
+		expect(result.points[0].seconds).toBe(3450);
+		expect(result.points.at(-1)!.seconds).toBeCloseTo(result.endSeconds, 6);
+		expect(result.capped).toBe(false);
+	});
+
+	it('counts the current week whole, not only the part before today', () => {
+		// Today is mid-week: the 50 km already logged this week were run, and
+		// spreading them across seven days would credit only half.
+		const result = recentTrend({
+			nowSeconds: 3500,
+			now: new Date(day(17).getTime() + DAY_MS / 2),
+			goalSeconds: 3000,
+			samples: [{ date: iso(0), seconds: 3600 }],
+			done: weeks(3, 50),
+			planned: weeks(10, 50),
+			raceDay: day(70)
+		}) as RecentTrend;
+
+		// Window opens on day 3.5: half of week one, all of weeks two and three.
+		expect(result.km).toBeCloseTo(125, 6);
+	});
+
+	it('stops at the goal, as the forecast does', () => {
+		const result = recentTrend({
+			nowSeconds: 3100,
+			now: day(35),
+			goalSeconds: 3000,
+			samples: [{ date: iso(14), seconds: 3400 }],
+			done,
+			planned: weeks(10, 50),
+			raceDay: day(70)
+		}) as RecentTrend;
+
+		expect(result.capped).toBe(true);
+		expect(result.endSeconds).toBe(3000);
+	});
+
+	it('promises no gain when the prediction has slipped', () => {
+		const result = recentTrend({
+			nowSeconds: 3700,
+			now: day(35),
+			goalSeconds: 3000,
+			samples: [{ date: iso(14), seconds: 3600 }],
+			done,
+			planned: weeks(10, 50),
+			raceDay: day(70)
+		}) as RecentTrend;
+
+		expect(result.secondsPerKm).toBeLessThan(0);
+		expect(result.endSeconds).toBe(3700);
+	});
+
+	it('says how many days it has when the readings reach back less than a week', () => {
+		expect(
+			recentTrend({
+				nowSeconds: 3500,
+				now: day(35),
+				goalSeconds: 3000,
+				samples: [{ date: iso(30), seconds: 3600 }],
+				done,
+				planned: weeks(10, 50),
+				raceDay: day(70)
+			})
+		).toEqual({ reason: 'few-days', days: 5, needed: MIN_RECENT_DAYS });
+	});
+
+	it('says so when nothing was run to divide by, or there is nothing to read', () => {
+		expect(
+			recentTrend({
+				nowSeconds: 3500,
+				now: day(35),
+				goalSeconds: 3000,
+				samples: [{ date: iso(0), seconds: 3600 }],
+				done: weeks(10, 0),
+				planned: weeks(10, 50),
+				raceDay: day(70)
+			})
+		).toEqual({ reason: 'no-km', days: 14 });
+		expect(
+			recentTrend({
+				nowSeconds: 3500,
+				now: day(35),
+				goalSeconds: 3000,
+				samples: [],
+				done,
+				planned: weeks(10, 50),
+				raceDay: day(70)
+			})
+		).toEqual({ reason: 'no-readings' });
+	});
+});
+
+describe('forecast carries its reasons', () => {
+	const iso = (n: number) => {
+		const d = day(n);
+		return new Date(d.getTime() - d.getTimezoneOffset() * 60_000).toISOString().slice(0, 10);
+	};
+
+	it('says why it fell back to the plan, and adds the recent trend beside it', () => {
+		const planned = weeks(10, 50);
+		const result = forecast({
+			nowSeconds: 3450,
+			now: day(35),
+			goalSeconds: 3000,
+			raceDay: day(70),
+			planned,
+			done: weeks(10, [50, 50, 50, 50, 50, 0, 0, 0, 0, 0]),
+			samples: [
+				{ date: iso(0), seconds: 3600 },
+				{ date: iso(14), seconds: 3600 },
+				{ date: iso(28), seconds: 3500 }
+			],
+			goalStart: day(0)
+		})!;
+
+		expect(result.rate.source).toBe('plan');
+		expect(result.rejected).toEqual({ reason: 'few-readings', readings: 3, needed: 5 });
+		expect(isRecentTrend(result.recent)).toBe(true);
+		expect((result.recent as RecentTrend).secondsPerKm).toBeCloseTo(1.5, 6);
+	});
+
+	it("has no reason to give when the runner's own rate was used", () => {
+		const done = weeks(10, 50);
+		const samples = [0, 7, 14, 21, 28, 35].map((n) => ({
+			date: iso(n),
+			seconds: 3600 - 0.8 * volumeBetween(done, day(0), day(n))
+		}));
+		const result = forecast({
+			nowSeconds: samples[samples.length - 1].seconds,
+			now: day(35),
+			goalSeconds: 3000,
+			raceDay: day(70),
+			planned: done,
+			done,
+			samples,
+			goalStart: day(0)
+		})!;
+
+		expect(result.rate.source).toBe('observed');
+		expect(result.rejected).toBeNull();
 	});
 });

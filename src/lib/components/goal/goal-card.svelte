@@ -18,7 +18,15 @@
 	} from '$lib/components/charts/prediction-chart.svelte';
 	import DistanceChart from '$lib/components/charts/distance-chart.svelte';
 	import { readWeekDistance, readGoalDistance } from '$lib/utils/distance-graph';
-	import { forecast, earnCutoff, loadSlices, type ForecastPoint } from '$lib/utils/forecast';
+	import {
+		forecast,
+		earnCutoff,
+		loadSlices,
+		isRecentTrend,
+		type ForecastPoint,
+		type RateRejection,
+		type RecentTrendGap
+	} from '$lib/utils/forecast';
 	import { readPlanWeeks } from '$lib/utils/plan-weeks';
 	import { paceTrend, splitByGoalDistance } from '$lib/utils/prediction-graph';
 	import { impliedDistanceKm } from '$lib/utils/race-equivalent';
@@ -309,6 +317,60 @@
 	});
 
 	/**
+	 * Why the runner's own rate was passed over, said as what it is waiting for.
+	 *
+	 * This used to read "not enough history" whatever the reason, which a
+	 * runner with a reading on most days of the block takes for a fault.
+	 */
+	function whyNotYours(rejected: RateRejection | null): string {
+		switch (rejected?.reason) {
+			case 'few-readings':
+				return `${rejected.readings} of the ${rejected.needed} readings yours needs`;
+			case 'no-volume':
+				return 'no km logged between your readings yet';
+			case 'not-improving':
+				return 'your readings so far show no net gain';
+			case 'poor-fit':
+				return 'your readings so far move too unevenly with your km to measure';
+			default:
+				return 'not enough history for yours';
+		}
+	}
+
+	/** Why the graph has no trend line, in place of one. */
+	function whyNoRecentTrend(gap: RecentTrendGap): string {
+		switch (gap.reason) {
+			case 'no-readings':
+				return 'no readings for this goal yet.';
+			case 'few-days':
+				return `readings reach back ${gap.days} of the ${gap.needed} days it needs.`;
+			case 'no-km':
+				return `no km logged as run in the last ${gap.days} days.`;
+		}
+	}
+
+	/**
+	 * The projection the card shows: the last fortnight, carried on.
+	 *
+	 * The plan-rate forecast used to be both the line and the race-day figure,
+	 * and after a recalibration followed by steady gains it ran far flatter than
+	 * the curve drawn just to its left — fitted across the turn, or handed back
+	 * to the plan's own rate, it could not see the turn at all. The runner asked
+	 * for the card to follow what they can see instead. The plan's reading is
+	 * still named in the basis line, and stands in whenever there is no
+	 * fortnight to measure (`whyNoRecentTrend` says which).
+	 */
+	const recentLine = $derived(
+		raceForecast && isRecentTrend(raceForecast.recent) ? raceForecast.recent : null
+	);
+
+	/** Race day as the card reports it: the trend when there is one, the forecast otherwise. */
+	const projectedSeconds = $derived(recentLine?.endSeconds ?? raceForecast?.endSeconds ?? null);
+	const projectedShortfall = $derived(
+		projectedSeconds !== null && goal.time_in_sec ? projectedSeconds - goal.time_in_sec : null
+	);
+
+	/**
 	 * What the forecast rests on, in as few words as it can be said.
 	 *
 	 * A projected time with nothing behind it is a number to be believed or
@@ -325,12 +387,22 @@
 		const basis =
 			rate.source === 'observed'
 				? `your measured ${price}`
-				: `the plan's ${price} (not enough history for yours)`;
+				: `the plan's ${price} (${whyNotYours(raceForecast.rejected)})`;
 
 		const done =
 			askedToDateKm > 0
 				? ` ${Math.round(doneToDateKm)} of ${Math.round(askedToDateKm)} km run so far.`
 				: '';
+
+		if (recentLine) {
+			const recentPrice = `${Math.max(0, recentLine.secondsPerKm).toFixed(2)}s/km`;
+			const cap = recentLine.capped ? ', stopped at your goal' : '';
+			const fallback = `${rate.source === 'observed' ? 'your whole-goal' : "the plan's"} ${price}`;
+			return (
+				`${Math.round(remainingKm)} km left that still counts, at your last ${recentLine.days} days' ${recentPrice}${cap}. ` +
+				`At ${fallback} instead: ${secondsToTimeString(Math.round(raceForecast.endSeconds))}.${done}`
+			);
+		}
 
 		return `${Math.round(remainingKm)} km left that still counts, at ${basis}.${done}`;
 	});
@@ -346,16 +418,16 @@
 	 * Null when the goal carries no distance, and there is nothing to divide by.
 	 */
 	const shortfallPerKm = $derived(
-		raceForecast && goal.distance_value ? raceForecast.shortfallSeconds / goal.distance_value : null
+		projectedShortfall !== null && goal.distance_value
+			? projectedShortfall / goal.distance_value
+			: null
 	);
 
 	/** A second per kilometre either way is the goal, not a miss. */
 	const ON_GOAL_PER_KM = 1;
 
 	const onGoalPace = $derived(
-		shortfallPerKm === null
-			? (raceForecast?.shortfallSeconds ?? 0) <= 30
-			: shortfallPerKm <= ON_GOAL_PER_KM
+		shortfallPerKm === null ? (projectedShortfall ?? 0) <= 30 : shortfallPerKm <= ON_GOAL_PER_KM
 	);
 
 	/** `18s/km`, or `1:05/km` once it runs past a minute. */
@@ -366,6 +438,13 @@
 			: `${total}s/km`;
 	}
 
+	/** What "on goal" is conditional on: the trend continuing, or the plan being followed. */
+	const onCondition = $derived(
+		recentLine
+			? `if the last ${recentLine.days} days continue`
+			: 'if you follow the rest of the plan'
+	);
+
 	/** How far short the remaining work lands, once it is worth mentioning. */
 	const shortfallNote = $derived.by(() => {
 		if (!raceForecast) return null;
@@ -373,15 +452,15 @@
 		// No distance to divide by: fall back to the finish time, which is at
 		// least a number, rather than saying nothing.
 		if (shortfallPerKm === null) {
-			const short = raceForecast.shortfallSeconds;
+			const short = projectedShortfall ?? 0;
 			if (short > 30) return `${formatSignedDuration(short).replace('+', '')} short of the goal.`;
 			if (short < -30) return `${formatSignedDuration(-short).replace('+', '')} inside the goal.`;
-			return 'On the goal, if you follow the rest of the plan.';
+			return `On the goal, ${onCondition}.`;
 		}
 
 		if (shortfallPerKm > ON_GOAL_PER_KM) return `${perKm(shortfallPerKm)} short of goal pace.`;
 		if (shortfallPerKm < -ON_GOAL_PER_KM) return `${perKm(shortfallPerKm)} inside goal pace.`;
-		return 'On goal pace, if you follow the rest of the plan.';
+		return `On goal pace, ${onCondition}.`;
 	});
 
 	/**
@@ -410,12 +489,12 @@
 	}
 
 	const chartLines = $derived(
-		raceForecast
+		recentLine
 			? [
 					{
 						label: 'Forecast',
 						colour: '#ec4899',
-						points: raceForecast.points.map((point) => ({
+						points: recentLine.points.map((point) => ({
 							date: point.date,
 							seconds: point.seconds,
 							detail: forecastDetail(point)
@@ -735,11 +814,13 @@
 												>Projected on race day</td
 											>
 											<td class="px-4 py-2 font-medium tabular-nums" class:text-primary={onGoal}>
-												{secondsToTimeString(Math.round(raceForecast.endSeconds))}
+												{secondsToTimeString(
+													Math.round(projectedSeconds ?? raceForecast.endSeconds)
+												)}
 											</td>
 											<td class="px-4 py-2 tabular-nums text-muted-foreground">
 												{goal.distance_value
-													? `${secondsToPaceString(Math.round(raceForecast.endSeconds / goal.distance_value))} /km`
+													? `${secondsToPaceString(Math.round((projectedSeconds ?? raceForecast.endSeconds) / goal.distance_value))} /km`
 													: ''}
 											</td>
 										</tr>
@@ -915,6 +996,14 @@
 			{#if raceForecast}
 				<p class="mt-2 text-xs leading-relaxed text-card-foreground">{shortfallNote}</p>
 				<p class="mt-1 text-xs leading-relaxed text-muted-foreground">{forecastBasis}</p>
+				{#if !isRecentTrend(raceForecast.recent)}
+					<p
+						class="mt-1 text-xs leading-relaxed text-muted-foreground"
+						data-testid="no-recent-line"
+					>
+						No trend line: {whyNoRecentTrend(raceForecast.recent)}
+					</p>
+				{/if}
 			{:else if noForecastReason}
 				<p class="mt-2 text-xs leading-relaxed text-muted-foreground">{noForecastReason}</p>
 			{/if}
