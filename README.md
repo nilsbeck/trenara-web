@@ -94,6 +94,9 @@ shown.
   only the handful Trenara names.
 - **Current goal predictions**, with the historic changes recorded over time, and a trend arrow on
   the goal card showing which way your pace has been moving over the last fortnight.
+- **A race-day forecast with a second opinion**: where the rest of the plan takes you, what rate it
+  is priced at (and, when it falls back to the plan's rate, why yours was not measured), and beside
+  it where you land if the last 14 days carry on — the two read together as a range.
 - **10K progress over time** in a chart — the 10K prediction rather than the goal distance, so the
   series stays comparable across training blocks — with the kilometres still planned drawn in
   alongside it, even on days there isn't yet enough history for a forecast.

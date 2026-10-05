@@ -104,22 +104,30 @@ export interface RateEstimate {
 }
 
 /**
- * What a kilometre has actually been worth to this runner.
+ * Why a runner's own rate was not used, when it was not.
  *
- * Fitted across the gaps between consecutive recorded predictions rather than
- * across fixed weeks. Predictions are only written when they change, so a week
- * with no record is not a week with no progress — scoring fixed weeks against a
- * sparse series scores most of them as zero gain and drags the rate to nothing.
- * The gaps between real observations are the only intervals we actually
- * measured.
- *
- * Fitted through the origin: no training earns no improvement, which is the one
- * point on this line we can be sure of.
- *
- * Null when there is not enough to fit, or when the fit is too poor to be worth
- * preferring over the plan's own design rate.
+ * The forecast used to say "not enough history" for all of these, which was
+ * true of only the first. A runner reading "not enough history" three weeks
+ * into a block with a reading on most days reasonably concludes the app is
+ * broken; one reading "your readings so far show no net gain per km" knows
+ * what it is waiting for.
  */
-export function observedRate(samples: Sample[], done: VolumeWeek[]): RateEstimate | null {
+export type RateRejection =
+	| {
+			/** Fewer readings than `MIN_INTERVALS` gaps need. */
+			reason: 'few-readings';
+			readings: number;
+			needed: number;
+	  }
+	/** No kilometres were run between any two readings, so there is nothing to divide by. */
+	| { reason: 'no-volume' }
+	/** The fitted rate is zero or says the runner has been getting slower. */
+	| { reason: 'not-improving' }
+	/** The readings move, but not with the kilometres. */
+	| { reason: 'poor-fit'; rSquared: number };
+
+/** `observedRate`, or why there is none. */
+export function measureRate(samples: Sample[], done: VolumeWeek[]): RateEstimate | RateRejection {
 	const points = samples
 		.map((s) => ({ stamp: new Date(s.date).getTime(), seconds: s.seconds }))
 		.filter((p) => Number.isFinite(p.stamp) && Number.isFinite(p.seconds))
@@ -138,7 +146,9 @@ export function observedRate(samples: Sample[], done: VolumeWeek[]): RateEstimat
 		intervals.push({ km, gain: points[i].seconds - points[i + 1].seconds });
 	}
 
-	if (intervals.length < MIN_INTERVALS) return null;
+	if (intervals.length < MIN_INTERVALS) {
+		return { reason: 'few-readings', readings: points.length, needed: MIN_INTERVALS + 1 };
+	}
 
 	let numerator = 0;
 	let denominator = 0;
@@ -146,14 +156,14 @@ export function observedRate(samples: Sample[], done: VolumeWeek[]): RateEstimat
 		numerator += step.km * step.gain;
 		denominator += step.km ** 2;
 	}
-	if (denominator === 0) return null;
+	if (denominator === 0) return { reason: 'no-volume' };
 
 	const secondsPerKm = numerator / denominator;
 	// A rate at or below zero says this runner has been getting slower. That may
 	// well be true, but it is not something to extend to race day as a forecast:
 	// fall back to what the plan intends instead of drawing a line that promises
 	// decline.
-	if (!(secondsPerKm > 0)) return null;
+	if (!(secondsPerKm > 0)) return { reason: 'not-improving' };
 
 	// Uncentered, because the fit is through the origin. Measuring against the
 	// mean gain asks how much better the rate is than "every interval earned the
@@ -170,9 +180,34 @@ export function observedRate(samples: Sample[], done: VolumeWeek[]): RateEstimat
 		total += step.gain ** 2;
 	}
 	const rSquared = total === 0 ? 0 : Math.max(0, 1 - residual / total);
-	if (rSquared < MIN_RATE_FIT) return null;
+	if (rSquared < MIN_RATE_FIT) return { reason: 'poor-fit', rSquared };
 
 	return { secondsPerKm, source: 'observed', intervals: intervals.length, rSquared };
+}
+
+function isRate(result: RateEstimate | RateRejection): result is RateEstimate {
+	return 'secondsPerKm' in result;
+}
+
+/**
+ * What a kilometre has actually been worth to this runner.
+ *
+ * Fitted across the gaps between consecutive recorded predictions rather than
+ * across fixed weeks. Predictions are only written when they change, so a week
+ * with no record is not a week with no progress — scoring fixed weeks against a
+ * sparse series scores most of them as zero gain and drags the rate to nothing.
+ * The gaps between real observations are the only intervals we actually
+ * measured.
+ *
+ * Fitted through the origin: no training earns no improvement, which is the one
+ * point on this line we can be sure of.
+ *
+ * Null when there is not enough to fit, or when the fit is too poor to be worth
+ * preferring over the plan's own design rate; `measureRate` says which.
+ */
+export function observedRate(samples: Sample[], done: VolumeWeek[]): RateEstimate | null {
+	const result = measureRate(samples, done);
+	return isRate(result) ? result : null;
 }
 
 /**
@@ -280,6 +315,10 @@ export interface Forecast {
 	/** And how many were actually run. */
 	doneToDateKm: number;
 	rate: RateEstimate;
+	/** Why the runner's own rate was passed over, when `rate` is the plan's. */
+	rejected: RateRejection | null;
+	/** Where the last couple of weeks lead if they carry on; see `recentTrend`. */
+	recent: RecentTrend | null;
 	/** Points for drawing: today, then each week boundary, then race day. */
 	points: ForecastPoint[];
 	/** The weekly volume those points were priced from, for drawing beside them. */
@@ -331,8 +370,9 @@ export function forecast({
 		.sort((a, b) => a.stamp - b.stamp);
 
 	const anchor = ordered[0];
+	const measured = measureRate(samples, done);
 	const rate =
-		observedRate(samples, done) ??
+		(isRate(measured) ? measured : null) ??
 		(anchor
 			? planRate({
 					anchorSeconds: anchor.seconds,
@@ -419,8 +459,109 @@ export function forecast({
 		askedToDateKm: volumeBetween(planned, goalStart, now),
 		doneToDateKm: volumeBetween(done, goalStart, now),
 		rate,
+		rejected: isRate(measured) ? null : measured,
+		recent: recentTrend({ nowSeconds, now, goalSeconds, samples, done, remainingKm }),
 		points,
 		load: loadSlices(planned, now, cutoff)
+	};
+}
+
+/** How far back the recent trend looks. */
+export const RECENT_WINDOW_DAYS = 14;
+
+/** Below this many days of readings, a "recent trend" is one session's verdict. */
+export const MIN_RECENT_DAYS = 7;
+
+/** What the last fortnight of readings says about race day. */
+export interface RecentTrend {
+	/** Days of history the trend is measured over. */
+	days: number;
+	/** Seconds the prediction moved over those days. Positive is faster. */
+	gainSeconds: number;
+	/** Kilometres run over them. */
+	km: number;
+	/** `gainSeconds / km`; zero or below when the prediction has not improved. */
+	secondsPerKm: number;
+	/** Race-day prediction if the remaining plan earns at that rate. */
+	endSeconds: number;
+	/** True when the rate would have carried the prediction past the goal. */
+	capped: boolean;
+}
+
+/**
+ * The second opinion beside the forecast: what the last fortnight is worth.
+ *
+ * The forecast's rate is fitted across the whole goal, or is the plan's own
+ * when that fit fails — and either way a runner whose prediction has turned a
+ * corner sees a line far flatter than the curve they are actually on. A
+ * recalibration followed by a fortnight of steady gains is the case that
+ * prompted this: the plan rate read as the app not noticing. This does not
+ * replace the forecast, because a fortnight is also exactly long enough to be
+ * the model catching up with fitness already there, which does not continue;
+ * it sits beside it so the two together read as a range.
+ *
+ * Priced the same way as the forecast — seconds per kilometre run, over the
+ * kilometres still to come, capped at the gap to the goal — so the two
+ * numbers differ only in which stretch of history set the rate.
+ *
+ * Null when the readings do not reach back `MIN_RECENT_DAYS`, or nothing was
+ * run in the window to divide by.
+ */
+export function recentTrend({
+	nowSeconds,
+	now,
+	goalSeconds,
+	samples,
+	done,
+	remainingKm
+}: {
+	nowSeconds: number;
+	now: Date;
+	goalSeconds: number;
+	samples: Sample[];
+	done: VolumeWeek[];
+	remainingKm: number;
+}): RecentTrend | null {
+	const points = samples
+		.map((s) => ({ stamp: new Date(s.date).getTime(), seconds: s.seconds }))
+		.filter((p) => Number.isFinite(p.stamp) && Number.isFinite(p.seconds))
+		.sort((a, b) => a.stamp - b.stamp);
+	if (points.length === 0) return null;
+
+	const windowStart = now.getTime() - RECENT_WINDOW_DAYS * DAY_MS;
+	// Readings are only written when the prediction changes, so the last one at
+	// or before the window opens is still what the prediction was when it did.
+	// Without one, the window starts at the first reading there is.
+	const before = points.filter((p) => p.stamp <= windowStart).at(-1);
+	const baseline = before ?? points[0];
+	const from = before ? windowStart : baseline.stamp;
+
+	const days = (now.getTime() - from) / DAY_MS;
+	if (!(days >= MIN_RECENT_DAYS)) return null;
+
+	// Up to a week past today, so the current week's kilometres count whole: a
+	// week's distance is spread across its seven days, and stopping at today
+	// would credit only the share of what was run that falls before now.
+	const km = volumeBetween(done, new Date(from), new Date(now.getTime() + WEEK_MS));
+	if (!(km > 0)) return null;
+
+	const gainSeconds = baseline.seconds - nowSeconds;
+	const secondsPerKm = gainSeconds / km;
+
+	// Same cap as the forecast, for the same reason: the remaining plan is never
+	// credited with closing more than the gap that is actually there.
+	const uncapped = secondsPerKm > 0 ? secondsPerKm * remainingKm : 0;
+	const currentGap = nowSeconds - goalSeconds;
+	const capped = currentGap > 0 && uncapped > currentGap;
+	const gain = capped ? currentGap : uncapped;
+
+	return {
+		days: Math.round(days),
+		gainSeconds,
+		km,
+		secondsPerKm,
+		endSeconds: nowSeconds - gain,
+		capped
 	};
 }
 

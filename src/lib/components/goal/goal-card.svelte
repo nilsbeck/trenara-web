@@ -18,7 +18,13 @@
 	} from '$lib/components/charts/prediction-chart.svelte';
 	import DistanceChart from '$lib/components/charts/distance-chart.svelte';
 	import { readWeekDistance, readGoalDistance } from '$lib/utils/distance-graph';
-	import { forecast, earnCutoff, loadSlices, type ForecastPoint } from '$lib/utils/forecast';
+	import {
+		forecast,
+		earnCutoff,
+		loadSlices,
+		type ForecastPoint,
+		type RateRejection
+	} from '$lib/utils/forecast';
 	import { readPlanWeeks } from '$lib/utils/plan-weeks';
 	import { paceTrend, splitByGoalDistance } from '$lib/utils/prediction-graph';
 	import { impliedDistanceKm } from '$lib/utils/race-equivalent';
@@ -309,6 +315,27 @@
 	});
 
 	/**
+	 * Why the runner's own rate was passed over, said as what it is waiting for.
+	 *
+	 * This used to read "not enough history" whatever the reason, which a
+	 * runner with a reading on most days of the block takes for a fault.
+	 */
+	function whyNotYours(rejected: RateRejection | null): string {
+		switch (rejected?.reason) {
+			case 'few-readings':
+				return `${rejected.readings} of the ${rejected.needed} readings yours needs`;
+			case 'no-volume':
+				return 'no km logged between your readings yet';
+			case 'not-improving':
+				return 'your readings so far show no net gain';
+			case 'poor-fit':
+				return 'your readings so far move too unevenly with your km to measure';
+			default:
+				return 'not enough history for yours';
+		}
+	}
+
+	/**
 	 * What the forecast rests on, in as few words as it can be said.
 	 *
 	 * A projected time with nothing behind it is a number to be believed or
@@ -325,7 +352,7 @@
 		const basis =
 			rate.source === 'observed'
 				? `your measured ${price}`
-				: `the plan's ${price} (not enough history for yours)`;
+				: `the plan's ${price} (${whyNotYours(raceForecast.rejected)})`;
 
 		const done =
 			askedToDateKm > 0
@@ -740,6 +767,30 @@
 											<td class="px-4 py-2 tabular-nums text-muted-foreground">
 												{goal.distance_value
 													? `${secondsToPaceString(Math.round(raceForecast.endSeconds / goal.distance_value))} /km`
+													: ''}
+											</td>
+										</tr>
+									{/if}
+									<!--
+								The second opinion: the same arithmetic priced from the last
+								fortnight instead of the whole goal. A forecast fitted across a
+								recalibration, or handed back to the plan's rate, sits far flatter
+								than the curve a runner can see they are on; this is that curve,
+								carried on, so the two rows read as a range rather than one of
+								them as the app not noticing.
+							-->
+									{#if raceForecast?.recent}
+										{@const recent = raceForecast.recent}
+										<tr class="border-t border-border" data-testid="recent-trend">
+											<td class="px-4 py-2 text-muted-foreground">
+												If the last {recent.days} days continue
+											</td>
+											<td class="px-4 py-2 tabular-nums text-muted-foreground">
+												{secondsToTimeString(Math.round(recent.endSeconds))}
+											</td>
+											<td class="px-4 py-2 tabular-nums text-muted-foreground">
+												{goal.distance_value
+													? `${secondsToPaceString(Math.round(recent.endSeconds / goal.distance_value))} /km`
 													: ''}
 											</td>
 										</tr>
