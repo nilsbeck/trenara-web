@@ -81,9 +81,10 @@ const goal = {
 	distance: '42.195 km',
 	distance_value: 42.195,
 	distance_unit: 'km',
-	pace: '5:00 min/km',
-	time: '03:30:00',
-	time_in_sec: 12600
+	// Far enough off that neither projection is stopped at the goal.
+	pace: '4:44 min/km',
+	time: '03:20:00',
+	time_in_sec: 12000
 } as unknown as Goal;
 
 const userStats = {
@@ -108,23 +109,38 @@ function reading(daysAgo: number, time: number): ChartDataPoint {
 }
 
 describe('goal card forecast basis', () => {
-	it('says which check sent it to the plan rate, and shows the recent trend beside it', async () => {
+	it('says which check sent it to the plan rate, and draws the recent trend as the line', async () => {
 		// Three readings: two short of a measured rate, but a fortnight of them.
 		const history = [reading(34, 13200), reading(20, 13200), reading(7, 13000)];
-		render(GoalCard, { props: { goal, userStats, history } });
+		const { container } = render(GoalCard, { props: { goal, userStats, history } });
 
+		// The basis names the fortnight's rate, and the plan's figure beside it.
 		await waitFor(() =>
 			expect(
-				screen.getByText(/the plan's [\d.]+s\/km \(3 of the 5 readings yours needs\)/)
+				screen.getByText(/at your last 14 days' [\d.]+s\/km.*At the plan's [\d.]+s\/km instead/)
 			).toBeTruthy()
 		);
-		expect(screen.queryByText(/not enough history for yours/)).toBeNull();
+		expect(screen.getByText(/short of goal pace/)).toBeTruthy();
 
-		const recent = screen.getByTestId('recent-trend');
-		expect(recent.textContent).toMatch(/If the last 14 days continue/);
+		// "Projected on race day" is the trend's end, not the plan's: the plan's
+		// figure is the one quoted in the basis, and the trend here is faster.
+		const toSeconds = (t: string) => t.split(':').reduce((sum, part) => sum * 60 + Number(part), 0);
+		const basis = screen.getByText(/At the plan's/).textContent!;
+		const planEnd = toSeconds(basis.match(/instead: (\d+:\d{2}:\d{2})/)![1]);
+		const row = screen.getByText('Projected on race day').closest('tr')!;
+		const projected = toSeconds(row.textContent!.match(/\d+:\d{2}:\d{2}/)![0]);
+		expect(projected).toBeLessThan(planEnd);
+
+		// The trend is the graph's one projection, named in its caption; the
+		// table row it used to be is gone.
+		expect(container.textContent).toContain('Last 14 days');
+		expect(container.textContent).not.toContain('Forecast');
+		expect(container.querySelectorAll('path[stroke-dasharray="5,4"]').length).toBe(1);
+		expect(screen.queryByText(/If the last 14 days continue/)).toBeNull();
+		expect(screen.queryByTestId('no-recent-line')).toBeNull();
 	});
 
-	it('keeps the recent-trend row and says why it has no figure', async () => {
+	it('says why there is no trend line when it cannot draw one', async () => {
 		// Readings that span three weeks, but nothing logged as run: the plan
 		// rate still draws a forecast, and the trend has nothing to divide by.
 		const idle = {
@@ -137,9 +153,15 @@ describe('goal card forecast basis', () => {
 			}
 		} as unknown as UserStats;
 		const history = [reading(34, 13200), reading(20, 13200), reading(7, 13000)];
-		render(GoalCard, { props: { goal, userStats: idle, history } });
+		const { container } = render(GoalCard, { props: { goal, userStats: idle, history } });
 
-		const recent = await screen.findByTestId('recent-trend');
-		expect(recent.textContent).toMatch(/No km logged as run in the last 14 days/);
+		const note = await screen.findByTestId('no-recent-line');
+		expect(note.textContent).toMatch(/No trend line: no km logged as run in the last 14 days/);
+		// With no trend the plan's forecast stands in, and says why it is the plan's.
+		expect(
+			screen.getByText(/the plan's [\d.]+s\/km \(3 of the 5 readings yours needs\)/)
+		).toBeTruthy();
+		expect(screen.getByText(/if you follow the rest of the plan|short of goal pace/)).toBeTruthy();
+		expect(container.querySelectorAll('path[stroke-dasharray="5,4"]').length).toBe(0);
 	});
 });

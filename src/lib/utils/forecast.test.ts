@@ -522,7 +522,8 @@ describe('recentTrend', () => {
 				{ date: iso(28), seconds: 3500 }
 			],
 			done,
-			remainingKm: 100
+			planned: weeks(10, 50),
+			raceDay: day(70)
 		}) as RecentTrend;
 
 		expect(result.days).toBe(14);
@@ -530,7 +531,12 @@ describe('recentTrend', () => {
 		// Days 21–35 are weeks four and five, both run in full: 100 km.
 		expect(result.km).toBeCloseTo(100, 6);
 		expect(result.secondsPerKm).toBeCloseTo(1.5, 6);
-		expect(result.endSeconds).toBeCloseTo(3450 - 150, 6);
+		// Priced over the plan still to come: day 35 to the cutoff on day 60.
+		const remaining = volumeBetween(weeks(10, 50), day(35), earnCutoff(day(70)));
+		expect(result.endSeconds).toBeCloseTo(3450 - 1.5 * remaining, 6);
+		// And drawn the same way, ending where the figure does.
+		expect(result.points[0].seconds).toBe(3450);
+		expect(result.points.at(-1)!.seconds).toBeCloseTo(result.endSeconds, 6);
 		expect(result.capped).toBe(false);
 	});
 
@@ -543,7 +549,8 @@ describe('recentTrend', () => {
 			goalSeconds: 3000,
 			samples: [{ date: iso(0), seconds: 3600 }],
 			done: weeks(3, 50),
-			remainingKm: 100
+			planned: weeks(10, 50),
+			raceDay: day(70)
 		}) as RecentTrend;
 
 		// Window opens on day 3.5: half of week one, all of weeks two and three.
@@ -557,7 +564,8 @@ describe('recentTrend', () => {
 			goalSeconds: 3000,
 			samples: [{ date: iso(14), seconds: 3400 }],
 			done,
-			remainingKm: 300
+			planned: weeks(10, 50),
+			raceDay: day(70)
 		}) as RecentTrend;
 
 		expect(result.capped).toBe(true);
@@ -571,7 +579,8 @@ describe('recentTrend', () => {
 			goalSeconds: 3000,
 			samples: [{ date: iso(14), seconds: 3600 }],
 			done,
-			remainingKm: 300
+			planned: weeks(10, 50),
+			raceDay: day(70)
 		}) as RecentTrend;
 
 		expect(result.secondsPerKm).toBeLessThan(0);
@@ -586,7 +595,8 @@ describe('recentTrend', () => {
 				goalSeconds: 3000,
 				samples: [{ date: iso(30), seconds: 3600 }],
 				done,
-				remainingKm: 300
+				planned: weeks(10, 50),
+				raceDay: day(70)
 			})
 		).toEqual({ reason: 'few-days', days: 5, needed: MIN_RECENT_DAYS });
 	});
@@ -599,7 +609,8 @@ describe('recentTrend', () => {
 				goalSeconds: 3000,
 				samples: [{ date: iso(0), seconds: 3600 }],
 				done: weeks(10, 0),
-				remainingKm: 300
+				planned: weeks(10, 50),
+				raceDay: day(70)
 			})
 		).toEqual({ reason: 'no-km', days: 14 });
 		expect(
@@ -609,7 +620,8 @@ describe('recentTrend', () => {
 				goalSeconds: 3000,
 				samples: [],
 				done,
-				remainingKm: 300
+				planned: weeks(10, 50),
+				raceDay: day(70)
 			})
 		).toEqual({ reason: 'no-readings' });
 	});

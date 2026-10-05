@@ -413,43 +413,7 @@ export function forecast({
 	const drawnRate =
 		uncappedGainSeconds > 0 ? secondsPerKm * (gainSeconds / uncappedGainSeconds) : secondsPerKm;
 
-	// A point at every week boundary, so the line bends where the volume does —
-	// flattening through the taper instead of running straight at the goal.
-	//
-	// The boundaries are the only vertices there are: a week's kilometres are
-	// spread evenly across its seven days, so the line is straight *within* a
-	// week by construction and can only change slope where one week hands over
-	// to the next. Points in between would be collinear padding.
-	const points: ForecastPoint[] = [
-		{ date: toLocalDateString(now), seconds: nowSeconds, kmToDate: 0, segmentKm: 0, kind: 'today' }
-	];
-
-	function at(when: Date, kind: ForecastPoint['kind']): void {
-		const kmToDate = volumeBetween(planned, now, when);
-		points.push({
-			date: toLocalDateString(when),
-			seconds: nowSeconds - kmToDate * drawnRate,
-			kmToDate,
-			segmentKm: kmToDate - points[points.length - 1].kmToDate,
-			kind
-		});
-	}
-
-	for (const week of planned) {
-		const boundary = new Date(week.startsOn.getTime() + WEEK_MS);
-		if (boundary <= now || boundary >= cutoff) continue;
-		at(boundary, 'week');
-	}
-	at(cutoff, 'cutoff');
-	// Race day itself, held flat across the lag window: nothing in it earns, so
-	// the kilometres it is standing on are the cutoff's, not its own.
-	points.push({
-		date: toLocalDateString(raceDay),
-		seconds: endSeconds,
-		kmToDate: remainingKm,
-		segmentKm: 0,
-		kind: 'race'
-	});
+	const points = projectLine({ nowSeconds, now, planned, cutoff, raceDay, drawnRate, endSeconds });
 
 	return {
 		endSeconds,
@@ -460,7 +424,7 @@ export function forecast({
 		doneToDateKm: volumeBetween(done, goalStart, now),
 		rate,
 		rejected: isRate(measured) ? null : measured,
-		recent: recentTrend({ nowSeconds, now, goalSeconds, samples, done, remainingKm }),
+		recent: recentTrend({ nowSeconds, now, goalSeconds, samples, done, planned, raceDay }),
 		points,
 		load: loadSlices(planned, now, cutoff)
 	};
@@ -486,6 +450,8 @@ export interface RecentTrend {
 	endSeconds: number;
 	/** True when the rate would have carried the prediction past the goal. */
 	capped: boolean;
+	/** The line to race day at that rate, bending with the plan's weeks as the forecast does. */
+	points: ForecastPoint[];
 }
 
 /**
@@ -531,14 +497,16 @@ export function recentTrend({
 	goalSeconds,
 	samples,
 	done,
-	remainingKm
+	planned,
+	raceDay
 }: {
 	nowSeconds: number;
 	now: Date;
 	goalSeconds: number;
 	samples: Sample[];
 	done: VolumeWeek[];
-	remainingKm: number;
+	planned: VolumeWeek[];
+	raceDay: Date;
 }): RecentTrend | RecentTrendGap {
 	const points = samples
 		.map((s) => ({ stamp: new Date(s.date).getTime(), seconds: s.seconds }))
@@ -570,19 +538,95 @@ export function recentTrend({
 
 	// Same cap as the forecast, for the same reason: the remaining plan is never
 	// credited with closing more than the gap that is actually there.
+	const cutoff = earnCutoff(raceDay);
+	const remainingKm = volumeBetween(planned, now, cutoff);
 	const uncapped = secondsPerKm > 0 ? secondsPerKm * remainingKm : 0;
 	const currentGap = nowSeconds - goalSeconds;
 	const capped = currentGap > 0 && uncapped > currentGap;
 	const gain = capped ? currentGap : uncapped;
+	const endSeconds = nowSeconds - gain;
 
 	return {
 		days: Math.round(days),
 		gainSeconds,
 		km,
 		secondsPerKm,
-		endSeconds: nowSeconds - gain,
-		capped
+		endSeconds,
+		capped,
+		points: projectLine({
+			nowSeconds,
+			now,
+			planned,
+			cutoff,
+			raceDay,
+			drawnRate: remainingKm > 0 ? gain / remainingKm : 0,
+			endSeconds
+		})
 	};
+}
+
+/**
+ * The vertices of a projection priced at `drawnRate` seconds per planned km.
+ *
+ * A point at every week boundary, so the line bends where the volume does —
+ * flattening through the taper instead of running straight at the goal.
+ *
+ * The boundaries are the only vertices there are: a week's kilometres are
+ * spread evenly across its seven days, so the line is straight *within* a
+ * week by construction and can only change slope where one week hands over
+ * to the next. Points in between would be collinear padding.
+ *
+ * Shared by the forecast and the recent trend, so the two lines bend at the
+ * same weeks and differ only in the rate they were priced at.
+ */
+function projectLine({
+	nowSeconds,
+	now,
+	planned,
+	cutoff,
+	raceDay,
+	drawnRate,
+	endSeconds
+}: {
+	nowSeconds: number;
+	now: Date;
+	planned: VolumeWeek[];
+	cutoff: Date;
+	raceDay: Date;
+	drawnRate: number;
+	endSeconds: number;
+}): ForecastPoint[] {
+	const points: ForecastPoint[] = [
+		{ date: toLocalDateString(now), seconds: nowSeconds, kmToDate: 0, segmentKm: 0, kind: 'today' }
+	];
+
+	function at(when: Date, kind: ForecastPoint['kind']): void {
+		const kmToDate = volumeBetween(planned, now, when);
+		points.push({
+			date: toLocalDateString(when),
+			seconds: nowSeconds - kmToDate * drawnRate,
+			kmToDate,
+			segmentKm: kmToDate - points[points.length - 1].kmToDate,
+			kind
+		});
+	}
+
+	for (const week of planned) {
+		const boundary = new Date(week.startsOn.getTime() + WEEK_MS);
+		if (boundary <= now || boundary >= cutoff) continue;
+		at(boundary, 'week');
+	}
+	at(cutoff, 'cutoff');
+	// Race day itself, held flat across the lag window: nothing in it earns, so
+	// the kilometres it is standing on are the cutoff's, not its own.
+	points.push({
+		date: toLocalDateString(raceDay),
+		seconds: endSeconds,
+		kmToDate: volumeBetween(planned, now, cutoff),
+		segmentKm: 0,
+		kind: 'race'
+	});
+	return points;
 }
 
 /**
