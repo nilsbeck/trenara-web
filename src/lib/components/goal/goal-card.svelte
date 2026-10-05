@@ -492,7 +492,7 @@
 		recentLine
 			? [
 					{
-						label: `Last ${recentLine.days} days`,
+						label: 'Forecast',
 						colour: '#ec4899',
 						points: recentLine.points.map((point) => ({
 							date: point.date,

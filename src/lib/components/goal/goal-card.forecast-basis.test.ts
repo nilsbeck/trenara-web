@@ -133,8 +133,7 @@ describe('goal card forecast basis', () => {
 
 		// The trend is the graph's one projection, named in its caption; the
 		// table row it used to be is gone.
-		expect(container.textContent).toContain('Last 14 days');
-		expect(container.textContent).not.toContain('Forecast');
+		expect(container.textContent).toContain('Forecast');
 		expect(container.querySelectorAll('path[stroke-dasharray="5,4"]').length).toBe(1);
 		expect(screen.queryByText(/If the last 14 days continue/)).toBeNull();
 		expect(screen.queryByTestId('no-recent-line')).toBeNull();
