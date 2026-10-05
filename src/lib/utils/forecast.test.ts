@@ -5,6 +5,9 @@ import {
 	observedRate,
 	measureRate,
 	recentTrend,
+	isRecentTrend,
+	MIN_RECENT_DAYS,
+	type RecentTrend,
 	planRate,
 	forecast,
 	FITNESS_LAG_DAYS,
@@ -520,7 +523,7 @@ describe('recentTrend', () => {
 			],
 			done,
 			remainingKm: 100
-		})!;
+		}) as RecentTrend;
 
 		expect(result.days).toBe(14);
 		expect(result.gainSeconds).toBe(150);
@@ -541,7 +544,7 @@ describe('recentTrend', () => {
 			samples: [{ date: iso(0), seconds: 3600 }],
 			done: weeks(3, 50),
 			remainingKm: 100
-		})!;
+		}) as RecentTrend;
 
 		// Window opens on day 3.5: half of week one, all of weeks two and three.
 		expect(result.km).toBeCloseTo(125, 6);
@@ -555,7 +558,7 @@ describe('recentTrend', () => {
 			samples: [{ date: iso(14), seconds: 3400 }],
 			done,
 			remainingKm: 300
-		})!;
+		}) as RecentTrend;
 
 		expect(result.capped).toBe(true);
 		expect(result.endSeconds).toBe(3000);
@@ -569,13 +572,13 @@ describe('recentTrend', () => {
 			samples: [{ date: iso(14), seconds: 3600 }],
 			done,
 			remainingKm: 300
-		})!;
+		}) as RecentTrend;
 
 		expect(result.secondsPerKm).toBeLessThan(0);
 		expect(result.endSeconds).toBe(3700);
 	});
 
-	it('says nothing on less than a week of readings', () => {
+	it('says how many days it has when the readings reach back less than a week', () => {
 		expect(
 			recentTrend({
 				nowSeconds: 3500,
@@ -585,10 +588,10 @@ describe('recentTrend', () => {
 				done,
 				remainingKm: 300
 			})
-		).toBeNull();
+		).toEqual({ reason: 'few-days', days: 5, needed: MIN_RECENT_DAYS });
 	});
 
-	it('says nothing when nothing was run to divide by', () => {
+	it('says so when nothing was run to divide by, or there is nothing to read', () => {
 		expect(
 			recentTrend({
 				nowSeconds: 3500,
@@ -598,7 +601,7 @@ describe('recentTrend', () => {
 				done: weeks(10, 0),
 				remainingKm: 300
 			})
-		).toBeNull();
+		).toEqual({ reason: 'no-km', days: 14 });
 		expect(
 			recentTrend({
 				nowSeconds: 3500,
@@ -608,7 +611,7 @@ describe('recentTrend', () => {
 				done,
 				remainingKm: 300
 			})
-		).toBeNull();
+		).toEqual({ reason: 'no-readings' });
 	});
 });
 
@@ -637,7 +640,8 @@ describe('forecast carries its reasons', () => {
 
 		expect(result.rate.source).toBe('plan');
 		expect(result.rejected).toEqual({ reason: 'few-readings', readings: 3, needed: 5 });
-		expect(result.recent?.secondsPerKm).toBeCloseTo(1.5, 6);
+		expect(isRecentTrend(result.recent)).toBe(true);
+		expect((result.recent as RecentTrend).secondsPerKm).toBeCloseTo(1.5, 6);
 	});
 
 	it("has no reason to give when the runner's own rate was used", () => {

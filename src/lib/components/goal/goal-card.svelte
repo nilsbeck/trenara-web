@@ -22,8 +22,11 @@
 		forecast,
 		earnCutoff,
 		loadSlices,
+		isRecentTrend,
+		RECENT_WINDOW_DAYS,
 		type ForecastPoint,
-		type RateRejection
+		type RateRejection,
+		type RecentTrendGap
 	} from '$lib/utils/forecast';
 	import { readPlanWeeks } from '$lib/utils/plan-weeks';
 	import { paceTrend, splitByGoalDistance } from '$lib/utils/prediction-graph';
@@ -332,6 +335,18 @@
 				return 'your readings so far move too unevenly with your km to measure';
 			default:
 				return 'not enough history for yours';
+		}
+	}
+
+	/** Why the recent-trend row has no figure, in place of one. */
+	function whyNoRecentTrend(gap: RecentTrendGap): string {
+		switch (gap.reason) {
+			case 'no-readings':
+				return 'No readings for this goal yet.';
+			case 'few-days':
+				return `Readings reach back ${gap.days} of the ${gap.needed} days it needs.`;
+			case 'no-km':
+				return `No km logged as run in the last ${gap.days} days.`;
 		}
 	}
 
@@ -779,20 +794,26 @@
 								carried on, so the two rows read as a range rather than one of
 								them as the app not noticing.
 							-->
-									{#if raceForecast?.recent}
+									{#if raceForecast}
 										{@const recent = raceForecast.recent}
 										<tr class="border-t border-border" data-testid="recent-trend">
 											<td class="px-4 py-2 text-muted-foreground">
-												If the last {recent.days} days continue
+												If the last {isRecentTrend(recent) ? recent.days : RECENT_WINDOW_DAYS} days continue
 											</td>
-											<td class="px-4 py-2 tabular-nums text-muted-foreground">
-												{secondsToTimeString(Math.round(recent.endSeconds))}
-											</td>
-											<td class="px-4 py-2 tabular-nums text-muted-foreground">
-												{goal.distance_value
-													? `${secondsToPaceString(Math.round(recent.endSeconds / goal.distance_value))} /km`
-													: ''}
-											</td>
+											{#if isRecentTrend(recent)}
+												<td class="px-4 py-2 tabular-nums text-muted-foreground">
+													{secondsToTimeString(Math.round(recent.endSeconds))}
+												</td>
+												<td class="px-4 py-2 tabular-nums text-muted-foreground">
+													{goal.distance_value
+														? `${secondsToPaceString(Math.round(recent.endSeconds / goal.distance_value))} /km`
+														: ''}
+												</td>
+											{:else}
+												<td colspan="2" class="px-4 py-2 text-xs text-muted-foreground">
+													{whyNoRecentTrend(recent)}
+												</td>
+											{/if}
 										</tr>
 									{/if}
 								</tbody>

@@ -123,4 +123,23 @@ describe('goal card forecast basis', () => {
 		const recent = screen.getByTestId('recent-trend');
 		expect(recent.textContent).toMatch(/If the last 14 days continue/);
 	});
+
+	it('keeps the recent-trend row and says why it has no figure', async () => {
+		// Readings that span three weeks, but nothing logged as run: the plan
+		// rate still draws a forecast, and the trend has nothing to divide by.
+		const idle = {
+			...userStats,
+			graph_stats: {
+				goal: {
+					...planWeeks(),
+					data: planWeeks().data.map((row) => ({ ...row, done: null, done_value: null }))
+				}
+			}
+		} as unknown as UserStats;
+		const history = [reading(34, 13200), reading(20, 13200), reading(7, 13000)];
+		render(GoalCard, { props: { goal, userStats: idle, history } });
+
+		const recent = await screen.findByTestId('recent-trend');
+		expect(recent.textContent).toMatch(/No km logged as run in the last 14 days/);
+	});
 });

@@ -317,8 +317,8 @@ export interface Forecast {
 	rate: RateEstimate;
 	/** Why the runner's own rate was passed over, when `rate` is the plan's. */
 	rejected: RateRejection | null;
-	/** Where the last couple of weeks lead if they carry on; see `recentTrend`. */
-	recent: RecentTrend | null;
+	/** Where the last couple of weeks lead if they carry on, or why that cannot be said; see `recentTrend`. */
+	recent: RecentTrend | RecentTrendGap;
 	/** Points for drawing: today, then each week boundary, then race day. */
 	points: ForecastPoint[];
 	/** The weekly volume those points were priced from, for drawing beside them. */
@@ -489,6 +489,24 @@ export interface RecentTrend {
 }
 
 /**
+ * Why there is no recent trend to show.
+ *
+ * Said on screen rather than leaving the row out: a row that is simply absent
+ * cannot be told apart from one that was never built, and the runner who first
+ * missed it had no way to say which of these it was.
+ */
+export type RecentTrendGap =
+	| { reason: 'no-readings' }
+	/** The readings for this goal reach back fewer than `MIN_RECENT_DAYS`. */
+	| { reason: 'few-days'; days: number; needed: number }
+	/** Nothing logged as run in the window, so there is nothing to divide by. */
+	| { reason: 'no-km'; days: number };
+
+export function isRecentTrend(recent: RecentTrend | RecentTrendGap): recent is RecentTrend {
+	return 'endSeconds' in recent;
+}
+
+/**
  * The second opinion beside the forecast: what the last fortnight is worth.
  *
  * The forecast's rate is fitted across the whole goal, or is the plan's own
@@ -504,8 +522,8 @@ export interface RecentTrend {
  * kilometres still to come, capped at the gap to the goal — so the two
  * numbers differ only in which stretch of history set the rate.
  *
- * Null when the readings do not reach back `MIN_RECENT_DAYS`, or nothing was
- * run in the window to divide by.
+ * A `RecentTrendGap` when the readings do not reach back `MIN_RECENT_DAYS`,
+ * or nothing was run in the window to divide by.
  */
 export function recentTrend({
 	nowSeconds,
@@ -521,12 +539,12 @@ export function recentTrend({
 	samples: Sample[];
 	done: VolumeWeek[];
 	remainingKm: number;
-}): RecentTrend | null {
+}): RecentTrend | RecentTrendGap {
 	const points = samples
 		.map((s) => ({ stamp: new Date(s.date).getTime(), seconds: s.seconds }))
 		.filter((p) => Number.isFinite(p.stamp) && Number.isFinite(p.seconds))
 		.sort((a, b) => a.stamp - b.stamp);
-	if (points.length === 0) return null;
+	if (points.length === 0) return { reason: 'no-readings' };
 
 	const windowStart = now.getTime() - RECENT_WINDOW_DAYS * DAY_MS;
 	// Readings are only written when the prediction changes, so the last one at
@@ -537,13 +555,15 @@ export function recentTrend({
 	const from = before ? windowStart : baseline.stamp;
 
 	const days = (now.getTime() - from) / DAY_MS;
-	if (!(days >= MIN_RECENT_DAYS)) return null;
+	if (!(days >= MIN_RECENT_DAYS)) {
+		return { reason: 'few-days', days: Math.max(0, Math.floor(days)), needed: MIN_RECENT_DAYS };
+	}
 
 	// Up to a week past today, so the current week's kilometres count whole: a
 	// week's distance is spread across its seven days, and stopping at today
 	// would credit only the share of what was run that falls before now.
 	const km = volumeBetween(done, new Date(from), new Date(now.getTime() + WEEK_MS));
-	if (!(km > 0)) return null;
+	if (!(km > 0)) return { reason: 'no-km', days: Math.round(days) };
 
 	const gainSeconds = baseline.seconds - nowSeconds;
 	const secondsPerKm = gainSeconds / km;
