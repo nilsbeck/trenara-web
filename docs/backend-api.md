@@ -45,30 +45,30 @@ Upstream's is the mobile app's home screen payload, described below.
 
 Endpoints the app already calls live in `src/lib/server/trenara/`:
 
-| Method      | Path                                                                                                | Wrapper                                                  |
-| ----------- | --------------------------------------------------------------------------------------------------- | -------------------------------------------------------- |
-| POST        | `/oauth/token`                                                                                      | `authApi.login` / `refreshToken`                         |
-| GET         | `/api/me`                                                                                           | `userApi.getCurrentUser`                                 |
-| PUT         | `/api/me`                                                                                           | `userApi.updateProfile`                                  |
-| GET         | `/api/me/stats`                                                                                     | `userApi.getUserStats`                                   |
-| GET         | `/api/me/shoes`                                                                                     | `userApi.getShoes`                                       |
-| GET         | `/api/goal`                                                                                         | `trainingApi.getGoal`                                    |
-| GET         | `/api/schedule/week/?timestamp=`                                                                    | `trainingApi.getSchedule`                                |
-| GET/POST    | `/api/schedule/{id}/new_trainings`                                                                  | `trainingApi.getNewTrainings` / `addNewTraining`         |
-| GET         | `/api/schedule/trainings/{id}`                                                                      | `trainingApi.getScheduledTraining`                       |
-| PUT         | `/api/schedule/trainings/{id}/{intensity,distance,cooldown,suggested_shoe,cross_train,pacing_plan}` | `trainingApi.set*` / `crossTrain`                        |
-| POST        | `/api/schedule/trainings/{id}/training_condition`                                                   | `trainingApi.setTrainingCondition`                       |
-| GET/PUT     | `/api/schedule/trainings/{id}/exchange`                                                             | `trainingApi.getExchangeCandidates` / `exchangeTraining` |
-| PUT         | `/api/schedule/trainings/{id}/change_test`, `/change_save` (`move`)                                 | `trainingApi.testChangeDate` / `saveChangeDate`          |
-| PUT         | `/api/schedule/trainings/{id}/change_test`, `/change_save` (`destroy`)                              | `trainingApi.testRemoveTraining` / `saveRemoveTraining`  |
-| DELETE      | `/api/schedule/trainings/{id}`                                                                      | `trainingApi.deleteScheduledTraining`                    |
-| POST/DELETE | `/api/entries`, `/api/entries/{id}`                                                                 | `trainingApi.addTraining` / `deleteTraining`             |
-| PUT         | `/api/entries/{id}/rpe`                                                                             | `trainingApi.putFeedback`                                |
-| GET         | `/api/nutritional/advice`                                                                           | `trainingApi.getNutritionAdvice`                         |
-| GET         | `/api/threads/`, `/api/threads/{id}/messages`                                                       | `chatApi.getThreads` / `getMessages`                     |
-| POST        | `/api/threads/{id}/messages`                                                                        | `chatApi.sendMessage`                                    |
-| GET         | `/api/news/`                                                                                        | `newsApi.getNews`                                        |
-| GET         | `/api/config/app`                                                                                   | `configApi.getAppConfig`                                 |
+| Method      | Path                                                                                                | Wrapper                                                 |
+| ----------- | --------------------------------------------------------------------------------------------------- | ------------------------------------------------------- |
+| POST        | `/oauth/token`                                                                                      | `authApi.login` / `refreshToken`                        |
+| GET         | `/api/me`                                                                                           | `userApi.getCurrentUser`                                |
+| PUT         | `/api/me`                                                                                           | `userApi.updateProfile`                                 |
+| GET         | `/api/me/stats`                                                                                     | `userApi.getUserStats`                                  |
+| GET         | `/api/me/shoes`                                                                                     | `userApi.getShoes`                                      |
+| GET         | `/api/goal`                                                                                         | `trainingApi.getGoal`                                   |
+| GET         | `/api/schedule/week/?timestamp=`                                                                    | `trainingApi.getSchedule`                               |
+| GET/POST    | `/api/schedule/{id}/new_trainings`                                                                  | `trainingApi.getNewTrainings` / `addNewTraining`        |
+| GET         | `/api/schedule/trainings/{id}`                                                                      | `trainingApi.getTraining`                               |
+| PUT         | `/api/schedule/trainings/{id}/{intensity,distance,cooldown,suggested_shoe,cross_train,pacing_plan}` | `trainingApi.set*` / `crossTrain`                       |
+| POST        | `/api/schedule/trainings/{id}/training_condition`                                                   | `trainingApi.setTrainingCondition`                      |
+| GET/PUT     | `/api/schedule/trainings/{id}/exchange`                                                             | `trainingApi.getExchangeOptions` / `exchangeTraining`   |
+| PUT         | `/api/schedule/trainings/{id}/change_test`, `/change_save` (`move`)                                 | `trainingApi.testChangeDate` / `saveChangeDate`         |
+| PUT         | `/api/schedule/trainings/{id}/change_test`, `/change_save` (`destroy`)                              | `trainingApi.testRemoveTraining` / `saveRemoveTraining` |
+| DELETE      | `/api/schedule/trainings/{id}`                                                                      | `trainingApi.deleteScheduledTraining`                   |
+| POST/DELETE | `/api/entries`, `/api/entries/{id}`                                                                 | `trainingApi.addTraining` / `deleteTraining`            |
+| PUT         | `/api/entries/{id}/rpe`                                                                             | `trainingApi.putFeedback`                               |
+| GET         | `/api/nutritional/advice`                                                                           | `trainingApi.getNutrition`                              |
+| GET         | `/api/threads/`, `/api/threads/{id}/messages`                                                       | `chatApi.getThreads` / `getMessages`                    |
+| POST        | `/api/threads/{id}/messages`                                                                        | `chatApi.sendMessage`                                   |
+| GET         | `/api/news/`                                                                                        | `newsApi.getNews`                                       |
+| GET         | `/api/config/app`                                                                                   | `configApi.getAppConfig`                                |
 
 Endpoints recorded below are **not wired up yet** unless the section says so.
 

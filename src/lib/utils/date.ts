@@ -53,7 +53,10 @@ export function toDate(value: string | null | undefined): Date | null {
  * here costs that row its dot and nothing else.
  *
  * A prefix match rather than an exact one: `day_long` arrives as a bare date on
- * some rows and as a full timestamp on others, and both name the same day.
+ * some rows and as a full timestamp on others. Those name the same day only
+ * when the timestamp is local: the training `POST .../new_trainings` returns
+ * carries `"2026-10-09T22:00:00.000000Z"` for a session on the 10th, and this
+ * reads it as the 9th. Date such a copy from its `day` instead.
  */
 export function dayKeyOf(value: string | null | undefined): string | null {
 	if (typeof value !== 'string') return null;
