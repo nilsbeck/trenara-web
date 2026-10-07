@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeAll, afterEach } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll, afterEach, vi } from 'vitest';
 import { render, cleanup, screen, waitFor } from '@testing-library/svelte';
 import GoalCard from './goal-card.svelte';
 import type { Goal, UserStats } from '$lib/server/trenara/types';
@@ -23,6 +23,17 @@ beforeAll(() => {
 
 afterEach(() => {
 	cleanup();
+});
+
+// The fixture is built around "now": this week is half run whatever day it is,
+// so the last 14 days' rate, and with it whether the trend lands short of goal
+// pace or on it, moved with the weekday. It passed on a Monday and failed on
+// the Wednesday after. Only `Date` is faked, so `waitFor` keeps real timers.
+vi.useFakeTimers({ toFake: ['Date'] });
+vi.setSystemTime(new Date(2026, 9, 5, 12));
+
+afterAll(() => {
+	vi.useRealTimers();
 });
 
 const DAY_MS = 86_400_000;
