@@ -69,6 +69,27 @@ export const crossTrainSchema = z.object({
 	crossType: z.string().min(1).max(64).nullable()
 });
 
+/**
+ * A calendar day as the runner sees it, `YYYY-MM-DD`. Not an instant: the
+ * server has no time zone for the runner, so the day travels as the day.
+ */
+const localDay = z
+	.string()
+	.max(10)
+	.regex(/^\d{4}-\d{2}-\d{2}$/, 'Expected a day as YYYY-MM-DD');
+
+/** The day `GET /api/v1/training/new` lists what could be added on. */
+export const newTrainingDaySchema = z.object({ date: localDay });
+
+/**
+ * Add a session on `date`. `candidateId` is a candidate's id from the GET —
+ * a plan template id, not a scheduled training id.
+ */
+export const addNewTrainingSchema = z.object({
+	date: localDay,
+	candidateId: z.number().int().positive()
+});
+
 /** A candidate id from `GET .../exchange` — a different id space to the training. */
 export const exchangeTrainingSchema = z.object({ candidateId: z.number().int().positive() });
 

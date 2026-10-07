@@ -1,4 +1,4 @@
-import type { Schedule } from '$lib/server/trenara/types';
+import type { NewTrainingCandidate, Schedule } from '$lib/server/trenara/types';
 import { dayKeyOf } from './date';
 
 /**
@@ -11,6 +11,17 @@ import { dayKeyOf } from './date';
 export type SchedulePayload = Schedule & {
 	covered_from?: string | null;
 };
+
+/**
+ * What `GET /api/v1/training/new` answers with: whether the week holding the
+ * day will take another session, and what could go on that day if it will.
+ */
+export interface NewTrainingOptions {
+	/** The week's `can_receive_new_trainings`: false means the week is full. */
+	canAdd: boolean;
+	/** Empty whenever `canAdd` is false — nothing is asked for a full week. */
+	candidates: NewTrainingCandidate[];
+}
 
 /**
  * The local `YYYY-MM-DD` an entry belongs to, or null if it has no usable one.

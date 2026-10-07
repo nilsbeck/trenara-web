@@ -9,6 +9,9 @@ import type {
 	AddEntryResponse,
 	ScheduledTrainingDetail,
 	ExchangeCandidate,
+	NewTrainingCandidate,
+	AddNewTrainingRequest,
+	ScheduleChangeRequest,
 	TrainingSurface,
 	TrainingHeightDifference,
 	PacingPlan,
@@ -24,7 +27,7 @@ import type {
 import { fetchClient } from './client';
 import { TokenType } from '$lib/server/auth/types';
 import { cachedRead, CacheKey, invalidate } from './read-cache';
-import { expectCollections, expectObject } from './shape';
+import { expectArray, expectCollections, expectObject } from './shape';
 
 function bearerHeader(cookies: Cookies): Record<string, string> {
 	return { Authorization: `Bearer ${cookies.get(TokenType.AccessToken)}` };
@@ -50,6 +53,43 @@ async function mutating<T>(cookies: Cookies, run: () => Promise<T>): Promise<T> 
 	const result = await run();
 	invalidate(cookies);
 	return result;
+}
+
+/**
+ * The dry run of a schedule change: what it would do to the goal, changing
+ * nothing. Deliberately not `mutating` — dropping the cache for a question
+ * would cost a month of weeks for no change upstream.
+ */
+async function testScheduleChange(
+	cookies: Cookies,
+	trainingId: number,
+	body: ScheduleChangeRequest
+): Promise<TestScheduleResponse> {
+	return expectObject<TestScheduleResponse>(
+		await fetchClient.put<unknown>(`/api/schedule/trainings/${trainingId}/change_test`, body, {
+			headers: bearerHeader(cookies),
+			cookies
+		}),
+		'/api/schedule/trainings/{id}/change_test'
+	);
+}
+
+/** The same body as {@link testScheduleChange}, applied. Answers with the week it landed in. */
+async function saveScheduleChange(
+	cookies: Cookies,
+	trainingId: number,
+	body: ScheduleChangeRequest
+): Promise<SaveScheduleResponse> {
+	return mutating(cookies, async () =>
+		expectCollections<SaveScheduleResponse>(
+			await fetchClient.put<unknown>(`/api/schedule/trainings/${trainingId}/change_save`, body, {
+				headers: bearerHeader(cookies),
+				cookies
+			}),
+			'/api/schedule/trainings/{id}/change_save',
+			['trainings']
+		)
+	);
 }
 
 export const trainingApi = {
@@ -136,11 +176,11 @@ export const trainingApi = {
 		date: string,
 		includeFuture: boolean
 	): Promise<TestScheduleResponse> {
-		return fetchClient.put<TestScheduleResponse>(
-			`/api/schedule/trainings/${entryId}/change_test`,
-			{ action: 'move', include_future: includeFuture, target_date: date },
-			{ headers: bearerHeader(cookies), cookies }
-		);
+		return testScheduleChange(cookies, entryId, {
+			action: 'move',
+			include_future: includeFuture,
+			target_date: date
+		});
 	},
 
 	async saveChangeDate(
@@ -149,11 +189,102 @@ export const trainingApi = {
 		date: string,
 		includeFuture: boolean
 	): Promise<SaveScheduleResponse> {
-		return mutating(cookies, () =>
-			fetchClient.put<SaveScheduleResponse>(
-				`/api/schedule/trainings/${entryId}/change_save`,
-				{ action: 'move', include_future: includeFuture, target_date: date },
-				{ headers: bearerHeader(cookies), cookies }
+		return saveScheduleChange(cookies, entryId, {
+			action: 'move',
+			include_future: includeFuture,
+			target_date: date
+		});
+	},
+
+	/**
+	 * Ask what removing a scheduled session would do to the goal, without
+	 * removing it. The same `change_test` the move flow uses, with
+	 * `action: 'destroy'` and no date.
+	 *
+	 * This is how the mobile app removed a training added through
+	 * {@link trainingApi.addNewTraining} — captured 2026-10-07 — and so how
+	 * this app removes any scheduled session. It used to send a bare `DELETE`
+	 * to the training, which no capture had ever shown the mobile app sending.
+	 */
+	async testRemoveTraining(
+		cookies: Cookies,
+		trainingId: number,
+		includeFuture: boolean
+	): Promise<TestScheduleResponse> {
+		return testScheduleChange(cookies, trainingId, {
+			action: 'destroy',
+			include_future: includeFuture
+		});
+	},
+
+	/**
+	 * Remove a scheduled session. Answers with its week, without the session
+	 * and with `can_receive_new_trainings` re-opened when the week had been
+	 * full — but without `strength_trainings` or `entries`; see
+	 * {@link SaveScheduleResponse}.
+	 */
+	async saveRemoveTraining(
+		cookies: Cookies,
+		trainingId: number,
+		includeFuture: boolean
+	): Promise<SaveScheduleResponse> {
+		return saveScheduleChange(cookies, trainingId, {
+			action: 'destroy',
+			include_future: includeFuture
+		});
+	},
+
+	// ── Adding a session to a week ──────────────────────────────────────
+	//
+	// Gated by the week's `can_receive_new_trainings`. Two steps, like an
+	// exchange: list what could go on a day, then add one of them. The path
+	// takes the week's id (`Schedule.id`), not a training's.
+
+	/**
+	 * The sessions that could be added on `date` (`YYYY-MM-DD`, the runner's
+	 * local day) in the week `scheduleId`.
+	 *
+	 * Not cached, like the exchange list: it is asked for when a picker opens,
+	 * and the answer depends on what the week already holds.
+	 */
+	async getNewTrainings(
+		cookies: Cookies,
+		scheduleId: number,
+		date: string
+	): Promise<NewTrainingCandidate[]> {
+		return expectArray<NewTrainingCandidate>(
+			await fetchClient.get<unknown>(`/api/schedule/${scheduleId}/new_trainings`, {
+				headers: bearerHeader(cookies),
+				cookies,
+				params: { date }
+			}),
+			'/api/schedule/{id}/new_trainings'
+		);
+	},
+
+	/**
+	 * Add one of `getNewTrainings`'s candidates to the week.
+	 *
+	 * `candidateId` is the candidate's template id and goes in the body as
+	 * `training_id`; the answer is the complete new scheduled training, with a
+	 * scheduled id of its own, like every other training mutation. Its
+	 * `day_long` is a UTC instant rather than a date — see
+	 * {@link ScheduledTraining} — so date it from `day`.
+	 */
+	async addNewTraining(
+		cookies: Cookies,
+		scheduleId: number,
+		date: string,
+		candidateId: number
+	): Promise<ScheduledTrainingDetail> {
+		return mutating(cookies, async () =>
+			expectObject<ScheduledTrainingDetail>(
+				await fetchClient.post<unknown>(
+					`/api/schedule/${scheduleId}/new_trainings`,
+					{ date, training_id: candidateId } satisfies AddNewTrainingRequest,
+					{ headers: bearerHeader(cookies), cookies }
+				),
+				'/api/schedule/{id}/new_trainings'
 			)
 		);
 	},
@@ -183,15 +314,6 @@ export const trainingApi = {
 	async deleteTraining(cookies: Cookies, trainingId: number): Promise<unknown> {
 		return mutating(cookies, () =>
 			fetchClient.delete(`/api/entries/${trainingId}`, {
-				headers: bearerHeader(cookies),
-				cookies
-			})
-		);
-	},
-
-	async deleteScheduledTraining(cookies: Cookies, trainingId: number): Promise<unknown> {
-		return mutating(cookies, () =>
-			fetchClient.delete(`/api/schedule/trainings/${trainingId}`, {
 				headers: bearerHeader(cookies),
 				cookies
 			})

@@ -53,7 +53,10 @@ export function toDate(value: string | null | undefined): Date | null {
  * here costs that row its dot and nothing else.
  *
  * A prefix match rather than an exact one: `day_long` arrives as a bare date on
- * some rows and as a full timestamp on others, and both name the same day.
+ * some rows and as a full timestamp on others. Those name the same day only
+ * when the timestamp is local: the training `POST .../new_trainings` returns
+ * carries `"2026-10-09T22:00:00.000000Z"` for a session on the 10th, and this
+ * reads it as the 9th. Date such a copy from its `day` instead.
  */
 export function dayKeyOf(value: string | null | undefined): string | null {
 	if (typeof value !== 'string') return null;
@@ -76,6 +79,20 @@ export function mondayOf(date: Date): Date {
 	const weekday = monday.getDay();
 	monday.setDate(monday.getDate() - (weekday === 0 ? 6 : weekday - 1));
 	return monday;
+}
+
+/**
+ * The anchor `getMonthTimestamps` asks Trenara with for the week holding `date`:
+ * that week's Monday, or the 1st when the week began in the month before.
+ *
+ * Reusing the month's own anchor rather than the plain Monday is what lets a
+ * one-week read land on the week the calendar's month fetch already cached —
+ * the cache is keyed by the timestamp asked with, not by the week it named.
+ */
+export function weekAnchorOf(date: Date): Date {
+	const monday = mondayOf(date);
+	const first = new Date(date.getFullYear(), date.getMonth(), 1);
+	return monday < first ? first : monday;
 }
 
 /**

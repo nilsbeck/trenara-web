@@ -23,6 +23,7 @@
 	import SessionShapeBar from '$lib/components/training/session-shape-bar.svelte';
 	import SetupRail from '$lib/components/training/setup-rail.svelte';
 	import SetupRailLoading from '$lib/components/training/setup-rail-loading.svelte';
+	import AddTraining from '$lib/components/training/add-training.svelte';
 	import { loadOnce, reloadOnStaleChunk, whenIdle } from '$lib/utils/load-once';
 	import { trainingLoad } from '$lib/utils/training-load';
 	import { describeError, describeResponse } from '$lib/utils/network';
@@ -286,8 +287,18 @@
 		<p class="text-sm">Loading…</p>
 	</div>
 {:else if !training && !entry}
-	<div class="flex items-center justify-center py-8">
-		{#if selectedDate}
+	<div class="flex items-center justify-center {selectedDate && isTodayOrFuture ? '' : 'py-8'}">
+		{#if selectedDate && isTodayOrFuture}
+			<!--
+				A free day still ahead can take an extra session. Keyed by day so the
+				picker — and its store — start over when another day is chosen.
+			-->
+			{#key selectedDate}
+				<div class="w-full">
+					<AddTraining date={selectedDate} onAdded={() => onScheduleChanged?.()} />
+				</div>
+			{/key}
+		{:else if selectedDate}
 			<p class="text-sm text-muted-foreground">No training scheduled for this day.</p>
 		{:else}
 			<p class="text-sm text-muted-foreground">Select a date to see training details.</p>
