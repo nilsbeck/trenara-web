@@ -580,7 +580,7 @@ describe('the week cache', () => {
 		fetchMock().mockResolvedValue(mockResponse({ id: 1 }));
 
 		await trainingApi.getSchedule(cookies, 1000);
-		await trainingApi.deleteScheduledTraining(cookies, 1);
+		await trainingApi.saveRemoveTraining(cookies, 1, false);
 		await trainingApi.getSchedule(cookies, 1000);
 		await trainingApi.saveChangeDate(cookies, 1, '2026-09-01T00:00:00.000Z', false);
 		await trainingApi.getSchedule(cookies, 1000);
@@ -633,7 +633,7 @@ describe('the goal and stats caches', () => {
 		fetchMock().mockResolvedValue(mockResponse({ id: 1 }));
 
 		await trainingApi.getGoal(cookies);
-		await trainingApi.deleteScheduledTraining(cookies, 1);
+		await trainingApi.saveRemoveTraining(cookies, 1, false);
 		await trainingApi.getGoal(cookies);
 
 		expect(fetchMock()).toHaveBeenCalledTimes(3);

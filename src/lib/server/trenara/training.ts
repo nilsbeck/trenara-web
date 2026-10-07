@@ -201,10 +201,10 @@ export const trainingApi = {
 	 * removing it. The same `change_test` the move flow uses, with
 	 * `action: 'destroy'` and no date.
 	 *
-	 * This is how the app removes a training added through
-	 * {@link trainingApi.addNewTraining} — captured 2026-10-07. Whether it is
-	 * also how a planned session is removed, in place of
-	 * `deleteScheduledTraining`'s `DELETE`, has not been captured.
+	 * This is how the mobile app removed a training added through
+	 * {@link trainingApi.addNewTraining} — captured 2026-10-07 — and so how
+	 * this app removes any scheduled session. It used to send a bare `DELETE`
+	 * to the training, which no capture had ever shown the mobile app sending.
 	 */
 	async testRemoveTraining(
 		cookies: Cookies,
@@ -314,15 +314,6 @@ export const trainingApi = {
 	async deleteTraining(cookies: Cookies, trainingId: number): Promise<unknown> {
 		return mutating(cookies, () =>
 			fetchClient.delete(`/api/entries/${trainingId}`, {
-				headers: bearerHeader(cookies),
-				cookies
-			})
-		);
-	},
-
-	async deleteScheduledTraining(cookies: Cookies, trainingId: number): Promise<unknown> {
-		return mutating(cookies, () =>
-			fetchClient.delete(`/api/schedule/trainings/${trainingId}`, {
 				headers: bearerHeader(cookies),
 				cookies
 			})

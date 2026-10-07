@@ -61,7 +61,6 @@ Endpoints the app already calls live in `src/lib/server/trenara/`:
 | GET/PUT     | `/api/schedule/trainings/{id}/exchange`                                                             | `trainingApi.getExchangeOptions` / `exchangeTraining`   |
 | PUT         | `/api/schedule/trainings/{id}/change_test`, `/change_save` (`move`)                                 | `trainingApi.testChangeDate` / `saveChangeDate`         |
 | PUT         | `/api/schedule/trainings/{id}/change_test`, `/change_save` (`destroy`)                              | `trainingApi.testRemoveTraining` / `saveRemoveTraining` |
-| DELETE      | `/api/schedule/trainings/{id}`                                                                      | `trainingApi.deleteScheduledTraining`                   |
 | POST/DELETE | `/api/entries`, `/api/entries/{id}`                                                                 | `trainingApi.addTraining` / `deleteTraining`            |
 | PUT         | `/api/entries/{id}/rpe`                                                                             | `trainingApi.putFeedback`                               |
 | GET         | `/api/nutritional/advice`                                                                           | `trainingApi.getNutrition`                              |
@@ -1656,10 +1655,11 @@ Removing one — captured 2026-10-07, removing a training added through
 ### Notable fields
 
 - **`destroy` carries no date.** The session is named by the path id alone.
-- **Whether `destroy` is also how a planned session is removed** — rather than
-  `DELETE /api/schedule/trainings/{id}`, which `deleteScheduledTraining` sends
-  and which has never been captured — is not known. The capture removed an
-  _added_ session.
+- **`destroy` is how this app removes any scheduled session**, through
+  `/api/v1/training/delete`: the dry run, then the save, as the mobile app was
+  seen doing. It used to send `DELETE /api/schedule/trainings/{id}`, which no
+  capture has ever shown the mobile app sending. The capture removed an
+  _added_ session; that a planned one is removed the same way is inferred.
 - `include_future: true` on the only `destroy` captured. What it extends a
   removal to is untested.
 - **The dry run's `goal` is not the `/api/goal` goal.** Dates are unix seconds
