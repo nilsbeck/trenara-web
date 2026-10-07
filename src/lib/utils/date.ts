@@ -82,6 +82,20 @@ export function mondayOf(date: Date): Date {
 }
 
 /**
+ * The anchor `getMonthTimestamps` asks Trenara with for the week holding `date`:
+ * that week's Monday, or the 1st when the week began in the month before.
+ *
+ * Reusing the month's own anchor rather than the plain Monday is what lets a
+ * one-week read land on the week the calendar's month fetch already cached —
+ * the cache is keyed by the timestamp asked with, not by the week it named.
+ */
+export function weekAnchorOf(date: Date): Date {
+	const monday = mondayOf(date);
+	const first = new Date(date.getFullYear(), date.getMonth(), 1);
+	return monday < first ? first : monday;
+}
+
+/**
  * Narrow a month's week anchors to the weeks that can still change.
  *
  * A week that finished before `from` is settled: the coach reworks the plan

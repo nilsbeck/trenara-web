@@ -8,6 +8,8 @@ import {
 	setCooldownSchema,
 	crossTrainSchema,
 	exchangeTrainingSchema,
+	newTrainingDaySchema,
+	addNewTrainingSchema,
 	setPacingPlanSchema,
 	deleteTrainingSchema
 } from './training';
@@ -264,5 +266,29 @@ describe('deleteTrainingSchema', () => {
 		['an unknown kind', { trainingId: 7, type: 'strength' }]
 	])('rejects %s', (_label, body) => {
 		expect(deleteTrainingSchema.safeParse(body).success).toBe(false);
+	});
+});
+
+describe('newTrainingDaySchema / addNewTrainingSchema', () => {
+	it('takes a day', () => {
+		expect(newTrainingDaySchema.safeParse({ date: '2026-10-10' }).success).toBe(true);
+	});
+
+	// An instant is the shape that names the wrong day once it crosses UTC.
+	it('refuses an instant where a day belongs', () => {
+		expect(newTrainingDaySchema.safeParse({ date: '2026-10-09T22:00:00.000Z' }).success).toBe(
+			false
+		);
+		expect(newTrainingDaySchema.safeParse({ date: null }).success).toBe(false);
+	});
+
+	it('takes a day and a candidate id to add', () => {
+		expect(addNewTrainingSchema.safeParse({ date: '2026-10-10', candidateId: 24180 }).success).toBe(
+			true
+		);
+		expect(addNewTrainingSchema.safeParse({ date: '2026-10-10', candidateId: 0 }).success).toBe(
+			false
+		);
+		expect(addNewTrainingSchema.safeParse({ date: '2026-10-10' }).success).toBe(false);
 	});
 });
