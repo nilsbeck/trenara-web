@@ -15,7 +15,7 @@
 	distance package in the setup panel stays the way to change it.
 -->
 <section
-	class="overflow-hidden rounded-xl border-b-2 border-violet-500 bg-linear-to-br from-primary/20 via-card to-violet-500/20 px-4 py-3"
+	class="overflow-hidden rounded-xl border-b-2 border-violet-500 bg-linear-to-br from-primary/30 to-violet-600/30 px-4 py-3"
 	aria-labelledby="intelligence-heading"
 	data-testid="intelligence-note"
 >
