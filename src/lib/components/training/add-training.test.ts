@@ -39,7 +39,8 @@ describe('AddTraining', () => {
 		const fetchMock = stubFetch();
 		render(AddTraining, { date: '2026-10-10', onAdded: vi.fn() });
 
-		expect(screen.getByRole('button', { name: /add a training/i })).toBeTruthy();
+		const button = screen.getByRole('button', { name: /add a training/i });
+		expect(button.textContent).toContain('Feeling great today and want to add an extra mile?');
 		expect(fetchMock).not.toHaveBeenCalled();
 	});
 

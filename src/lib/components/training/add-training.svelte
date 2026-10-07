@@ -26,11 +26,14 @@
 {#if store.phase === 'closed'}
 	<button
 		type="button"
-		class="flex w-full items-center justify-center gap-2 rounded-xl border border-dashed border-border bg-muted/40 px-4 py-8 text-sm font-medium text-foreground transition-colors hover:bg-muted"
+		class="flex w-full flex-col items-center justify-center gap-1.5 rounded-xl border border-dashed border-border bg-muted/40 px-4 py-6 text-sm text-foreground transition-colors hover:bg-muted"
 		onclick={() => void store.open()}
 	>
-		<Plus class="h-4 w-4" aria-hidden="true" />
-		Add a training
+		<span class="text-muted-foreground">Feeling great today and want to add an extra mile?</span>
+		<span class="flex items-center gap-2 font-medium">
+			<Plus class="h-4 w-4" aria-hidden="true" />
+			Add a training!
+		</span>
 	</button>
 {:else}
 	<div class="flex flex-col gap-3" data-testid="add-training-picker">

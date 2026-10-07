@@ -58,6 +58,8 @@ everything from the reverse-engineered Trenara API.
   for arrows.
 - **Training details** per day: the planned blocks, a shape bar of the session, and — once you have
   run it — your actual numbers next to the plan.
+- **Trenara Intelligence**: when Trenara adjusts a planned session to your recent running load, its
+  explanation sits above the training, as it does in the mobile app.
 - **Strength sessions** with their exercises, and the **nutrition advice** and meal plan for the day,
   in the same place as the training instead of three screens away.
 - **An automatic RPE feedback dialog**: a session you have run but not yet rated prompts for it by
