@@ -1,12 +1,18 @@
 import { describe, it, expect } from 'vitest';
 import type {
+	AddNewTrainingRequest,
 	ChatMessagesResponse,
 	ProfileUpdate,
 	ExchangeCandidate,
+	NewTrainingCandidate,
 	NewsResponse,
+	SaveScheduleResponse,
+	Schedule,
+	ScheduleChangeRequest,
 	ScheduledTrainingDetail,
 	Shoe,
-	Entry
+	Entry,
+	TestScheduleResponse
 } from './types';
 
 // ─────────────────────────────────────────────────────────────
@@ -809,12 +815,18 @@ const raceDetail = {
 // ─────────────────────────────────────────────────────────────
 // The week response.
 //
-// Keys only: read off `GET /api/schedule/week/` on 2026-08-23, on a running
-// session in a live account. The values are not transcribed — the key set is
-// the fact worth keeping, because it decides how much of the session-setup UI
-// can be built without a second request per day.
+// Keys only, first read off `GET /api/schedule/week/` on 2026-08-23 on a
+// running session in a live account. The key set is the fact worth keeping,
+// because it decides how much of the session-setup UI can be built without a
+// second request per day.
+//
+// The 2026-10-07 capture added the nine fields of the coach's distance
+// adjustment (`has_intelligence` … `base_distance`), which had until then been
+// seen only on a detail. The list is that capture's, and a test below pins it
+// to `weekWithAdjustment` so the two cannot drift apart.
 // ─────────────────────────────────────────────────────────────
 const WEEK_TRAINING_KEYS = [
+	'base_distance',
 	'can_be_edited',
 	'can_be_exchanged',
 	'can_change_distance',
@@ -829,12 +841,20 @@ const WEEK_TRAINING_KEYS = [
 	'day',
 	'day_long',
 	'description',
+	'distance_limit',
 	'has_cooldown',
+	'has_intelligence',
 	'hex_completed',
 	'hex_training',
 	'icon_url',
 	'id',
+	'intelligence_distance',
+	'intelligence_distance_unit',
+	'intelligence_distance_unit_text',
+	'intelligence_distance_value',
+	'intelligence_text',
 	'last_garmin_sync',
+	'original_distance_km',
 	'show_description_from',
 	'team_data',
 	'title',
@@ -972,6 +992,872 @@ const exchangeCandidate = {
 		total_time_unit: 'sec'
 	}
 } satisfies ExchangeCandidate;
+
+// ─────────────────────────────────────────────────────────────
+// The week, and adding and removing a session — all captured on
+// 2026-10-07 against week 39515460 (and the week after it).
+// ─────────────────────────────────────────────────────────────
+
+// `GET /api/schedule/week/?timestamp=1791806400`. Trimmed to the first of its
+// four trainings, which is the one the coach had adjusted itself — the first
+// capture of `has_intelligence: true`: an easy run planned at 10km, raised to
+// 11km from the runner's recent load. Everything else is verbatim.
+const weekWithAdjustment = {
+	id: 39515461,
+	start_day: 1791756000,
+	start_day_long: '2026-10-12',
+	can_receive_new_trainings: true,
+	training_week: 5,
+	type: 'ultimate',
+	trainings: [
+		{
+			id: 132517544,
+			day: 1791842400,
+			day_long: '2026-10-13',
+			title: 'Easy run + strides',
+			description: 'Making kilometers at a comfortable pace, go get them tiger!',
+			show_description_from: 1791237600,
+			type: 'training',
+			icon_url: 'https://backend-prod.trenara.com/icons/icon__step.svg',
+			hex_training: '#7B3294',
+			hex_completed: null,
+			last_garmin_sync: '2026-10-07 01:17:32',
+			can_be_edited: true,
+			can_cross_train: true,
+			cross_type: null,
+			can_toggle_cooldown: false,
+			has_cooldown: false,
+			can_change_distance: false,
+			change_distance_package: null,
+			can_change_intensity: true,
+			change_intensity_package: {
+				title: 'Fine-tune intensity',
+				text: 'Change today’s session intensity within limits set by Coach Christophe. You can always ease off; increases are capped.',
+				steps: [
+					{
+						step: 1,
+						value: -4,
+						text: 'Slower',
+						selected: false
+					},
+					{
+						step: 2,
+						value: -2,
+						text: 'A bit slower',
+						selected: false
+					},
+					{
+						step: 3,
+						value: 0,
+						text: 'As planned',
+						selected: true
+					},
+					{
+						step: 4,
+						value: 2,
+						text: 'A bit faster',
+						selected: false
+					}
+				]
+			},
+			can_change_pacing_plan: false,
+			change_pacing_plan_package: null,
+			can_be_exchanged: true,
+			has_intelligence: true,
+			intelligence_text:
+				'I’ve adjusted your training, Nils. Based on your recent (mechanical) running load, there seems to be room to safely extend the original distance of 10km for this workout. The new distance of 11km is therefore a little longer, while remaining within our safe limits.\n\nNot feeling quite as good today? You can still shorten the workout a little.\n',
+			distance_limit: 0,
+			original_distance_km: 10,
+			base_distance: 11000,
+			intelligence_distance: '-1000m',
+			intelligence_distance_value: -1000,
+			intelligence_distance_unit: 'm',
+			intelligence_distance_unit_text: 'm',
+			team_data: {
+				team_id: 470,
+				name: 'Valencia 42k',
+				picture: null,
+				nr_same_day_participants: 0,
+				nr_other_day_participants: 0,
+				matches_captain_day: true,
+				captain_pace: true,
+				can_toggle_pace: false,
+				can_show_participant_overview: true
+			},
+			training: {
+				blocks: [
+					{
+						order: 1,
+						type: 'warmup',
+						prior: 'distance',
+						hex_graph: '#009E73',
+						calc_time_in_sec: 3211,
+						hex_text: '#FFFFFF',
+						time: '53:31',
+						time_in_sec: 3211,
+						time_value: 3211,
+						time_unit: 'sec',
+						distance: '11km',
+						distance_value: 11,
+						distance_unit: 'km',
+						distance_unit_text: 'km',
+						pace: '04:52 min/km',
+						pace_value: 292,
+						pace_unit: 'min/km',
+						pace_per_hour: '12.33 km/h',
+						pace_per_hour_value: 292,
+						pace_per_hour_unit: 'km/h',
+						prefer_pph: false,
+						pace_range: '04:42-05:03 min/km',
+						pace_range_value_min: 303,
+						pace_range_value_max: 282,
+						pace_per_hour_range: '11.88-12.77 km/h',
+						pace_per_hour_range_value_min: 303,
+						pace_per_hour_range_value_max: 282,
+						text: 'Warm-up: 11km in 53:31 (04:42-05:03 min/km)',
+						text_pph: 'Warm-up: 11km in 53:31 (11.88-12.77 km/h)'
+					},
+					{
+						order: 2,
+						repeat: 4,
+						type: 'core',
+						blocks: [
+							{
+								order: 1,
+								type: 'run',
+								prior: 'distance',
+								hex_graph: '#7B3294',
+								hex_text: '#FFFFFF',
+								time: '00:14',
+								time_in_sec: 14,
+								time_value: 14,
+								time_unit: 'sec',
+								distance: '80m',
+								distance_value: 80,
+								distance_unit: 'm',
+								distance_unit_text: 'm',
+								pace: '02:56 min/km',
+								pace_value: 176,
+								pace_unit: 'min/km',
+								pace_per_hour: '20.45 km/h',
+								pace_per_hour_value: 176,
+								pace_per_hour_unit: 'km/h',
+								prefer_pph: false,
+								text: 'Run 80m in 00:14 (02:56 min/km)',
+								text_pph: 'Run 80m in 00:14 (20.45 km/h)'
+							},
+							{
+								order: 2,
+								type: 'rest',
+								prior: 'time',
+								hex_graph: '#D6EAF8',
+								hex_text: '#FFFFFF',
+								time: '03:00',
+								time_in_sec: 180,
+								time_value: 180,
+								time_unit: 'sec',
+								distance: '422m',
+								distance_value: 422,
+								distance_unit: 'm',
+								distance_unit_text: 'm',
+								pace: '07:06 min/km',
+								pace_value: 426,
+								pace_unit: 'min/km',
+								pace_per_hour: '8.45 km/h',
+								pace_per_hour_value: 426,
+								pace_per_hour_unit: 'km/h',
+								prefer_pph: false,
+								pace_range: '06:31-07:42 min/km',
+								pace_range_value_min: 462,
+								pace_range_value_max: 391,
+								pace_per_hour_range: '7.79-9.21 km/h',
+								pace_per_hour_range_value_min: 462,
+								pace_per_hour_range_value_max: 391,
+								text: 'Rest 03:00 at 06:31-07:42 min/km (422m)',
+								text_pph: 'Rest 03:00 at 7.79-9.21 km/h (422m)'
+							}
+						]
+					}
+				],
+				total_time_in_sec: 3987,
+				total_distance_in_km: 13.01014,
+				core_time_in_sec: 56,
+				pre_advice: null,
+				post_advice: null,
+				core_distance: '320m',
+				core_distance_value: 320,
+				core_distance_unit: 'm',
+				core_distance_unit_text: 'm',
+				core_time: '00:56',
+				core_time_value: 56,
+				core_time_unit: 'sec',
+				total_distance: '13.01km',
+				total_distance_value: 13.01,
+				total_distance_unit: 'km',
+				total_distance_unit_text: 'km',
+				total_time: '01:06:27',
+				total_time_value: 3987,
+				total_time_unit: 'sec'
+			}
+		}
+	],
+	strength_trainings: [],
+	entries: []
+} satisfies Schedule;
+
+// `GET /api/schedule/39515460/new_trainings?date=2026-10-10`: the first of the
+// three candidates offered (the other two, an endurance run of 10km and one of
+// 5km, have the same keys).
+const newTrainingCandidate = {
+	id: 24180,
+	day: 1791583200,
+	day_long: '2026-10-10',
+	title: 'Recovery run',
+	description: 'A second recovery run this week, because... why not?',
+	show_description_from: 1790978400,
+	type: 'training',
+	icon_url: 'https://backend-prod.trenara.com/icons/icon__step.svg',
+	hex_training: '#90CFF1',
+	hex_completed: null,
+	last_garmin_sync: null,
+	can_be_edited: true,
+	can_cross_train: true,
+	cross_type: null,
+	can_toggle_cooldown: true,
+	has_cooldown: false,
+	can_change_distance: true,
+	change_distance_package: {
+		title: 'Fine-tune distance',
+		text: "Short on time, dealing with heavy legs, or ready to go a little farther? Adjust today's volume here.\n\nCoach Christophe's options preserve the intended training stimulus while adapting the session to your day.",
+		steps: [
+			{
+				step: 1,
+				value: -30,
+				text: '-30%',
+				selected: false
+			},
+			{
+				step: 2,
+				value: -20,
+				text: '-20%',
+				selected: false
+			},
+			{
+				step: 3,
+				value: -10,
+				text: '-10%',
+				selected: false
+			},
+			{
+				step: 4,
+				value: 0,
+				text: '0%',
+				selected: true
+			}
+		]
+	},
+	can_change_intensity: true,
+	change_intensity_package: {
+		title: 'Fine-tune intensity',
+		text: 'Change today’s session intensity within limits set by Coach Christophe. You can always ease off; increases are capped.',
+		steps: [
+			{
+				step: 1,
+				value: -4,
+				text: 'Slower',
+				selected: false
+			},
+			{
+				step: 2,
+				value: -2,
+				text: 'A bit slower',
+				selected: false
+			},
+			{
+				step: 3,
+				value: 0,
+				text: 'As planned',
+				selected: true
+			},
+			{
+				step: 4,
+				value: 2,
+				text: 'A bit faster',
+				selected: false
+			}
+		]
+	},
+	can_change_pacing_plan: false,
+	change_pacing_plan_package: null,
+	can_be_exchanged: true,
+	has_intelligence: false,
+	intelligence_text: null,
+	distance_limit: false,
+	original_distance_km: 8,
+	base_distance: null,
+	intelligence_distance: null,
+	intelligence_distance_value: null,
+	intelligence_distance_unit: null,
+	intelligence_distance_unit_text: null,
+	training: {
+		blocks: [
+			{
+				order: 1,
+				repeat: 1,
+				type: 'core',
+				blocks: [
+					{
+						order: 1,
+						type: 'run',
+						prior: 'distance',
+						hex_graph: '#90CFF1',
+						hex_text: '#FFFFFF',
+						time: '47:27',
+						time_in_sec: 2847,
+						time_value: 2847,
+						time_unit: 'sec',
+						distance: '8km',
+						distance_value: 8,
+						distance_unit: 'km',
+						distance_unit_text: 'km',
+						pace: '05:56 min/km',
+						pace_value: 356,
+						pace_unit: 'min/km',
+						pace_per_hour: '10.11 km/h',
+						pace_per_hour_value: 356,
+						pace_per_hour_unit: 'km/h',
+						prefer_pph: false,
+						pace_range: '05:27-06:26 min/km',
+						pace_range_value_min: 386,
+						pace_range_value_max: 327,
+						pace_per_hour_range: '9.33-11.01 km/h',
+						pace_per_hour_range_value_min: 386,
+						pace_per_hour_range_value_max: 327,
+						text: 'Run 8km in 47:27 (05:27-06:26 min/km)',
+						text_pph: 'Run 8km in 47:27 (9.33-11.01 km/h)'
+					}
+				]
+			}
+		],
+		total_time_in_sec: 2847,
+		total_distance_in_km: 8,
+		core_time_in_sec: 2847,
+		pre_advice: null,
+		post_advice: null,
+		core_distance: '8km',
+		core_distance_value: 8,
+		core_distance_unit: 'km',
+		core_distance_unit_text: 'km',
+		core_time: '47:27',
+		core_time_value: 2847,
+		core_time_unit: 'sec',
+		total_distance: '8km',
+		total_distance_value: 8,
+		total_distance_unit: 'km',
+		total_distance_unit_text: 'km',
+		total_time: '47:27',
+		total_time_value: 2847,
+		total_time_unit: 'sec'
+	}
+} satisfies NewTrainingCandidate;
+
+// `POST /api/schedule/39515460/new_trainings` with this body: that candidate,
+// added on the 10th.
+const addNewTrainingBody = {
+	date: '2026-10-10',
+	training_id: 24180
+} satisfies AddNewTrainingRequest;
+
+const addedTraining = {
+	id: 133797044,
+	day: 1791583200,
+	day_long: '2026-10-09T22:00:00.000000Z',
+	title: 'Recovery run',
+	description: 'A second recovery run this week, because... why not?',
+	show_description_from: 1790978400,
+	type: 'training',
+	icon_url: 'https://backend-prod.trenara.com/icons/icon__step.svg',
+	hex_training: '#90CFF1',
+	hex_completed: null,
+	last_garmin_sync: null,
+	can_be_edited: true,
+	can_cross_train: true,
+	cross_type: null,
+	can_toggle_cooldown: true,
+	has_cooldown: false,
+	can_change_distance: true,
+	change_distance_package: {
+		title: 'Fine-tune distance',
+		text: "Short on time, dealing with heavy legs, or ready to go a little farther? Adjust today's volume here.\n\nCoach Christophe's options preserve the intended training stimulus while adapting the session to your day.",
+		steps: [
+			{
+				step: 1,
+				value: -30,
+				text: '-30%',
+				selected: false
+			},
+			{
+				step: 2,
+				value: -20,
+				text: '-20%',
+				selected: false
+			},
+			{
+				step: 3,
+				value: -10,
+				text: '-10%',
+				selected: false
+			},
+			{
+				step: 4,
+				value: 0,
+				text: '0%',
+				selected: true
+			}
+		]
+	},
+	can_change_intensity: true,
+	change_intensity_package: {
+		title: 'Fine-tune intensity',
+		text: 'Change today’s session intensity within limits set by Coach Christophe. You can always ease off; increases are capped.',
+		steps: [
+			{
+				step: 1,
+				value: -4,
+				text: 'Slower',
+				selected: false
+			},
+			{
+				step: 2,
+				value: -2,
+				text: 'A bit slower',
+				selected: false
+			},
+			{
+				step: 3,
+				value: 0,
+				text: 'As planned',
+				selected: true
+			},
+			{
+				step: 4,
+				value: 2,
+				text: 'A bit faster',
+				selected: false
+			}
+		]
+	},
+	can_change_pacing_plan: false,
+	change_pacing_plan_package: null,
+	can_be_exchanged: true,
+	has_intelligence: false,
+	intelligence_text: null,
+	distance_limit: false,
+	original_distance_km: 8,
+	base_distance: null,
+	intelligence_distance: null,
+	intelligence_distance_value: null,
+	intelligence_distance_unit: null,
+	intelligence_distance_unit_text: null,
+	team_data: {
+		team_id: 470,
+		name: 'Valencia 42k',
+		picture: null,
+		nr_same_day_participants: 0,
+		nr_other_day_participants: 0,
+		matches_captain_day: true,
+		captain_pace: true,
+		can_toggle_pace: false,
+		can_show_participant_overview: true
+	},
+	training: {
+		blocks: [
+			{
+				order: 1,
+				repeat: 1,
+				type: 'core',
+				blocks: [
+					{
+						order: 1,
+						type: 'run',
+						prior: 'distance',
+						hex_graph: '#90CFF1',
+						hex_text: '#FFFFFF',
+						time: '47:27',
+						time_in_sec: 2847,
+						time_value: 2847,
+						time_unit: 'sec',
+						distance: '8km',
+						distance_value: 8,
+						distance_unit: 'km',
+						distance_unit_text: 'km',
+						pace: '05:56 min/km',
+						pace_value: 356,
+						pace_unit: 'min/km',
+						pace_per_hour: '10.11 km/h',
+						pace_per_hour_value: 356,
+						pace_per_hour_unit: 'km/h',
+						prefer_pph: false,
+						pace_range: '05:27-06:26 min/km',
+						pace_range_value_min: 386,
+						pace_range_value_max: 327,
+						pace_per_hour_range: '9.33-11.01 km/h',
+						pace_per_hour_range_value_min: 386,
+						pace_per_hour_range_value_max: 327,
+						text: 'Run 8km in 47:27 (05:27-06:26 min/km)',
+						text_pph: 'Run 8km in 47:27 (9.33-11.01 km/h)'
+					}
+				]
+			}
+		],
+		total_time_in_sec: 2847,
+		total_distance_in_km: 8,
+		core_time_in_sec: 2847,
+		pre_advice: null,
+		post_advice: null,
+		core_distance: '8km',
+		core_distance_value: 8,
+		core_distance_unit: 'km',
+		core_distance_unit_text: 'km',
+		core_time: '47:27',
+		core_time_value: 2847,
+		core_time_unit: 'sec',
+		total_distance: '8km',
+		total_distance_value: 8,
+		total_distance_unit: 'km',
+		total_distance_unit_text: 'km',
+		total_time: '47:27',
+		total_time_value: 2847,
+		total_time_unit: 'sec'
+	},
+	training_condition: null,
+	suggested_shoe: null
+} satisfies ScheduledTrainingDetail;
+
+// Removing it again: `PUT /api/schedule/trainings/133797044/change_test`, then
+// `.../change_save`, both with this body.
+const removeBody = { action: 'destroy', include_future: true } satisfies ScheduleChangeRequest;
+
+const removeTest = {
+	goal: {
+		id: 2265606,
+		name: 'Valencia 42k',
+		distance_in_m: 42195,
+		time_in_sec: 9768,
+		goal_vo2max: 67.1551,
+		goal_time_per_km: 231.4967,
+		best_time_per_km: 228.9804,
+		difficulty: 0,
+		weekly_trainings: 4,
+		last_prediction: 1791368449,
+		start_date: 1791151200,
+		end_date: 1796511600,
+		end_date_text: '2026-12-06',
+		goal_reached: null,
+		prediction: true,
+		my_time: false,
+		can_be_edited: true,
+		edit_warning:
+			'Changing this goal will update it for everyone in the group. Do you want to continue?',
+		created_at: 1789670863,
+		training_scheme: {
+			id: 419,
+			number_of_trainings: 7,
+			min_number_of_trainings: 3,
+			max_number_of_trainings: 7,
+			type: 'ultimate',
+			weeks: 12,
+			distance: '50km',
+			distance_value: 50,
+			distance_unit: 'km',
+			distance_unit_text: 'km'
+		},
+		intermediate_goals: []
+	},
+	goal_possible: true,
+	new_goal_time: 9855
+} satisfies TestScheduleResponse;
+
+// The save's answer, trimmed to the first of the four trainings left in the
+// week. The key set at the top level is verbatim, absences included.
+const removeSave = {
+	id: 39515460,
+	start_day: 1791151200,
+	start_day_long: '2026-10-05',
+	can_receive_new_trainings: true,
+	training_week: 4,
+	type: 'ultimate',
+	trainings: [
+		{
+			id: 132517541,
+			day: 1791324000,
+			day_long: '2026-10-07',
+			title: 'Intervals',
+			description:
+				"🇳🇴\n\nNorway's top athletics and triathlon athletes do this session as their second workout of the day. Yep, 400 m reps like these are typical of the famous double-threshold days.\n\nFor amateurs like us, a single-threshold session is more than enough. I think it fits nicely here in this recovery week: plenty of quality, limited load.\n\nWhen your threshold is set correctly, we never go into the red. To be fair, the 30-second recoveries still make this a demanding session. A good training stimulus is not automatically hard or easy.\n\nEnjoy it, Nils!",
+			show_description_from: 1790719200,
+			type: 'training',
+			icon_url: 'https://backend-prod.trenara.com/icons/icon__step.svg',
+			hex_training: '#CC3311',
+			hex_completed: null,
+			last_garmin_sync: '2026-10-07 01:17:30',
+			can_be_edited: true,
+			can_cross_train: false,
+			cross_type: null,
+			can_toggle_cooldown: true,
+			has_cooldown: true,
+			can_change_distance: true,
+			change_distance_package: {
+				title: 'Fine-tune intervals',
+				text: 'Feeling less fresh—or exceptionally well recovered? Adjust the number of repetitions here.\n\nThe intensity and duration of each rep stay the same. Coach Christophe sets the limits to preserve the intended stimulus.',
+				steps: [
+					{
+						step: 1,
+						value: 15,
+						text: '15x',
+						selected: false
+					},
+					{
+						step: 2,
+						value: 16,
+						text: '16x',
+						selected: false
+					},
+					{
+						step: 3,
+						value: 17,
+						text: '17x',
+						selected: false
+					},
+					{
+						step: 4,
+						value: 18,
+						text: '18x',
+						selected: true
+					},
+					{
+						step: 5,
+						value: 19,
+						text: '19x',
+						selected: false
+					},
+					{
+						step: 6,
+						value: 20,
+						text: '20x',
+						selected: false
+					}
+				]
+			},
+			can_change_intensity: true,
+			change_intensity_package: {
+				title: 'Fine-tune intensity',
+				text: 'Change today’s session intensity within limits set by Coach Christophe. You can always ease off; increases are capped.',
+				steps: [
+					{
+						step: 1,
+						value: -4,
+						text: 'Slower',
+						selected: false
+					},
+					{
+						step: 2,
+						value: -2,
+						text: 'A bit slower',
+						selected: false
+					},
+					{
+						step: 3,
+						value: 0,
+						text: 'As planned',
+						selected: true
+					},
+					{
+						step: 4,
+						value: 2,
+						text: 'A bit faster',
+						selected: false
+					},
+					{
+						step: 5,
+						value: 4,
+						text: 'Faster',
+						selected: false
+					}
+				]
+			},
+			can_change_pacing_plan: false,
+			change_pacing_plan_package: null,
+			can_be_exchanged: true,
+			has_intelligence: false,
+			intelligence_text: null,
+			distance_limit: 0,
+			original_distance_km: 129,
+			base_distance: null,
+			intelligence_distance: null,
+			intelligence_distance_value: null,
+			intelligence_distance_unit: null,
+			intelligence_distance_unit_text: null,
+			team_data: {
+				team_id: 470,
+				name: 'Valencia 42k',
+				picture: null,
+				nr_same_day_participants: 0,
+				nr_other_day_participants: 0,
+				matches_captain_day: true,
+				captain_pace: true,
+				can_toggle_pace: false,
+				can_show_participant_overview: true
+			},
+			training: {
+				blocks: [
+					{
+						order: 1,
+						type: 'warmup',
+						prior: 'time',
+						hex_graph: '#44A6D3',
+						calc_time_in_sec: 900,
+						hex_text: '#FFFFFF',
+						time: '15:00',
+						time_in_sec: 900,
+						time_value: 900,
+						time_unit: 'sec',
+						distance: '2.85km',
+						distance_value: 2.85,
+						distance_unit: 'km',
+						distance_unit_text: 'km',
+						pace: '05:16 min/km',
+						pace_value: 316,
+						pace_unit: 'min/km',
+						pace_per_hour: '11.39 km/h',
+						pace_per_hour_value: 316,
+						pace_per_hour_unit: 'km/h',
+						prefer_pph: false,
+						pace_range: '05:05-05:28 min/km',
+						pace_range_value_min: 328,
+						pace_range_value_max: 305,
+						pace_per_hour_range: '10.98-11.80 km/h',
+						pace_per_hour_range_value_min: 328,
+						pace_per_hour_range_value_max: 305,
+						text: 'Warm-up: 15:00 at 05:05-05:28 min/km (2.85km)',
+						text_pph: 'Warm-up: 15:00 at 10.98-11.80 km/h (2.85km)'
+					},
+					{
+						order: 2,
+						repeat: 18,
+						type: 'core',
+						blocks: [
+							{
+								order: 1,
+								type: 'run',
+								prior: 'distance',
+								hex_graph: '#CC3311',
+								hex_text: '#FFFFFF',
+								time: '01:37',
+								time_in_sec: 97,
+								time_value: 97,
+								time_unit: 'sec',
+								distance: '400m',
+								distance_value: 400,
+								distance_unit: 'm',
+								distance_unit_text: 'm',
+								pace: '04:04 min/km',
+								pace_value: 244,
+								pace_unit: 'min/km',
+								pace_per_hour: '14.75 km/h',
+								pace_per_hour_value: 244,
+								pace_per_hour_unit: 'km/h',
+								prefer_pph: false,
+								text: 'Run 400m in 01:37 (04:04 min/km)',
+								text_pph: 'Run 400m in 01:37 (14.75 km/h)'
+							},
+							{
+								order: 2,
+								type: 'rest',
+								prior: 'time',
+								hex_graph: '#D6EAF8',
+								hex_text: '#FFFFFF',
+								time: '00:30',
+								time_in_sec: 30,
+								time_value: 30,
+								time_unit: 'sec',
+								distance: '69m',
+								distance_value: 69,
+								distance_unit: 'm',
+								distance_unit_text: 'm',
+								pace: '07:09 min/km',
+								pace_value: 429,
+								pace_unit: 'min/km',
+								pace_per_hour: '8.39 km/h',
+								pace_per_hour_value: 429,
+								pace_per_hour_unit: 'km/h',
+								prefer_pph: false,
+								pace_range: '06:33-07:45 min/km',
+								pace_range_value_min: 465,
+								pace_range_value_max: 393,
+								pace_per_hour_range: '7.74-9.16 km/h',
+								pace_per_hour_range_value_min: 465,
+								pace_per_hour_range_value_max: 393,
+								text: 'Rest 00:30 at 06:33-07:45 min/km (69m)',
+								text_pph: 'Rest 00:30 at 7.74-9.16 km/h (69m)'
+							}
+						]
+					},
+					{
+						order: 3,
+						type: 'cooldown',
+						prior: 'distance',
+						hex_graph: '#90CFF1',
+						calc_time_in_sec: 715,
+						hex_text: '#FFFFFF',
+						time: '11:55',
+						time_in_sec: 715,
+						time_value: 715,
+						time_unit: 'sec',
+						distance: '2km',
+						distance_value: 2,
+						distance_unit: 'km',
+						distance_unit_text: 'km',
+						pace: '05:58 min/km',
+						pace_value: 358,
+						pace_unit: 'min/km',
+						pace_per_hour: '10.06 km/h',
+						pace_per_hour_value: 358,
+						pace_per_hour_unit: 'km/h',
+						prefer_pph: false,
+						pace_range: '05:28-06:28 min/km',
+						pace_range_value_min: 388,
+						pace_range_value_max: 328,
+						pace_per_hour_range: '9.28-10.98 km/h',
+						pace_per_hour_range_value_min: 388,
+						pace_per_hour_range_value_max: 328,
+						text: 'Cooldown: 2km in 11:55 (05:28-06:28 min/km)',
+						text_pph: 'Cooldown: 2km in 11:55 (9.28-10.98 km/h)'
+					}
+				],
+				total_time_in_sec: 3901,
+				total_distance_in_km: 13.306840000000001,
+				core_time_in_sec: 1746,
+				pre_advice: null,
+				post_advice: null,
+				core_distance: '7.2km',
+				core_distance_value: 7.2,
+				core_distance_unit: 'km',
+				core_distance_unit_text: 'km',
+				core_time: '29:06',
+				core_time_value: 1746,
+				core_time_unit: 'sec',
+				total_distance: '13.31km',
+				total_distance_value: 13.31,
+				total_distance_unit: 'km',
+				total_distance_unit_text: 'km',
+				total_time: '01:05:01',
+				total_time_value: 3901,
+				total_time_unit: 'sec'
+			}
+		}
+	]
+} satisfies SaveScheduleResponse;
 
 const newsResponse = {
 	data: [
@@ -1523,6 +2409,89 @@ describe('captured payloads', () => {
 		// Both are on the detail, which is what the per-day fetch is still for.
 		expect(runDetail).toHaveProperty('training_condition');
 		expect(runDetail).toHaveProperty('suggested_shoe');
+	});
+
+	it('pins the week key list to the captured week', () => {
+		const [adjusted] = weekWithAdjustment.trainings;
+		expect(Object.keys(adjusted).sort()).toEqual([...WEEK_TRAINING_KEYS]);
+	});
+
+	// The coach's own adjustment: the plan said 10km, the schedule says 11km,
+	// and the two figures are in different units. The runner's own distance
+	// steps are withdrawn while it stands.
+	it('reports an adjusted session in kilometres before and metres after', () => {
+		const [easy] = weekWithAdjustment.trainings;
+		expect(easy.has_intelligence).toBe(true);
+		expect(easy.original_distance_km * 1000).toBe(10000);
+		expect(easy.base_distance).toBe(11000);
+		expect(easy.training.blocks[0]?.distance).toBe('11km');
+		expect(easy.intelligence_distance_value).toBe(-1000);
+		expect(easy.can_change_distance).toBe(false);
+		expect(easy.change_distance_package).toBeNull();
+	});
+
+	it('leaves every adjustment field null on a session the coach left alone', () => {
+		expect(addedTraining.has_intelligence).toBe(false);
+		expect(addedTraining.base_distance).toBeNull();
+		expect(addedTraining.intelligence_text).toBeNull();
+		expect(addedTraining.intelligence_distance_value).toBeNull();
+	});
+
+	// Same field, two types: a number on a week, a boolean on a candidate and
+	// on the training adding one returns.
+	it('sends distance_limit as 0 on a week and false on a new training', () => {
+		expect(weekWithAdjustment.trainings[0]?.distance_limit).toBe(0);
+		expect(newTrainingCandidate.distance_limit).toBe(false);
+		expect(addedTraining.distance_limit).toBe(false);
+	});
+
+	it('offers new trainings dated on the day asked about, by template id', () => {
+		expect(newTrainingCandidate.day_long).toBe(addNewTrainingBody.date);
+		expect(newTrainingCandidate.id).toBe(addNewTrainingBody.training_id);
+		expect(newTrainingCandidate).not.toHaveProperty('team_data');
+		expect(newTrainingCandidate).not.toHaveProperty('training_condition');
+	});
+
+	// The added training is a scheduled one with an id of its own, and it is
+	// serialised like a detail: team, conditions and shoe all present.
+	it('answers an added training with a new scheduled id and the full detail', () => {
+		expect(addedTraining.id).toBeGreaterThan(newTrainingCandidate.id);
+		expect(addedTraining.title).toBe(newTrainingCandidate.title);
+		expect(addedTraining.day).toBe(newTrainingCandidate.day);
+		expect(addedTraining).toHaveProperty('training_condition', null);
+		expect(addedTraining).toHaveProperty('suggested_shoe', null);
+		expect(addedTraining.team_data?.team_id).toBe(470);
+	});
+
+	// The trap in this response: `day_long` is the UTC instant of the
+	// runner's local midnight, so its first ten characters name the day before.
+	// `day` is the same unix second the candidate and the week both carry.
+	it('dates the added training by an instant in day_long, the day before in UTC', () => {
+		expect(addedTraining.day_long).toBe('2026-10-09T22:00:00.000000Z');
+		expect(addedTraining.day_long.slice(0, 10)).not.toBe(addNewTrainingBody.date);
+		expect(new Date(addedTraining.day * 1000).toISOString()).toBe('2026-10-09T22:00:00.000Z');
+	});
+
+	it('removes a training with a body that carries no date', () => {
+		expect(removeBody.action).toBe('destroy');
+		expect(removeBody).not.toHaveProperty('target_date');
+	});
+
+	// The dry run's goal is its own serialisation: dates in unix seconds, not
+	// the strings `/api/goal` sends.
+	it('answers the dry run with a goal dated in unix seconds and a new time', () => {
+		expect(typeof removeTest.goal.end_date).toBe('number');
+		expect(removeTest.goal.end_date_text).toBe('2026-12-06');
+		expect(removeTest.goal_possible).toBe(true);
+		expect(removeTest.new_goal_time).toBeGreaterThan(removeTest.goal.time_in_sec);
+	});
+
+	it('answers the removal with its week, re-opened and without its other collections', () => {
+		expect(removeSave.id).toBe(39515460);
+		expect(removeSave.can_receive_new_trainings).toBe(true);
+		expect(removeSave).not.toHaveProperty('strength_trainings');
+		expect(removeSave).not.toHaveProperty('entries');
+		expect(removeSave.trainings.map((t) => t.id)).not.toContain(addedTraining.id);
 	});
 
 	it('offers exchange candidates with ids from a different space than the schedule id', () => {
