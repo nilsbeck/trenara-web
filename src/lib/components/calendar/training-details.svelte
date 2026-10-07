@@ -28,6 +28,8 @@
 	import { describeError, describeResponse } from '$lib/utils/network';
 	import { SessionDetailStore } from '$lib/stores/session-detail.svelte';
 	import SessionBlocks from '$lib/components/training/session-blocks.svelte';
+	import IntelligenceNote from '$lib/components/training/intelligence-note.svelte';
+	import { intelligenceParagraphs } from '$lib/utils/intelligence';
 	import { findTurnaround } from '$lib/utils/turnaround';
 	import {
 		activityIcon,
@@ -105,6 +107,10 @@
 
 	// The detail once it lands, the week's copy until then.
 	const shownTraining = $derived(detailStore.detail ?? training);
+
+	// Only before the run: the note explains today's adjusted distance and
+	// offers to shorten it, which is no longer true of a session already done.
+	const intelligence = $derived(entry === null ? intelligenceParagraphs(shownTraining) : null);
 
 	// Which copy the setup controls render from: the detail once it lands, and
 	// the week's own copy before that *if* it already carries the capability
@@ -289,6 +295,10 @@
 	</div>
 {:else}
 	<div class="flex flex-col gap-4">
+		{#if intelligence}
+			<IntelligenceNote paragraphs={intelligence} />
+		{/if}
+
 		<!-- Title + action buttons -->
 		<div class="flex items-start justify-between gap-2">
 			<!--
