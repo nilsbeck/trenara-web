@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeAll, afterEach } from 'vitest';
+import { describe, it, expect, beforeAll, afterEach, vi } from 'vitest';
 import { render, cleanup, screen, waitFor } from '@testing-library/svelte';
 import GoalCard from './goal-card.svelte';
 import type { Goal, UserStats } from '$lib/server/trenara/types';
@@ -23,6 +23,17 @@ beforeAll(() => {
 
 afterEach(() => {
 	cleanup();
+});
+
+// Pinned to a Monday. The fixture builds its plan around today, and the
+// current week's 20km is "half run" only early in the week: from Wednesday
+// on, the same figure reads as a slower week, the forecast shifts, and the
+// "short of goal pace" line this test asserts no longer appears. Read off the
+// real clock, the test passed on Mondays and Tuesdays and failed otherwise.
+// Only `Date` is faked, so `waitFor`'s timers still run.
+vi.hoisted(() => {
+	vi.useFakeTimers({ toFake: ['Date'] });
+	vi.setSystemTime(new Date(2026, 9, 5, 12));
 });
 
 const DAY_MS = 86_400_000;
