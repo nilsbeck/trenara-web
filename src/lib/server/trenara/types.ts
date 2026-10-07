@@ -771,6 +771,14 @@ export interface StrengthTraining {
  * `/api/schedule/trainings/{id}`. Everything only the detail endpoint has been
  * seen to return is optional here, so a week payload still satisfies the type.
  * See {@link ScheduledTrainingDetail}.
+ *
+ * `day_long` is a bare `YYYY-MM-DD` on every week and detail captured, but the
+ * training `POST /api/schedule/{id}/new_trainings` hands back carries a UTC
+ * instant instead — `"2026-10-09T22:00:00.000000Z"` for a session on the 10th,
+ * because that is the runner's local midnight in UTC. Taking the first ten
+ * characters of that names the day before. `day` (unix seconds) agrees between
+ * the two serialisations, so it is the field to date a training from when the
+ * copy did not come from a week.
  */
 export interface ScheduledTraining {
 	id: number;
@@ -825,32 +833,60 @@ export interface ScheduledTraining {
 	can_be_exchanged?: boolean;
 	team_data?: TeamData | null;
 
-	// ── Detail/mutation-only, observed on POST .../training_condition ──
+	// ── The coach's automatic distance adjustment ──
 	//
-	// Absent from the week payload (see `WEEK_TRAINING_KEYS` in
-	// `payloads.test.ts`) and untyped until a 2026-08-27 capture.
+	// First seen on POST .../training_condition (2026-08-27), where it was
+	// absent from the week. Since the 2026-10-07 captures the week carries all
+	// nine fields on every training too (`WEEK_TRAINING_KEYS` in
+	// `payloads.test.ts`), so they are no longer detail-only. Still optional:
+	// older weeks were captured without them.
 
 	/**
-	 * Gates the `intelligence_*` fields below. Only `false` has been captured,
-	 * so the enabled shape is unknown — every companion field was `null`.
+	 * True when Trenara has rescaled the session itself from the runner's
+	 * recent load — an easy run of 10km planned, 11km on the schedule. The
+	 * `intelligence_*` fields below describe that adjustment and are all `null`
+	 * while this is `false`.
+	 *
+	 * An adjusted session came back with `can_change_distance: false` and no
+	 * distance package: the adjustment replaces the runner's own distance
+	 * steps rather than sitting beside them.
 	 */
 	has_intelligence?: boolean;
+	/** The coach's explanation, addressed to the runner by first name. Plain text with `\n`. */
 	intelligence_text?: string | null;
 	/**
-	 * Typed from the naming convention the rest of this API follows, not from
-	 * observation: all four were `null` in the only capture.
+	 * Reads as the step the runner is offered *back* from the adjustment, not
+	 * the adjustment itself: `"-1000m"` on a session raised from 10km to 11km,
+	 * whose text ends "You can still shorten the workout a little". Signed, in
+	 * `intelligence_distance_unit` (metres in every capture).
+	 *
+	 * How the runner takes that step up has not been captured.
 	 */
 	intelligence_distance?: string | null;
 	intelligence_distance_value?: number | null;
 	intelligence_distance_unit?: string | null;
 	intelligence_distance_unit_text?: string | null;
-	/** Meaning unknown; `0` on the only session captured. */
-	distance_limit?: number;
 	/**
-	 * Equalled the current distance on a training with no distance adjustment
-	 * applied, so whether it tracks the pre-adjustment distance is untested.
+	 * Meaning unknown. `0` on every training in a week or a detail, but
+	 * `false` on a new-training candidate and on the training adding one
+	 * returns — two types for one field, so read it as falsy-or-not and nothing
+	 * more.
+	 */
+	distance_limit?: number | boolean;
+	/**
+	 * The distance the plan asked for, in **kilometres**, before the coach's
+	 * adjustment: `10` on the session `base_distance` puts at 11000.
+	 *
+	 * Not always a distance a runner would recognise: an interval session whose
+	 * blocks total 13.3km carried `129` here, so do not display it without
+	 * `has_intelligence` saying there is an adjustment to explain.
 	 */
 	original_distance_km?: number;
+	/**
+	 * The adjusted distance of the session's main block, in **metres** —
+	 * `11000` against `original_distance_km: 10`. A different unit from its
+	 * neighbour; `null` whenever `has_intelligence` is false.
+	 */
 	base_distance?: number | null;
 
 	// ── The two fields only the detail endpoint and the mutations send ──
@@ -885,6 +921,42 @@ export type ExchangeCandidate = Omit<
 	ScheduledTraining,
 	'training_condition' | 'team_data' | 'suggested_shoe'
 >;
+
+/**
+ * A session `GET /schedule/{scheduleId}/new_trainings?date=` offers to add.
+ *
+ * The same serialisation as an exchange candidate — no conditions, team or
+ * shoe — with `day` and `day_long` already set to the date asked about. Its
+ * `id` is a plan template id (five digits), not a scheduled training id: send
+ * it back as `training_id` in {@link AddNewTrainingRequest}, and the training
+ * that comes back has a nine-digit id of its own.
+ */
+export type NewTrainingCandidate = ExchangeCandidate;
+
+/** Body of `POST /schedule/{scheduleId}/new_trainings`. */
+export interface AddNewTrainingRequest {
+	/** The local day to add it on, `YYYY-MM-DD` — the same date the candidates were listed for. */
+	date: string;
+	/** A {@link NewTrainingCandidate}'s `id`. */
+	training_id: number;
+}
+
+/**
+ * Body of `PUT /schedule/trainings/{id}/change_test` and `.../change_save`.
+ *
+ * Both endpoints take the same body; `change_test` is the dry run and
+ * `change_save` applies it. `action` picks what is changed:
+ *
+ * - `move` takes the session to `target_date`.
+ * - `destroy` removes it, and carries no date. Captured on 2026-10-07 removing
+ *   a training added through `new_trainings`.
+ *
+ * `include_future` was `true` on the only `destroy` captured; what it extends
+ * a removal to — later sessions of the same kind, presumably — is untested.
+ */
+export type ScheduleChangeRequest =
+	| { action: 'move'; include_future: boolean; target_date: string }
+	| { action: 'destroy'; include_future: boolean };
 
 /**
  * Body of `POST /schedule/trainings/{id}/training_condition`.
@@ -979,6 +1051,17 @@ export interface Schedule {
 	id: number;
 	start_day: number;
 	start_day_long: string;
+	/**
+	 * Whether `POST /schedule/{id}/new_trainings` will take another session
+	 * this week — the gate on the "add a training" button.
+	 *
+	 * Seen moving with the week's own contents: `true` on a week of four, then
+	 * `false` once a fifth was added, and `true` again after it was removed.
+	 * What decides it on Trenara's side is not in the payload.
+	 *
+	 * Optional because weeks captured before 2026-10-07 did not carry it.
+	 */
+	can_receive_new_trainings?: boolean;
 	training_week: number;
 	type: 'ultimate' | 'other';
 	trainings: ScheduledTraining[];
@@ -1188,16 +1271,83 @@ export interface Thread {
 	};
 }
 
+/**
+ * The goal as `change_test` serialises it — **not** the {@link Goal} of
+ * `/api/goal`. Dates are unix seconds here (`start_date`, `end_date`) with the
+ * end day spelled out beside them, the time and distance are raw figures with
+ * no formatted twins, and the training scheme is nested rather than flattened.
+ *
+ * Typed from the one capture (2026-10-07, a `destroy`). Nothing in this app
+ * reads it yet; `goal_possible` and `new_goal_time` beside it are what the
+ * move dialog uses.
+ */
+export interface ScheduleChangeGoal {
+	id: number;
+	name: string;
+	distance_in_m: number;
+	/** The goal time as set, in seconds. Compare with `new_goal_time`. */
+	time_in_sec: number;
+	goal_vo2max: number;
+	/** Seconds per kilometre, unrounded. */
+	goal_time_per_km: number;
+	best_time_per_km: number;
+	difficulty: number;
+	weekly_trainings: number;
+	/** Unix seconds. */
+	last_prediction: number;
+	/** Unix seconds — a string on {@link Goal}. */
+	start_date: number;
+	/** Unix seconds — a string on {@link Goal}. */
+	end_date: number;
+	/** The race day as `YYYY-MM-DD`. */
+	end_date_text: string;
+	goal_reached: boolean | null;
+	prediction: boolean;
+	my_time: boolean;
+	can_be_edited: boolean;
+	edit_warning: string | null;
+	created_at: number;
+	training_scheme: {
+		id: number;
+		number_of_trainings: number;
+		min_number_of_trainings: number;
+		max_number_of_trainings: number;
+		type: string;
+		weeks: number;
+		distance: string;
+		distance_value: number;
+		distance_unit: string;
+		distance_unit_text: string;
+	};
+	/** Empty in the only capture, so the element shape is unknown. */
+	intermediate_goals: unknown[];
+}
+
+/** What `PUT /schedule/trainings/{id}/change_test` answers, for either action. */
 export interface TestScheduleResponse {
-	goal: Goal;
+	goal: ScheduleChangeGoal;
 	goal_possible: boolean;
+	/**
+	 * The predicted goal time in seconds if the change were made: 9855 against a
+	 * `goal.time_in_sec` of 9768 for removing one easy run.
+	 */
 	new_goal_time: number;
 }
 
+/**
+ * What `PUT /schedule/trainings/{id}/change_save` answers: the week the change
+ * landed in, so the caller can seat it without a refetch.
+ *
+ * Not quite a {@link Schedule}: `strength_trainings` and `entries` are absent
+ * (not empty) on the 2026-10-07 capture, so a caller merging this into a week
+ * it already holds keeps its own copies of those two.
+ */
 export interface SaveScheduleResponse {
 	id: number;
 	start_day: number;
 	start_day_long: string;
+	/** See {@link Schedule.can_receive_new_trainings}; `true` again after a removal. */
+	can_receive_new_trainings?: boolean;
 	training_week: number;
 	type: string;
 	trainings: ScheduledTraining[];

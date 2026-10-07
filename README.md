@@ -87,6 +87,8 @@ shown.
   you what that actually reads as per kilometre.
 - **Move sessions to another date**, optionally shifting the rest of the plan with them.
 - **Delete sessions.**
+- **Add a training** on a free day, today or later: pick from the sessions Trenara offers for that
+  day, and the week is fetched again so the plan around it is current.
 
 ### Goals and predictions
 

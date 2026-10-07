@@ -45,28 +45,30 @@ Upstream's is the mobile app's home screen payload, described below.
 
 Endpoints the app already calls live in `src/lib/server/trenara/`:
 
-| Method      | Path                                                                                                | Wrapper                                                  |
-| ----------- | --------------------------------------------------------------------------------------------------- | -------------------------------------------------------- |
-| POST        | `/oauth/token`                                                                                      | `authApi.login` / `refreshToken`                         |
-| GET         | `/api/me`                                                                                           | `userApi.getCurrentUser`                                 |
-| PUT         | `/api/me`                                                                                           | `userApi.updateProfile`                                  |
-| GET         | `/api/me/stats`                                                                                     | `userApi.getUserStats`                                   |
-| GET         | `/api/me/shoes`                                                                                     | `userApi.getShoes`                                       |
-| GET         | `/api/goal`                                                                                         | `trainingApi.getGoal`                                    |
-| GET         | `/api/schedule/week/?timestamp=`                                                                    | `trainingApi.getSchedule`                                |
-| GET         | `/api/schedule/trainings/{id}`                                                                      | `trainingApi.getScheduledTraining`                       |
-| PUT         | `/api/schedule/trainings/{id}/{intensity,distance,cooldown,suggested_shoe,cross_train,pacing_plan}` | `trainingApi.set*` / `crossTrain`                        |
-| POST        | `/api/schedule/trainings/{id}/training_condition`                                                   | `trainingApi.setTrainingCondition`                       |
-| GET/PUT     | `/api/schedule/trainings/{id}/exchange`                                                             | `trainingApi.getExchangeCandidates` / `exchangeTraining` |
-| PUT         | `/api/schedule/trainings/{id}/change_test`, `/change_save`                                          | `trainingApi.testChangeDate` / `saveChangeDate`          |
-| DELETE      | `/api/schedule/trainings/{id}`                                                                      | `trainingApi.deleteScheduledTraining`                    |
-| POST/DELETE | `/api/entries`, `/api/entries/{id}`                                                                 | `trainingApi.addTraining` / `deleteTraining`             |
-| PUT         | `/api/entries/{id}/rpe`                                                                             | `trainingApi.putFeedback`                                |
-| GET         | `/api/nutritional/advice`                                                                           | `trainingApi.getNutritionAdvice`                         |
-| GET         | `/api/threads/`, `/api/threads/{id}/messages`                                                       | `chatApi.getThreads` / `getMessages`                     |
-| POST        | `/api/threads/{id}/messages`                                                                        | `chatApi.sendMessage`                                    |
-| GET         | `/api/news/`                                                                                        | `newsApi.getNews`                                        |
-| GET         | `/api/config/app`                                                                                   | `configApi.getAppConfig`                                 |
+| Method      | Path                                                                                                | Wrapper                                                 |
+| ----------- | --------------------------------------------------------------------------------------------------- | ------------------------------------------------------- |
+| POST        | `/oauth/token`                                                                                      | `authApi.login` / `refreshToken`                        |
+| GET         | `/api/me`                                                                                           | `userApi.getCurrentUser`                                |
+| PUT         | `/api/me`                                                                                           | `userApi.updateProfile`                                 |
+| GET         | `/api/me/stats`                                                                                     | `userApi.getUserStats`                                  |
+| GET         | `/api/me/shoes`                                                                                     | `userApi.getShoes`                                      |
+| GET         | `/api/goal`                                                                                         | `trainingApi.getGoal`                                   |
+| GET         | `/api/schedule/week/?timestamp=`                                                                    | `trainingApi.getSchedule`                               |
+| GET/POST    | `/api/schedule/{id}/new_trainings`                                                                  | `trainingApi.getNewTrainings` / `addNewTraining`        |
+| GET         | `/api/schedule/trainings/{id}`                                                                      | `trainingApi.getTraining`                               |
+| PUT         | `/api/schedule/trainings/{id}/{intensity,distance,cooldown,suggested_shoe,cross_train,pacing_plan}` | `trainingApi.set*` / `crossTrain`                       |
+| POST        | `/api/schedule/trainings/{id}/training_condition`                                                   | `trainingApi.setTrainingCondition`                      |
+| GET/PUT     | `/api/schedule/trainings/{id}/exchange`                                                             | `trainingApi.getExchangeOptions` / `exchangeTraining`   |
+| PUT         | `/api/schedule/trainings/{id}/change_test`, `/change_save` (`move`)                                 | `trainingApi.testChangeDate` / `saveChangeDate`         |
+| PUT         | `/api/schedule/trainings/{id}/change_test`, `/change_save` (`destroy`)                              | `trainingApi.testRemoveTraining` / `saveRemoveTraining` |
+| DELETE      | `/api/schedule/trainings/{id}`                                                                      | `trainingApi.deleteScheduledTraining`                   |
+| POST/DELETE | `/api/entries`, `/api/entries/{id}`                                                                 | `trainingApi.addTraining` / `deleteTraining`            |
+| PUT         | `/api/entries/{id}/rpe`                                                                             | `trainingApi.putFeedback`                               |
+| GET         | `/api/nutritional/advice`                                                                           | `trainingApi.getNutrition`                              |
+| GET         | `/api/threads/`, `/api/threads/{id}/messages`                                                       | `chatApi.getThreads` / `getMessages`                    |
+| POST        | `/api/threads/{id}/messages`                                                                        | `chatApi.sendMessage`                                   |
+| GET         | `/api/news/`                                                                                        | `newsApi.getNews`                                       |
+| GET         | `/api/config/app`                                                                                   | `configApi.getAppConfig`                                |
 
 Endpoints recorded below are **not wired up yet** unless the section says so.
 
@@ -1624,6 +1626,146 @@ across the rest.
 
 ---
 
+## PUT /api/schedule/trainings/{id}/change_test, /change_save
+
+Two endpoints, one body: `change_test` is the dry run, which answers what the
+change would do to the goal and changes nothing; `change_save` makes the change
+and answers with the week it landed in. `action` picks the change.
+
+Called by `trainingApi.testChangeDate` / `saveChangeDate` (`move`) and
+`testRemoveTraining` / `saveRemoveTraining` (`destroy`). The two share
+`testScheduleChange` / `saveScheduleChange` in `training.ts`; only the save is
+wrapped in `mutating`, because a dry run changes nothing upstream.
+
+### Request
+
+Moving a session — the body `saveChangeDate` sends, with the local day the
+move dialog picked written as midnight UTC:
+
+```json
+{ "action": "move", "include_future": false, "target_date": "2026-09-01T00:00:00.000Z" }
+```
+
+Removing one — captured 2026-10-07, removing a training added through
+`POST /api/schedule/{id}/new_trainings`:
+
+```json
+{ "action": "destroy", "include_future": true }
+```
+
+### Notable fields
+
+- **`destroy` carries no date.** The session is named by the path id alone.
+- **Whether `destroy` is also how a planned session is removed** — rather than
+  `DELETE /api/schedule/trainings/{id}`, which `deleteScheduledTraining` sends
+  and which has never been captured — is not known. The capture removed an
+  _added_ session.
+- `include_future: true` on the only `destroy` captured. What it extends a
+  removal to is untested.
+- **The dry run's `goal` is not the `/api/goal` goal.** Dates are unix seconds
+  (`start_date`, `end_date`) with the race day spelled out in `end_date_text`;
+  time and distance are raw (`time_in_sec`, `distance_in_m`) with no formatted
+  twins; the training scheme is nested. Typed as `ScheduleChangeGoal`.
+- `new_goal_time` is the predicted time if the change were made: removing one
+  easy run took it from the goal's 9768 s to 9855 s, with `goal_possible`
+  still `true`. The move dialog shows it when `goal_possible` is `false`.
+- **The save answers with a week that is not quite a `Schedule`**:
+  `strength_trainings` and `entries` are absent, not empty. A caller merging it
+  into a week it already holds keeps its own copies of those.
+- After the removal the week's `can_receive_new_trainings` is `true` again —
+  it had gone `false` when the session was added.
+
+### Sample response: change_test (destroy)
+
+```json
+{
+	"goal": {
+		"id": 2265606,
+		"name": "Valencia 42k",
+		"distance_in_m": 42195,
+		"time_in_sec": 9768,
+		"goal_vo2max": 67.1551,
+		"goal_time_per_km": 231.4967,
+		"best_time_per_km": 228.9804,
+		"difficulty": 0,
+		"weekly_trainings": 4,
+		"last_prediction": 1791368449,
+		"start_date": 1791151200,
+		"end_date": 1796511600,
+		"end_date_text": "2026-12-06",
+		"goal_reached": null,
+		"prediction": true,
+		"my_time": false,
+		"can_be_edited": true,
+		"edit_warning": "Changing this goal will update it for everyone in the group. Do you want to continue?",
+		"created_at": 1789670863,
+		"training_scheme": {
+			"id": 419,
+			"number_of_trainings": 7,
+			"min_number_of_trainings": 3,
+			"max_number_of_trainings": 7,
+			"type": "ultimate",
+			"weeks": 12,
+			"distance": "50km",
+			"distance_value": 50,
+			"distance_unit": "km",
+			"distance_unit_text": "km"
+		},
+		"intermediate_goals": []
+	},
+	"goal_possible": true,
+	"new_goal_time": 9855
+}
+```
+
+### Sample response: change_save (destroy)
+
+Every training trimmed to its first four keys; the top-level key set is
+verbatim, absences included.
+
+```json
+{
+	"id": 39515460,
+	"start_day": 1791151200,
+	"start_day_long": "2026-10-05",
+	"can_receive_new_trainings": true,
+	"training_week": 4,
+	"type": "ultimate",
+	"trainings": [
+		{
+			"id": 132517541,
+			"day": 1791324000,
+			"day_long": "2026-10-07",
+			"title": "Intervals",
+			"…": "the remaining keys of a week training, as above"
+		},
+		{
+			"id": 132517540,
+			"day": 1791410400,
+			"day_long": "2026-10-08",
+			"title": "Easy run + strides",
+			"…": "the remaining keys of a week training, as above"
+		},
+		{
+			"id": 132517539,
+			"day": 1791496800,
+			"day_long": "2026-10-09",
+			"title": "Tempo run",
+			"…": "the remaining keys of a week training, as above"
+		},
+		{
+			"id": 132517542,
+			"day": 1791669600,
+			"day_long": "2026-10-11",
+			"title": "LSD",
+			"…": "the remaining keys of a week training, as above"
+		}
+	]
+}
+```
+
+---
+
 ## POST /api/schedule/trainings/{id}/training_condition
 
 Sets the terrain a training is run on. **POST, not PUT** — the odd one out
@@ -1839,6 +1981,638 @@ and `TRAINING_SURFACES`. The wrapper defaults `height_value` to `0` and
 		"avg_pace_unit": "min/km",
 		"picture": null
 	}
+}
+```
+
+---
+
+## GET /api/schedule/week/?timestamp=
+
+One week of the plan, for the week containing `timestamp` (unix seconds). Read
+by `trainingApi.getSchedule` through the read cache — there is no month
+endpoint, so a month of the calendar is five or six of these.
+
+### Notable fields
+
+- **`can_receive_new_trainings`** — new on 2026-10-07. Gates
+  `POST /api/schedule/{id}/new_trainings`. Seen flipping with the week's
+  contents: `true` on a week of four sessions, `false` after a fifth was added,
+  `true` again once it was removed. What decides it is not in the payload.
+- **Every training now carries the coach's distance-adjustment group** —
+  `has_intelligence`, `intelligence_text`, `intelligence_distance`,
+  `intelligence_distance_value`, `intelligence_distance_unit`,
+  `intelligence_distance_unit_text`, `distance_limit`, `original_distance_km`,
+  `base_distance`. Until this capture they had been seen only on a detail
+  (`POST .../training_condition`). `WEEK_TRAINING_KEYS` in `payloads.test.ts`
+  is the full key set, pinned to a fixture.
+- **`has_intelligence: true`** — first capture of the enabled state, on the
+  training below: an easy run planned at 10 km that Trenara raised to 11 km
+  from the runner's recent load, explaining itself in `intelligence_text`.
+  - `original_distance_km: 10` is the plan's distance in **kilometres**;
+    `base_distance: 11000` the adjusted one in **metres**. Different units on
+    neighbouring fields.
+  - `intelligence_distance: "-1000m"` reads as the step offered back — the text
+    ends "You can still shorten the workout a little". How a runner takes it
+    has not been captured.
+  - The adjusted session has `can_change_distance: false` and no distance
+    package: the runner's own distance steps are withdrawn while it stands.
+  - On every training with `has_intelligence: false` all six `intelligence_*`
+    fields and `base_distance` are `null`, but `original_distance_km` is still
+    set — `129` on an interval session whose blocks total 13.3 km, so it is
+    not a figure to display on its own.
+- `distance_limit` is `0` on every week training, and `false` on a
+  `new_trainings` candidate and on the training adding one returns. Meaning
+  unknown; typed `number | boolean`.
+- `training_condition` and `suggested_shoe` are still absent from the week —
+  only the detail and the mutations carry them.
+
+### Sample response
+
+`GET /api/schedule/week/?timestamp=1791806400`, trimmed to the first of its
+four trainings.
+
+```json
+{
+	"id": 39515461,
+	"start_day": 1791756000,
+	"start_day_long": "2026-10-12",
+	"can_receive_new_trainings": true,
+	"training_week": 5,
+	"type": "ultimate",
+	"trainings": [
+		{
+			"id": 132517544,
+			"day": 1791842400,
+			"day_long": "2026-10-13",
+			"title": "Easy run + strides",
+			"description": "Making kilometers at a comfortable pace, go get them tiger!",
+			"show_description_from": 1791237600,
+			"type": "training",
+			"icon_url": "https://backend-prod.trenara.com/icons/icon__step.svg",
+			"hex_training": "#7B3294",
+			"hex_completed": null,
+			"last_garmin_sync": "2026-10-07 01:17:32",
+			"can_be_edited": true,
+			"can_cross_train": true,
+			"cross_type": null,
+			"can_toggle_cooldown": false,
+			"has_cooldown": false,
+			"can_change_distance": false,
+			"change_distance_package": null,
+			"can_change_intensity": true,
+			"change_intensity_package": {
+				"title": "Fine-tune intensity",
+				"text": "Change today’s session intensity within limits set by Coach Christophe. You can always ease off; increases are capped.",
+				"steps": [
+					{
+						"step": 1,
+						"value": -4,
+						"text": "Slower",
+						"selected": false
+					},
+					{
+						"step": 2,
+						"value": -2,
+						"text": "A bit slower",
+						"selected": false
+					},
+					{
+						"step": 3,
+						"value": 0,
+						"text": "As planned",
+						"selected": true
+					},
+					{
+						"step": 4,
+						"value": 2,
+						"text": "A bit faster",
+						"selected": false
+					}
+				]
+			},
+			"can_change_pacing_plan": false,
+			"change_pacing_plan_package": null,
+			"can_be_exchanged": true,
+			"has_intelligence": true,
+			"intelligence_text": "I’ve adjusted your training, Nils. Based on your recent (mechanical) running load, there seems to be room to safely extend the original distance of 10km for this workout. The new distance of 11km is therefore a little longer, while remaining within our safe limits.\n\nNot feeling quite as good today? You can still shorten the workout a little.\n",
+			"distance_limit": 0,
+			"original_distance_km": 10,
+			"base_distance": 11000,
+			"intelligence_distance": "-1000m",
+			"intelligence_distance_value": -1000,
+			"intelligence_distance_unit": "m",
+			"intelligence_distance_unit_text": "m",
+			"team_data": {
+				"team_id": 470,
+				"name": "Valencia 42k",
+				"picture": null,
+				"nr_same_day_participants": 0,
+				"nr_other_day_participants": 0,
+				"matches_captain_day": true,
+				"captain_pace": true,
+				"can_toggle_pace": false,
+				"can_show_participant_overview": true
+			},
+			"training": {
+				"blocks": [
+					{
+						"order": 1,
+						"type": "warmup",
+						"prior": "distance",
+						"hex_graph": "#009E73",
+						"calc_time_in_sec": 3211,
+						"hex_text": "#FFFFFF",
+						"time": "53:31",
+						"time_in_sec": 3211,
+						"time_value": 3211,
+						"time_unit": "sec",
+						"distance": "11km",
+						"distance_value": 11,
+						"distance_unit": "km",
+						"distance_unit_text": "km",
+						"pace": "04:52 min/km",
+						"pace_value": 292,
+						"pace_unit": "min/km",
+						"pace_per_hour": "12.33 km/h",
+						"pace_per_hour_value": 292,
+						"pace_per_hour_unit": "km/h",
+						"prefer_pph": false,
+						"pace_range": "04:42-05:03 min/km",
+						"pace_range_value_min": 303,
+						"pace_range_value_max": 282,
+						"pace_per_hour_range": "11.88-12.77 km/h",
+						"pace_per_hour_range_value_min": 303,
+						"pace_per_hour_range_value_max": 282,
+						"text": "Warm-up: 11km in 53:31 (04:42-05:03 min/km)",
+						"text_pph": "Warm-up: 11km in 53:31 (11.88-12.77 km/h)"
+					},
+					{
+						"order": 2,
+						"repeat": 4,
+						"type": "core",
+						"blocks": [
+							{
+								"order": 1,
+								"type": "run",
+								"prior": "distance",
+								"hex_graph": "#7B3294",
+								"hex_text": "#FFFFFF",
+								"time": "00:14",
+								"time_in_sec": 14,
+								"time_value": 14,
+								"time_unit": "sec",
+								"distance": "80m",
+								"distance_value": 80,
+								"distance_unit": "m",
+								"distance_unit_text": "m",
+								"pace": "02:56 min/km",
+								"pace_value": 176,
+								"pace_unit": "min/km",
+								"pace_per_hour": "20.45 km/h",
+								"pace_per_hour_value": 176,
+								"pace_per_hour_unit": "km/h",
+								"prefer_pph": false,
+								"text": "Run 80m in 00:14 (02:56 min/km)",
+								"text_pph": "Run 80m in 00:14 (20.45 km/h)"
+							},
+							{
+								"order": 2,
+								"type": "rest",
+								"prior": "time",
+								"hex_graph": "#D6EAF8",
+								"hex_text": "#FFFFFF",
+								"time": "03:00",
+								"time_in_sec": 180,
+								"time_value": 180,
+								"time_unit": "sec",
+								"distance": "422m",
+								"distance_value": 422,
+								"distance_unit": "m",
+								"distance_unit_text": "m",
+								"pace": "07:06 min/km",
+								"pace_value": 426,
+								"pace_unit": "min/km",
+								"pace_per_hour": "8.45 km/h",
+								"pace_per_hour_value": 426,
+								"pace_per_hour_unit": "km/h",
+								"prefer_pph": false,
+								"pace_range": "06:31-07:42 min/km",
+								"pace_range_value_min": 462,
+								"pace_range_value_max": 391,
+								"pace_per_hour_range": "7.79-9.21 km/h",
+								"pace_per_hour_range_value_min": 462,
+								"pace_per_hour_range_value_max": 391,
+								"text": "Rest 03:00 at 06:31-07:42 min/km (422m)",
+								"text_pph": "Rest 03:00 at 7.79-9.21 km/h (422m)"
+							}
+						]
+					}
+				],
+				"total_time_in_sec": 3987,
+				"total_distance_in_km": 13.01014,
+				"core_time_in_sec": 56,
+				"pre_advice": null,
+				"post_advice": null,
+				"core_distance": "320m",
+				"core_distance_value": 320,
+				"core_distance_unit": "m",
+				"core_distance_unit_text": "m",
+				"core_time": "00:56",
+				"core_time_value": 56,
+				"core_time_unit": "sec",
+				"total_distance": "13.01km",
+				"total_distance_value": 13.01,
+				"total_distance_unit": "km",
+				"total_distance_unit_text": "km",
+				"total_time": "01:06:27",
+				"total_time_value": 3987,
+				"total_time_unit": "sec"
+			}
+		}
+	],
+	"strength_trainings": [],
+	"entries": []
+}
+```
+
+---
+
+## GET /api/schedule/{id}/new_trainings?date=
+
+The sessions that could be added on `date` (a local `YYYY-MM-DD`) in the week
+`{id}` — the week's own id (`Schedule.id`), not a training's. Read by
+`trainingApi.getNewTrainings`. No trailing slash, as captured.
+
+### Notable fields
+
+- An array, three candidates in the capture: a recovery run of 8 km and
+  endurance runs of 10 km and 5 km, each with a description saying why it fits
+  this week.
+- **The same serialisation as an exchange candidate**: no `team_data`,
+  `training_condition` or `suggested_shoe`. Typed `NewTrainingCandidate`, an
+  alias of `ExchangeCandidate`.
+- **`id` is a plan template id** (five digits — 24180), not a scheduled
+  training id. It goes back as `training_id` in the `POST`.
+- `day` and `day_long` are already the date asked about.
+- `distance_limit` is `false` here, not `0` as on a week.
+
+### Sample response
+
+The first of the three candidates.
+
+```json
+[
+	{
+		"id": 24180,
+		"day": 1791583200,
+		"day_long": "2026-10-10",
+		"title": "Recovery run",
+		"description": "A second recovery run this week, because... why not?",
+		"show_description_from": 1790978400,
+		"type": "training",
+		"icon_url": "https://backend-prod.trenara.com/icons/icon__step.svg",
+		"hex_training": "#90CFF1",
+		"hex_completed": null,
+		"last_garmin_sync": null,
+		"can_be_edited": true,
+		"can_cross_train": true,
+		"cross_type": null,
+		"can_toggle_cooldown": true,
+		"has_cooldown": false,
+		"can_change_distance": true,
+		"change_distance_package": {
+			"title": "Fine-tune distance",
+			"text": "Short on time, dealing with heavy legs, or ready to go a little farther? Adjust today's volume here.\n\nCoach Christophe's options preserve the intended training stimulus while adapting the session to your day.",
+			"steps": [
+				{
+					"step": 1,
+					"value": -30,
+					"text": "-30%",
+					"selected": false
+				},
+				{
+					"step": 2,
+					"value": -20,
+					"text": "-20%",
+					"selected": false
+				},
+				{
+					"step": 3,
+					"value": -10,
+					"text": "-10%",
+					"selected": false
+				},
+				{
+					"step": 4,
+					"value": 0,
+					"text": "0%",
+					"selected": true
+				}
+			]
+		},
+		"can_change_intensity": true,
+		"change_intensity_package": {
+			"title": "Fine-tune intensity",
+			"text": "Change today’s session intensity within limits set by Coach Christophe. You can always ease off; increases are capped.",
+			"steps": [
+				{
+					"step": 1,
+					"value": -4,
+					"text": "Slower",
+					"selected": false
+				},
+				{
+					"step": 2,
+					"value": -2,
+					"text": "A bit slower",
+					"selected": false
+				},
+				{
+					"step": 3,
+					"value": 0,
+					"text": "As planned",
+					"selected": true
+				},
+				{
+					"step": 4,
+					"value": 2,
+					"text": "A bit faster",
+					"selected": false
+				}
+			]
+		},
+		"can_change_pacing_plan": false,
+		"change_pacing_plan_package": null,
+		"can_be_exchanged": true,
+		"has_intelligence": false,
+		"intelligence_text": null,
+		"distance_limit": false,
+		"original_distance_km": 8,
+		"base_distance": null,
+		"intelligence_distance": null,
+		"intelligence_distance_value": null,
+		"intelligence_distance_unit": null,
+		"intelligence_distance_unit_text": null,
+		"training": {
+			"blocks": [
+				{
+					"order": 1,
+					"repeat": 1,
+					"type": "core",
+					"blocks": [
+						{
+							"order": 1,
+							"type": "run",
+							"prior": "distance",
+							"hex_graph": "#90CFF1",
+							"hex_text": "#FFFFFF",
+							"time": "47:27",
+							"time_in_sec": 2847,
+							"time_value": 2847,
+							"time_unit": "sec",
+							"distance": "8km",
+							"distance_value": 8,
+							"distance_unit": "km",
+							"distance_unit_text": "km",
+							"pace": "05:56 min/km",
+							"pace_value": 356,
+							"pace_unit": "min/km",
+							"pace_per_hour": "10.11 km/h",
+							"pace_per_hour_value": 356,
+							"pace_per_hour_unit": "km/h",
+							"prefer_pph": false,
+							"pace_range": "05:27-06:26 min/km",
+							"pace_range_value_min": 386,
+							"pace_range_value_max": 327,
+							"pace_per_hour_range": "9.33-11.01 km/h",
+							"pace_per_hour_range_value_min": 386,
+							"pace_per_hour_range_value_max": 327,
+							"text": "Run 8km in 47:27 (05:27-06:26 min/km)",
+							"text_pph": "Run 8km in 47:27 (9.33-11.01 km/h)"
+						}
+					]
+				}
+			],
+			"total_time_in_sec": 2847,
+			"total_distance_in_km": 8,
+			"core_time_in_sec": 2847,
+			"pre_advice": null,
+			"post_advice": null,
+			"core_distance": "8km",
+			"core_distance_value": 8,
+			"core_distance_unit": "km",
+			"core_distance_unit_text": "km",
+			"core_time": "47:27",
+			"core_time_value": 2847,
+			"core_time_unit": "sec",
+			"total_distance": "8km",
+			"total_distance_value": 8,
+			"total_distance_unit": "km",
+			"total_distance_unit_text": "km",
+			"total_time": "47:27",
+			"total_time_value": 2847,
+			"total_time_unit": "sec"
+		}
+	}
+]
+```
+
+---
+
+## POST /api/schedule/{id}/new_trainings
+
+Adds one of the candidates above to the week. Called by
+`trainingApi.addNewTraining`, inside `mutating`.
+
+### Request
+
+```json
+{ "date": "2026-10-10", "training_id": 24180 }
+```
+
+`training_id` is the candidate's `id`.
+
+### Notable fields
+
+- Answers with the complete new scheduled training, like every other training
+  mutation — with a scheduled id of its own (`133797044`), `team_data`, and
+  `training_condition` / `suggested_shoe` both present and `null`.
+- **`day_long` is a UTC instant here, not a date**:
+  `"2026-10-09T22:00:00.000000Z"` for a session on the 10th — the runner's
+  local midnight, in UTC. Its first ten characters name the day before, so
+  `dayKeyOf` and anything else that takes a prefix gets it wrong. `day`
+  (`1791583200`) is the same as on the candidate and on the week the session
+  then appears in, where `day_long` is the bare `"2026-10-10"` again. Date
+  this response from `day`.
+- The week's `can_receive_new_trainings` went `false` after this add.
+
+### Sample response
+
+```json
+{
+	"id": 133797044,
+	"day": 1791583200,
+	"day_long": "2026-10-09T22:00:00.000000Z",
+	"title": "Recovery run",
+	"description": "A second recovery run this week, because... why not?",
+	"show_description_from": 1790978400,
+	"type": "training",
+	"icon_url": "https://backend-prod.trenara.com/icons/icon__step.svg",
+	"hex_training": "#90CFF1",
+	"hex_completed": null,
+	"last_garmin_sync": null,
+	"can_be_edited": true,
+	"can_cross_train": true,
+	"cross_type": null,
+	"can_toggle_cooldown": true,
+	"has_cooldown": false,
+	"can_change_distance": true,
+	"change_distance_package": {
+		"title": "Fine-tune distance",
+		"text": "Short on time, dealing with heavy legs, or ready to go a little farther? Adjust today's volume here.\n\nCoach Christophe's options preserve the intended training stimulus while adapting the session to your day.",
+		"steps": [
+			{
+				"step": 1,
+				"value": -30,
+				"text": "-30%",
+				"selected": false
+			},
+			{
+				"step": 2,
+				"value": -20,
+				"text": "-20%",
+				"selected": false
+			},
+			{
+				"step": 3,
+				"value": -10,
+				"text": "-10%",
+				"selected": false
+			},
+			{
+				"step": 4,
+				"value": 0,
+				"text": "0%",
+				"selected": true
+			}
+		]
+	},
+	"can_change_intensity": true,
+	"change_intensity_package": {
+		"title": "Fine-tune intensity",
+		"text": "Change today’s session intensity within limits set by Coach Christophe. You can always ease off; increases are capped.",
+		"steps": [
+			{
+				"step": 1,
+				"value": -4,
+				"text": "Slower",
+				"selected": false
+			},
+			{
+				"step": 2,
+				"value": -2,
+				"text": "A bit slower",
+				"selected": false
+			},
+			{
+				"step": 3,
+				"value": 0,
+				"text": "As planned",
+				"selected": true
+			},
+			{
+				"step": 4,
+				"value": 2,
+				"text": "A bit faster",
+				"selected": false
+			}
+		]
+	},
+	"can_change_pacing_plan": false,
+	"change_pacing_plan_package": null,
+	"can_be_exchanged": true,
+	"has_intelligence": false,
+	"intelligence_text": null,
+	"distance_limit": false,
+	"original_distance_km": 8,
+	"base_distance": null,
+	"intelligence_distance": null,
+	"intelligence_distance_value": null,
+	"intelligence_distance_unit": null,
+	"intelligence_distance_unit_text": null,
+	"team_data": {
+		"team_id": 470,
+		"name": "Valencia 42k",
+		"picture": null,
+		"nr_same_day_participants": 0,
+		"nr_other_day_participants": 0,
+		"matches_captain_day": true,
+		"captain_pace": true,
+		"can_toggle_pace": false,
+		"can_show_participant_overview": true
+	},
+	"training": {
+		"blocks": [
+			{
+				"order": 1,
+				"repeat": 1,
+				"type": "core",
+				"blocks": [
+					{
+						"order": 1,
+						"type": "run",
+						"prior": "distance",
+						"hex_graph": "#90CFF1",
+						"hex_text": "#FFFFFF",
+						"time": "47:27",
+						"time_in_sec": 2847,
+						"time_value": 2847,
+						"time_unit": "sec",
+						"distance": "8km",
+						"distance_value": 8,
+						"distance_unit": "km",
+						"distance_unit_text": "km",
+						"pace": "05:56 min/km",
+						"pace_value": 356,
+						"pace_unit": "min/km",
+						"pace_per_hour": "10.11 km/h",
+						"pace_per_hour_value": 356,
+						"pace_per_hour_unit": "km/h",
+						"prefer_pph": false,
+						"pace_range": "05:27-06:26 min/km",
+						"pace_range_value_min": 386,
+						"pace_range_value_max": 327,
+						"pace_per_hour_range": "9.33-11.01 km/h",
+						"pace_per_hour_range_value_min": 386,
+						"pace_per_hour_range_value_max": 327,
+						"text": "Run 8km in 47:27 (05:27-06:26 min/km)",
+						"text_pph": "Run 8km in 47:27 (9.33-11.01 km/h)"
+					}
+				]
+			}
+		],
+		"total_time_in_sec": 2847,
+		"total_distance_in_km": 8,
+		"core_time_in_sec": 2847,
+		"pre_advice": null,
+		"post_advice": null,
+		"core_distance": "8km",
+		"core_distance_value": 8,
+		"core_distance_unit": "km",
+		"core_distance_unit_text": "km",
+		"core_time": "47:27",
+		"core_time_value": 2847,
+		"core_time_unit": "sec",
+		"total_distance": "8km",
+		"total_distance_value": 8,
+		"total_distance_unit": "km",
+		"total_distance_unit_text": "km",
+		"total_time": "47:27",
+		"total_time_value": 2847,
+		"total_time_unit": "sec"
+	},
+	"training_condition": null,
+	"suggested_shoe": null
 }
 ```
 

@@ -390,6 +390,107 @@ describe('trainingApi exchange', () => {
 	});
 });
 
+describe('trainingApi new trainings', () => {
+	// The path takes the week's id, not a training's, and the date rides as a
+	// query parameter with no trailing slash — as captured.
+	it('lists candidates for a day of a week', async () => {
+		fetchMock().mockResolvedValue(mockResponse([]));
+		await trainingApi.getNewTrainings(cookies, 39515460, '2026-10-10');
+
+		const req = lastRequest();
+		expect(req.url).toBe(
+			'https://backend-prod.trenara.com/api/schedule/39515460/new_trainings?date=2026-10-10'
+		);
+		expect(req.method).toBe('GET');
+	});
+
+	it('refuses a candidate list that is not a list', async () => {
+		fetchMock().mockResolvedValue(mockResponse({ message: 'nope' }));
+		await expect(
+			trainingApi.getNewTrainings(cookies, 39515460, '2026-10-10')
+		).rejects.toBeInstanceOf(MalformedResponseError);
+	});
+
+	it('adds a candidate by its template id, to the week in the path', async () => {
+		fetchMock().mockResolvedValue(mockResponse({ id: 133797044 }));
+		const added = await trainingApi.addNewTraining(cookies, 39515460, '2026-10-10', 24180);
+
+		const req = lastRequest();
+		expect(req.url).toBe('https://backend-prod.trenara.com/api/schedule/39515460/new_trainings');
+		expect(req.method).toBe('POST');
+		expect(req.body).toEqual({ date: '2026-10-10', training_id: 24180 });
+		expect(added.id).toBe(133797044);
+	});
+
+	it('drops the cached week once a training is added', async () => {
+		fetchMock().mockResolvedValue(mockResponse({ id: 1 }));
+
+		await trainingApi.getSchedule(cookies, 1000);
+		await trainingApi.addNewTraining(cookies, 39515460, '2026-10-10', 24180);
+		await trainingApi.getSchedule(cookies, 1000);
+
+		expect(fetchMock()).toHaveBeenCalledTimes(3);
+	});
+});
+
+describe('trainingApi removing a training', () => {
+	it('dry-runs a removal with destroy and no date', async () => {
+		fetchMock().mockResolvedValue(mockResponse({ goal_possible: true }));
+		await trainingApi.testRemoveTraining(cookies, 133797044, true);
+
+		const req = lastRequest();
+		expect(req.url).toBe(
+			'https://backend-prod.trenara.com/api/schedule/trainings/133797044/change_test'
+		);
+		expect(req.method).toBe('PUT');
+		expect(req.body).toEqual({ action: 'destroy', include_future: true });
+	});
+
+	it('saves a removal with the same body', async () => {
+		fetchMock().mockResolvedValue(mockResponse({ id: 39515460, trainings: [] }));
+		await trainingApi.saveRemoveTraining(cookies, 133797044, true);
+
+		const req = lastRequest();
+		expect(req.url).toBe(
+			'https://backend-prod.trenara.com/api/schedule/trainings/133797044/change_save'
+		);
+		expect(req.method).toBe('PUT');
+		expect(req.body).toEqual({ action: 'destroy', include_future: true });
+	});
+
+	// The move flow shares the two endpoints; its body must not lose the date.
+	it('still moves with a target date', async () => {
+		fetchMock().mockResolvedValue(mockResponse({ goal_possible: true }));
+		await trainingApi.testChangeDate(cookies, 1, '2026-09-01', false);
+
+		expect(lastRequest().body).toEqual({
+			action: 'move',
+			include_future: false,
+			target_date: '2026-09-01'
+		});
+	});
+
+	it('drops the cache on a saved removal but not on its dry run', async () => {
+		fetchMock().mockResolvedValue(mockResponse({ id: 1, trainings: [] }));
+
+		await trainingApi.getSchedule(cookies, 1000);
+		await trainingApi.testRemoveTraining(cookies, 1, true);
+		await trainingApi.getSchedule(cookies, 1000);
+		await trainingApi.saveRemoveTraining(cookies, 1, true);
+		await trainingApi.getSchedule(cookies, 1000);
+
+		// week, dry run, (week from memory), save, week again.
+		expect(fetchMock()).toHaveBeenCalledTimes(4);
+	});
+
+	it('refuses a saved week whose trainings are not a list', async () => {
+		fetchMock().mockResolvedValue(mockResponse({ id: 1, trainings: 'none' }));
+		await expect(trainingApi.saveRemoveTraining(cookies, 1, true)).rejects.toBeInstanceOf(
+			MalformedResponseError
+		);
+	});
+});
+
 describe('training mutations', () => {
 	it('all send the bearer token', async () => {
 		fetchMock().mockResolvedValue(mockResponse({ id: 1 }));

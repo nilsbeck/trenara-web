@@ -3,6 +3,7 @@ import {
 	formatDateString,
 	getMonthTimestamps,
 	mondayOf,
+	weekAnchorOf,
 	parseLocalDateString,
 	toLocalDateString,
 	weeksStillOpen,
@@ -279,5 +280,26 @@ describe('toDate', () => {
 		expect(toDate('   ')).toBeNull();
 		expect(toDate(null)).toBeNull();
 		expect(toDate(undefined)).toBeNull();
+	});
+});
+
+// ─────────────────────────────────────────────────────────────
+// weekAnchorOf
+// ─────────────────────────────────────────────────────────────
+describe('weekAnchorOf', () => {
+	it('is the Monday of a week that starts inside the month', () => {
+		expect(toLocalDateString(weekAnchorOf(new Date(2026, 9, 10)))).toBe('2026-10-05');
+	});
+
+	it('is the 1st for a week that began in the month before', () => {
+		// 1 October 2026 is a Thursday; its Monday is 28 September.
+		expect(toLocalDateString(weekAnchorOf(new Date(2026, 9, 3)))).toBe('2026-10-01');
+	});
+
+	it('is one of the anchors the month itself is fetched with', () => {
+		const anchors = getMonthTimestamps(new Date(2026, 9, 1)).map((d) => d.getTime());
+		for (const day of [1, 4, 5, 11, 12, 31]) {
+			expect(anchors).toContain(weekAnchorOf(new Date(2026, 9, day)).getTime());
+		}
 	});
 });
