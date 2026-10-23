@@ -155,7 +155,29 @@ for (const { name, marker } of LAZY_ONLY) {
 }
 if (!failed) console.log(`✔ ${LAZY_ONLY.map((l) => l.name).join(', ')} only reached by import()`);
 
-// 2. The shell stays within budget.
+// 2. Nothing in the client build reaches `$app/stores`.
+//
+// SvelteKit 3 removed it, but kept the module as a stub whose every export
+// throws — so an import still builds, and type-checks if it comes from a
+// dependency, and then fails at hydration. That is what happened with
+// `@vercel/speed-insights/sveltekit` in the root layout: every page rendered
+// on the server and none of it ever came alive. No test mounts the root
+// layout, so the build output is the one place this can be seen.
+const STORES_STUB = 'kit/app_stores_removed';
+const stubbed = Object.values(manifest)
+	.map((chunk) => chunk.file)
+	.filter((file) => readFileSync(join(OUT, file), 'utf8').includes(STORES_STUB));
+if (stubbed.length > 0) {
+	console.error(
+		`✖ $app/stores is in the client build (${stubbed.join(', ')}). SvelteKit 3 removed it and ` +
+			'its stub throws on use — find the import (often a dependency) and move it to $app/state.'
+	);
+	failed = true;
+} else {
+	console.log('✔ nothing in the client build imports the removed $app/stores');
+}
+
+// 3. The shell stays within budget.
 const shell = weigh(manifest, staticClosure(manifest, shellRoots));
 const verdict = shell <= SHELL_BUDGET_BYTES ? '✔' : '✖';
 console.log(`${verdict} signed-in shell: ${kb(shell)} gzipped (budget ${kb(SHELL_BUDGET_BYTES)})`);

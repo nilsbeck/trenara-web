@@ -30,7 +30,9 @@ it (§7).
 | `{@html}` without a reason                                    | `svelte/no-at-html-tags` is on; disable with why | §3  |
 | `import … from 'dompurify'`, or `import('dompurify')`         | `loadSanitizer()` from `#lib/utils/sanitize`     | §3  |
 | `axios`, `lodash`, `svelte/store`                             | `fetch`, native JS, runes                        | §5  |
+| `$app/stores`, `@vercel/speed-insights/sveltekit`             | `$app/state`; the root `+layout.svelte`          | §7  |
 | DOMPurify reachable without `import()`; shell over its budget | `scripts/check-bundle.ts`, after `bun run build` | §7  |
+| `$app/stores` anywhere in the client build, dependencies too  | `scripts/check-bundle.ts`, after `bun run build` | §7  |
 
 ## 3. Security Protocol (Strict)
 
@@ -402,6 +404,14 @@ the reason — that is what distinguishes a decision from a regression.
   `scripts/check-bundle.ts`. It also fails if DOMPurify becomes reachable
   without `import()`. The budget sits just above where the build stands; raise
   it in the commit that needs the room and say why, as with coverage.
+- **A dependency that touches SvelteKit is checked in the build, not trusted
+  by its version range.** SvelteKit 3 kept `$app/stores` as a stub that
+  throws on use, so a package still importing it builds and type-checks and
+  then stops every page hydrating — server HTML with no data and no clicks.
+  `@vercel/speed-insights/sveltekit` did exactly that from the root layout.
+  `bun run check:bundle` now fails when the stub is in the client build; the
+  first thing to try after a SvelteKit or integration upgrade is a preview
+  deployment, because no unit test mounts the root layout.
 - **A new dependency justifies its bytes.** Before adding one, check its
   gzipped size and whether the platform already does the job (§1: native
   first). If it is only needed on one branch — a modal, a chart, an export —

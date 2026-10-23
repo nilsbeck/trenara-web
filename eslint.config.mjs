@@ -73,7 +73,19 @@ export default tseslint.config(
 								'A static import ships DOMPurify in whichever chunk imports it. Use loadSanitizer() from #lib/utils/sanitize.'
 						},
 						{ name: 'axios', message: 'Use fetch — agents.md §5.' },
-						{ name: 'svelte/store', message: 'Client state is runes — agents.md §9, Client state.' }
+						{
+							name: 'svelte/store',
+							message: 'Client state is runes — agents.md §9, Client state.'
+						},
+						{
+							name: '$app/stores',
+							message: 'Removed in SvelteKit 3; its stub throws at hydration. Use $app/state.'
+						},
+						{
+							name: '@vercel/speed-insights/sveltekit',
+							message:
+								'Imports the removed $app/stores and breaks hydration. See the root +layout.svelte.'
+						}
 					],
 					patterns: [
 						{ group: ['lodash', 'lodash/*', 'lodash-es'], message: 'Use native JS — agents.md §5.' }
