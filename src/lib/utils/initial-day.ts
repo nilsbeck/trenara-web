@@ -1,4 +1,4 @@
-import type { Schedule } from '$lib/server/trenara/types';
+import type { Schedule } from '#lib/server/trenara/types.js';
 import { dayKeyOf, parseLocalDateString, toLocalDateString } from './date';
 import { entryLocalDate } from './schedule';
 

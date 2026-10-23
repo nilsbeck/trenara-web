@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, cleanup } from '@testing-library/svelte';
-import TrainingDetails from '$lib/components/calendar/training-details.svelte';
-import type { Entry, ScheduledTraining } from '$lib/server/trenara/types';
+import TrainingDetails from '#lib/components/calendar/training-details.svelte';
+import type { Entry, ScheduledTraining } from '#lib/server/trenara/types.js';
 
 // The fields that matter here, from a week capture of 2026-10-07: a session
 // the backend lengthened from 10km to 11km, and its note about that.

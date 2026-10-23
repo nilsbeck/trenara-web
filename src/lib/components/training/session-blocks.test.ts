@@ -1,8 +1,8 @@
 import { describe, it, expect, afterEach } from 'vitest';
 import { render, screen, cleanup } from '@testing-library/svelte';
-import SessionBlocks from '$lib/components/training/session-blocks.svelte';
-import type { TrainingBlock } from '$lib/server/trenara/types';
-import type { Turnaround } from '$lib/utils/turnaround';
+import SessionBlocks from '#lib/components/training/session-blocks.svelte';
+import type { TrainingBlock } from '#lib/server/trenara/types.js';
+import type { Turnaround } from '#lib/utils/turnaround.js';
 
 const block = (text: string, overrides: Partial<TrainingBlock> = {}): TrainingBlock => ({
 	order: 1,

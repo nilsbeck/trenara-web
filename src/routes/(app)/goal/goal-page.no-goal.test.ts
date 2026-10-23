@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { render, cleanup, screen } from '@testing-library/svelte';
-import type { Goal, UserStats } from '$lib/server/trenara/types';
+import type { Goal, UserStats } from '#lib/server/trenara/types.js';
 import GoalPage from './+page.svelte';
 
 /**
@@ -14,7 +14,7 @@ import GoalPage from './+page.svelte';
  * nothing to a goal — still render beside it.
  */
 
-vi.mock('$app/navigation', () => ({ invalidateAll: vi.fn() }));
+vi.mock('$app/navigation', () => ({ refreshAll: vi.fn() }));
 
 beforeEach(() => {
 	// The predictions card renders a slider, not a chart, but the page is

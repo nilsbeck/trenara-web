@@ -1,7 +1,7 @@
 import type { PageServerLoad } from './$types';
-import { predictionHistoryDAO } from '$lib/server/db/prediction-history';
-import { fromStorage } from '$lib/server/db/errors';
-import { requireUser } from '$lib/server/auth/guard';
+import { predictionHistoryDAO } from '#lib/server/db/prediction-history.js';
+import { fromStorage } from '#lib/server/db/errors.js';
+import { requireUser } from '#lib/server/auth/guard.js';
 
 export const load: PageServerLoad = async ({ locals }) => {
 	const user = requireUser(locals);

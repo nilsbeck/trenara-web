@@ -1,10 +1,10 @@
 import { fail, redirect } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
-import { loginSchema } from '$lib/schemas/auth';
-import { authApi } from '$lib/server/trenara/auth';
-import { TokenManager } from '$lib/server/auth/token-manager';
-import { loginByIp, loginByUsername } from '$lib/server/security/rate-limit';
-import { HttpError } from '$lib/server/trenara/client';
+import { loginSchema } from '#lib/schemas/auth.js';
+import { authApi } from '#lib/server/trenara/auth.js';
+import { TokenManager } from '#lib/server/auth/token-manager.js';
+import { loginByIp, loginByUsername } from '#lib/server/security/rate-limit.js';
+import { HttpError } from '#lib/server/trenara/client.js';
 
 const tokenManager = TokenManager.getInstance();
 

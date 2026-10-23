@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import type { Cookies } from '@sveltejs/kit';
-import { TokenType } from '$lib/server/auth/types';
+import { TokenType } from '#lib/server/auth/types.js';
 import { AuthenticationError, HttpError, MalformedResponseError } from './client';
 import { trainingApi } from './training';
 import { userApi } from './user';

@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { readWeekDistance, readGoalDistance, formatKm } from './distance-graph';
-import type { UserStats } from '$lib/server/trenara/types';
+import type { UserStats } from '#lib/server/trenara/types.js';
 
 type WeekSeries = UserStats['graph_stats']['weeks'];
 type GoalSeries = UserStats['graph_stats']['goal'];

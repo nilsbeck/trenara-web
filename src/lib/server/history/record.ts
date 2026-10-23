@@ -1,8 +1,8 @@
 import type { Cookies } from '@sveltejs/kit';
-import { trainingApi, userApi } from '$lib/server/trenara';
-import { goalHistoryDAO } from '$lib/server/db/goal-history';
-import { predictionHistoryDAO } from '$lib/server/db/prediction-history';
-import { refreshShareSnapshot, revokeStaleShares } from '$lib/server/share/refresh';
+import { trainingApi, userApi } from '#lib/server/trenara/index.js';
+import { goalHistoryDAO } from '#lib/server/db/goal-history.js';
+import { predictionHistoryDAO } from '#lib/server/db/prediction-history.js';
+import { refreshShareSnapshot, revokeStaleShares } from '#lib/server/share/refresh.js';
 import { stripPaceUnit } from './chart-points';
 
 /**

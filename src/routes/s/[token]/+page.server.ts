@@ -1,11 +1,11 @@
 import { error } from '@sveltejs/kit';
-import { goalShareDAO } from '$lib/server/db/goal-share';
-import { predictionHistoryDAO } from '$lib/server/db/prediction-history';
-import { toChartData } from '$lib/server/history/chart-points';
-import { fromStorage, STORAGE_READ_MESSAGE } from '$lib/server/db/errors';
-import { isShareToken } from '$lib/server/share/token';
-import { sharedSnapshotSchema } from '$lib/schemas/share';
-import { shareViews } from '$lib/server/security/rate-limit';
+import { goalShareDAO } from '#lib/server/db/goal-share.js';
+import { predictionHistoryDAO } from '#lib/server/db/prediction-history.js';
+import { toChartData } from '#lib/server/history/chart-points.js';
+import { fromStorage, STORAGE_READ_MESSAGE } from '#lib/server/db/errors.js';
+import { isShareToken } from '#lib/server/share/token.js';
+import { sharedSnapshotSchema } from '#lib/schemas/share.js';
+import { shareViews } from '#lib/server/security/rate-limit.js';
 import type { PageServerLoad } from './$types';
 
 /**
@@ -20,7 +20,7 @@ import type { PageServerLoad } from './$types';
  *
  * No Trenara request happens on this path at all. What renders is a
  * projection the owner's own page loads wrote earlier — see
- * `$lib/server/share/snapshot.ts` — plus a live read of this app's own
+ * `#lib/server/share/snapshot.ts` — plus a live read of this app's own
  * `prediction_history`, scoped to the share row's `user_id` and never to
  * anything a visitor's request carries.
  *
@@ -45,7 +45,7 @@ export const load: PageServerLoad = async ({ params, getClientAddress, setHeader
 		// added later. `no-referrer` is what stops that, and it is set here
 		// rather than left to `securityHeaders`' default because that default
 		// is deliberately the looser `strict-origin-when-cross-origin` — see
-		// `$lib/server/security/headers.ts` for why a route's own value, once
+		// `#lib/server/security/headers.ts` for why a route's own value, once
 		// set, is left alone rather than overwritten on the way out.
 		'referrer-policy': 'no-referrer',
 		'cache-control': CACHE_CONTROL

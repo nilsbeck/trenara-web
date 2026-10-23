@@ -9,7 +9,7 @@
 		"check:bundle": "bun scripts/check-bundle.ts",
 		"preview": "vite preview",
 		"prepare": "svelte-kit sync || echo ''",
-		"check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
+		"check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json && tsc -p src/service-worker",
 		"check:watch": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --watch",
 		"format": "prettier --write .",
 		"lint": "prettier --check . && eslint .",
@@ -21,8 +21,8 @@
 	},
 	"devDependencies": {
 		"@eslint/js": "^10.0.1",
-		"@sveltejs/adapter-vercel": "6.3.4",
-		"@sveltejs/kit": "2.70.3",
+		"@sveltejs/adapter-vercel": "^7.0.0",
+		"@sveltejs/kit": "^3.0.0",
 		"@sveltejs/vite-plugin-svelte": "^7.3.0",
 		"@testing-library/jest-dom": "^7.0.1",
 		"@testing-library/svelte": "5.4.2",
@@ -36,7 +36,7 @@
 		"jsdom": "^30.0.1",
 		"prettier": "^3.9.6",
 		"prettier-plugin-svelte": "4.1.1",
-		"svelte": "^5.56.10",
+		"svelte": "^5.57.1",
 		"svelte-check": "^4.7.6",
 		"svelte-eslint-parser": "^1.8.1",
 		"typescript": "^6.0.3",
@@ -53,5 +53,9 @@
 		"lucide-svelte": "^1.0.1",
 		"tailwindcss": "^4.3.3",
 		"zod": "^4.4.3"
+	},
+	"imports": {
+		"#lib": "./src/lib/index.js",
+		"#lib/*": "./src/lib/*"
 	}
 }

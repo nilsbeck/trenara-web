@@ -4,7 +4,7 @@ import {
 	type AppConfig,
 	type ScheduledTraining,
 	type Shoe
-} from '$lib/server/trenara/types';
+} from '#lib/server/trenara/types.js';
 import {
 	ACTIVITIES,
 	SURFACES,

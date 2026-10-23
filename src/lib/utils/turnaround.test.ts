@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { describeTurnaround, findTurnaround, formatTurnDistance } from './turnaround';
-import type { ScheduledTraining, TrainingBlock } from '$lib/server/trenara/types';
+import type { ScheduledTraining, TrainingBlock } from '#lib/server/trenara/types.js';
 
 // ── Helpers ───────────────────────────────────────────────────
 function makeBlock(overrides: Partial<TrainingBlock> = {}): TrainingBlock {

@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { createCalendarStore } from './calendar.svelte';
-import type { Schedule } from '$lib/server/trenara/types';
+import type { Schedule } from '#lib/server/trenara/types.js';
 
 // ── Mock fetch (used by loadMonthData) ────────────────────────
 const mockFetch = vi.fn();

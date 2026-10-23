@@ -1,5 +1,5 @@
 <script lang="ts">
-	import type { ScheduledTraining, Entry } from '$lib/server/trenara/types';
+	import type { ScheduledTraining, Entry } from '#lib/server/trenara/types.js';
 	import {
 		Activity,
 		Bike,
@@ -16,22 +16,22 @@
 		TriangleAlert,
 		X
 	} from 'lucide-svelte';
-	import GiveFeedbackModal from '$lib/components/modals/give-feedback-modal.svelte';
-	import ChangeDateModal from '$lib/components/modals/change-date-modal.svelte';
-	import RateTrainingInline from '$lib/components/training/rate-training-inline.svelte';
-	import TreadmillMode from '$lib/components/training/treadmill-mode.svelte';
-	import SessionShapeBar from '$lib/components/training/session-shape-bar.svelte';
-	import SetupRail from '$lib/components/training/setup-rail.svelte';
-	import SetupRailLoading from '$lib/components/training/setup-rail-loading.svelte';
-	import AddTraining from '$lib/components/training/add-training.svelte';
-	import { loadOnce, reloadOnStaleChunk, whenIdle } from '$lib/utils/load-once';
-	import { trainingLoad } from '$lib/utils/training-load';
-	import { describeError, describeResponse } from '$lib/utils/network';
-	import { SessionDetailStore } from '$lib/stores/session-detail.svelte';
-	import SessionBlocks from '$lib/components/training/session-blocks.svelte';
-	import IntelligenceNote from '$lib/components/training/intelligence-note.svelte';
-	import { intelligenceParagraphs } from '$lib/utils/intelligence';
-	import { findTurnaround } from '$lib/utils/turnaround';
+	import GiveFeedbackModal from '#lib/components/modals/give-feedback-modal.svelte';
+	import ChangeDateModal from '#lib/components/modals/change-date-modal.svelte';
+	import RateTrainingInline from '#lib/components/training/rate-training-inline.svelte';
+	import TreadmillMode from '#lib/components/training/treadmill-mode.svelte';
+	import SessionShapeBar from '#lib/components/training/session-shape-bar.svelte';
+	import SetupRail from '#lib/components/training/setup-rail.svelte';
+	import SetupRailLoading from '#lib/components/training/setup-rail-loading.svelte';
+	import AddTraining from '#lib/components/training/add-training.svelte';
+	import { loadOnce, reloadOnStaleChunk, whenIdle } from '#lib/utils/load-once.js';
+	import { trainingLoad } from '#lib/utils/training-load.js';
+	import { describeError, describeResponse } from '#lib/utils/network.js';
+	import { SessionDetailStore } from '#lib/stores/session-detail.svelte.js';
+	import SessionBlocks from '#lib/components/training/session-blocks.svelte';
+	import IntelligenceNote from '#lib/components/training/intelligence-note.svelte';
+	import { intelligenceParagraphs } from '#lib/utils/intelligence.js';
+	import { findTurnaround } from '#lib/utils/turnaround.js';
 	import {
 		activityIcon,
 		cooldownBlockIndex,
@@ -42,7 +42,7 @@
 		sessionSettings,
 		sessionSummary,
 		type SettingKey
-	} from '$lib/utils/session-setup';
+	} from '#lib/utils/session-setup.js';
 
 	let {
 		selectedDate,
@@ -238,10 +238,10 @@
 	 * mounted it stays, exactly as before.
 	 */
 	const loadSetupSheet = loadOnce(
-		() => import('$lib/components/training/session-setup-sheet.svelte')
+		() => import('#lib/components/training/session-setup-sheet.svelte')
 	);
 	let SessionSetupSheet = $state<
-		typeof import('$lib/components/training/session-setup-sheet.svelte').default | null
+		typeof import('#lib/components/training/session-setup-sheet.svelte').default | null
 	>(null);
 
 	// Warming a chunk is syncing with the network, not deriving state.

@@ -26,22 +26,22 @@ const bannedSyntax = [
 		selector:
 			"CallExpression[callee.property.name=/^(slice|split|substring)$/] > MemberExpression > CallExpression[callee.property.name='toISOString']",
 		message:
-			"toISOString() is the UTC day, not the runner's. Use $lib/utils/date — see agents.md §9, Dates."
+			"toISOString() is the UTC day, not the runner's. Use #lib/utils/date — see agents.md §9, Dates."
 	},
 	{
 		selector: "CallExpression[callee.name='setInterval']",
 		message:
-			'Polling must pause in a hidden tab. Use $lib/utils/revalidation — see agents.md §7, Requests and caching.'
+			'Polling must pause in a hidden tab. Use #lib/utils/revalidation — see agents.md §7, Requests and caching.'
 	},
 	{
 		selector:
 			"AssignmentExpression > MemberExpression[property.name=/^(innerHTML|outerHTML)$/], CallExpression[callee.property.name='insertAdjacentHTML']",
 		message:
-			'Markup reaches the DOM only through $lib/utils/sanitize — see agents.md §3, XSS & sanitization.'
+			'Markup reaches the DOM only through #lib/utils/sanitize — see agents.md §3, XSS & sanitization.'
 	},
 	{
 		selector: "ImportExpression[source.value='dompurify']",
-		message: 'Load DOMPurify through loadSanitizer() in $lib/utils/sanitize, which owns its config.'
+		message: 'Load DOMPurify through loadSanitizer() in #lib/utils/sanitize, which owns its config.'
 	}
 ];
 
@@ -70,7 +70,7 @@ export default tseslint.config(
 						{
 							name: 'dompurify',
 							message:
-								'A static import ships DOMPurify in whichever chunk imports it. Use loadSanitizer() from $lib/utils/sanitize.'
+								'A static import ships DOMPurify in whichever chunk imports it. Use loadSanitizer() from #lib/utils/sanitize.'
 						},
 						{ name: 'axios', message: 'Use fetch — agents.md §5.' },
 						{ name: 'svelte/store', message: 'Client state is runes — agents.md §9, Client state.' }

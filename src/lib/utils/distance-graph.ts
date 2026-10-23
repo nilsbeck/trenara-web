@@ -1,4 +1,4 @@
-import type { UserStats } from '$lib/server/trenara/types';
+import type { UserStats } from '#lib/server/trenara/types.js';
 
 /**
  * One column of a distance graph: what was planned, and what was run.

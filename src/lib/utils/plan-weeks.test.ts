@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { readPlanWeeks, planWeekFor, isoWeekStart } from './plan-weeks';
-import type { UserStats } from '$lib/server/trenara/types';
+import type { UserStats } from '#lib/server/trenara/types.js';
 
 type GoalSeries = UserStats['graph_stats']['goal'];
 

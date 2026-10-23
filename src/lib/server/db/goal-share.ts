@@ -1,7 +1,7 @@
 import { supabase } from './client';
 import { isUniqueViolation, storageFailed } from './errors';
-import { generateShareToken } from '$lib/server/share/token';
-import type { SharedSnapshot } from '$lib/server/share/snapshot';
+import { generateShareToken } from '#lib/server/share/token.js';
+import type { SharedSnapshot } from '#lib/server/share/snapshot.js';
 
 /**
  * A share link, as the owner sees it.
@@ -9,7 +9,7 @@ import type { SharedSnapshot } from '$lib/server/share/snapshot';
  * `snapshot` is typed loosely here rather than as `SharedSnapshot` — this is
  * the owner-scoped read, and a row this code itself just wrote is trusted
  * without a parse. The public read (`getLiveByToken`) is the one that crosses
- * a deploy boundary and needs the Zod schema in `$lib/schemas/share.ts`; see
+ * a deploy boundary and needs the Zod schema in `#lib/schemas/share.ts`; see
  * `src/routes/s/[token]/+page.server.ts`.
  */
 export interface ShareRow {

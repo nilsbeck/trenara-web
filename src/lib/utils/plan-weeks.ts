@@ -1,5 +1,5 @@
 import { mondayOf } from './date';
-import type { UserStats } from '$lib/server/trenara/types';
+import type { UserStats } from '#lib/server/trenara/types.js';
 
 /**
  * What a week of the plan is for.

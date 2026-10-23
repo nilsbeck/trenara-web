@@ -1,10 +1,10 @@
 import type { Cookies } from '@sveltejs/kit';
-import { TokenType } from '$lib/server/auth/types';
+import { TokenType } from '#lib/server/auth/types.js';
 import {
 	recordRequest,
 	rateLimitDiagnostic,
 	type RateLimitDiagnostic
-} from '$lib/server/trenara/rate-limit';
+} from '#lib/server/trenara/rate-limit.js';
 
 const BASE_URL = 'https://backend-prod.trenara.com';
 

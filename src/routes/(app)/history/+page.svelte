@@ -2,11 +2,11 @@
 	import type { PageServerData } from './$types';
 	import PredictionChart, {
 		type ChartDataPoint
-	} from '$lib/components/charts/prediction-chart.svelte';
+	} from '#lib/components/charts/prediction-chart.svelte';
 	import EnduranceChart, {
 		type EnduranceDataPoint
-	} from '$lib/components/charts/endurance-chart.svelte';
-	import { timeStringToSeconds, paceStringToSeconds } from '$lib/utils/format';
+	} from '#lib/components/charts/endurance-chart.svelte';
+	import { timeStringToSeconds, paceStringToSeconds } from '#lib/utils/format.js';
 	import { History, ArrowLeft, Loader2 } from 'lucide-svelte';
 	import { onMount } from 'svelte';
 

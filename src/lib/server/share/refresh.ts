@@ -1,5 +1,5 @@
-import type { Goal, UserStats } from '$lib/server/trenara/types';
-import { goalShareDAO } from '$lib/server/db/goal-share';
+import type { Goal, UserStats } from '#lib/server/trenara/types.js';
+import { goalShareDAO } from '#lib/server/db/goal-share.js';
 import { projectSnapshot } from './snapshot';
 
 /**

@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { render, screen, cleanup, fireEvent, waitFor } from '@testing-library/svelte';
-import RateTrainingInline from '$lib/components/training/rate-training-inline.svelte';
-import type { Entry } from '$lib/server/trenara/types';
+import RateTrainingInline from '#lib/components/training/rate-training-inline.svelte';
+import type { Entry } from '#lib/server/trenara/types.js';
 
 function makeEntry(): Entry {
 	return {

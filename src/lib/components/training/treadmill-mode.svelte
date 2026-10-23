@@ -1,5 +1,5 @@
 <script module lang="ts">
-	import { loadOnce } from '$lib/utils/load-once';
+	import { loadOnce } from '#lib/utils/load-once.js';
 
 	/**
 	 * Treadmill mode, fetched rather than shipped with the dashboard — the same
@@ -13,9 +13,9 @@
 
 <script lang="ts">
 	import { tick } from 'svelte';
-	import type { ScheduledTraining } from '$lib/server/trenara/types';
-	import TreadmillIcon from '$lib/components/icons/treadmill-icon.svelte';
-	import { reloadOnStaleChunk, whenIdle } from '$lib/utils/load-once';
+	import type { ScheduledTraining } from '#lib/server/trenara/types.js';
+	import TreadmillIcon from '#lib/components/icons/treadmill-icon.svelte';
+	import { reloadOnStaleChunk, whenIdle } from '#lib/utils/load-once.js';
 
 	let { training }: { training: ScheduledTraining } = $props();
 

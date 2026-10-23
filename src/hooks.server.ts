@@ -1,12 +1,12 @@
-import { redirect, type Handle, type HandleServerError } from '@sveltejs/kit';
-import { sequence } from '@sveltejs/kit/hooks';
-import { TokenManager } from '$lib/server/auth/token-manager';
-import { userApi } from '$lib/server/trenara/user';
-import { isUpstreamFailure, describeFailure } from '$lib/server/trenara/request';
-import { RateLimitError } from '$lib/server/trenara/client';
-import { isDatabaseError, STORAGE_READ_MESSAGE } from '$lib/server/db/errors';
-import { securityHeaders } from '$lib/server/security/headers';
-import { apiRequests } from '$lib/server/security/rate-limit';
+import { redirect } from '@sveltejs/kit';
+import { sequence, type Handle, type HandleServerError } from '@sveltejs/kit/hooks';
+import { TokenManager } from '#lib/server/auth/token-manager.js';
+import { userApi } from '#lib/server/trenara/user.js';
+import { isUpstreamFailure, describeFailure } from '#lib/server/trenara/request.js';
+import { RateLimitError } from '#lib/server/trenara/client.js';
+import { isDatabaseError, STORAGE_READ_MESSAGE } from '#lib/server/db/errors.js';
+import { securityHeaders } from '#lib/server/security/headers.js';
+import { apiRequests } from '#lib/server/security/rate-limit.js';
 
 const tokenManager = TokenManager.getInstance();
 
@@ -152,8 +152,19 @@ export const handle = sequence(securityHeaders, handleAuth, handleGuard);
  * the error page, and everything else is logged with the route it came from.
  * The message shown to the runner stays generic — an unexpected error is by
  * definition one whose text was never meant for them.
+ *
+ * Since SvelteKit 3 this hook sees *every* error, not only unexpected ones:
+ * an `error(400, …)` a route threw on purpose arrives as `kind: 'app'`, and a
+ * 404 or 405 SvelteKit raised itself as `kind: 'framework'`. Both already
+ * carry the status and the message the runner should see, so they are left
+ * alone — returning nothing keeps them. Falling through to the branch at the
+ * bottom would have logged every rejected body as a bug and replaced
+ * Trenara's own refusal ("This training can no longer be moved") with an
+ * apology for a fault that does not exist.
  */
-export const handleError: HandleServerError = ({ error, event, status, message }) => {
+export const handleError: HandleServerError = ({ kind, error, event }) => {
+	if (kind !== 'unknown') return;
+
 	// A storage failure that got past `fromStorage` — a DAO called somewhere
 	// that does not wrap it yet. Reported as what it is rather than as a bug,
 	// and never with the database's own words, which name columns.
@@ -175,10 +186,7 @@ export const handleError: HandleServerError = ({ error, event, status, message }
 		return { message: describeFailure(error).message, unreachable: true };
 	}
 
-	// 404s arrive here too and are not worth a stack trace in the log.
-	if (status !== 404) {
-		console.error(`[${event.request.method} ${event.url.pathname}] ${status} ${message}:`, error);
-	}
+	console.error(`[${event.request.method} ${event.url.pathname}] unexpected error:`, error);
 
 	return { message: 'Something went wrong on our side.' };
 };

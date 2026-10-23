@@ -1,7 +1,7 @@
 <script lang="ts">
-	import type { ScheduledTraining } from '$lib/server/trenara/types';
+	import type { ScheduledTraining } from '#lib/server/trenara/types.js';
 	import { Flag, Footprints, Gauge, Loader2, Mountain, MoveHorizontal } from 'lucide-svelte';
-	import { chipSettings, type SettingKey } from '$lib/utils/session-setup';
+	import { chipSettings, type SettingKey } from '#lib/utils/session-setup.js';
 
 	let {
 		training,

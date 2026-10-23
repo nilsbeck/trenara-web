@@ -9,7 +9,12 @@ const { fakeEnv, viewer } = vi.hoisted(() => ({
 	viewer: { id: undefined as number | undefined }
 }));
 
-vi.mock('$env/dynamic/private', () => ({ env: fakeEnv }));
+// A getter, so a case can change the admin after the module has imported it.
+vi.mock('$app/env/private', () => ({
+	get ADMIN_USER_ID() {
+		return fakeEnv.ADMIN_USER_ID ?? '';
+	}
+}));
 vi.mock('$app/server', () => ({
 	getRequestEvent: () => {
 		if (viewer.id === undefined) throw new Error('no request context');
@@ -38,8 +43,8 @@ import {
 	RATE_LIMITED_MESSAGE,
 	retryAfterText
 } from './request';
-import { trainingConditionSchema } from '$lib/schemas/training';
-import { SURFACES } from '$lib/utils/session-setup';
+import { trainingConditionSchema } from '#lib/schemas/training.js';
+import { SURFACES } from '#lib/utils/session-setup.js';
 
 describe('describeUpstreamError', () => {
 	it('names every field a rejected write complained about', () => {

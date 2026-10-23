@@ -1,9 +1,9 @@
 <script lang="ts">
 	import { getContext } from 'svelte';
-	import { browser } from '$app/environment';
-	import type { CalendarStore } from '$lib/stores/calendar.svelte';
-	import { Tab } from '$lib/stores/calendar.svelte';
-	import type { NutritionAdvice } from '$lib/server/trenara/types';
+	import { browser } from '$app/env';
+	import type { CalendarStore } from '#lib/stores/calendar.svelte.js';
+	import { Tab } from '#lib/stores/calendar.svelte.js';
+	import type { NutritionAdvice } from '#lib/server/trenara/types.js';
 	import TrainingDetails from './training-details.svelte';
 	import StrengthDetails from './strength-details.svelte';
 	import NutritionDetails from './nutrition-details.svelte';
@@ -143,11 +143,9 @@
 	const selectedTraining = $derived(
 		store.filteredTrainings.length > 0 ? store.filteredTrainings[0] : null
 	);
-
 	const selectedEntry = $derived(
 		store.selectedRunEntries.length > 0 ? store.selectedRunEntries[0] : null
 	);
-
 	const selectedStrength = $derived(
 		store.filteredStrengthTrainings.length > 0 ? store.filteredStrengthTrainings[0] : null
 	);
@@ -170,10 +168,8 @@
 						class:border-primary={activeTab === tab}
 						class:text-muted-foreground={activeTab !== tab}
 						class:hover:text-foreground={activeTab !== tab}
-						onclick={() => (activeTab = tab)}
+						onclick={() => (activeTab = tab)}>{TAB_LABELS[tab]}</button
 					>
-						{TAB_LABELS[tab]}
-					</button>
 				{/each}
 			</div>
 		{/if}
@@ -187,7 +183,7 @@
 					isLoading={store.isLoading}
 					onScheduleChanged={() => {
 						// planChanged() re-runs the page load too, so the cards beside
-						// the calendar move with it — no second invalidateAll needed —
+						// the calendar move with it — no second refreshAll needed —
 						// and it marks the months the refresh itself cannot see, so a
 						// session moved into next month is not still sitting on its old
 						// day when the runner pages over to it.

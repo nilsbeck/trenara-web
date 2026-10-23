@@ -8,7 +8,7 @@ const state = vi.hoisted(() => ({
 const mockInvalidateAll = vi.hoisted(() => vi.fn().mockResolvedValue(undefined));
 
 vi.mock('$app/state', () => ({ page: state.page }));
-vi.mock('$app/navigation', () => ({ invalidateAll: mockInvalidateAll }));
+vi.mock('$app/navigation', () => ({ refreshAll: mockInvalidateAll }));
 
 import GoalCardShare from './goal-card-share.svelte';
 
@@ -76,7 +76,7 @@ describe('goal card share dialog, no live link', () => {
 		expect(screen.getByDisplayValue(GOAL_NAME)).toBeTruthy();
 	});
 
-	it('creates a link and refreshes the page data through invalidateAll', async () => {
+	it('creates a link and refreshes the page data through refreshAll', async () => {
 		render(GoalCardShare, { props: { share: null, goalName: GOAL_NAME } });
 		openDialog();
 
@@ -150,7 +150,7 @@ describe('goal card share dialog, a live link', () => {
 		expect(screen.queryByPlaceholderText(/e\.g\. berlin marathon/i)).toBeNull();
 	});
 
-	it('rotates the token and refreshes through invalidateAll', async () => {
+	it('rotates the token and refreshes through refreshAll', async () => {
 		render(GoalCardShare, { props: { share: shareRow, goalName: GOAL_NAME } });
 		openDialog();
 
@@ -163,7 +163,7 @@ describe('goal card share dialog, a live link', () => {
 		);
 	});
 
-	it('revokes and refreshes through invalidateAll', async () => {
+	it('revokes and refreshes through refreshAll', async () => {
 		render(GoalCardShare, { props: { share: shareRow, goalName: GOAL_NAME } });
 		openDialog();
 

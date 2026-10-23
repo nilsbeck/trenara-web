@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { render, screen, within } from '@testing-library/svelte';
 import NutritionDetails from './nutrition-details.svelte';
-import type { NutritionAdvice } from '$lib/server/trenara/types';
+import type { NutritionAdvice } from '#lib/server/trenara/types.js';
 
 function advice(overrides: Partial<NutritionAdvice> = {}): NutritionAdvice {
 	return {

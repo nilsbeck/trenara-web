@@ -24,11 +24,11 @@ it (§7).
 | Pattern                                                       | Instead                                          | Why |
 | ------------------------------------------------------------- | ------------------------------------------------ | --- |
 | `locals.user!`                                                | `requireUser(locals)`                            | §7  |
-| `.toISOString().slice/split/substring(…)`                     | `$lib/utils/date`                                | §9  |
-| `setInterval(…)`                                              | `$lib/utils/revalidation`                        | §7  |
+| `.toISOString().slice/split/substring(…)`                     | `#lib/utils/date`                                | §9  |
+| `setInterval(…)`                                              | `#lib/utils/revalidation`                        | §7  |
 | `innerHTML =`, `outerHTML =`, `insertAdjacentHTML`            | `loadSanitizer()` and `{@html}`                  | §3  |
 | `{@html}` without a reason                                    | `svelte/no-at-html-tags` is on; disable with why | §3  |
-| `import … from 'dompurify'`, or `import('dompurify')`         | `loadSanitizer()` from `$lib/utils/sanitize`     | §3  |
+| `import … from 'dompurify'`, or `import('dompurify')`         | `loadSanitizer()` from `#lib/utils/sanitize`     | §3  |
 | `axios`, `lodash`, `svelte/store`                             | `fetch`, native JS, runes                        | §5  |
 | DOMPurify reachable without `import()`; shell over its budget | `scripts/check-bundle.ts`, after `bun run build` | §7  |
 
@@ -59,7 +59,7 @@ What follows is the design as it actually stands.
   which is scoped by the token's own unique index rather than by
   `.eq('user_id', …)` — the one query in the app that is deliberately built
   that way. What a token grants is exactly one read-only goal card, built from
-  a stored projection (`$lib/server/share/snapshot.ts`) rather than a live
+  a stored projection (`#lib/server/share/snapshot.ts`) rather than a live
   Trenara call: this route makes **no Trenara request of any kind**, on any
   path, because doing so would mean keeping a runner's Trenara credential
   reachable by an anonymous visitor. If a change to this route ever needs to
@@ -70,11 +70,11 @@ What follows is the design as it actually stands.
   - it lives outside `/api` and `/(app)`, and reads no cookie and no `locals.user`;
   - it makes no Trenara request, on any path — it serves a stored projection;
   - the capability in the URL is random (`crypto.getRandomValues`, as
-    `$lib/server/share/token.ts` does, 256 bits), unique-indexed, and
+    `#lib/server/share/token.ts` does, 256 bits), unique-indexed, and
     revocable by its owner;
   - its lookup is the only query scoped by something other than `user_id`,
     and says so in a comment at the site;
-  - it has a per-IP limiter in `$lib/server/security/rate-limit`;
+  - it has a per-IP limiter in `#lib/server/security/rate-limit`;
   - it causes reads only — a view never writes;
   - its `cache-control` is no longer than the revocation delay the owner has
     been promised (§8).
@@ -95,11 +95,11 @@ What follows is the design as it actually stands.
   `user_id`. See the RLS block at the end of `migration.sql`.
 - **Rate limiting:** login is limited by IP and by submitted username, and the
   endpoints that write to Supabase are limited per user
-  (`$lib/server/security/rate-limit`). The limiters are per serverless instance
+  (`#lib/server/security/rate-limit`). The limiters are per serverless instance
   and in memory — a floor, not a wall; a shared store is the upgrade path.
 - **XSS & sanitization:** use Svelte's native escaping. HTML that comes back
   from the API (chat, news) reaches the DOM only through `loadSanitizer()` in
-  `$lib/utils/sanitize`, which owns DOMPurify's configuration and imports it
+  `#lib/utils/sanitize`, which owns DOMPurify's configuration and imports it
   lazily. The configuration is part of the security model, not a detail:
   DOMPurify's defaults keep `<img>`, and the CSP's `img-src https:` (needed for
   avatars and news pictures) would then let a message load an image from any
@@ -114,8 +114,8 @@ What follows is the design as it actually stands.
   and nothing arbitrary is forwarded upstream. The ceiling is a guard, set well
   past real input; the product rule, where there is one, is applied after
   parsing.
-- **Secrets stay in `$lib/server`.** `$env/static/private`, `$env/dynamic/private`
-  and the service-role client are imported only under `$lib/server` or from a
+- **Secrets stay in `#lib/server`.** `$app/env/private` (declared in `src/env.ts`)
+  and the service-role client are imported only under `#lib/server` or from a
   `*.server.ts` / `+server.ts` file — SvelteKit refuses the build otherwise; do
   not route around it through a re-export. A `load` returns only what the page
   renders: never a token, a cookie value, or a whole database row when the
@@ -135,17 +135,17 @@ What follows is the design as it actually stands.
   answers. The one thing that had to change was logout, which was a GET and so
   outside the check entirely; it is a POST now. Keep every mutation on a method
   that is not GET.
-- **Response headers** are set in `$lib/server/security/headers`, which runs
+- **Response headers** are set in `#lib/server/security/headers`, which runs
   _first_ in the hook sequence — `handleGuard` returns its 401 without calling
   `resolve`, so anything behind it would miss the refusals. The CSP lives in
-  `svelte.config.js`.
+  `vite.config.ts`, in the options passed to `sveltekit()`.
 - **Everything that touches Trenara or Supabase runs on the server.** The
   browser talks only to this app (`connect-src 'self'`); it never holds a
   Trenara token, a Supabase key, or a URL on either host.
 
 ## 4. UI Architecture & Reusability
 
-- **Components:** Domain components live in `$lib/components`, grouped by feature (`calendar/`, `training/`, `chat/`, `charts/`). There is no UI primitive library — components are written directly against Tailwind classes.
+- **Components:** Domain components live in `#lib/components`, grouped by feature (`calendar/`, `training/`, `chat/`, `charts/`). There is no UI primitive library — components are written directly against Tailwind classes.
 - **Icons:** Use `lucide-svelte`.
 - **Theming:** The app is dark only. The palette is defined once as `@theme` tokens in `src/app.css`; there is no light palette and no theme switcher.
 - **Native-First:** Use native HTML validation attributes alongside Zod. The login form is the one Form Action, with `enhance`; every other mutation is a `fetch` to a JSON route under `/api/v1` (see §3, CSRF, and §9).
@@ -153,7 +153,7 @@ What follows is the design as it actually stands.
 ### View and view-model
 
 A component draws; a view-model knows. The split is Model–View–ViewModel, and
-the codebase already has one half of it — the model is `$lib/server/trenara/*`
+the codebase already has one half of it — the model is `#lib/server/trenara/*`
 and the DAOs, reached through `/api/v1` — and the right shape for the other half
 in `SessionDetailStore` and `createCalendarStore`. What it does not yet have is
 the rule, and it shows: four components (`goal-card`, `training-details`,
@@ -163,7 +163,7 @@ themselves — logic that can only be tested by mounting it.
 
 - **Model** — the server: Trenara wrappers and DAOs. The browser reaches it
   only through `fetch('/api/v1/…')`.
-- **View-model** — a `$lib/stores/*.svelte.ts` module: a factory
+- **View-model** — a `#lib/stores/*.svelte.ts` module: a factory
   (`createCalendarStore`), a class with `$state` fields
   (`SessionDetailStore`), or a module-level `$state` holder
   (`app-config.svelte.ts`). It owns the requests, the loading / empty / error
@@ -300,7 +300,7 @@ the reason — that is what distinguishes a decision from a regression.
   Preserve it when touching `read-cache.ts`.
 - **Client polling is gated on `document.visibilityState`.** A timer that runs
   in a backgrounded tab spends the budget for a screen nobody is looking at.
-  `$lib/utils/revalidation` is the pattern; use it rather than a bare
+  `#lib/utils/revalidation` is the pattern; use it rather than a bare
   `setInterval`.
 - **A local edit outranks an answer to a request that left before it.** Every
   session mutation hands back the changed object and the store seats it at
@@ -339,7 +339,7 @@ the reason — that is what distinguishes a decision from a regression.
   Advisory data renders as absent rather than holding the page.
 - **Work the page does not read finishes after the response.** A write that
   rides along with a load — `keepHistory` is the case — goes through
-  `afterResponse` (`$lib/server/after-response`), which keeps the serverless
+  `afterResponse` (`#lib/server/after-response`), which keeps the serverless
   function alive with `waitUntil` until it settles. Awaiting it holds first
   paint for nothing on screen; leaving it running bare is not reliable, since
   the function can be frozen the moment it answers. If the page shows what the
@@ -389,7 +389,7 @@ the reason — that is what distinguishes a decision from a regression.
   intent: the chunk should be reached by `import(…)`, not from a node's static
   graph. The session card's dialogs follow the same rule: the button is drawn
   with the card, the dialog behind it lives in its own file and is loaded
-  through `loadOnce` (`$lib/utils/load-once`), warmed with `whenIdle` and
+  through `loadOnce` (`#lib/utils/load-once`), warmed with `whenIdle` and
   mounted on the first tap (`change-date-modal.svelte` is the pattern). A
   failed load on a tap reloads the page — after a deploy the old chunk names
   are gone — and a failed warm-up stays quiet. Each is listed in `LAZY_ONLY`.
@@ -459,7 +459,7 @@ crowd.
   month the folded week also warms the neighbouring month once the page is
   idle (`prefetchAdjacentWeeks`) — another five or six schedule weeks, spent
   so the step across the turn does not wait for them. Warm, most of that is
-  free. The functions run in `fra1` (`svelte.config.js`), beside Supabase in
+  free. The functions run in `fra1` (`vite.config.ts`), beside Supabase in
   `eu-central-1` and Trenara on OVH in France; a region further from either
   puts a long round trip on every step of that chain.
 - **Every cache is per serverless instance.** Scaling out therefore makes the
@@ -487,7 +487,7 @@ crowd.
   the owner's own last visit, by design — see
   `.kiro/specs/goal-sharing/design.md` for the reasoning. The same "only on
   the owner's next visit" rule is what closes a goal deleted or replaced in
-  Trenara: `revokeStaleShares` (`$lib/server/share/refresh.ts`), run from the
+  Trenara: `revokeStaleShares` (`#lib/server/share/refresh.ts`), run from the
   same `keepHistory` call as the snapshot refresh, revokes any live share
   whose `goal_id` no longer matches the runner's current goal. Until the
   owner opens the app again after deleting the goal, the old link still
@@ -519,13 +519,13 @@ the drift — fix it rather than copying it.
 | --------------- | -------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
 | Page data       | `+page.server.ts` / `+layout.server.ts`            | `requireUser(locals)`; await only what first paint needs, stream the rest (§7, first-paint)                                            |
 | JSON endpoint   | `src/routes/api/v1/**/+server.ts`                  | `parseBody(schema, await request.json())`, then `passthrough(() => …Api.x())`; never a hand-rolled `safeParse` or field-by-field check |
-| Body schemas    | `$lib/schemas/*.ts`, with a `*.test.ts`            | shape only; what is _allowed_ is Trenara's `can_*` flags                                                                               |
-| Upstream calls  | `$lib/server/trenara/{training,user,chat,news}.ts` | reads through `cachedRead` with a `CacheKey`; writes through `mutating`; shape checked with `expectObject` / `expectCollections`       |
-| Upstream types  | `$lib/server/trenara/types.ts`                     | what captured traffic held, not what we hope for                                                                                       |
-| Storage         | `$lib/server/db/*.ts`                              | singleton DAO, `.eq('user_id', …)`, `storageFailed()` on error; the route wraps the call in `fromStorage`                              |
-| Client state    | `$lib/stores/*.svelte.ts`                          | the view-model (§4); runes, not `svelte/store`; a factory, a class with `$state` fields, or a module-level `$state` holder             |
-| Client → server | `fetch('/api/v1/…')` from a component or store     | a failure the runner sees is worded by `describeResponse` / `describeError` (`$lib/utils/network`)                                     |
-| Pure logic      | `$lib/utils/*.ts`, with a `*.test.ts` beside it    | no SvelteKit imports, so it tests without mocks                                                                                        |
+| Body schemas    | `#lib/schemas/*.ts`, with a `*.test.ts`            | shape only; what is _allowed_ is Trenara's `can_*` flags                                                                               |
+| Upstream calls  | `#lib/server/trenara/{training,user,chat,news}.ts` | reads through `cachedRead` with a `CacheKey`; writes through `mutating`; shape checked with `expectObject` / `expectCollections`       |
+| Upstream types  | `#lib/server/trenara/types.ts`                     | what captured traffic held, not what we hope for                                                                                       |
+| Storage         | `#lib/server/db/*.ts`                              | singleton DAO, `.eq('user_id', …)`, `storageFailed()` on error; the route wraps the call in `fromStorage`                              |
+| Client state    | `#lib/stores/*.svelte.ts`                          | the view-model (§4); runes, not `svelte/store`; a factory, a class with `$state` fields, or a module-level `$state` holder             |
+| Client → server | `fetch('/api/v1/…')` from a component or store     | a failure the runner sees is worded by `describeResponse` / `describeError` (`#lib/utils/network`)                                     |
+| Pure logic      | `#lib/utils/*.ts`, with a `*.test.ts` beside it    | no SvelteKit imports, so it tests without mocks                                                                                        |
 
 Failures are told apart by which server failed, and each has one helper:
 
@@ -540,7 +540,7 @@ Failures are told apart by which server failed, and each has one helper:
 
 `docs/backend-api.md` is the contract, captured from live traffic. A new or
 changed endpoint updates, in the same commit: that file (with a redacted
-captured sample), `types.ts`, the wrapper in `$lib/server/trenara/`, and a
+captured sample), `types.ts`, the wrapper in `#lib/server/trenara/`, and a
 fixture in `payloads.test.ts`. Never type a field that was not seen in a
 capture, and use the path exactly as recorded — trailing slashes vary.
 
@@ -561,7 +561,7 @@ authenticated`. When nothing bounds its rows per runner — a key the client
 
 ### Dates
 
-A training day is a local day. Calendar dates go through `$lib/utils/date`
+A training day is a local day. Calendar dates go through `#lib/utils/date`
 (`toLocalDateString`, `dayKeyOf`, `getMonthTimestamps`,
 `parseLocalDateString`) — never `toISOString().slice(0, 10)`, which is the UTC
 day and is wrong for a runner east or west of Greenwich for part of every
@@ -581,23 +581,26 @@ chosen per field; the API reference says which.
   test for this reason.
 - **A `+server.ts` has a `server.test.ts` beside it.**
   `api/v1/goal-share/server.test.ts` is the pattern: import the handlers, mock
-  `$lib/server/trenara` and the DAO, and cover a rejected body, the happy path,
+  `#lib/server/trenara` and the DAO, and cover a rejected body, the happy path,
   and an upstream refusal passed through with its status.
 
 ### Platform edges
 
 - **Environment:** only the variables in `.env.example`. A new one goes there,
-  into the CI placeholders in `check.yml`, into the `$env` mocks in
+  into `src/env.ts` (SvelteKit 3 reads nothing it does not declare), into the
+  CI placeholders in `check.yml`, into the `$app/env/private` mock in
   `src/lib/server/database/test-setup.ts`, and into the maintainer-action
   block.
 - **CSP:** the browser talks only to this app. A new external origin — a font,
-  an image host, a script — needs its directive in `svelte.config.js`.
+  an image host, a script — needs its directive in `vite.config.ts`.
 - **Service worker:** caches the built shell and static files only, never an
   API response or a rendered page; see the comment at the top of
-  `src/service-worker.ts` for why.
+  `src/service-worker/index.ts` for why. It is its own TypeScript project
+  (`src/service-worker/tsconfig.json`), which `bun run check` type-checks
+  separately.
 - **Time budgets come in a pair:** `DEFAULT_BUDGET_MS` in
-  `$lib/server/trenara/client.ts` sits inside `maxDuration` in
-  `svelte.config.js`. Change one, check the other.
+  `#lib/server/trenara/client.ts` sits inside `maxDuration` in
+  `vite.config.ts`. Change one, check the other.
 
 ### Done means
 
@@ -608,7 +611,7 @@ the rule; they do not restate it.
 
 - [ ] under `src/routes/api/v1/`, on a method that is not GET if it changes anything (§7)
 - [ ] `requireUser(locals)`; no guard of its own (§7)
-- [ ] body through `parseBody` with a schema in `$lib/schemas/`, every string and array `.max()`ed (§3)
+- [ ] body through `parseBody` with a schema in `#lib/schemas/`, every string and array `.max()`ed (§3)
 - [ ] upstream through `passthrough` / `passthroughOptional`, storage through `fromStorage` (§9)
 - [ ] a read goes through `cachedRead`; a write `invalidate`s what it changes (§7)
 - [ ] a write to Supabase is behind a per-user limiter (§3)

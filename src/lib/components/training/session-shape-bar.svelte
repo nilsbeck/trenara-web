@@ -1,6 +1,6 @@
 <script lang="ts">
-	import type { ScheduledTraining } from '$lib/server/trenara/types';
-	import { shapeSegments } from '$lib/utils/session-setup';
+	import type { ScheduledTraining } from '#lib/server/trenara/types.js';
+	import { shapeSegments } from '#lib/utils/session-setup.js';
 
 	let { training }: { training: ScheduledTraining } = $props();
 

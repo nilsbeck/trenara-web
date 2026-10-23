@@ -1,9 +1,9 @@
 import { describe, it, expect, beforeAll, afterEach } from 'vitest';
 import { render, cleanup, screen, waitFor } from '@testing-library/svelte';
 import GoalCard from './goal-card.svelte';
-import type { Goal, UserStats } from '$lib/server/trenara/types';
-import type { ChartDataPoint } from '$lib/components/charts/prediction-chart.svelte';
-import { secondsToTimeString, secondsToPaceString } from '$lib/utils/format';
+import type { Goal, UserStats } from '#lib/server/trenara/types.js';
+import type { ChartDataPoint } from '#lib/components/charts/prediction-chart.svelte';
+import { secondsToTimeString, secondsToPaceString } from '#lib/utils/format.js';
 
 // The card mounts a chart and jsdom lays nothing out.
 beforeAll(() => {

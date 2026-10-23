@@ -1,13 +1,13 @@
 import { supabase } from './client';
 import { isUniqueViolation, storageFailed } from './errors';
-import type { NewsMark } from '$lib/utils/news-unread';
+import type { NewsMark } from '#lib/utils/news-unread.js';
 
 /**
  * Where each reader has got to in the news feed.
  *
  * One row per user holding the newest item they have been shown. Trenara keeps
  * no read state, and per-item read rows would grow without bound for an answer
- * that is a single comparison — see `$lib/utils/news-unread`.
+ * that is a single comparison — see `#lib/utils/news-unread.js`.
  */
 export interface NewsReadStateRecord {
 	user_id: number;

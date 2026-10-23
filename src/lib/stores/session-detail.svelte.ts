@@ -4,9 +4,9 @@ import type {
 	Shoe,
 	TrainingHeightDifference,
 	TrainingSurface
-} from '$lib/server/trenara/types';
-import { activityLabel, type SettingKey } from '$lib/utils/session-setup';
-import { describeError, describeResponse, isAbort } from '$lib/utils/network';
+} from '#lib/server/trenara/types.js';
+import { activityLabel, type SettingKey } from '#lib/utils/session-setup.js';
+import { describeError, describeResponse, isAbort } from '#lib/utils/network.js';
 import { appConfig } from './app-config.svelte';
 
 /**

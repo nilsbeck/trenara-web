@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { TrendingUp } from 'lucide-svelte';
-	import { formatKm, type DistanceSeries } from '$lib/utils/distance-graph';
+	import { formatKm, type DistanceSeries } from '#lib/utils/distance-graph.js';
 
 	let {
 		series,

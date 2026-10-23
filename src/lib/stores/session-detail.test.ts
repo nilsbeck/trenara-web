@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import type { ScheduledTrainingDetail } from '$lib/server/trenara/types';
+import type { ScheduledTrainingDetail } from '#lib/server/trenara/types.js';
 import { SessionDetailStore } from './session-detail.svelte';
 
 function detail(overrides: Partial<ScheduledTrainingDetail> = {}): ScheduledTrainingDetail {

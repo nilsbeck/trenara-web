@@ -1,11 +1,11 @@
-import { error, json, type Cookies } from '@sveltejs/kit';
+import { error, type Cookies } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
-import { trainingApi } from '$lib/server/trenara';
-import { parseBody, passthrough } from '$lib/server/trenara/request';
-import { addNewTrainingSchema, newTrainingDaySchema } from '$lib/schemas/training';
-import { parseLocalDateString, toLocalDateString, weekAnchorOf } from '$lib/utils/date';
-import type { Schedule } from '$lib/server/trenara/types';
-import type { NewTrainingOptions } from '$lib/utils/schedule';
+import { trainingApi } from '#lib/server/trenara/index.js';
+import { parseBody, passthrough } from '#lib/server/trenara/request.js';
+import { addNewTrainingSchema, newTrainingDaySchema } from '#lib/schemas/training.js';
+import { parseLocalDateString, toLocalDateString, weekAnchorOf } from '#lib/utils/date.js';
+import type { Schedule } from '#lib/server/trenara/types.js';
+import type { NewTrainingOptions } from '#lib/utils/schedule.js';
 
 /**
  * The week that holds `day`, read the way the calendar's month fetch reads it.
@@ -39,11 +39,11 @@ export const GET: RequestHandler = async ({ url, cookies }) => {
 
 	const week = await weekHolding(cookies, date);
 	if (!week?.can_receive_new_trainings) {
-		return json({ canAdd: false, candidates: [] } satisfies NewTrainingOptions);
+		return Response.json({ canAdd: false, candidates: [] } satisfies NewTrainingOptions);
 	}
 
 	const candidates = await passthrough(() => trainingApi.getNewTrainings(cookies, week.id, date));
-	return json({ canAdd: true, candidates } satisfies NewTrainingOptions);
+	return Response.json({ canAdd: true, candidates } satisfies NewTrainingOptions);
 };
 
 /**
@@ -62,7 +62,7 @@ export const POST: RequestHandler = async ({ request, cookies }) => {
 		error(409, 'This week cannot take another training.');
 	}
 
-	return json(
+	return Response.json(
 		await passthrough(() => trainingApi.addNewTraining(cookies, week.id, date, candidateId))
 	);
 };

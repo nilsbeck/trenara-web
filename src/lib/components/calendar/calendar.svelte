@@ -1,11 +1,11 @@
 <script lang="ts">
 	import { setContext, untrack } from 'svelte';
-	import { createCalendarStore, type CalendarStore } from '$lib/stores/calendar.svelte';
-	import { createRevalidationTrigger } from '$lib/utils/revalidation';
-	import { whenIdle } from '$lib/utils/load-once';
-	import { initialCalendarDay } from '$lib/utils/initial-day';
-	import { reconcileRatedEntries } from '$lib/utils/rated-locally';
-	import type { Schedule } from '$lib/server/trenara/types';
+	import { createCalendarStore, type CalendarStore } from '#lib/stores/calendar.svelte.js';
+	import { createRevalidationTrigger } from '#lib/utils/revalidation.js';
+	import { whenIdle } from '#lib/utils/load-once.js';
+	import { initialCalendarDay } from '#lib/utils/initial-day.js';
+	import { reconcileRatedEntries } from '#lib/utils/rated-locally.js';
+	import type { Schedule } from '#lib/server/trenara/types.js';
 	import CalendarHeader from './calendar-header.svelte';
 	import CalendarGrid from './calendar-grid.svelte';
 	import CalendarDetails from './calendar-details.svelte';

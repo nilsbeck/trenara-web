@@ -1,4 +1,4 @@
-import type { NutritionAdvice } from '$lib/server/trenara/types';
+import type { NutritionAdvice } from '#lib/server/trenara/types.js';
 
 export type NutritionMeal = NutritionAdvice['plan'][number];
 

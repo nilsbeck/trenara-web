@@ -1,8 +1,9 @@
+import type { Handle, HandleServerError } from '@sveltejs/kit/hooks';
+import type { RequestEvent } from '@sveltejs/kit';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import type { Handle, RequestEvent } from '@sveltejs/kit';
-import { securityHeaders } from '$lib/server/security/headers';
+import { securityHeaders } from '#lib/server/security/headers.js';
 
-vi.mock('$app/environment', () => ({ dev: false }));
+vi.mock('$app/env', () => ({ dev: false }));
 
 const { tokenState, userState } = vi.hoisted(() => ({
 	tokenState: {
@@ -15,7 +16,7 @@ const { tokenState, userState } = vi.hoisted(() => ({
 	}
 }));
 
-vi.mock('$lib/server/auth/token-manager', () => ({
+vi.mock('#lib/server/auth/token-manager.js', () => ({
 	TokenManager: {
 		getInstance: () => ({
 			hasSessionCookies: () => tokenState.hasCookies,
@@ -27,7 +28,7 @@ vi.mock('$lib/server/auth/token-manager', () => ({
 	}
 }));
 
-vi.mock('$lib/server/trenara/user', () => ({
+vi.mock('#lib/server/trenara/user.js', () => ({
 	userApi: {
 		getCurrentUser: async () => {
 			if (!userState.user) throw new Error('unreachable');
@@ -45,7 +46,7 @@ function compose(...chain: Handle[]): Handle {
 	return chain.reduceRight<Handle>(
 		(next, current) =>
 			({ event, resolve }) =>
-				current({ event, resolve: (e) => next({ event: e, resolve }) }),
+				current({ event, resolve: async (e) => next({ event: e, resolve }) }),
 		({ event, resolve }) => resolve(event)
 	);
 }
@@ -190,7 +191,7 @@ describe('the guard', () => {
 	// usable as a load generator pointed at Trenara — whose own limit is sixty a
 	// minute for everything behind this egress IP.
 	it('caps how much API traffic one account can generate', async () => {
-		const { apiRequests } = await import('$lib/server/security/rate-limit');
+		const { apiRequests } = await import('#lib/server/security/rate-limit.js');
 		apiRequests.reset();
 
 		let last: Response | undefined;
@@ -204,7 +205,7 @@ describe('the guard', () => {
 	});
 
 	it('does not cap page navigation, only the API', async () => {
-		const { apiRequests } = await import('$lib/server/security/rate-limit');
+		const { apiRequests } = await import('#lib/server/security/rate-limit.js');
 		apiRequests.reset();
 
 		let last: Response | undefined;
@@ -235,5 +236,72 @@ describe('security headers', () => {
 		const { response } = await run(eventFor('/api/v1/schedule', '/api/v1/schedule'));
 
 		expect(response?.headers.get('x-content-type-options')).toBe('nosniff');
+	});
+});
+
+describe('handleError', () => {
+	type Input = Parameters<HandleServerError>[0];
+
+	const event = {
+		request: new Request('https://app.test/api/v1/training/move', { method: 'POST' }),
+		url: new URL('https://app.test/api/v1/training/move'),
+		locals: { user: null }
+	} as unknown as RequestEvent;
+
+	let handleError: HandleServerError;
+	let logged: ReturnType<typeof vi.spyOn>;
+
+	beforeEach(async () => {
+		({ handleError } = await import('./hooks.server'));
+		logged = vi.spyOn(console, 'error').mockImplementation(() => {});
+		return () => logged.mockRestore();
+	});
+
+	// SvelteKit 3 hands this hook the errors a route throws on purpose as well.
+	// Treated like a crash, Trenara's own refusal was replaced by an apology and
+	// every rejected body was logged as a bug.
+	it('leaves an error a route threw on purpose as it was', async () => {
+		const result = await handleError({
+			kind: 'app',
+			error: { status: 409, message: 'This training can no longer be moved' },
+			event
+		} as Input);
+
+		expect(result).toBeUndefined();
+		expect(logged).not.toHaveBeenCalled();
+	});
+
+	it("leaves SvelteKit's own 404s and 405s as they were", async () => {
+		const result = await handleError({
+			kind: 'framework',
+			error: { status: 405, message: 'Method Not Allowed' },
+			event
+		} as Input);
+
+		expect(result).toBeUndefined();
+		expect(logged).not.toHaveBeenCalled();
+	});
+
+	it('logs an unexpected error and answers with a generic message', async () => {
+		const result = await handleError({
+			kind: 'unknown',
+			error: new TypeError("Cannot read properties of undefined (reading 'id')"),
+			event
+		} as Input);
+
+		expect(result).toEqual({ message: 'Something went wrong on our side.' });
+		expect(logged).toHaveBeenCalledTimes(1);
+	});
+
+	it('names a storage failure without repeating the database', async () => {
+		const { DatabaseError, STORAGE_READ_MESSAGE } = await import('#lib/server/db/errors.js');
+
+		const result = await handleError({
+			kind: 'unknown',
+			error: new DatabaseError('read', 'column "secret_col" does not exist'),
+			event
+		} as Input);
+
+		expect(result).toEqual({ message: STORAGE_READ_MESSAGE, storage: true });
 	});
 });

@@ -22,8 +22,14 @@ import { readFileSync, existsSync } from 'node:fs';
 import { gzipSync } from 'node:zlib';
 import { join } from 'node:path';
 
-/** Gzipped bytes the signed-in shell may cost, JS and CSS together. */
-const SHELL_BUDGET_BYTES = 64 * 1024;
+/**
+ * Gzipped bytes the signed-in shell may cost, JS and CSS together.
+ *
+ * Lowered from 64 KB with SvelteKit 3, whose client runtime took the shell
+ * from 59.8 KB to 47.1 KB. Left at 64 the budget would have handed the next
+ * twelve kilobytes to whoever asked first, without anyone deciding to.
+ */
+const SHELL_BUDGET_BYTES = 52 * 1024;
 
 /**
  * Packages that must only be loaded on the branch that uses them, each with a
@@ -50,7 +56,10 @@ const LAZY_ONLY = [
 
 const OUT = '.svelte-kit/output/client';
 const MANIFEST = join(OUT, '.vite/manifest.json');
-const GENERATED_NODES = '.svelte-kit/generated/client-optimized/nodes';
+// SvelteKit 3 moved the generated nodes under `build/`. A stale copy at the
+// old path survives in a local `.svelte-kit` from a Kit 2 build, so the old
+// path is not kept as a fallback: it would weigh last year's shell.
+const GENERATED_NODES = '.svelte-kit/generated/build/client-optimized/nodes';
 
 /** The route files whose nodes make up the shell. */
 const SHELL_SOURCES = ['src/routes/+layout.svelte', 'src/routes/(app)/+layout.svelte'];

@@ -1,8 +1,7 @@
-import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
-import { trainingApi } from '$lib/server/trenara';
-import { parseBody, passthrough } from '$lib/server/trenara/request';
-import { changeDateSchema } from '$lib/schemas/training';
+import { trainingApi } from '#lib/server/trenara/index.js';
+import { parseBody, passthrough } from '#lib/server/trenara/request.js';
+import { changeDateSchema } from '#lib/schemas/training.js';
 
 /**
  * Move a session to another day. `test` asks Trenara what the move would do
@@ -15,12 +14,12 @@ export const PUT: RequestHandler = async ({ request, cookies }) => {
 	);
 
 	if (action === 'test') {
-		return json(
+		return Response.json(
 			await passthrough(() => trainingApi.testChangeDate(cookies, entryId, newDate, includeFuture))
 		);
 	}
 
-	return json(
+	return Response.json(
 		await passthrough(() => trainingApi.saveChangeDate(cookies, entryId, newDate, includeFuture))
 	);
 };

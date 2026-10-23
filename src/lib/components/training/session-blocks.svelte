@@ -1,9 +1,9 @@
 <script lang="ts">
-	import type { TrainingBlock } from '$lib/server/trenara/types';
-	import CooldownBlock from '$lib/components/training/cooldown-block.svelte';
-	import TurnaroundMarker from '$lib/components/training/turnaround-marker.svelte';
-	import { blockTypeColor } from '$lib/utils/block-color';
-	import { describeTurnaround, type Turnaround } from '$lib/utils/turnaround';
+	import type { TrainingBlock } from '#lib/server/trenara/types.js';
+	import CooldownBlock from '#lib/components/training/cooldown-block.svelte';
+	import TurnaroundMarker from '#lib/components/training/turnaround-marker.svelte';
+	import { blockTypeColor } from '#lib/utils/block-color.js';
+	import { describeTurnaround, type Turnaround } from '#lib/utils/turnaround.js';
 
 	let {
 		blocks,

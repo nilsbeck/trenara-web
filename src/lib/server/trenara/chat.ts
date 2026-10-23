@@ -3,7 +3,7 @@ import type { ChatThread, ChatMessage, ChatMessagesResponse } from './types';
 import { fetchClient } from './client';
 import { expectArray } from './shape';
 import { cachedRead, CacheKey, invalidate } from './read-cache';
-import { TokenType } from '$lib/server/auth/types';
+import { TokenType } from '#lib/server/auth/types.js';
 
 function bearerHeader(cookies: Cookies): Record<string, string> {
 	return { Authorization: `Bearer ${cookies.get(TokenType.AccessToken)}` };

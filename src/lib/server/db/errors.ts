@@ -73,7 +73,7 @@ export async function fromStorage<T>(
 	} catch (e) {
 		if (isDatabaseError(e)) {
 			console.error(`[storage] ${e.message}`);
-			error(503, { message, storage: true });
+			error(503, message, { storage: true });
 		}
 		throw e;
 	}

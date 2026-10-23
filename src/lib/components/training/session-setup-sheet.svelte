@@ -1,6 +1,6 @@
 <script lang="ts">
-	import type { ScheduledTraining, Shoe } from '$lib/server/trenara/types';
-	import type { TrainingHeightDifference, TrainingSurface } from '$lib/server/trenara/types';
+	import type { ScheduledTraining, Shoe } from '#lib/server/trenara/types.js';
+	import type { TrainingHeightDifference, TrainingSurface } from '#lib/server/trenara/types.js';
 	import {
 		Check,
 		ChevronLeft,
@@ -14,8 +14,8 @@
 		Repeat,
 		X
 	} from 'lucide-svelte';
-	import CooldownIcon from '$lib/components/icons/cooldown-icon.svelte';
-	import type { SessionDetailStore } from '$lib/stores/session-detail.svelte';
+	import CooldownIcon from '#lib/components/icons/cooldown-icon.svelte';
+	import type { SessionDetailStore } from '#lib/stores/session-detail.svelte.js';
 	import {
 		activities,
 		HEIGHT_DIFFERENCES,
@@ -30,8 +30,8 @@
 		shoeName,
 		shoeTypeLabel,
 		type SettingKey
-	} from '$lib/utils/session-setup';
-	import { appConfig } from '$lib/stores/app-config.svelte';
+	} from '#lib/utils/session-setup.js';
+	import { appConfig } from '#lib/stores/app-config.svelte.js';
 
 	let {
 		training,

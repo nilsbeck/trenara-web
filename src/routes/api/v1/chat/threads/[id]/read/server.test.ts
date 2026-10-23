@@ -6,15 +6,15 @@ const mockGetThreads = vi.fn();
 const mockAdvance = vi.fn();
 const mockCheck = vi.fn();
 
-vi.mock('$lib/server/trenara', () => ({
+vi.mock('#lib/server/trenara/index.js', () => ({
 	chatApi: { getThreads: (...args: unknown[]) => mockGetThreads(...args) }
 }));
 
-vi.mock('$lib/server/db/chat-read-state', () => ({
+vi.mock('#lib/server/db/chat-read-state.js', () => ({
 	chatReadStateDAO: { advanceMark: (...args: unknown[]) => mockAdvance(...args) }
 }));
 
-vi.mock('$lib/server/security/rate-limit', () => ({
+vi.mock('#lib/server/security/rate-limit.js', () => ({
 	storageWrites: { check: (...args: unknown[]) => mockCheck(...args) }
 }));
 

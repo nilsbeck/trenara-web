@@ -1,11 +1,11 @@
 <script lang="ts">
-	import type { ScheduledTraining } from '$lib/server/trenara/types';
+	import type { ScheduledTraining } from '#lib/server/trenara/types.js';
 	import { X, ChevronUp, ChevronDown, Flag } from 'lucide-svelte';
 	import {
 		buildTreadmillInstructions,
 		type TreadmillInstruction
-	} from '$lib/utils/treadmill-instructions';
-	import { blockTypeColor } from '$lib/utils/block-color';
+	} from '#lib/utils/treadmill-instructions.js';
+	import { blockTypeColor } from '#lib/utils/block-color.js';
 
 	let { training }: { training: ScheduledTraining } = $props();
 

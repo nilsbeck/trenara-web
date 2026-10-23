@@ -21,7 +21,7 @@ declare global {
 			 * app was sending in the run-up, so the error page can show it and
 			 * the maintainer can send it on without reading a server log.
 			 */
-			rateLimit?: import('$lib/server/trenara/rate-limit').RateLimitDiagnostic;
+			rateLimit?: import('#lib/server/trenara/rate-limit.js').RateLimitDiagnostic;
 		}
 
 		interface Locals {

@@ -1,4 +1,4 @@
-import type { UserStats } from '$lib/server/trenara/types';
+import type { UserStats } from '#lib/server/trenara/types.js';
 
 /**
  * Whether a stats payload is one the cards can actually be rendered against.

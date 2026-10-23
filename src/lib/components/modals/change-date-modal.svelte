@@ -1,5 +1,5 @@
 <script module lang="ts">
-	import { loadOnce } from '$lib/utils/load-once';
+	import { loadOnce } from '#lib/utils/load-once.js';
 
 	/**
 	 * The dialog itself, fetched rather than shipped with the dashboard.
@@ -14,9 +14,9 @@
 
 <script lang="ts">
 	import { tick } from 'svelte';
-	import type { ScheduledTraining } from '$lib/server/trenara/types';
+	import type { ScheduledTraining } from '#lib/server/trenara/types.js';
 	import { CalendarDays } from 'lucide-svelte';
-	import { reloadOnStaleChunk, whenIdle } from '$lib/utils/load-once';
+	import { reloadOnStaleChunk, whenIdle } from '#lib/utils/load-once.js';
 
 	let {
 		training,

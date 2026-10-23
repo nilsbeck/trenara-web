@@ -1,6 +1,6 @@
 import type { AuthResponse, LoginRequest, RefreshTokenRequest } from './types';
 import { fetchClient } from './client';
-import { BASIC_BEARER_TOKEN } from '$env/static/private';
+import { BASIC_BEARER_TOKEN } from '$app/env/private';
 
 export const authApi = {
 	async login(data: LoginRequest): Promise<AuthResponse> {

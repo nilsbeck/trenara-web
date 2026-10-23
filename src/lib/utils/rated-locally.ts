@@ -1,4 +1,4 @@
-import type { Entry } from '$lib/server/trenara/types';
+import type { Entry } from '#lib/server/trenara/types.js';
 
 /**
  * Bridging the gap between a rating landing and the read that should show it.

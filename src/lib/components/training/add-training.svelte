@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { Loader2, Plus, X } from 'lucide-svelte';
-	import { AddTrainingStore } from '$lib/stores/add-training.svelte';
+	import { AddTrainingStore } from '#lib/stores/add-training.svelte.js';
 
 	let {
 		date,

@@ -1,5 +1,5 @@
 import type { Cookies } from '@sveltejs/kit';
-import { TokenType } from '$lib/server/auth/types';
+import { TokenType } from '#lib/server/auth/types.js';
 
 /**
  * Not asking Trenara the same thing twice in a minute.

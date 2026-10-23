@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { loadSanitizer } from '$lib/utils/sanitize';
+	import { loadSanitizer } from '#lib/utils/sanitize.js';
 
 	/**
 	 * The body of a news item.
@@ -30,7 +30,7 @@
 			.then((sanitize) => {
 				// The prop can change while the import is in flight; only the
 				// render this effect was started for may write to the node.
-				// The output of `$lib/utils/sanitize`, which is what the rule asks for;
+				// The output of `#lib/utils/sanitize.js`, which is what the rule asks for;
 				// assigned directly because `{@html}` would render during SSR, where
 				// there is no sanitiser.
 				// eslint-disable-next-line no-restricted-syntax

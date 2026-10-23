@@ -1,17 +1,15 @@
 import '@testing-library/jest-dom';
 import { vi } from 'vitest';
 
-// Mock SvelteKit virtual env modules so server-side imports don't crash in tests.
-vi.mock('$env/static/private', () => ({
+// Mock SvelteKit's env module so server-side imports don't crash in tests.
+// Every variable `src/env.ts` declares is here; `ADMIN_USER_ID` is the
+// optional one, and empty is what a deployment that has not set it sees.
+vi.mock('$app/env/private', () => ({
 	SUPABASE_URL: 'https://test.supabase.co',
 	SUPABASE_SERVICE_ROLE_KEY: 'test-service-role-key',
 	BASIC_BEARER_TOKEN: 'test-basic-bearer-token',
-	TRENARA_API_URL: 'https://api.test.trenara.com'
+	ADMIN_USER_ID: ''
 }));
-
-// Dynamic env is read for optional settings only, so an empty bag is the
-// realistic default: it is what a deployment that has set none of them sees.
-vi.mock('$env/dynamic/private', () => ({ env: {} }));
 
 // `getRequestEvent` throws outside a request. Server helpers that read it are
 // written to treat that as "no request context", and this keeps the throw

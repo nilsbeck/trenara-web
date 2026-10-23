@@ -1,11 +1,11 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import type { Cookies } from '@sveltejs/kit';
-import { HttpError, NetworkError } from '$lib/server/trenara/client';
-import { loginByIp, loginByUsername } from '$lib/server/security/rate-limit';
+import { HttpError, NetworkError } from '#lib/server/trenara/client.js';
+import { loginByIp, loginByUsername } from '#lib/server/security/rate-limit.js';
 import { actions } from './+page.server';
 
 const mockLogin = vi.fn();
-vi.mock('$lib/server/trenara/auth', () => ({
+vi.mock('#lib/server/trenara/auth.js', () => ({
 	authApi: { login: (...args: unknown[]) => mockLogin(...args) }
 }));
 

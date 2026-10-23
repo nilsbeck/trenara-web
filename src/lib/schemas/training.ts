@@ -3,7 +3,7 @@ import {
 	TRAINING_SURFACES,
 	TRAINING_HEIGHT_DIFFERENCES,
 	PACING_PLANS
-} from '$lib/server/trenara/types';
+} from '#lib/server/trenara/types.js';
 
 export const changeDateSchema = z.object({
 	entryId: z.number().int().positive(),

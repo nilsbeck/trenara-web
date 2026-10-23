@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { getContext } from 'svelte';
-	import type { CalendarDate, CalendarStore } from '$lib/stores/calendar.svelte';
-	import { followOffset, isHorizontalSwipe, swipeStep } from '$lib/utils/swipe';
+	import type { CalendarDate, CalendarStore } from '#lib/stores/calendar.svelte.js';
+	import { followOffset, isHorizontalSwipe, swipeStep } from '#lib/utils/swipe.js';
 	import CalendarCell from './calendar-cell.svelte';
 
 	const store = getContext<CalendarStore>('calendar');

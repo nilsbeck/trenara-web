@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { sharedSnapshotSchema } from './share';
-import { projectSnapshot } from '$lib/server/share/snapshot';
-import type { Goal, UserStats } from '$lib/server/trenara/types';
+import { projectSnapshot } from '#lib/server/share/snapshot.js';
+import type { Goal, UserStats } from '#lib/server/trenara/types.js';
 
 const goal = {
 	id: 7,

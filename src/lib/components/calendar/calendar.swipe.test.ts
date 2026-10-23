@@ -1,8 +1,8 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/svelte';
 import Calendar from './calendar.svelte';
-import type { Schedule, ScheduledTraining } from '$lib/server/trenara/types';
-import { SWIPE_THRESHOLD } from '$lib/utils/swipe';
+import type { Schedule, ScheduledTraining } from '#lib/server/trenara/types.js';
+import { SWIPE_THRESHOLD } from '#lib/utils/swipe.js';
 
 // Wednesday 2026-08-26.
 const TODAY = new Date(2026, 7, 26, 8, 0);

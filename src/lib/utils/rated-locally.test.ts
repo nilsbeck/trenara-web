@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import type { Entry } from '$lib/server/trenara/types';
+import type { Entry } from '#lib/server/trenara/types.js';
 import { rememberRating, reconcileRatedEntries, resetRatedLocally } from './rated-locally';
 
 function entry(id: number, rpe: number | null): Entry {

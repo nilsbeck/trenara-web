@@ -1,7 +1,7 @@
 import type { Cookies } from '@sveltejs/kit';
 import type { User, UserStats, Shoe, ProfileUpdate } from './types';
 import { fetchClient } from './client';
-import { TokenType } from '$lib/server/auth/types';
+import { TokenType } from '#lib/server/auth/types.js';
 import { cachedRead, CacheKey, invalidate } from './read-cache';
 import { expectArray, expectObject } from './shape';
 

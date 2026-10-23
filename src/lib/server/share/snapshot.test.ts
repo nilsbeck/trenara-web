@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import type { Goal, UserStats } from '$lib/server/trenara/types';
+import type { Goal, UserStats } from '#lib/server/trenara/types.js';
 import { projectSnapshot, type SharedSnapshot } from './snapshot';
 
 /**

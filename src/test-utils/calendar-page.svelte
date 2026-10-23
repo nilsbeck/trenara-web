@@ -9,8 +9,8 @@
 	fresh `data` around an unchanged schedule.
 -->
 <script lang="ts">
-	import Calendar from '$lib/components/calendar/calendar.svelte';
-	import type { Schedule } from '$lib/server/trenara/types';
+	import Calendar from '#lib/components/calendar/calendar.svelte';
+	import type { Schedule } from '#lib/server/trenara/types.js';
 
 	let { data, today }: { data: { schedule: Schedule; badge?: number }; today: Date } = $props();
 </script>

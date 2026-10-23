@@ -1,11 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { isHttpError, type Cookies } from '@sveltejs/kit';
-import { HttpError } from '$lib/server/trenara/client';
+import { HttpError } from '#lib/server/trenara/client.js';
 import { POST } from './+server';
 
 const mockSend = vi.fn();
 
-vi.mock('$lib/server/trenara', () => ({
+vi.mock('#lib/server/trenara/index.js', () => ({
 	chatApi: {
 		getMessages: vi.fn(),
 		sendMessage: (...args: unknown[]) => mockSend(...args)

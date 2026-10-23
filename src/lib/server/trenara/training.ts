@@ -25,7 +25,7 @@ import type {
 	ExchangeTrainingRequest
 } from './types';
 import { fetchClient } from './client';
-import { TokenType } from '$lib/server/auth/types';
+import { TokenType } from '#lib/server/auth/types.js';
 import { cachedRead, CacheKey, invalidate } from './read-cache';
 import { expectArray, expectCollections, expectObject } from './shape';
 

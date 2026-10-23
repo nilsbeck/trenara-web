@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import type { NewTrainingCandidate } from '$lib/server/trenara/types';
+import type { NewTrainingCandidate } from '#lib/server/trenara/types.js';
 import { AddTrainingStore } from './add-training.svelte';
 
 function candidate(id: number, title: string): NewTrainingCandidate {

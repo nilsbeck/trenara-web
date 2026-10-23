@@ -1,7 +1,5 @@
-/// <reference types="@sveltejs/kit" />
-/// <reference lib="webworker" />
-
-import { build, files, version } from '$service-worker';
+import { version } from '$app/env';
+import { assets, immutable } from '$app/manifest';
 
 /**
  * What the app does with no connection.
@@ -31,17 +29,31 @@ const sw = self as unknown as ServiceWorkerGlobalScope;
 /** Versioned by the build, so a deploy cannot be served half old and half new. */
 const CACHE = `trainara-${version}`;
 
+/**
+ * A manifest path as the pathname the browser will request.
+ *
+ * SvelteKit 3's manifest paths are relative to the base path and carry no
+ * leading slash (`_app/immutable/…`), where `$service-worker` used to hand
+ * out absolute ones. Compared as they come, not one would equal a request's
+ * `url.pathname` and the shell would never be served from disk. The worker is
+ * itself served from the base path, so resolving against its own location
+ * puts the base back on without naming it.
+ */
+function pathnameOf({ path }: { path: string }): string {
+	return new URL(path, sw.location.href).pathname;
+}
+
 /** Everything worth having on disk: the built app, and the static files. */
-const PRECACHE = [...build, ...files];
+const PRECACHE = [...immutable, ...assets].map(pathnameOf);
 
 /**
  * The page shown for a navigation that cannot reach the network.
  *
- * Taken from `files` rather than written out, because those paths carry the
- * app's base path and a literal `/offline.html` would silently miss the cache
- * the day this is ever served from a sub-path.
+ * Taken from the manifest rather than written out, because those paths carry
+ * the app's base path and a literal `/offline.html` would silently miss the
+ * cache the day this is ever served from a sub-path.
  */
-const OFFLINE_PAGE = files.find((file) => file.endsWith('/offline.html'));
+const OFFLINE_PAGE = PRECACHE.find((file) => file.endsWith('/offline.html'));
 
 sw.addEventListener('install', (event) => {
 	event.waitUntil(

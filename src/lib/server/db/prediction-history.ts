@@ -9,8 +9,12 @@ import {
 	RIEGEL_EXPONENT,
 	type RacePoint,
 	type RiegelCurve
-} from '$lib/utils/race-equivalent';
-import { secondsToTimeString, secondsToPaceString, timeStringToSeconds } from '$lib/utils/format';
+} from '#lib/utils/race-equivalent.js';
+import {
+	secondsToTimeString,
+	secondsToPaceString,
+	timeStringToSeconds
+} from '#lib/utils/format.js';
 
 export interface PredictionRecord {
 	id: number;

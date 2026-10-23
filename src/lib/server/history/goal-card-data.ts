@@ -1,8 +1,8 @@
-import { predictionHistoryDAO } from '$lib/server/db/prediction-history';
-import { goalShareDAO, type ShareRow } from '$lib/server/db/goal-share';
-import { STORAGE_READ_MESSAGE } from '$lib/server/db/errors';
-import type { Goal, UserStats } from '$lib/server/trenara/types';
-import type { ChartDataPoint } from '$lib/components/charts/prediction-chart.svelte';
+import { predictionHistoryDAO } from '#lib/server/db/prediction-history.js';
+import { goalShareDAO, type ShareRow } from '#lib/server/db/goal-share.js';
+import { STORAGE_READ_MESSAGE } from '#lib/server/db/errors.js';
+import type { Goal, UserStats } from '#lib/server/trenara/types.js';
+import type { ChartDataPoint } from '#lib/components/charts/prediction-chart.svelte';
 import { toChartData, utcDay, withCurrentReading } from './chart-points';
 
 /**

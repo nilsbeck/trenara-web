@@ -1,6 +1,6 @@
 import { error } from '@sveltejs/kit';
 import { getRequestEvent } from '$app/server';
-import { env } from '$env/dynamic/private';
+import { ADMIN_USER_ID } from '$app/env/private';
 import type { ZodType } from 'zod';
 import {
 	HttpError,
@@ -84,7 +84,7 @@ export function isUpstreamFailure(e: unknown): boolean {
  * Trenara user id puts it back on the page for that one reader.
  */
 function isDiagnosticViewer(viewerId: number | undefined): boolean {
-	const admin = Number(env.ADMIN_USER_ID);
+	const admin = Number(ADMIN_USER_ID);
 	return Number.isInteger(admin) && admin > 0 && viewerId === admin;
 }
 
@@ -216,7 +216,7 @@ export async function passthrough<T>(fn: () => Promise<T>): Promise<T> {
 			const { status, message, rateLimit } = describeFailure(e, currentViewerId());
 			// The snapshot rides along on the error body so the page can show it:
 			// the maintainer reads a preview deployment, not a server log.
-			error(status, rateLimit ? { message, rateLimit } : message);
+			error(status, message, rateLimit ? { rateLimit } : {});
 		}
 		throw e;
 	}

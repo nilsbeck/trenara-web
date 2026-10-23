@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { page } from '$app/state';
-	import { invalidateAll } from '$app/navigation';
+	import { refreshAll } from '$app/navigation';
 	import {
 		Check,
 		CloudOff,
@@ -118,14 +118,14 @@
 	/**
 	 * Re-run the load that failed, without a full page load.
 	 *
-	 * `invalidateAll` keeps the session and the rest of the app in memory, which
+	 * `refreshAll` keeps the session and the rest of the app in memory, which
 	 * matters on the connection this is most likely to be pressed on. A retry
 	 * that fails simply lands back here, so nothing needs reporting.
 	 */
 	async function retry() {
 		retrying = true;
 		try {
-			await invalidateAll();
+			await refreshAll();
 		} finally {
 			retrying = false;
 		}

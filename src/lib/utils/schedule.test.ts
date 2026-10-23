@@ -5,7 +5,7 @@ import type {
 	Schedule,
 	ScheduledTraining,
 	StrengthTraining
-} from '$lib/server/trenara/types';
+} from '#lib/server/trenara/types.js';
 
 function training(id: number, day: string): ScheduledTraining {
 	return { id, day_long: day, title: `Run ${id}` } as unknown as ScheduledTraining;

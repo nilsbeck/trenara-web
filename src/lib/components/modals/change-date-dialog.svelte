@@ -1,12 +1,12 @@
 <script lang="ts">
-	import type { ScheduledTraining } from '$lib/server/trenara/types';
+	import type { ScheduledTraining } from '#lib/server/trenara/types.js';
 	import { ChevronLeft, ChevronRight, X, Loader2, TriangleAlert } from 'lucide-svelte';
 	import {
 		describeError,
 		describeResponse,
 		isUnreachableStatus,
 		responseMessage
-	} from '$lib/utils/network';
+	} from '#lib/utils/network.js';
 
 	let {
 		training,

@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { render, screen, waitFor, cleanup, fireEvent } from '@testing-library/svelte';
 import ChatBubble from './chat-bubble.svelte';
-import type { ChatMessage, ChatThread } from '$lib/server/trenara/types';
+import type { ChatMessage, ChatThread } from '#lib/server/trenara/types.js';
 
 const ME = 56540;
 const COACH = 3;

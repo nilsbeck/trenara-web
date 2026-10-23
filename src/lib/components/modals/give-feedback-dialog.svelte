@@ -1,11 +1,11 @@
 <script lang="ts">
-	import type { ScheduledTraining, Entry } from '$lib/server/trenara/types';
+	import type { ScheduledTraining, Entry } from '#lib/server/trenara/types.js';
 	import { X, Loader2 } from 'lucide-svelte';
-	import RpeSlider from '$lib/components/training/rpe-slider.svelte';
-	import { rpeColors } from '$lib/components/training/rpe';
-	import { describeError, describeResponse } from '$lib/utils/network';
-	import { ratedEntry } from '$lib/utils/rated-entry';
-	import { rememberRating } from '$lib/utils/rated-locally';
+	import RpeSlider from '#lib/components/training/rpe-slider.svelte';
+	import { rpeColors } from '#lib/components/training/rpe.js';
+	import { describeError, describeResponse } from '#lib/utils/network.js';
+	import { ratedEntry } from '#lib/utils/rated-entry.js';
+	import { rememberRating } from '#lib/utils/rated-locally.js';
 
 	/**
 	 * `training` is accepted and not read: callers pass the pair, and the RPE

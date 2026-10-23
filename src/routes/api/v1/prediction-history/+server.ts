@@ -1,11 +1,11 @@
-import { json, error } from '@sveltejs/kit';
+import { error } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
-import { requireUser } from '$lib/server/auth/guard';
-import { predictionHistoryDAO } from '$lib/server/db/prediction-history';
-import { fromStorage, STORAGE_WRITE_MESSAGE } from '$lib/server/db/errors';
-import { passthrough } from '$lib/server/trenara/request';
-import { recordCurrentPrediction } from '$lib/server/history/record';
-import { storageWrites } from '$lib/server/security/rate-limit';
+import { requireUser } from '#lib/server/auth/guard.js';
+import { predictionHistoryDAO } from '#lib/server/db/prediction-history.js';
+import { fromStorage, STORAGE_WRITE_MESSAGE } from '#lib/server/db/errors.js';
+import { passthrough } from '#lib/server/trenara/request.js';
+import { recordCurrentPrediction } from '#lib/server/history/record.js';
+import { storageWrites } from '#lib/server/security/rate-limit.js';
 
 export const GET: RequestHandler = async ({ url, locals }) => {
 	const user = requireUser(locals);
@@ -24,7 +24,7 @@ export const GET: RequestHandler = async ({ url, locals }) => {
 		predictionHistoryDAO.getUserPredictionHistory(user.id, { startDate, limit })
 	);
 
-	return json({ records });
+	return Response.json({ records });
 };
 
 /**
@@ -53,5 +53,5 @@ export const POST: RequestHandler = async ({ cookies, locals }) => {
 		fromStorage(() => recordCurrentPrediction(cookies, user.id), STORAGE_WRITE_MESSAGE)
 	);
 
-	return json(result);
+	return Response.json(result);
 };

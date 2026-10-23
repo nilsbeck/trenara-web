@@ -1,13 +1,13 @@
 <script lang="ts">
-	import type { UserStats } from '$lib/server/trenara/types';
+	import type { UserStats } from '#lib/server/trenara/types.js';
 	import { Timer } from 'lucide-svelte';
-	import { riegelCurve } from '$lib/utils/race-equivalent';
+	import { riegelCurve } from '#lib/utils/race-equivalent.js';
 	import {
 		timeStringToSeconds,
 		secondsToDuration,
 		secondsToPaceString,
 		NO_VALUE
-	} from '$lib/utils/format';
+	} from '#lib/utils/format.js';
 
 	let { userStats }: { userStats: UserStats } = $props();
 

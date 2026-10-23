@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { DatabaseError } from './errors';
 import { GoalShareDAO } from './goal-share';
 
-vi.mock('$lib/server/share/token', () => ({
+vi.mock('#lib/server/share/token.js', () => ({
 	generateShareToken: vi.fn(() => 'new-token-0123456789012345678901234567890123')
 }));
 
@@ -37,7 +37,7 @@ const { mockSingle, mockMaybeSingle, mockChain, mockFrom } = vi.hoisted(() => {
 	return { mockSingle, mockMaybeSingle, mockChain, mockFrom };
 });
 
-vi.mock('$lib/server/db/client', () => ({
+vi.mock('#lib/server/db/client.js', () => ({
 	supabase: { from: mockFrom }
 }));
 
