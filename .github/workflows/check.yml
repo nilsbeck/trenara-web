@@ -90,6 +90,15 @@ jobs:
       - name: Install dependencies
         run: bun install --frozen-lockfile
 
+      # Dependabot asks once a month; an advisory published the day after its
+      # run sat unnoticed until the next one. DOMPurify — the sanitiser every
+      # piece of upstream HTML passes through — reached a critical that way.
+      # High and above fails the run. Below that it does not, because the one
+      # low left (`cookie`, via @sveltejs/kit) is only fixed by Kit 3 and the
+      # gate would otherwise be red until a major nobody has scheduled.
+      - name: Audit dependencies
+        run: bun audit --audit-level=high
+
       - name: Type-check
         run: bun run check
 
