@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import type { NewsItem } from '$lib/server/trenara/types';
+import type { NewsItem } from '#lib/server/trenara/types.js';
 import {
 	STALE_AFTER_DAYS,
 	formatUnread,

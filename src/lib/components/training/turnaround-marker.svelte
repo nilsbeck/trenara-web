@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { Undo2 } from 'lucide-svelte';
-	import type { TurnaroundText } from '$lib/utils/turnaround';
+	import type { TurnaroundText } from '#lib/utils/turnaround.js';
 
 	let { text }: { text: TurnaroundText } = $props();
 </script>

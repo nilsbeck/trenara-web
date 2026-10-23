@@ -1,13 +1,13 @@
-import { json, error, type Cookies } from '@sveltejs/kit';
+import { error, type Cookies } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
-import { requireUser } from '$lib/server/auth/guard';
-import { trainingApi, userApi } from '$lib/server/trenara';
-import { passthrough, passthroughOptional, parseBody } from '$lib/server/trenara/request';
-import { goalShareDAO } from '$lib/server/db/goal-share';
-import { fromStorage, STORAGE_WRITE_MESSAGE } from '$lib/server/db/errors';
-import { refreshShareSnapshot } from '$lib/server/share/refresh';
-import { shareTitleSchema } from '$lib/schemas/share';
-import { storageWrites } from '$lib/server/security/rate-limit';
+import { requireUser } from '#lib/server/auth/guard.js';
+import { trainingApi, userApi } from '#lib/server/trenara/index.js';
+import { passthrough, passthroughOptional, parseBody } from '#lib/server/trenara/request.js';
+import { goalShareDAO } from '#lib/server/db/goal-share.js';
+import { fromStorage, STORAGE_WRITE_MESSAGE } from '#lib/server/db/errors.js';
+import { refreshShareSnapshot } from '#lib/server/share/refresh.js';
+import { shareTitleSchema } from '#lib/schemas/share.js';
+import { storageWrites } from '#lib/server/security/rate-limit.js';
 
 /**
  * Creating, rotating and revoking a link to the runner's own goal.
@@ -74,7 +74,7 @@ export const POST: RequestHandler = async ({ cookies, request, locals, url }) =>
 		STORAGE_WRITE_MESSAGE
 	);
 	if (existing) {
-		return json({
+		return Response.json({
 			token: existing.token,
 			title: existing.title,
 			url: shareUrl(url.origin, existing.token)
@@ -89,7 +89,7 @@ export const POST: RequestHandler = async ({ cookies, request, locals, url }) =>
 	const stats = await userApi.getUserStats(cookies).catch(() => null);
 	await refreshShareSnapshot(user.id, goal, stats);
 
-	return json({
+	return Response.json({
 		token: issued.token,
 		title: issued.title,
 		url: shareUrl(url.origin, issued.token)
@@ -126,7 +126,7 @@ export const PUT: RequestHandler = async ({ cookies, request, locals, url }) => 
 		STORAGE_WRITE_MESSAGE
 	);
 
-	return json({
+	return Response.json({
 		token: issued.token,
 		title: issued.title,
 		url: shareUrl(url.origin, issued.token)
@@ -154,5 +154,5 @@ export const DELETE: RequestHandler = async ({ cookies, locals }) => {
 		STORAGE_WRITE_MESSAGE
 	);
 
-	return json(result);
+	return Response.json(result);
 };

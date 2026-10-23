@@ -7,7 +7,7 @@ import type {
 	Shoe,
 	TrainingBlock,
 	TrainingHeightDifference
-} from '$lib/server/trenara/types';
+} from '#lib/server/trenara/types.js';
 
 /**
  * Session setup: what a runner may change about one planned training, and how

@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { getContext } from 'svelte';
-	import type { CalendarStore } from '$lib/stores/calendar.svelte';
+	import type { CalendarStore } from '#lib/stores/calendar.svelte.js';
 	import { RefreshCw, ChevronLeft, ChevronRight } from 'lucide-svelte';
 
 	const store = getContext<CalendarStore>('calendar');

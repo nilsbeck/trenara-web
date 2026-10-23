@@ -1,5 +1,5 @@
 <script lang="ts">
-	import type { Goal, UserStats } from '$lib/server/trenara/types';
+	import type { Goal, UserStats } from '#lib/server/trenara/types.js';
 	import { untrack, type Snippet } from 'svelte';
 	import {
 		Trophy,
@@ -15,9 +15,9 @@
 	import PredictionStats from './prediction-stats.svelte';
 	import PredictionChart, {
 		type ChartDataPoint
-	} from '$lib/components/charts/prediction-chart.svelte';
-	import DistanceChart from '$lib/components/charts/distance-chart.svelte';
-	import { readWeekDistance, readGoalDistance } from '$lib/utils/distance-graph';
+	} from '#lib/components/charts/prediction-chart.svelte';
+	import DistanceChart from '#lib/components/charts/distance-chart.svelte';
+	import { readWeekDistance, readGoalDistance } from '#lib/utils/distance-graph.js';
 	import {
 		forecast,
 		earnCutoff,
@@ -26,11 +26,11 @@
 		type ForecastPoint,
 		type RateRejection,
 		type RecentTrendGap
-	} from '$lib/utils/forecast';
-	import { readPlanWeeks } from '$lib/utils/plan-weeks';
-	import { paceTrend, splitByGoalDistance } from '$lib/utils/prediction-graph';
-	import { impliedDistanceKm } from '$lib/utils/race-equivalent';
-	import { toDate, weeksRemaining } from '$lib/utils/date';
+	} from '#lib/utils/forecast.js';
+	import { readPlanWeeks } from '#lib/utils/plan-weeks.js';
+	import { paceTrend, splitByGoalDistance } from '#lib/utils/prediction-graph.js';
+	import { impliedDistanceKm } from '#lib/utils/race-equivalent.js';
+	import { toDate, weeksRemaining } from '#lib/utils/date.js';
 	import {
 		timeStringToSeconds,
 		paceStringToSeconds,
@@ -39,14 +39,14 @@
 		secondsToPaceString,
 		shortenPaceUnit,
 		NO_VALUE
-	} from '$lib/utils/format';
+	} from '#lib/utils/format.js';
 
 	/**
 	 * What the card actually reads off a goal — nothing about editing it,
 	 * intermediate goals, or the plan's raw week template.
 	 *
 	 * Exported so a caller can be checked against it rather than against a
-	 * promise: a shared-goal snapshot (`$lib/server/share/snapshot.ts`) is
+	 * promise: a shared-goal snapshot (`#lib/server/share/snapshot.ts`) is
 	 * built to satisfy exactly this, and if a future change to this component
 	 * reads a field the snapshot does not carry, that caller stops
 	 * type-checking instead of failing silently on a public page.
@@ -656,7 +656,7 @@
 	// No fetch and no on-mount write happens here any more. `history` arrives
 	// resolved, and the two writes that used to follow it — recording today's
 	// prediction, archiving the current goal — moved to the server loads that
-	// supply it (`keepHistory`, in `$lib/server/history/record.ts`), which is
+	// supply it (`keepHistory`, in `#lib/server/history/record.ts`), which is
 	// also where §5 of `agents.md` says they belonged: no `onMount` for data a
 	// `load` can already hold.
 </script>

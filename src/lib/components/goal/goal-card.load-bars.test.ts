@@ -1,11 +1,11 @@
 import { describe, it, expect, beforeAll, afterEach } from 'vitest';
 import { render, cleanup, screen, waitFor } from '@testing-library/svelte';
 import GoalCard from './goal-card.svelte';
-import type { Goal, UserStats } from '$lib/server/trenara/types';
-import type { ChartDataPoint } from '$lib/components/charts/prediction-chart.svelte';
-import { secondsToTimeString, secondsToPaceString } from '$lib/utils/format';
-import { isoWeekStart } from '$lib/utils/plan-weeks';
-import { mondayOf, toLocalDateString } from '$lib/utils/date';
+import type { Goal, UserStats } from '#lib/server/trenara/types.js';
+import type { ChartDataPoint } from '#lib/components/charts/prediction-chart.svelte';
+import { secondsToTimeString, secondsToPaceString } from '#lib/utils/format.js';
+import { isoWeekStart } from '#lib/utils/plan-weeks.js';
+import { mondayOf, toLocalDateString } from '#lib/utils/date.js';
 
 // jsdom lays nothing out: it has no ResizeObserver, and every element measures
 // zero width, which would flatten every bar to nothing before the assertion

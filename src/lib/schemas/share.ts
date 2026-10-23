@@ -2,7 +2,7 @@ import { z } from 'zod';
 
 /**
  * `graph_stats.goal`'s row shape, as `readPlanWeeks` reads it — see
- * `$lib/utils/plan-weeks.ts`.
+ * `#lib/utils/plan-weeks.ts`.
  */
 const planWeekRow = z.object({
 	week: z.number(),
@@ -32,7 +32,7 @@ const planWeeks = z.object({
 	todo_unit_text: z.string()
 });
 
-/** `SharedSnapshot` as first written. See `$lib/server/share/snapshot.ts`. */
+/** `SharedSnapshot` as first written. See `#lib/server/share/snapshot.ts`. */
 const sharedSnapshotV1 = z.object({
 	v: z.literal(1),
 	goal: z.object({

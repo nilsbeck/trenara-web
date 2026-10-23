@@ -15,19 +15,19 @@ async function load(...args: Parameters<typeof rawLoad>) {
 }
 
 const mockGetLiveByToken = vi.fn();
-vi.mock('$lib/server/db/goal-share', () => ({
+vi.mock('#lib/server/db/goal-share.js', () => ({
 	goalShareDAO: { getLiveByToken: (...args: unknown[]) => mockGetLiveByToken(...args) }
 }));
 
 const mockGetUserPredictionHistory = vi.fn();
-vi.mock('$lib/server/db/prediction-history', () => ({
+vi.mock('#lib/server/db/prediction-history.js', () => ({
 	predictionHistoryDAO: {
 		getUserPredictionHistory: (...args: unknown[]) => mockGetUserPredictionHistory(...args)
 	}
 }));
 
 const mockCheck = vi.fn();
-vi.mock('$lib/server/security/rate-limit', () => ({
+vi.mock('#lib/server/security/rate-limit.js', () => ({
 	shareViews: { check: (...args: unknown[]) => mockCheck(...args) }
 }));
 

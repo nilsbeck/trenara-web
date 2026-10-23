@@ -1,8 +1,8 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { fireEvent, render, screen, waitFor } from '@testing-library/svelte';
 import CalendarPage from '../../../test-utils/calendar-page.svelte';
-import { resetRatedLocally } from '$lib/utils/rated-locally';
-import type { Entry, Schedule, ScheduledTraining } from '$lib/server/trenara/types';
+import { resetRatedLocally } from '#lib/utils/rated-locally.js';
+import type { Entry, Schedule, ScheduledTraining } from '#lib/server/trenara/types.js';
 
 // Wednesday 2026-08-26, evening: the morning's run is done and unrated.
 const TODAY = new Date(2026, 7, 26, 18, 0);

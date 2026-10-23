@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import type { UserStats } from '$lib/server/trenara/types';
-import type { ChartDataPoint } from '$lib/components/charts/prediction-chart.svelte';
+import type { UserStats } from '#lib/server/trenara/types.js';
+import type { ChartDataPoint } from '#lib/components/charts/prediction-chart.svelte';
 import { stripPaceUnit, toChartData, utcDay, withCurrentReading } from './chart-points';
 
 function stats(time: string, pace: string): UserStats {

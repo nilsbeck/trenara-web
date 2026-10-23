@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { Cookies } from '@sveltejs/kit';
-import { TokenType } from '$lib/server/auth/types';
+import { TokenType } from '#lib/server/auth/types.js';
 import { cachedRead, CacheKey, invalidate, readCacheSize, resetReadCache } from './read-cache';
 
 beforeEach(() => {

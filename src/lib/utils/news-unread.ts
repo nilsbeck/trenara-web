@@ -1,4 +1,4 @@
-import type { NewsItem } from '$lib/server/trenara/types';
+import type { NewsItem } from '#lib/server/trenara/types.js';
 
 /**
  * Unread bookkeeping for the in-app news feed.

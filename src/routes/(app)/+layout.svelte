@@ -1,5 +1,5 @@
 <script lang="ts">
-	import type { ChatThread } from '$lib/server/trenara/types';
+	import type { ChatThread } from '#lib/server/trenara/types.js';
 	import type { LayoutServerData } from './$types';
 	import {
 		ChevronDown,
@@ -11,10 +11,10 @@
 		Archive,
 		Newspaper
 	} from 'lucide-svelte';
-	import ChatBubble from '$lib/components/chat/chat-bubble.svelte';
-	import RenderFailure from '$lib/components/shared/render-failure.svelte';
-	import { formatUnread } from '$lib/utils/news-unread';
-	import { appConfig } from '$lib/stores/app-config.svelte';
+	import ChatBubble from '#lib/components/chat/chat-bubble.svelte';
+	import RenderFailure from '#lib/components/shared/render-failure.svelte';
+	import { formatUnread } from '#lib/utils/news-unread.js';
+	import { appConfig } from '#lib/stores/app-config.svelte.js';
 	import type { Snippet } from 'svelte';
 
 	// `children` was typed `any`, which agents.md forbids — and survived a

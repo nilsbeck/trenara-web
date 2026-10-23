@@ -1,16 +1,16 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import type { Goal, UserStats } from '$lib/server/trenara/types';
-import { STORAGE_READ_MESSAGE } from '$lib/server/db/errors';
+import type { Goal, UserStats } from '#lib/server/trenara/types.js';
+import { STORAGE_READ_MESSAGE } from '#lib/server/db/errors.js';
 
 const mockGetUserPredictionHistory = vi.fn();
-vi.mock('$lib/server/db/prediction-history', () => ({
+vi.mock('#lib/server/db/prediction-history.js', () => ({
 	predictionHistoryDAO: {
 		getUserPredictionHistory: (...args: unknown[]) => mockGetUserPredictionHistory(...args)
 	}
 }));
 
 const mockGetForGoal = vi.fn();
-vi.mock('$lib/server/db/goal-share', () => ({
+vi.mock('#lib/server/db/goal-share.js', () => ({
 	goalShareDAO: { getForGoal: (...args: unknown[]) => mockGetForGoal(...args) }
 }));
 

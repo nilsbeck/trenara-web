@@ -61,7 +61,7 @@ const { mockFrom, mockInsert, captured, state } = vi.hoisted(() => {
 	return { mockFrom, mockInsert, captured, state };
 });
 
-vi.mock('$lib/server/db/client', () => ({
+vi.mock('#lib/server/db/client.js', () => ({
 	supabase: { from: mockFrom }
 }));
 

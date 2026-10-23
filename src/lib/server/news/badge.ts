@@ -1,7 +1,7 @@
 import type { Cookies } from '@sveltejs/kit';
-import { newsApi } from '$lib/server/trenara';
-import { newsReadStateDAO } from '$lib/server/db/news-read-state';
-import { newestOf, summarizeUnread, type UnreadSummary } from '$lib/utils/news-unread';
+import { newsApi } from '#lib/server/trenara/index.js';
+import { newsReadStateDAO } from '#lib/server/db/news-read-state.js';
+import { newestOf, summarizeUnread, type UnreadSummary } from '#lib/utils/news-unread.js';
 
 /**
  * The unread-news badge, ready for the navbar.

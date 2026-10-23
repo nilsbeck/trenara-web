@@ -1,4 +1,4 @@
-import type { AppConfig } from '$lib/server/trenara/types';
+import type { AppConfig } from '#lib/server/trenara/types.js';
 
 /**
  * The served app configuration, once the layout has it.

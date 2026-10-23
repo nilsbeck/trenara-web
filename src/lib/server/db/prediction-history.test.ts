@@ -1,8 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { DatabaseError } from './errors';
 import { PredictionValidator, PredictionHistoryDAO } from './prediction-history';
-import { secondsToTimeString } from '$lib/utils/format';
-import { RIEGEL_EXPONENT } from '$lib/utils/race-equivalent';
+import { secondsToTimeString } from '#lib/utils/format.js';
+import { RIEGEL_EXPONENT } from '#lib/utils/race-equivalent.js';
 
 // ── Mock the supabase client ──────────────────────────────────
 // vi.hoisted lets us reference these variables inside vi.mock (which is hoisted)
@@ -35,7 +35,7 @@ const { mockSingle, mockChain, mockFrom } = vi.hoisted(() => {
 	return { mockSingle, mockChain, mockFrom };
 });
 
-vi.mock('$lib/server/db/client', () => ({
+vi.mock('#lib/server/db/client.js', () => ({
 	supabase: { from: mockFrom }
 }));
 

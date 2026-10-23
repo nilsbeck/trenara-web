@@ -1,13 +1,13 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { Cookies } from '@sveltejs/kit';
-import { HttpError } from '$lib/server/trenara/client';
+import { HttpError } from '#lib/server/trenara/client.js';
 import { POST, PUT, DELETE } from './+server';
 
 const mockGetGoal = vi.fn();
 const mockGetCurrentUser = vi.fn();
 const mockGetUserStats = vi.fn();
 
-vi.mock('$lib/server/trenara', () => ({
+vi.mock('#lib/server/trenara/index.js', () => ({
 	trainingApi: { getGoal: (...args: unknown[]) => mockGetGoal(...args) },
 	userApi: {
 		getCurrentUser: (...args: unknown[]) => mockGetCurrentUser(...args),
@@ -20,7 +20,7 @@ const mockIssue = vi.fn();
 const mockRevoke = vi.fn();
 const mockRefreshSnapshot = vi.fn();
 
-vi.mock('$lib/server/db/goal-share', () => ({
+vi.mock('#lib/server/db/goal-share.js', () => ({
 	goalShareDAO: {
 		getForGoal: (...args: unknown[]) => mockGetForGoal(...args),
 		issue: (...args: unknown[]) => mockIssue(...args),
@@ -30,7 +30,7 @@ vi.mock('$lib/server/db/goal-share', () => ({
 }));
 
 const mockCheck = vi.fn();
-vi.mock('$lib/server/security/rate-limit', () => ({
+vi.mock('#lib/server/security/rate-limit.js', () => ({
 	storageWrites: { check: (...args: unknown[]) => mockCheck(...args) }
 }));
 

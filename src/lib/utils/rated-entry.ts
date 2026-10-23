@@ -1,4 +1,4 @@
-import type { Entry } from '$lib/server/trenara/types';
+import type { Entry } from '#lib/server/trenara/types.js';
 
 /**
  * The updated entry out of a `PUT /api/v1/feedback` response, when it is one.

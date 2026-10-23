@@ -1,5 +1,5 @@
 <script lang="ts">
-	import type { StrengthTraining } from '$lib/server/trenara/types';
+	import type { StrengthTraining } from '#lib/server/trenara/types.js';
 	import { Dumbbell, Timer } from 'lucide-svelte';
 
 	let {

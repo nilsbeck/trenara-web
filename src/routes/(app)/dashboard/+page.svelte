@@ -1,12 +1,12 @@
 <script lang="ts">
 	import { invalidate } from '$app/navigation';
 	import type { PageServerData } from './$types';
-	import type { Goal, UserStats } from '$lib/server/trenara/types';
-	import Calendar from '$lib/components/calendar/calendar.svelte';
-	import GoalCard from '$lib/components/goal/goal-card.svelte';
-	import GoalCardShare from '$lib/components/goal/goal-card-share.svelte';
-	import PredictionsCard from '$lib/components/predictions/predictions-card.svelte';
-	import { isRenderableStats } from '$lib/utils/user-stats';
+	import type { Goal, UserStats } from '#lib/server/trenara/types.js';
+	import Calendar from '#lib/components/calendar/calendar.svelte';
+	import GoalCard from '#lib/components/goal/goal-card.svelte';
+	import GoalCardShare from '#lib/components/goal/goal-card-share.svelte';
+	import PredictionsCard from '#lib/components/predictions/predictions-card.svelte';
+	import { isRenderableStats } from '#lib/utils/user-stats.js';
 
 	let { data }: { data: PageServerData } = $props();
 
@@ -33,7 +33,7 @@
 	/**
 	 * Everything on this page except the calendar, which refreshes itself.
 	 *
-	 * Deliberately not `invalidateAll`: that would re-run the page load and
+	 * Deliberately not `refreshAll`: that would re-run the page load and
 	 * fetch the whole month again, which is the work the calendar's trimmed
 	 * refresh exists to avoid.
 	 */

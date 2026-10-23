@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import type { Cookies } from '@sveltejs/kit';
-import type { NewsItem } from '$lib/server/trenara/types';
+import type { NewsItem } from '#lib/server/trenara/types.js';
 import { clearAllBadgeCache, clearBadgeCache, loadNewsBadge } from './badge';
 
 const { getNews, getMark, advanceMark } = vi.hoisted(() => ({
@@ -9,8 +9,8 @@ const { getNews, getMark, advanceMark } = vi.hoisted(() => ({
 	advanceMark: vi.fn()
 }));
 
-vi.mock('$lib/server/trenara', () => ({ newsApi: { getNews } }));
-vi.mock('$lib/server/db/news-read-state', () => ({
+vi.mock('#lib/server/trenara/index.js', () => ({ newsApi: { getNews } }));
+vi.mock('#lib/server/db/news-read-state.js', () => ({
 	newsReadStateDAO: { getMark, advanceMark }
 }));
 

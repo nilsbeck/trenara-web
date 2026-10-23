@@ -1,10 +1,10 @@
-import { dev } from '$app/environment';
-import type { Handle } from '@sveltejs/kit';
+import type { Handle } from '@sveltejs/kit/hooks';
+import { dev } from '$app/env';
 
 /**
  * The response headers the app was not sending.
  *
- * There was a Content-Security-Policy — a good one, in `svelte.config.js` —
+ * There was a Content-Security-Policy — a good one, in `vite.config.ts` —
  * and nothing else: no HSTS, no nosniff, no referrer policy. A CSP is the
  * hardest of these to get right and the app already had it, which is a strange
  * way round to be missing the three that are one line each.
@@ -27,7 +27,7 @@ import type { Handle } from '@sveltejs/kit';
  *   for. It asks for none of them, so the list is simply everything it does
  *   not want a compromised script to be able to ask for either.
  *
- * Set here rather than in `svelte.config.js` because only the CSP is
+ * Set here rather than in `vite.config.ts` because only the CSP is
  * configurable there, and only in a `handle` are they applied to API responses
  * as well as to pages.
  */

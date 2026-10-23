@@ -1,11 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import type { Goal, UserStats } from '$lib/server/trenara/types';
+import type { Goal, UserStats } from '#lib/server/trenara/types.js';
 import { refreshShareSnapshot, revokeStaleShares } from './refresh';
 
 const mockRefreshSnapshot = vi.hoisted(() => vi.fn());
 const mockRevokeStale = vi.hoisted(() => vi.fn());
 
-vi.mock('$lib/server/db/goal-share', () => ({
+vi.mock('#lib/server/db/goal-share.js', () => ({
 	goalShareDAO: { refreshSnapshot: mockRefreshSnapshot, revokeStale: mockRevokeStale }
 }));
 

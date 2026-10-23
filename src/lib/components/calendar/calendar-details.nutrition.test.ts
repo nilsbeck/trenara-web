@@ -1,8 +1,8 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/svelte';
 import CalendarDetails from './calendar-details.svelte';
-import { createCalendarStore } from '$lib/stores/calendar.svelte';
-import type { Schedule } from '$lib/server/trenara/types';
+import { createCalendarStore } from '#lib/stores/calendar.svelte.js';
+import type { Schedule } from '#lib/server/trenara/types.js';
 
 const training = {
 	id: 1,

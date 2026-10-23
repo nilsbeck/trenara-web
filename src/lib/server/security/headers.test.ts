@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 
-vi.mock('$app/environment', () => ({ dev: false }));
+vi.mock('$app/env', () => ({ dev: false }));
 
 const { securityHeaders } = await import('./headers');
 

@@ -1,11 +1,10 @@
-import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
-import { trainingApi, userApi } from '$lib/server/trenara';
+import { trainingApi, userApi } from '#lib/server/trenara/index.js';
 
 /**
  * Everything on the dashboard except the calendar.
  *
- * Exists so a background refresh does not have to go through `invalidateAll`,
+ * Exists so a background refresh does not have to go through `refreshAll`,
  * which would re-run the page load and fetch the whole month again — the very
  * work `/api/v1/schedule?from=` is there to avoid. Both cards fail soft, like
  * the page load they mirror: a missing goal is a card that does not render,
@@ -17,5 +16,5 @@ export const GET: RequestHandler = async ({ cookies }) => {
 		userApi.getUserStats(cookies).catch(() => null)
 	]);
 
-	return json({ goal, userStats });
+	return Response.json({ goal, userStats });
 };

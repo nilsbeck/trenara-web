@@ -1,9 +1,10 @@
 import { fail, redirect } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
-import { loginSchema } from '$lib/schemas/auth';
-import { authApi } from '$lib/server/trenara/auth';
-import { TokenManager } from '$lib/server/auth/token-manager';
-import { loginByIp, loginByUsername } from '$lib/server/security/rate-limit';
+import { loginSchema } from '#lib/schemas/auth.js';
+import { authApi } from '#lib/server/trenara/auth.js';
+import { TokenManager } from '#lib/server/auth/token-manager.js';
+import { loginByIp, loginByUsername } from '#lib/server/security/rate-limit.js';
+import { HttpError } from '#lib/server/trenara/client.js';
 
 const tokenManager = TokenManager.getInstance();
 
@@ -18,6 +19,28 @@ const tokenManager = TokenManager.getInstance();
 function safeNext(raw: string | null): string {
 	if (!raw || !raw.startsWith('/') || raw.startsWith('//')) return '/dashboard';
 	return raw;
+}
+
+/**
+ * One line in the log for every sign-in this app refused.
+ *
+ * There was none. The limiters below turned credential stuffing away and
+ * nobody could tell that it had happened — the failure was answered and
+ * forgotten, which is the case OWASP's logging guidance names first.
+ *
+ * The source IP is what makes the line actionable, so it is here. The
+ * username is not, and nor is anything derived from it: §3 of agents.md bars
+ * emails from the log, and a hash of an address is reversed by hashing the
+ * address. Neither is the error itself — only its status or its class —
+ * because Trenara's refusal body is free to echo the submitted username back.
+ */
+function logRefusedSignIn(ip: string, reason: string): void {
+	console.warn(`[auth] sign-in refused from ${ip}: ${reason}`);
+}
+
+function describeLoginFailure(e: unknown): string {
+	if (e instanceof HttpError) return `upstream ${e.status}`;
+	return e instanceof Error ? e.name : 'unknown error';
 }
 
 export const load: PageServerLoad = async ({ locals, url }) => {
@@ -61,6 +84,7 @@ export const actions: Actions = {
 		const byAccount = loginByUsername.check(account);
 
 		if (!byIp.allowed || !byAccount.allowed) {
+			logRefusedSignIn(ip, `rate limit (${byIp.allowed ? 'account' : 'ip'})`);
 			const wait = Math.max(byIp.retryAfterSeconds, byAccount.retryAfterSeconds);
 			const minutes = Math.ceil(wait / 60);
 			return fail(429, {
@@ -74,7 +98,8 @@ export const actions: Actions = {
 				username: result.data.username,
 				password: result.data.password
 			});
-		} catch {
+		} catch (e) {
+			logRefusedSignIn(ip, describeLoginFailure(e));
 			return fail(401, { message: 'Invalid email or password' });
 		}
 

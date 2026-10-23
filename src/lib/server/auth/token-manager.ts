@@ -1,9 +1,9 @@
 import type { Cookies } from '@sveltejs/kit';
-import { dev } from '$app/environment';
+import { dev } from '$app/env';
 import { TokenType } from './types';
-import { authApi } from '$lib/server/trenara/auth';
-import { HttpError } from '$lib/server/trenara/client';
-import type { AuthResponse } from '$lib/server/trenara/types';
+import { authApi } from '#lib/server/trenara/auth.js';
+import { HttpError } from '#lib/server/trenara/client.js';
+import type { AuthResponse } from '#lib/server/trenara/types.js';
 
 /**
  * How long the session cookies themselves live in the browser.

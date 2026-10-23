@@ -1,5 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
-import { SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY } from '$env/static/private';
+import { SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY } from '$app/env/private';
 
 if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
 	console.warn('Supabase credentials not configured. Database features will be unavailable.');

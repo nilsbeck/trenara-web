@@ -10,7 +10,7 @@ const state = vi.hoisted(() => ({
 }));
 
 vi.mock('$app/state', () => ({ page: state.page }));
-vi.mock('$app/navigation', () => ({ invalidateAll: vi.fn() }));
+vi.mock('$app/navigation', () => ({ refreshAll: vi.fn() }));
 
 import ErrorPage from './+error.svelte';
 
@@ -34,9 +34,9 @@ const diagnostic = {
 	instance: 'ab12cd'
 };
 
-function show(status: number, error: App.Error | null) {
+function show(status: number, error: Omit<App.Error, 'status'> | null) {
 	state.page.status = status;
-	state.page.error = error;
+	state.page.error = error && { status, ...error };
 	render(ErrorPage);
 }
 

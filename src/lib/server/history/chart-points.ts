@@ -1,7 +1,7 @@
-import type { PredictionRecord } from '$lib/server/db/prediction-history';
-import type { UserStats } from '$lib/server/trenara/types';
-import type { ChartDataPoint } from '$lib/components/charts/prediction-chart.svelte';
-import { timeStringToSeconds, paceStringToSeconds } from '$lib/utils/format';
+import type { PredictionRecord } from '#lib/server/db/prediction-history.js';
+import type { UserStats } from '#lib/server/trenara/types.js';
+import type { ChartDataPoint } from '#lib/components/charts/prediction-chart.svelte';
+import { timeStringToSeconds, paceStringToSeconds } from '#lib/utils/format.js';
 
 /**
  * Stored prediction rows, as the goal card's chart wants them.

@@ -1,12 +1,12 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { isHttpError, type Cookies } from '@sveltejs/kit';
-import { HttpError } from '$lib/server/trenara/client';
+import { HttpError } from '#lib/server/trenara/client.js';
 import { PUT } from './+server';
 
 const mockTest = vi.fn();
 const mockSave = vi.fn();
 
-vi.mock('$lib/server/trenara', () => ({
+vi.mock('#lib/server/trenara/index.js', () => ({
 	trainingApi: {
 		testChangeDate: (...args: unknown[]) => mockTest(...args),
 		saveChangeDate: (...args: unknown[]) => mockSave(...args)

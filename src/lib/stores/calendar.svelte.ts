@@ -8,9 +8,9 @@ import type {
 	ScheduledTraining,
 	StrengthTraining,
 	Entry
-} from '$lib/server/trenara/types';
-import { fingerprint } from '$lib/utils/fingerprint';
-import { stalenessReason } from '$lib/utils/revalidation';
+} from '#lib/server/trenara/types.js';
+import { fingerprint } from '#lib/utils/fingerprint.js';
+import { stalenessReason } from '#lib/utils/revalidation.js';
 import {
 	dayKeyOf,
 	formatDateString,
@@ -18,9 +18,9 @@ import {
 	mondayOf,
 	toLocalDateString,
 	weeksStillOpen
-} from '$lib/utils/date';
-import { entryLocalDate, mergeSchedule, type SchedulePayload } from '$lib/utils/schedule';
-import { reconcileRatedEntries } from '$lib/utils/rated-locally';
+} from '#lib/utils/date.js';
+import { entryLocalDate, mergeSchedule, type SchedulePayload } from '#lib/utils/schedule.js';
+import { reconcileRatedEntries } from '#lib/utils/rated-locally.js';
 
 export type CalendarDate = {
 	year: number;

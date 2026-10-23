@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { initialCalendarDay } from './initial-day';
-import type { Entry, Schedule, StrengthTraining } from '$lib/server/trenara/types';
+import type { Entry, Schedule, StrengthTraining } from '#lib/server/trenara/types.js';
 
 // Wednesday 2026-08-26.
 const TODAY = new Date(2026, 7, 26, 14, 30);

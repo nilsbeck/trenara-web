@@ -1,11 +1,11 @@
 import { describe, it, expect, beforeAll, afterEach } from 'vitest';
 import { render, screen, cleanup, fireEvent, within } from '@testing-library/svelte';
-import TreadmillMode from '$lib/components/training/treadmill-mode.svelte';
+import TreadmillMode from '#lib/components/training/treadmill-mode.svelte';
 // The mode is imported by its button on the first tap. Loaded here, with the
 // file, so that first import is answered from the module cache rather than
 // spending a test's timeout transforming the dialog and its icon imports.
-import '$lib/components/training/treadmill-dialog.svelte';
-import type { ScheduledTraining, TrainingBlock } from '$lib/server/trenara/types';
+import '#lib/components/training/treadmill-dialog.svelte';
+import type { ScheduledTraining, TrainingBlock } from '#lib/server/trenara/types.js';
 
 // ── Helpers ───────────────────────────────────────────────────
 function makeBlock(overrides: Partial<TrainingBlock> = {}): TrainingBlock {

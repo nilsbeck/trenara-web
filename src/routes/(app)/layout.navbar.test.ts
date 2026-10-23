@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest';
 import { render, cleanup, screen } from '@testing-library/svelte';
 import { createRawSnippet } from 'svelte';
-import type { User } from '$lib/server/trenara/types';
+import type { User } from '#lib/server/trenara/types.js';
 import Layout from './+layout.svelte';
 
 /**
@@ -19,7 +19,7 @@ import Layout from './+layout.svelte';
  * only way for it not to flicker. These pin that it stays resolved.
  */
 
-vi.mock('$app/navigation', () => ({ invalidate: vi.fn(), invalidateAll: vi.fn() }));
+vi.mock('$app/navigation', () => ({ invalidate: vi.fn(), refreshAll: vi.fn() }));
 
 const children = createRawSnippet(() => ({ render: () => '<main>the page</main>' }));
 

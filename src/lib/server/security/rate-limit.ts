@@ -1,7 +1,7 @@
 /**
  * Limiting what this app itself will accept.
  *
- * Distinct from `$lib/server/trenara/rate-limit`, which records what *Trenara*
+ * Distinct from `#lib/server/trenara/rate-limit.js`, which records what *Trenara*
  * refuses. This is the other direction: the app had no limit of its own
  * anywhere, which left two things open.
  *

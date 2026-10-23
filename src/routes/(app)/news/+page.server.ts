@@ -1,8 +1,8 @@
 import type { PageServerLoad } from './$types';
-import { newsApi } from '$lib/server/trenara';
-import { passthrough } from '$lib/server/trenara/request';
-import { newsReadStateDAO } from '$lib/server/db/news-read-state';
-import { requireUser } from '$lib/server/auth/guard';
+import { newsApi } from '#lib/server/trenara/index.js';
+import { passthrough } from '#lib/server/trenara/request.js';
+import { newsReadStateDAO } from '#lib/server/db/news-read-state.js';
+import { requireUser } from '#lib/server/auth/guard.js';
 
 export const load: PageServerLoad = async ({ cookies, locals }) => {
 	const user = requireUser(locals);

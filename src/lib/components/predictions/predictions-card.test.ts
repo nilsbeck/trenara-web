@@ -1,7 +1,7 @@
 import { describe, it, expect, afterEach } from 'vitest';
 import { render, cleanup, screen, within, fireEvent } from '@testing-library/svelte';
 import PredictionsCard from './predictions-card.svelte';
-import type { UserStats } from '$lib/server/trenara/types';
+import type { UserStats } from '#lib/server/trenara/types.js';
 
 afterEach(cleanup);
 

@@ -1,9 +1,9 @@
-import { trainingApi, userApi } from '$lib/server/trenara';
-import { passthrough, passthroughOptional } from '$lib/server/trenara/request';
-import { requireUser } from '$lib/server/auth/guard';
-import { keepHistory } from '$lib/server/history/record';
-import { readGoalChart, readGoalShare } from '$lib/server/history/goal-card-data';
-import { afterResponse } from '$lib/server/after-response';
+import { trainingApi, userApi } from '#lib/server/trenara/index.js';
+import { passthrough, passthroughOptional } from '#lib/server/trenara/request.js';
+import { requireUser } from '#lib/server/auth/guard.js';
+import { keepHistory } from '#lib/server/history/record.js';
+import { readGoalChart, readGoalShare } from '#lib/server/history/goal-card-data.js';
+import { afterResponse } from '#lib/server/after-response.js';
 import type { PageServerLoad } from './$types';
 
 /**

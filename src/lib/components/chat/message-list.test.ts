@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import type { ChatMessage } from '$lib/server/trenara/types';
+import type { ChatMessage } from '#lib/server/trenara/types.js';
 import {
 	createPendingMessage,
 	hasNewReply,

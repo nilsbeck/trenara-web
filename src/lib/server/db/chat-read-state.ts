@@ -7,7 +7,7 @@ import { isUniqueViolation, storageFailed } from './errors';
  * Trenara reports `unread_messages` per thread but never clears it for
  * messages read through this app, so the count alone re-badges conversations
  * that were finished days ago. One row per user and thread holds the newest
- * message this app has shown them; `$lib/components/chat/unread` turns that
+ * message this app has shown them; `#lib/components/chat/unread.js` turns that
  * into "is there anything new?" with a single comparison.
  */
 export interface ChatReadStateRecord {

@@ -1,13 +1,12 @@
-import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
-import { trainingApi } from '$lib/server/trenara';
-import { parseBody, parseTrainingId, passthrough } from '$lib/server/trenara/request';
-import { exchangeTrainingSchema } from '$lib/schemas/training';
+import { trainingApi } from '#lib/server/trenara/index.js';
+import { parseBody, parseTrainingId, passthrough } from '#lib/server/trenara/request.js';
+import { exchangeTrainingSchema } from '#lib/schemas/training.js';
 
 /** Alternative sessions Trenara will accept in place of this one. */
 export const GET: RequestHandler = async ({ params, cookies }) => {
 	const id = parseTrainingId(params.id);
-	return json(await passthrough(() => trainingApi.getExchangeOptions(cookies, id)));
+	return Response.json(await passthrough(() => trainingApi.getExchangeOptions(cookies, id)));
 };
 
 /**
@@ -20,5 +19,7 @@ export const PUT: RequestHandler = async ({ params, request, cookies }) => {
 	const id = parseTrainingId(params.id);
 	const body = parseBody(exchangeTrainingSchema, await request.json());
 
-	return json(await passthrough(() => trainingApi.exchangeTraining(cookies, id, body.candidateId)));
+	return Response.json(
+		await passthrough(() => trainingApi.exchangeTraining(cookies, id, body.candidateId))
+	);
 };

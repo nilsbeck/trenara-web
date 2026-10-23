@@ -1,13 +1,13 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { isHttpError, type Cookies } from '@sveltejs/kit';
-import { HttpError } from '$lib/server/trenara/client';
+import { HttpError } from '#lib/server/trenara/client.js';
 import { DELETE } from './+server';
 
 const mockDeleteEntry = vi.fn();
 const mockTestRemove = vi.fn();
 const mockSaveRemove = vi.fn();
 
-vi.mock('$lib/server/trenara', () => ({
+vi.mock('#lib/server/trenara/index.js', () => ({
 	trainingApi: {
 		deleteTraining: (...args: unknown[]) => mockDeleteEntry(...args),
 		testRemoveTraining: (...args: unknown[]) => mockTestRemove(...args),

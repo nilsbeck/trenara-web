@@ -2,9 +2,9 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { Cookies } from '@sveltejs/kit';
 import { TokenType } from './types';
 
-vi.mock('$app/environment', () => ({ dev: false }));
+vi.mock('$app/env', () => ({ dev: false }));
 
-vi.mock('$lib/server/trenara/auth', () => ({
+vi.mock('#lib/server/trenara/auth.js', () => ({
 	authApi: {
 		refreshToken: vi.fn(),
 		login: vi.fn()
@@ -132,7 +132,7 @@ describe('validateAndRefreshToken', () => {
 	});
 
 	it('refreshes when the expiration cookie is missing', async () => {
-		const { authApi } = await import('$lib/server/trenara/auth');
+		const { authApi } = await import('#lib/server/trenara/auth.js');
 		vi.mocked(authApi.refreshToken).mockResolvedValueOnce({
 			access_token: 'new-access',
 			refresh_token: 'new-refresh',
@@ -160,7 +160,7 @@ describe('validateAndRefreshToken', () => {
 		// less than Date.now()/1000 (~1.7 billion). That made expirationDate > now
 		// always false, so refresh never triggered.
 		// This test confirms the ISO string is parsed as a proper Unix timestamp.
-		const { authApi } = await import('$lib/server/trenara/auth');
+		const { authApi } = await import('#lib/server/trenara/auth.js');
 		vi.mocked(authApi.refreshToken).mockResolvedValueOnce({
 			access_token: 'new-access',
 			refresh_token: 'new-refresh',
@@ -184,7 +184,7 @@ describe('validateAndRefreshToken', () => {
 	});
 
 	it('refreshes an already-expired access token instead of ending the session', async () => {
-		const { authApi } = await import('$lib/server/trenara/auth');
+		const { authApi } = await import('#lib/server/trenara/auth.js');
 		vi.mocked(authApi.refreshToken).mockResolvedValueOnce({
 			access_token: 'new-access',
 			refresh_token: 'new-refresh',
@@ -204,7 +204,7 @@ describe('validateAndRefreshToken', () => {
 	});
 
 	it('refreshes when the access token cookie is gone but the refresh token is not', async () => {
-		const { authApi } = await import('$lib/server/trenara/auth');
+		const { authApi } = await import('#lib/server/trenara/auth.js');
 		vi.mocked(authApi.refreshToken).mockResolvedValueOnce({
 			access_token: 'new-access',
 			refresh_token: 'new-refresh',
@@ -219,7 +219,7 @@ describe('validateAndRefreshToken', () => {
 	});
 
 	it('updates cookies with new tokens after a successful refresh', async () => {
-		const { authApi } = await import('$lib/server/trenara/auth');
+		const { authApi } = await import('#lib/server/trenara/auth.js');
 		vi.mocked(authApi.refreshToken).mockResolvedValueOnce({
 			access_token: 'new-access',
 			refresh_token: 'new-refresh',
@@ -252,8 +252,8 @@ describe('validateAndRefreshToken', () => {
 	});
 
 	it('returns unavailable — not invalid — when the refresh call fails on the network', async () => {
-		const { authApi } = await import('$lib/server/trenara/auth');
-		const { NetworkError } = await import('$lib/server/trenara/client');
+		const { authApi } = await import('#lib/server/trenara/auth.js');
+		const { NetworkError } = await import('#lib/server/trenara/client.js');
 		vi.mocked(authApi.refreshToken).mockRejectedValueOnce(new NetworkError('network error'));
 
 		const expiry = new Date(Date.now() + 6 * 3600 * 1000);
@@ -269,8 +269,8 @@ describe('validateAndRefreshToken', () => {
 	});
 
 	it('returns unavailable when the auth server returns a 5xx', async () => {
-		const { authApi } = await import('$lib/server/trenara/auth');
-		const { HttpError } = await import('$lib/server/trenara/client');
+		const { authApi } = await import('#lib/server/trenara/auth.js');
+		const { HttpError } = await import('#lib/server/trenara/client.js');
 		vi.mocked(authApi.refreshToken).mockRejectedValueOnce(new HttpError('boom', 502));
 
 		const cookies = makeCookies({ 'refresh-token': 'server-down-refresh' });
@@ -279,8 +279,8 @@ describe('validateAndRefreshToken', () => {
 	});
 
 	it('returns invalid when the auth server rejects the refresh token', async () => {
-		const { authApi } = await import('$lib/server/trenara/auth');
-		const { AuthenticationError } = await import('$lib/server/trenara/client');
+		const { authApi } = await import('#lib/server/trenara/auth.js');
+		const { AuthenticationError } = await import('#lib/server/trenara/client.js');
 		vi.mocked(authApi.refreshToken).mockRejectedValueOnce(new AuthenticationError('nope'));
 
 		const cookies = makeCookies({ 'refresh-token': 'revoked-refresh' });
@@ -289,7 +289,7 @@ describe('validateAndRefreshToken', () => {
 	});
 
 	it('refreshes once for concurrent requests carrying the same token', async () => {
-		const { authApi } = await import('$lib/server/trenara/auth');
+		const { authApi } = await import('#lib/server/trenara/auth.js');
 		vi.mocked(authApi.refreshToken).mockResolvedValue({
 			access_token: 'new-access',
 			refresh_token: 'new-refresh',
@@ -309,7 +309,7 @@ describe('validateAndRefreshToken', () => {
 	});
 
 	it("does not let one user's refresh satisfy another user's request", async () => {
-		const { authApi } = await import('$lib/server/trenara/auth');
+		const { authApi } = await import('#lib/server/trenara/auth.js');
 		vi.mocked(authApi.refreshToken).mockImplementation(async ({ refresh_token }) => ({
 			access_token: `access-for-${refresh_token}`,
 			refresh_token: `next-${refresh_token}`,

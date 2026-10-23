@@ -1,7 +1,7 @@
 import type { Cookies } from '@sveltejs/kit';
-import { chatApi } from '$lib/server/trenara';
-import { chatReadStateDAO } from '$lib/server/db/chat-read-state';
-import type { ChatThread } from '$lib/server/trenara/types';
+import { chatApi } from '#lib/server/trenara/index.js';
+import { chatReadStateDAO } from '#lib/server/db/chat-read-state.js';
+import type { ChatThread } from '#lib/server/trenara/types.js';
 
 /**
  * What the chat bubble needs to show an unread badge before it is opened:

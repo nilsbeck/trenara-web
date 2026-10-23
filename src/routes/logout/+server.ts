@@ -1,6 +1,6 @@
 import { redirect } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
-import { TokenManager } from '$lib/server/auth/token-manager';
+import { TokenManager } from '#lib/server/auth/token-manager.js';
 
 /**
  * Ends the session.

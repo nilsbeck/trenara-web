@@ -1,4 +1,4 @@
-import type { NewTrainingCandidate, Schedule } from '$lib/server/trenara/types';
+import type { NewTrainingCandidate, Schedule } from '#lib/server/trenara/types.js';
 import { dayKeyOf } from './date';
 
 /**

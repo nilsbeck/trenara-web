@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { isRenderableStats } from './user-stats';
-import type { UserStats } from '$lib/server/trenara/types';
+import type { UserStats } from '#lib/server/trenara/types.js';
 
 const stats = (partial: Partial<UserStats>) => partial as UserStats;
 

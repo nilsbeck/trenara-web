@@ -22,8 +22,14 @@ import { readFileSync, existsSync } from 'node:fs';
 import { gzipSync } from 'node:zlib';
 import { join } from 'node:path';
 
-/** Gzipped bytes the signed-in shell may cost, JS and CSS together. */
-const SHELL_BUDGET_BYTES = 64 * 1024;
+/**
+ * Gzipped bytes the signed-in shell may cost, JS and CSS together.
+ *
+ * Lowered from 64 KB with SvelteKit 3, whose client runtime took the shell
+ * from 59.8 KB to 47.1 KB. Left at 64 the budget would have handed the next
+ * twelve kilobytes to whoever asked first, without anyone deciding to.
+ */
+const SHELL_BUDGET_BYTES = 52 * 1024;
 
 /**
  * Packages that must only be loaded on the branch that uses them, each with a
@@ -50,7 +56,10 @@ const LAZY_ONLY = [
 
 const OUT = '.svelte-kit/output/client';
 const MANIFEST = join(OUT, '.vite/manifest.json');
-const GENERATED_NODES = '.svelte-kit/generated/client-optimized/nodes';
+// SvelteKit 3 moved the generated nodes under `build/`. A stale copy at the
+// old path survives in a local `.svelte-kit` from a Kit 2 build, so the old
+// path is not kept as a fallback: it would weigh last year's shell.
+const GENERATED_NODES = '.svelte-kit/generated/build/client-optimized/nodes';
 
 /** The route files whose nodes make up the shell. */
 const SHELL_SOURCES = ['src/routes/+layout.svelte', 'src/routes/(app)/+layout.svelte'];
@@ -146,7 +155,29 @@ for (const { name, marker } of LAZY_ONLY) {
 }
 if (!failed) console.log(`✔ ${LAZY_ONLY.map((l) => l.name).join(', ')} only reached by import()`);
 
-// 2. The shell stays within budget.
+// 2. Nothing in the client build reaches `$app/stores`.
+//
+// SvelteKit 3 removed it, but kept the module as a stub whose every export
+// throws — so an import still builds, and type-checks if it comes from a
+// dependency, and then fails at hydration. That is what happened with
+// `@vercel/speed-insights/sveltekit` in the root layout: every page rendered
+// on the server and none of it ever came alive. No test mounts the root
+// layout, so the build output is the one place this can be seen.
+const STORES_STUB = 'kit/app_stores_removed';
+const stubbed = Object.values(manifest)
+	.map((chunk) => chunk.file)
+	.filter((file) => readFileSync(join(OUT, file), 'utf8').includes(STORES_STUB));
+if (stubbed.length > 0) {
+	console.error(
+		`✖ $app/stores is in the client build (${stubbed.join(', ')}). SvelteKit 3 removed it and ` +
+			'its stub throws on use — find the import (often a dependency) and move it to $app/state.'
+	);
+	failed = true;
+} else {
+	console.log('✔ nothing in the client build imports the removed $app/stores');
+}
+
+// 3. The shell stays within budget.
 const shell = weigh(manifest, staticClosure(manifest, shellRoots));
 const verdict = shell <= SHELL_BUDGET_BYTES ? '✔' : '✖';
 console.log(`${verdict} signed-in shell: ${kb(shell)} gzipped (budget ${kb(SHELL_BUDGET_BYTES)})`);

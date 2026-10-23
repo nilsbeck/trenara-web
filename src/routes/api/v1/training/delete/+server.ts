@@ -1,8 +1,7 @@
-import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
-import { trainingApi } from '$lib/server/trenara';
-import { parseBody, passthrough } from '$lib/server/trenara/request';
-import { deleteTrainingSchema } from '$lib/schemas/training';
+import { trainingApi } from '#lib/server/trenara/index.js';
+import { parseBody, passthrough } from '#lib/server/trenara/request.js';
+import { deleteTrainingSchema } from '#lib/schemas/training.js';
 
 /**
  * Delete a filed entry or a scheduled training; see `deleteTrainingSchema`.
@@ -20,10 +19,10 @@ export const DELETE: RequestHandler = async ({ request, cookies }) => {
 
 	if (type === 'scheduled') {
 		await passthrough(() => trainingApi.testRemoveTraining(cookies, trainingId, false));
-		return json(
+		return Response.json(
 			await passthrough(() => trainingApi.saveRemoveTraining(cookies, trainingId, false))
 		);
 	}
 
-	return json(await passthrough(() => trainingApi.deleteTraining(cookies, trainingId)));
+	return Response.json(await passthrough(() => trainingApi.deleteTraining(cookies, trainingId)));
 };

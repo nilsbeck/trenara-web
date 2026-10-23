@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { load as rawLoad } from './+page.server';
-import type { ChartDataPoint } from '$lib/components/charts/prediction-chart.svelte';
+import type { ChartDataPoint } from '#lib/components/charts/prediction-chart.svelte';
 
 /** `PageServerLoad` admits `void`; this load never returns it. */
 async function load(...args: Parameters<typeof rawLoad>) {
@@ -12,7 +12,7 @@ async function load(...args: Parameters<typeof rawLoad>) {
 const mockGetSchedule = vi.fn();
 const mockGetGoal = vi.fn();
 const mockGetUserStats = vi.fn();
-vi.mock('$lib/server/trenara', () => ({
+vi.mock('#lib/server/trenara/index.js', () => ({
 	trainingApi: {
 		getSchedule: (...args: unknown[]) => mockGetSchedule(...args),
 		getGoal: (...args: unknown[]) => mockGetGoal(...args)
@@ -21,24 +21,24 @@ vi.mock('$lib/server/trenara', () => ({
 }));
 
 const mockKeepHistory = vi.fn();
-vi.mock('$lib/server/history/record', () => ({
+vi.mock('#lib/server/history/record.js', () => ({
 	keepHistory: (...args: unknown[]) => mockKeepHistory(...args)
 }));
 
 const mockAfterResponse = vi.fn();
-vi.mock('$lib/server/after-response', () => ({
+vi.mock('#lib/server/after-response.js', () => ({
 	afterResponse: (...args: unknown[]) => mockAfterResponse(...args)
 }));
 
 const mockGetUserPredictionHistory = vi.fn();
-vi.mock('$lib/server/db/prediction-history', () => ({
+vi.mock('#lib/server/db/prediction-history.js', () => ({
 	predictionHistoryDAO: {
 		getUserPredictionHistory: (...args: unknown[]) => mockGetUserPredictionHistory(...args)
 	}
 }));
 
 const mockGetForGoal = vi.fn();
-vi.mock('$lib/server/db/goal-share', () => ({
+vi.mock('#lib/server/db/goal-share.js', () => ({
 	goalShareDAO: { getForGoal: (...args: unknown[]) => mockGetForGoal(...args) }
 }));
 

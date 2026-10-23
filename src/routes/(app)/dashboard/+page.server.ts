@@ -1,11 +1,11 @@
-import { trainingApi, userApi } from '$lib/server/trenara';
-import { passthrough } from '$lib/server/trenara/request';
-import type { Schedule } from '$lib/server/trenara/types';
-import { getMonthTimestamps } from '$lib/utils/date';
-import { requireUser } from '$lib/server/auth/guard';
-import { keepHistory } from '$lib/server/history/record';
-import { readGoalChart, readGoalShare } from '$lib/server/history/goal-card-data';
-import { afterResponse } from '$lib/server/after-response';
+import { trainingApi, userApi } from '#lib/server/trenara/index.js';
+import { passthrough } from '#lib/server/trenara/request.js';
+import type { Schedule } from '#lib/server/trenara/types.js';
+import { getMonthTimestamps } from '#lib/utils/date.js';
+import { requireUser } from '#lib/server/auth/guard.js';
+import { keepHistory } from '#lib/server/history/record.js';
+import { readGoalChart, readGoalShare } from '#lib/server/history/goal-card-data.js';
+import { afterResponse } from '#lib/server/after-response.js';
 import type { PageServerLoad } from './$types';
 
 export const load: PageServerLoad = async ({ cookies, locals, isDataRequest }) => {

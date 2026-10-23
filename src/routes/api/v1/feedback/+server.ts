@@ -1,8 +1,7 @@
-import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
-import { trainingApi } from '$lib/server/trenara';
-import { parseBody, passthrough } from '$lib/server/trenara/request';
-import { rpeFeedbackSchema } from '$lib/schemas/feedback';
+import { trainingApi } from '#lib/server/trenara/index.js';
+import { parseBody, passthrough } from '#lib/server/trenara/request.js';
+import { rpeFeedbackSchema } from '#lib/schemas/feedback.js';
 
 /**
  * Rate a completed session, 1–10.
@@ -14,5 +13,7 @@ import { rpeFeedbackSchema } from '$lib/schemas/feedback';
 export const PUT: RequestHandler = async ({ request, cookies }) => {
 	const { entryId, feedback } = parseBody(rpeFeedbackSchema, await request.json());
 
-	return json(await passthrough(() => trainingApi.putFeedback(cookies, entryId, feedback)));
+	return Response.json(
+		await passthrough(() => trainingApi.putFeedback(cookies, entryId, feedback))
+	);
 };

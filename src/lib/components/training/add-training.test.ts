@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { render, screen, cleanup, fireEvent, waitFor } from '@testing-library/svelte';
-import AddTraining from '$lib/components/training/add-training.svelte';
+import AddTraining from '#lib/components/training/add-training.svelte';
 
 function json(body: unknown, status = 200) {
 	return new Response(JSON.stringify(body), {

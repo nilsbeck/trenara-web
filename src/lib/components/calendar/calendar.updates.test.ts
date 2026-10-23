@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { fireEvent, render, screen, waitFor } from '@testing-library/svelte';
 import Calendar from './calendar.svelte';
-import type { Schedule, ScheduledTraining } from '$lib/server/trenara/types';
+import type { Schedule, ScheduledTraining } from '#lib/server/trenara/types.js';
 
 // Wednesday 2026-08-26, so the month on screen still has open weeks and a
 // refresh has something to ask about.

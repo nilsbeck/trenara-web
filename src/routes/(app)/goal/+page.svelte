@@ -1,10 +1,10 @@
 <script lang="ts">
 	import type { PageServerData } from './$types';
-	import GoalCard from '$lib/components/goal/goal-card.svelte';
-	import GoalCardShare from '$lib/components/goal/goal-card-share.svelte';
-	import PredictionsCard from '$lib/components/predictions/predictions-card.svelte';
-	import { isRenderableStats } from '$lib/utils/user-stats';
-	import { invalidateAll } from '$app/navigation';
+	import GoalCard from '#lib/components/goal/goal-card.svelte';
+	import GoalCardShare from '#lib/components/goal/goal-card-share.svelte';
+	import PredictionsCard from '#lib/components/predictions/predictions-card.svelte';
+	import { isRenderableStats } from '#lib/utils/user-stats.js';
+	import { refreshAll } from '$app/navigation';
 	import { Loader2, ArrowLeft, RefreshCw, Target, Archive } from 'lucide-svelte';
 
 	let { data }: { data: PageServerData } = $props();
@@ -89,7 +89,7 @@
 				</p>
 				<button
 					type="button"
-					onclick={() => invalidateAll()}
+					onclick={() => refreshAll()}
 					class="inline-flex items-center justify-center gap-2 rounded-md border border-border px-3 py-1.5 text-sm font-medium text-foreground transition-colors hover:bg-secondary"
 				>
 					<RefreshCw class="h-3.5 w-3.5" aria-hidden="true" />

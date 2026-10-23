@@ -1,8 +1,8 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import type { Cookies } from '@sveltejs/kit';
-import type { ChatThread } from '$lib/server/trenara/types';
+import type { ChatThread } from '#lib/server/trenara/types.js';
 import { loadChatBadge } from './badge';
-import { DatabaseError } from '$lib/server/db/errors';
+import { DatabaseError } from '#lib/server/db/errors.js';
 
 const { getThreads, getMarks, advanceMark } = vi.hoisted(() => ({
 	getThreads: vi.fn(),
@@ -10,8 +10,8 @@ const { getThreads, getMarks, advanceMark } = vi.hoisted(() => ({
 	advanceMark: vi.fn()
 }));
 
-vi.mock('$lib/server/trenara', () => ({ chatApi: { getThreads } }));
-vi.mock('$lib/server/db/chat-read-state', () => ({
+vi.mock('#lib/server/trenara/index.js', () => ({ chatApi: { getThreads } }));
+vi.mock('#lib/server/db/chat-read-state.js', () => ({
 	chatReadStateDAO: { getMarks, advanceMark }
 }));
 

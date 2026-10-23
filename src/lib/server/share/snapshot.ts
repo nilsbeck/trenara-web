@@ -1,4 +1,4 @@
-import type { Goal, UserStats } from '$lib/server/trenara/types';
+import type { Goal, UserStats } from '#lib/server/trenara/types.js';
 
 /**
  * The goal card's inputs, and nothing else.
@@ -14,7 +14,7 @@ import type { Goal, UserStats } from '$lib/server/trenara/types';
  * free-text field is the one place a goal could hold something personal.
  *
  * This is what a share link publishes, and changing it is a privacy decision:
- * see `$lib/schemas/share.ts` for how a stored one is read back, and
+ * see `#lib/schemas/share.ts` for how a stored one is read back, and
  * "Evolving the snapshot" in `.kiro/specs/goal-sharing/design.md` for the rule
  * on changing its shape once rows exist.
  */

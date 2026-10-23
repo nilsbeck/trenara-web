@@ -1,10 +1,10 @@
 import { error } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
-import { trainingApi } from '$lib/server/trenara';
-import { passthrough } from '$lib/server/trenara/request';
-import { fingerprint } from '$lib/utils/fingerprint';
-import { getMonthTimestamps, parseLocalDateString, weeksStillOpen } from '$lib/utils/date';
-import type { SchedulePayload } from '$lib/utils/schedule';
+import { trainingApi } from '#lib/server/trenara/index.js';
+import { passthrough } from '#lib/server/trenara/request.js';
+import { fingerprint } from '#lib/utils/fingerprint.js';
+import { getMonthTimestamps, parseLocalDateString, weeksStillOpen } from '#lib/utils/date.js';
+import type { SchedulePayload } from '#lib/utils/schedule.js';
 
 /**
  * The month the caller means, from `date`.

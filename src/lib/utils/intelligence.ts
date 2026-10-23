@@ -1,4 +1,4 @@
-import type { ScheduledTraining } from '$lib/server/trenara/types';
+import type { ScheduledTraining } from '#lib/server/trenara/types.js';
 
 /**
  * The paragraphs of Trenara Intelligence's note on a session, or null when

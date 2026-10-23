@@ -1,12 +1,12 @@
-import { json, error } from '@sveltejs/kit';
+import { error } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
-import { requireUser } from '$lib/server/auth/guard';
-import { chatApi } from '$lib/server/trenara';
-import { chatReadStateDAO } from '$lib/server/db/chat-read-state';
-import { fromStorage, STORAGE_WRITE_MESSAGE } from '$lib/server/db/errors';
-import { storageWrites } from '$lib/server/security/rate-limit';
-import { parseBody } from '$lib/server/trenara/request';
-import { chatMarkReadSchema } from '$lib/schemas/chat';
+import { requireUser } from '#lib/server/auth/guard.js';
+import { chatApi } from '#lib/server/trenara/index.js';
+import { chatReadStateDAO } from '#lib/server/db/chat-read-state.js';
+import { fromStorage, STORAGE_WRITE_MESSAGE } from '#lib/server/db/errors.js';
+import { storageWrites } from '#lib/server/security/rate-limit.js';
+import { parseBody } from '#lib/server/trenara/request.js';
+import { chatMarkReadSchema } from '#lib/schemas/chat.js';
 
 /**
  * Records how far the reader has got in a thread.
@@ -54,5 +54,5 @@ export const POST: RequestHandler = async ({ params, request, cookies, locals })
 		() => chatReadStateDAO.advanceMark(user.id, threadId, lastSeenMessageId),
 		STORAGE_WRITE_MESSAGE
 	);
-	return json({ advanced });
+	return Response.json({ advanced });
 };

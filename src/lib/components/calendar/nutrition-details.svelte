@@ -1,5 +1,5 @@
 <script lang="ts">
-	import type { NutritionAdvice } from '$lib/server/trenara/types';
+	import type { NutritionAdvice } from '#lib/server/trenara/types.js';
 	import {
 		dailyTotals,
 		energyAmount,
@@ -8,7 +8,7 @@
 		mealAmount,
 		mealShares,
 		orderedMeals
-	} from '$lib/utils/nutrition';
+	} from '#lib/utils/nutrition.js';
 	import { Equal, Lightbulb, TriangleAlert, UtensilsCrossed } from 'lucide-svelte';
 
 	let {

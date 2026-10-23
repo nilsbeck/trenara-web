@@ -1,4 +1,4 @@
-import type { ScheduledTraining, TrainingBlock } from '$lib/server/trenara/types';
+import type { ScheduledTraining, TrainingBlock } from '#lib/server/trenara/types.js';
 import { paceToKmh, formatSpeedKmh } from './format';
 
 export interface TreadmillInstruction {

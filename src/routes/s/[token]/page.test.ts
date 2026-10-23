@@ -1,9 +1,9 @@
 import { describe, it, expect, beforeAll, afterEach } from 'vitest';
 import { render, cleanup, screen, waitFor } from '@testing-library/svelte';
 import SharePage from './+page.svelte';
-import { isoWeekStart } from '$lib/utils/plan-weeks';
-import { mondayOf } from '$lib/utils/date';
-import { secondsToTimeString, secondsToPaceString } from '$lib/utils/format';
+import { isoWeekStart } from '#lib/utils/plan-weeks.js';
+import { mondayOf } from '#lib/utils/date.js';
+import { secondsToTimeString, secondsToPaceString } from '#lib/utils/format.js';
 
 beforeAll(() => {
 	globalThis.ResizeObserver = class {

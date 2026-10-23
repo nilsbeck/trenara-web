@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeAll, afterEach } from 'vitest';
 import { render, cleanup, screen, fireEvent } from '@testing-library/svelte';
 import GoalCard from './goal-card.svelte';
-import type { Goal, UserStats } from '$lib/server/trenara/types';
+import type { Goal, UserStats } from '#lib/server/trenara/types.js';
 
 // The card mounts a chart, and jsdom lays nothing out: it has no ResizeObserver
 // and every element measures zero. Only the picker is under test here.

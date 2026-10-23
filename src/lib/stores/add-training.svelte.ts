@@ -1,6 +1,6 @@
-import type { NewTrainingCandidate, ScheduledTrainingDetail } from '$lib/server/trenara/types';
-import type { NewTrainingOptions } from '$lib/utils/schedule';
-import { describeError, describeResponse, isAbort } from '$lib/utils/network';
+import type { NewTrainingCandidate, ScheduledTrainingDetail } from '#lib/server/trenara/types.js';
+import type { NewTrainingOptions } from '#lib/utils/schedule.js';
+import { describeError, describeResponse, isAbort } from '#lib/utils/network.js';
 
 /**
  * Where the add-a-training picker stands.

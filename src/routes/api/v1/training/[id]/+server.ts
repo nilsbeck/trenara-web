@@ -1,7 +1,6 @@
-import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
-import { trainingApi } from '$lib/server/trenara';
-import { parseTrainingId, passthrough } from '$lib/server/trenara/request';
+import { trainingApi } from '#lib/server/trenara/index.js';
+import { parseTrainingId, passthrough } from '#lib/server/trenara/request.js';
 
 /**
  * Full detail for one scheduled training.
@@ -11,5 +10,5 @@ import { parseTrainingId, passthrough } from '$lib/server/trenara/request';
  */
 export const GET: RequestHandler = async ({ params, cookies }) => {
 	const id = parseTrainingId(params.id);
-	return json(await passthrough(() => trainingApi.getTraining(cookies, id)));
+	return Response.json(await passthrough(() => trainingApi.getTraining(cookies, id)));
 };

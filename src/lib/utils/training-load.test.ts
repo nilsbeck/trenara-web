@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { trainingLoad } from './training-load';
-import type { Entry } from '$lib/server/trenara/types';
+import type { Entry } from '#lib/server/trenara/types.js';
 
 function entryWith(metadata: unknown): Entry {
 	return { notification: { metadata } } as unknown as Entry;

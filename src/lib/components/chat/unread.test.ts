@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import type { ChatMessage, ChatThread } from '$lib/server/trenara/types';
+import type { ChatMessage, ChatThread } from '#lib/server/trenara/types.js';
 import {
 	formatUnreadBadge,
 	newestMessageId,

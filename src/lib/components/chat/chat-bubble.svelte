@@ -1,9 +1,9 @@
 <script lang="ts">
-	import type { ChatThread, ChatMessage } from '$lib/server/trenara/types';
+	import type { ChatThread, ChatMessage } from '#lib/server/trenara/types.js';
 	import { MessageCircle, X, Loader2, Bot, Send } from 'lucide-svelte';
 	import { onDestroy } from 'svelte';
-	import { describeError, describeResponse } from '$lib/utils/network';
-	import { loadSanitizer, type Sanitize } from '$lib/utils/sanitize';
+	import { describeError, describeResponse } from '#lib/utils/network.js';
+	import { loadSanitizer, type Sanitize } from '#lib/utils/sanitize.js';
 	import {
 		createPendingMessage,
 		hasNewReply,
@@ -363,7 +363,7 @@
 	 *
 	 * A hidden tab is refreshed the moment it is looked at again instead, which
 	 * is the only moment a badge being a minute stale could matter. The same
-	 * reasoning, and the same shape, as `$lib/utils/revalidation`.
+	 * reasoning, and the same shape, as `#lib/utils/revalidation.js`.
 	 */
 	$effect(() => {
 		if (isOpen) return;

@@ -1,8 +1,8 @@
 import type { LayoutServerLoad } from './$types';
-import { configApi, userApi } from '$lib/server/trenara';
-import { newsBadgeIfReady } from '$lib/server/news/badge';
-import { loadChatBadge } from '$lib/server/chat/badge';
-import { requireUser } from '$lib/server/auth/guard';
+import { configApi, userApi } from '#lib/server/trenara/index.js';
+import { newsBadgeIfReady } from '#lib/server/news/badge.js';
+import { loadChatBadge } from '#lib/server/chat/badge.js';
+import { requireUser } from '#lib/server/auth/guard.js';
 
 export const load: LayoutServerLoad = async ({ cookies, locals, depends }) => {
 	const user = requireUser(locals);

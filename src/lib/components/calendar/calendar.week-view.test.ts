@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/svelte';
 import Calendar from './calendar.svelte';
-import type { Schedule, ScheduledTraining } from '$lib/server/trenara/types';
+import type { Schedule, ScheduledTraining } from '#lib/server/trenara/types.js';
 
 // Wednesday 2026-08-26. August 2026 ends on a Monday, so the week after the one
 // it opens on runs into September.

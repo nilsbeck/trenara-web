@@ -1,8 +1,8 @@
-import { json, error } from '@sveltejs/kit';
+import { error } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
-import { chatApi } from '$lib/server/trenara';
-import { parseBody, passthrough } from '$lib/server/trenara/request';
-import { sendMessageSchema } from '$lib/schemas/chat';
+import { chatApi } from '#lib/server/trenara/index.js';
+import { parseBody, passthrough } from '#lib/server/trenara/request.js';
+import { sendMessageSchema } from '#lib/schemas/chat.js';
 
 export const GET: RequestHandler = async ({ params, url, cookies }) => {
 	const threadId = Number(params.id);
@@ -15,7 +15,7 @@ export const GET: RequestHandler = async ({ params, url, cookies }) => {
 	const rawTimestamp = url.searchParams.get('timestamp');
 	const timestamp = rawTimestamp ? Number(rawTimestamp) : undefined;
 
-	return json(
+	return Response.json(
 		await passthrough(() =>
 			chatApi.getMessages(
 				cookies,
@@ -35,5 +35,5 @@ export const POST: RequestHandler = async ({ params, request, cookies }) => {
 
 	const { content } = parseBody(sendMessageSchema, await request.json());
 
-	return json(await passthrough(() => chatApi.sendMessage(cookies, threadId, content)));
+	return Response.json(await passthrough(() => chatApi.sendMessage(cookies, threadId, content)));
 };

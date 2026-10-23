@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeAll, afterEach } from 'vitest';
 import { render, screen, waitFor, cleanup, fireEvent } from '@testing-library/svelte';
-import TrainingDetails from '$lib/components/calendar/training-details.svelte';
-import type { ScheduledTraining } from '$lib/server/trenara/types';
+import TrainingDetails from '#lib/components/calendar/training-details.svelte';
+import type { ScheduledTraining } from '#lib/server/trenara/types.js';
 
 const base: ScheduledTraining = {
 	id: 42,

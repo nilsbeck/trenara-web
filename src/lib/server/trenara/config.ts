@@ -1,7 +1,7 @@
 import type { Cookies } from '@sveltejs/kit';
 import type { AppConfig } from './types';
 import { fetchClient } from './client';
-import { TokenType } from '$lib/server/auth/types';
+import { TokenType } from '#lib/server/auth/types.js';
 
 function bearerHeader(cookies: Cookies): Record<string, string> {
 	return { Authorization: `Bearer ${cookies.get(TokenType.AccessToken)}` };

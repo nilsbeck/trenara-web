@@ -1,6 +1,6 @@
 import { describe, it, expect, afterEach } from 'vitest';
 import { render, screen, cleanup } from '@testing-library/svelte';
-import IntelligenceNote from '$lib/components/training/intelligence-note.svelte';
+import IntelligenceNote from '#lib/components/training/intelligence-note.svelte';
 
 afterEach(cleanup);
 

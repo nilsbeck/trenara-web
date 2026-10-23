@@ -3,8 +3,8 @@ import { fireEvent, render, screen, waitFor, within } from '@testing-library/sve
 import Calendar from './calendar.svelte';
 // The picker is imported by its button on the first tap; loaded here so that
 // import is answered from the module cache inside the test's timeout.
-import '$lib/components/modals/change-date-dialog.svelte';
-import type { Schedule, ScheduledTraining } from '$lib/server/trenara/types';
+import '#lib/components/modals/change-date-dialog.svelte';
+import type { Schedule, ScheduledTraining } from '#lib/server/trenara/types.js';
 
 // Wednesday 2026-08-26, so "tomorrow" (the 27th) is still inside the same
 // month and not in the past.

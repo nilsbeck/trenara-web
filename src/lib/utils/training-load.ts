@@ -1,4 +1,4 @@
-import type { Entry } from '$lib/server/trenara/types';
+import type { Entry } from '#lib/server/trenara/types.js';
 
 export interface TrainingLoad {
 	/** What the session earned, rounded for display. */

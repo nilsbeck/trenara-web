@@ -1,9 +1,9 @@
 <script lang="ts">
 	import { page } from '$app/state';
-	import { invalidateAll } from '$app/navigation';
+	import { refreshAll } from '$app/navigation';
 	import { Share2, X, Copy, Check, Loader2, RefreshCw, Trash2 } from 'lucide-svelte';
-	import { describeError, describeResponse } from '$lib/utils/network';
-	import type { ShareRow } from '$lib/server/db/goal-share';
+	import { describeError, describeResponse } from '#lib/utils/network.js';
+	import type { ShareRow } from '#lib/server/db/goal-share.js';
 
 	/**
 	 * The runner's own share link for the goal on screen, or null.
@@ -13,7 +13,7 @@
 	 * already hold, and the load runs server-side with the runner already
 	 * resolved. That is also why there is no third, "unknown" state here —
 	 * only *none* and *live* — and why the two mutations below end with
-	 * `invalidateAll()` rather than updating a local copy: the new state comes
+	 * `refreshAll()` rather than updating a local copy: the new state comes
 	 * back through the same load that seeded this one, so there is exactly one
 	 * source for it rather than two that could disagree.
 	 */
@@ -65,7 +65,7 @@
 			// The share row this dialog reads comes from `/goal`'s load, so the
 			// new state arrives through the same path rather than through a
 			// second, possibly disagreeing one.
-			await invalidateAll();
+			await refreshAll();
 		} catch (e) {
 			error = describeError(e, 'That could not be saved.');
 		} finally {

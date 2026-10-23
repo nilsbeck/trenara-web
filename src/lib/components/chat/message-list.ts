@@ -1,4 +1,4 @@
-import type { ChatMessage } from '$lib/server/trenara/types';
+import type { ChatMessage } from '#lib/server/trenara/types.js';
 
 /**
  * Helpers for keeping the rendered message list consistent.

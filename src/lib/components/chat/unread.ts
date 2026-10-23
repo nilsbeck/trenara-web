@@ -1,4 +1,4 @@
-import type { ChatMessage, ChatThread } from '$lib/server/trenara/types';
+import type { ChatMessage, ChatThread } from '#lib/server/trenara/types.js';
 
 /**
  * Unread bookkeeping for the floating chat bubble.

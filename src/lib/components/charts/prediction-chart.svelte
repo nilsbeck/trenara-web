@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { Loader2, TrendingDown } from 'lucide-svelte';
-	import { secondsToTimeString, secondsToPaceString, formatDateShort } from '$lib/utils/format';
-	import { paceRatio, summarise, formatDelta } from '$lib/utils/prediction-graph';
+	import { secondsToTimeString, secondsToPaceString, formatDateShort } from '#lib/utils/format.js';
+	import { paceRatio, summarise, formatDelta } from '#lib/utils/prediction-graph.js';
 
 	/**
 	 * One vertex of a projected line — where it goes, and what put it there.
