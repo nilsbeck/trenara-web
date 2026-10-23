@@ -1,5 +1,8 @@
 import { version } from '$app/env';
 import { assets, immutable } from '$app/manifest';
+// Typed as `ServiceWorkerGlobalScope` by SvelteKit 3, which is what the
+// `self as unknown as ServiceWorkerGlobalScope` cast here used to assert.
+import { self as sw } from '$app/service-worker';
 
 /**
  * What the app does with no connection.
@@ -23,8 +26,6 @@ import { assets, immutable } from '$app/manifest';
  * So offline gets the shell and an honest page saying so, rather than a
  * plausible-looking plan that might be days old.
  */
-
-const sw = self as unknown as ServiceWorkerGlobalScope;
 
 /** Versioned by the build, so a deploy cannot be served half old and half new. */
 const CACHE = `trainara-${version}`;
