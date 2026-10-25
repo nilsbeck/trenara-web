@@ -105,6 +105,13 @@ describe('the shared goal page', () => {
 		// the bars are not something the forecast hands down to this page, they
 		// come from the plan on their own.
 		const DAY_MS = 86_400_000;
+		/**
+		 * `date` moved by whole local days. Not by `DAY_MS` steps: the week holding a
+		 * daylight-saving change is 167 or 169 hours long, and a Monday reached in
+		 * 24-hour steps lands an hour off midnight, where no ISO week starts.
+		 */
+		const addDays = (date: Date, days: number) =>
+			new Date(date.getFullYear(), date.getMonth(), date.getDate() + days);
 		const now = new Date();
 
 		function isoWeekOf(monday: Date): { year: number; week: number } {
@@ -141,9 +148,7 @@ describe('the shared goal page', () => {
 		}
 
 		const start = mondayOf(now);
-		const planData = Array.from({ length: 4 }, (_, i) =>
-			row(new Date(start.getTime() + i * 7 * DAY_MS), 40)
-		);
+		const planData = Array.from({ length: 4 }, (_, i) => row(addDays(start, i * 7), 40));
 
 		const paceSeconds = 302;
 		const time = Math.round(paceSeconds * 42.195);

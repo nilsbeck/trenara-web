@@ -32,10 +32,19 @@
 	 * Vercel preview deployments, where a console is not somewhere anyone will
 	 * think to look. It is small and muted — the sentence above it is the part
 	 * addressed to whoever is running.
+	 *
+	 * Read as "anything with a string `message`" rather than as an Error: in
+	 * the app the boundary is handed the `App.Error` that `handleError`
+	 * returned (SvelteKit 3 mounts the root with a `transformError`), which is
+	 * a plain object, and `String()` of it printed "[object Object]".
 	 */
-	const detail = $derived(
-		error instanceof Error && error.message ? error.message : error ? String(error) : null
-	);
+	const detail = $derived.by(() => {
+		if (!error) return null;
+		if (typeof error === 'object' && 'message' in error && typeof error.message === 'string') {
+			return error.message || null;
+		}
+		return String(error);
+	});
 </script>
 
 <div

@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
+	addDays,
 	formatDateString,
 	getMonthTimestamps,
 	mondayOf,
@@ -301,5 +302,23 @@ describe('weekAnchorOf', () => {
 		for (const day of [1, 4, 5, 11, 12, 31]) {
 			expect(anchors).toContain(weekAnchorOf(new Date(2026, 9, day)).getTime());
 		}
+	});
+});
+
+describe('addDays', () => {
+	// The suite runs in Europe/Berlin, where 25 October 2026 is 25 hours long.
+	it('lands on the next local midnight across a daylight-saving change', () => {
+		expect(addDays(new Date(2026, 9, 19), 7)).toEqual(new Date(2026, 9, 26));
+		expect(addDays(new Date(2026, 2, 23), 7)).toEqual(new Date(2026, 2, 30));
+	});
+
+	it('goes backwards, across a month', () => {
+		expect(addDays(new Date(2026, 10, 1), -10)).toEqual(new Date(2026, 9, 22));
+	});
+
+	it('keeps the wall-clock time and leaves its input alone', () => {
+		const start = new Date(2026, 9, 25, 12, 30);
+		expect(addDays(start, 1)).toEqual(new Date(2026, 9, 26, 12, 30));
+		expect(start).toEqual(new Date(2026, 9, 25, 12, 30));
 	});
 });

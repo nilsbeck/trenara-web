@@ -1,6 +1,16 @@
 import { defineConfig } from 'vitest/config';
 import { sveltekit } from '@sveltejs/kit/vite';
 
+/**
+ * The runner's time zone, not the CI runner's.
+ *
+ * CI runs in UTC, which has no daylight-saving change, so arithmetic that steps
+ * through a week in 24-hour units passed there and took the dashboard down in
+ * Europe/Berlin on 25 October 2026 (the 169-hour week; see `forecast.ts`). Set
+ * here, before Vitest starts its workers, so every test file inherits it.
+ */
+process.env.TZ = 'Europe/Berlin';
+
 export default defineConfig({
 	plugins: [sveltekit()],
 	// Component tests mount into jsdom, so Svelte has to resolve to its client
