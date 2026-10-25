@@ -54,6 +54,9 @@
 		"tailwindcss": "^4.3.3",
 		"zod": "^4.6.7"
 	},
+	"overrides": {
+		"zod": "^4.6.7"
+	},
 	"imports": {
 		"#lib": "./src/lib/index.js",
 		"#lib/*": "./src/lib/*"
