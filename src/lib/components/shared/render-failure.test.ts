@@ -68,6 +68,17 @@ describe('the fallback itself', () => {
 		expect(screen.getByText('x.split is not a function')).toBeTruthy();
 	});
 
+	// What the boundary is actually handed in the app. On SvelteKit 3 the root
+	// is mounted with a `transformError` that runs the throw through
+	// `handleError` first, so `failed` receives the `App.Error` it returned — a
+	// plain `{ message }`, not the Error — and `String()` of that printed
+	// "[object Object]" in place of the one line meant to name the failure.
+	it('shows the message of the handled error SvelteKit passes on', () => {
+		render(RenderFailure, { error: { message: 'x.split is not a function', status: 500 } });
+		expect(screen.getByText('x.split is not a function')).toBeTruthy();
+		expect(screen.queryByText('[object Object]')).toBeNull();
+	});
+
 	it('describes a thrown value that is not an error at all', () => {
 		render(RenderFailure, { error: 'something odd' });
 		expect(screen.getByText('something odd')).toBeTruthy();
