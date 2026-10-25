@@ -1,7 +1,20 @@
-import { toLocalDateString } from './date';
+import { addDays, parseLocalDateString, toLocalDateString } from './date';
 
 const DAY_MS = 86_400_000;
 const WEEK_MS = 7 * DAY_MS;
+
+/**
+ * A sample's date as a moment on the same clock as the plan's weeks.
+ *
+ * `new Date('2026-02-04')` is UTC midnight — 01:00 or 02:00 in Berlin, the
+ * hour depending on the season — while a week starts at local midnight. The
+ * offset nudged every rate fitted between the two and counted five days of
+ * readings as four. A bare date is read as the local day it names; anything
+ * longer is a full timestamp and already says when it was.
+ */
+function stampOf(date: string): number {
+	return (parseLocalDateString(date) ?? new Date(date)).getTime();
+}
 
 /** A predicted time, as recorded on a date. */
 export interface Sample {
@@ -74,16 +87,19 @@ export function volumeBetween(weeks: VolumeWeek[], from: Date, to: Date): number
 		const ws = week.startsOn.getTime();
 		if (!Number.isFinite(ws) || !(week.km > 0)) continue;
 		const lo = Math.max(ws, start);
-		const hi = Math.min(ws + WEEK_MS, end);
+		// The week's own length, not `WEEK_MS`: the one holding a daylight-saving
+		// change is an hour shorter or longer, and its distance spans all of it.
+		const we = addDays(week.startsOn, 7).getTime();
+		const hi = Math.min(we, end);
 		if (hi <= lo) continue;
-		total += week.km * ((hi - lo) / WEEK_MS);
+		total += week.km * ((hi - lo) / (we - ws));
 	}
 	return total;
 }
 
 /** The last day on which training still changes race-day fitness. */
 export function earnCutoff(raceDay: Date): Date {
-	return new Date(raceDay.getTime() - FITNESS_LAG_DAYS * DAY_MS);
+	return addDays(raceDay, -FITNESS_LAG_DAYS);
 }
 
 export interface RateEstimate {
@@ -129,7 +145,7 @@ export type RateRejection =
 /** `observedRate`, or why there is none. */
 export function measureRate(samples: Sample[], done: VolumeWeek[]): RateEstimate | RateRejection {
 	const points = samples
-		.map((s) => ({ stamp: new Date(s.date).getTime(), seconds: s.seconds }))
+		.map((s) => ({ stamp: stampOf(s.date), seconds: s.seconds }))
 		.filter((p) => Number.isFinite(p.stamp) && Number.isFinite(p.seconds))
 		.sort((a, b) => a.stamp - b.stamp);
 
@@ -365,7 +381,7 @@ export function forecast({
 	if (!Number.isFinite(cutoff.getTime()) || cutoff <= now) return null;
 
 	const ordered = samples
-		.map((s) => ({ stamp: new Date(s.date).getTime(), seconds: s.seconds }))
+		.map((s) => ({ stamp: stampOf(s.date), seconds: s.seconds }))
 		.filter((p) => Number.isFinite(p.stamp) && Number.isFinite(p.seconds))
 		.sort((a, b) => a.stamp - b.stamp);
 
@@ -509,7 +525,7 @@ export function recentTrend({
 	raceDay: Date;
 }): RecentTrend | RecentTrendGap {
 	const points = samples
-		.map((s) => ({ stamp: new Date(s.date).getTime(), seconds: s.seconds }))
+		.map((s) => ({ stamp: stampOf(s.date), seconds: s.seconds }))
 		.filter((p) => Number.isFinite(p.stamp) && Number.isFinite(p.seconds))
 		.sort((a, b) => a.stamp - b.stamp);
 	if (points.length === 0) return { reason: 'no-readings' };
@@ -612,7 +628,11 @@ function projectLine({
 	}
 
 	for (const week of planned) {
-		const boundary = new Date(week.startsOn.getTime() + WEEK_MS);
+		// Next Monday's local midnight. `startsOn + WEEK_MS` was 23:00 on the
+		// Sunday in a week the clocks went back, a vertex dated the same day as
+		// the 'today' one when that Sunday was today — and the chart keys its
+		// vertices by date.
+		const boundary = addDays(week.startsOn, 7);
 		if (boundary <= now || boundary >= cutoff) continue;
 		at(boundary, 'week');
 	}
@@ -643,7 +663,7 @@ export function loadSlices(planned: VolumeWeek[], now: Date, cutoff: Date): Load
 		const start = week.startsOn.getTime();
 		if (!Number.isFinite(start)) continue;
 		const from = new Date(Math.max(start, now.getTime()));
-		const to = new Date(Math.min(start + WEEK_MS, cutoff.getTime()));
+		const to = new Date(Math.min(addDays(week.startsOn, 7).getTime(), cutoff.getTime()));
 		if (to <= from) continue;
 		slices.push({ from, to, km: volumeBetween([week], from, to) });
 	}

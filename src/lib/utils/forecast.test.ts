@@ -47,8 +47,7 @@ describe('volumeBetween', () => {
 
 describe('earnCutoff', () => {
 	it('stops counting training ten days out', () => {
-		const race = day(90);
-		expect(race.getTime() - earnCutoff(race).getTime()).toBe(FITNESS_LAG_DAYS * DAY_MS);
+		expect(earnCutoff(day(90))).toEqual(day(90 - FITNESS_LAG_DAYS));
 	});
 });
 
@@ -675,5 +674,51 @@ describe('forecast carries its reasons', () => {
 
 		expect(result.rate.source).toBe('observed');
 		expect(result.rejected).toBeNull();
+	});
+});
+
+// 25 October 2026 is the night Europe/Berlin falls back from CEST to CET, so
+// the week that began on Monday the 19th is 169 hours long. Week ends were
+// found by adding 168, which lands on Sunday the 25th at 23:00 — a vertex
+// dated today, beside the 'today' vertex, and the chart keys its vertices by
+// date: `each_key_duplicate`, and the whole dashboard behind the boundary.
+// The suite runs in Europe/Berlin (vitest.config.ts) so this is reachable.
+describe('across a daylight-saving change', () => {
+	const monday = new Date(2026, 9, 19);
+	const fallBack = Array.from({ length: 6 }, (_, i) => ({
+		startsOn: new Date(2026, 9, 19 + i * 7),
+		km: 40
+	}));
+	const now = new Date(2026, 9, 25, 12);
+	const raceDay = new Date(2026, 11, 13);
+
+	it('ends each week at the next local midnight, not 168 hours on', () => {
+		const result = recentTrend({
+			nowSeconds: 3500,
+			now,
+			goalSeconds: 3000,
+			samples: [{ date: '2026-10-01', seconds: 3600 }],
+			done: fallBack,
+			planned: fallBack,
+			raceDay
+		}) as RecentTrend;
+
+		const dates = result.points.map((p) => p.date);
+		expect(new Set(dates).size).toBe(dates.length);
+		expect(dates.slice(0, 2)).toEqual(['2026-10-25', '2026-10-26']);
+	});
+
+	it('prices the long week whole, its extra hour included', () => {
+		const week = fallBack.slice(0, 1);
+		expect(volumeBetween(week, monday, new Date(2026, 9, 26))).toBeCloseTo(40, 6);
+		// The hour from 23:00 to midnight on the 25th is still that week's.
+		expect(volumeBetween(week, new Date(2026, 9, 25, 23), new Date(2026, 9, 26))).toBeGreaterThan(
+			0
+		);
+	});
+
+	it('stops counting training ten calendar days out', () => {
+		// Race day on 1 November puts the cutoff on 22 October, across the change.
+		expect(earnCutoff(new Date(2026, 10, 1))).toEqual(new Date(2026, 9, 22));
 	});
 });

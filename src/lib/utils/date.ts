@@ -73,6 +73,20 @@ export function parseLocalDateString(value: string): Date | null {
 	return date.getMonth() === Number(month) - 1 && date.getDate() === Number(day) ? date : null;
 }
 
+/**
+ * `date` moved by whole local days, keeping its wall-clock time.
+ *
+ * Not `getTime() + n * 86_400_000`: a day with a daylight-saving change is 23
+ * or 25 hours long, and a step of 24 lands an hour off midnight — on the day
+ * before, when the clocks go back. That put a forecast vertex on today's date
+ * beside the 'today' vertex on 25 October 2026 and took the dashboard down.
+ */
+export function addDays(date: Date, days: number): Date {
+	const moved = new Date(date);
+	moved.setDate(moved.getDate() + days);
+	return moved;
+}
+
 /** The Monday of the week containing `date`, at local midnight. */
 export function mondayOf(date: Date): Date {
 	const monday = new Date(date.getFullYear(), date.getMonth(), date.getDate());

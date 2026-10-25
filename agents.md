@@ -575,7 +575,13 @@ A training day is a local day. Calendar dates go through `#lib/utils/date`
 (`toLocalDateString`, `dayKeyOf`, `getMonthTimestamps`,
 `parseLocalDateString`) — never `toISOString().slice(0, 10)`, which is the UTC
 day and is wrong for a runner east or west of Greenwich for part of every
-day. Upstream sends unix seconds, ISO-8601 with an offset, and plain dates,
+day. Step a date by days with `addDays`, never by `86_400_000` ms: the week
+holding a daylight-saving change is 167 or 169 hours, and on 25 October 2026
+a week end found by adding 168 landed on the Sunday, gave the forecast two
+vertices dated today, and took the dashboard down (`each_key_duplicate`). A
+bare `YYYY-MM-DD` is a local day — `parseLocalDateString`, not `new Date()`,
+which reads it as UTC midnight. The test suite runs in `Europe/Berlin`
+(`vitest.config.ts`) so that CI, in UTC, sees these. Upstream sends unix seconds, ISO-8601 with an offset, and plain dates,
 chosen per field; the API reference says which.
 
 ### Tests that can fail
