@@ -28,6 +28,13 @@ afterEach(() => {
 });
 
 const DAY_MS = 86_400_000;
+/**
+ * `date` moved by whole local days. Not by `DAY_MS` steps: the week holding a
+ * daylight-saving change is 167 or 169 hours long, and a Monday reached in
+ * 24-hour steps lands an hour off midnight, where no ISO week starts.
+ */
+const addDays = (date: Date, days: number) =>
+	new Date(date.getFullYear(), date.getMonth(), date.getDate() + days);
 const now = new Date();
 
 /** The `{ year, week }` that `isoWeekStart` maps back onto this Monday. */
@@ -63,9 +70,7 @@ function row(startsOn: Date, todo: number) {
 /** Eight weeks of planned training, starting this week. */
 function planWeeks(): UserStats['graph_stats']['goal'] {
 	const start = mondayOf(now);
-	const data = Array.from({ length: 8 }, (_, i) =>
-		row(new Date(start.getTime() + i * 7 * DAY_MS), 40)
-	);
+	const data = Array.from({ length: 8 }, (_, i) => row(addDays(start, i * 7), 40));
 	const total = data.reduce((sum, r) => sum + r.todo_value, 0);
 	return {
 		data,

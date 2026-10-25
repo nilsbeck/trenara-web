@@ -37,8 +37,15 @@ afterAll(() => {
 });
 
 const DAY_MS = 86_400_000;
+/**
+ * `date` moved by whole local days. Not by `DAY_MS` steps: the week holding a
+ * daylight-saving change is 167 or 169 hours long, and a Monday reached in
+ * 24-hour steps lands an hour off midnight, where no ISO week starts.
+ */
+const addDays = (date: Date, days: number) =>
+	new Date(date.getFullYear(), date.getMonth(), date.getDate() + days);
 const now = new Date();
-const goalStart = new Date(mondayOf(now).getTime() - 5 * 7 * DAY_MS);
+const goalStart = addDays(mondayOf(now), -5 * 7);
 
 function isoWeekOf(monday: Date): { year: number; week: number } {
 	const target = monday.getTime();
@@ -53,7 +60,7 @@ function isoWeekOf(monday: Date): { year: number; week: number } {
 /** Thirteen 40 km weeks from the goal's start: five run in full, this one half run. */
 function planWeeks(): UserStats['graph_stats']['goal'] {
 	const data = Array.from({ length: 13 }, (_, i) => {
-		const { year, week } = isoWeekOf(new Date(goalStart.getTime() + i * 7 * DAY_MS));
+		const { year, week } = isoWeekOf(addDays(goalStart, i * 7));
 		const done = i < 5 ? 40 : i === 5 ? 20 : null;
 		return {
 			week,
@@ -88,7 +95,7 @@ const goal = {
 	id: 3,
 	name: 'Autumn Marathon',
 	start_date: toLocalDateString(goalStart),
-	end_date: toLocalDateString(new Date(goalStart.getTime() + 13 * 7 * DAY_MS)),
+	end_date: toLocalDateString(addDays(goalStart, 13 * 7)),
 	distance: '42.195 km',
 	distance_value: 42.195,
 	distance_unit: 'km',
