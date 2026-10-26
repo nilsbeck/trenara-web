@@ -10,6 +10,12 @@ import { apiRequests } from '#lib/server/security/rate-limit.js';
 
 const tokenManager = TokenManager.getInstance();
 
+// Once per cold start. Vercel shows only the runtime line ("22.x"), never the
+// patch release, so this is the one place a deployment can be checked against
+// a runtime advisory — CVE-2026-111497 was fixed in Node 22.23.4, with the
+// bundled Brotli at 1.2.1.
+console.info(`runtime node=${process.version} brotli=${process.versions.brotli ?? 'none'}`);
+
 /**
  * Resolve who is asking, from the token and nothing else.
  *
