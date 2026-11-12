@@ -179,7 +179,8 @@ describe('goal card forecast basis', () => {
 			screen.getByText(/the plan's [\d.]+s\/km \(3 of the 5 readings yours needs\)/)
 		).toBeTruthy();
 		expect(screen.getByText(/if you follow the rest of the plan|short of goal pace/)).toBeTruthy();
-		expect(container.querySelectorAll('path[stroke-dasharray="5,4"]').length).toBe(0);
+		// And its line is drawn in the trend's place, ending on the projected figure.
+		expect(container.querySelectorAll('path[stroke-dasharray="5,4"]').length).toBe(1);
 	});
 
 	it('does not extend a recovery from a slide to race day', async () => {
@@ -199,6 +200,7 @@ describe('goal card forecast basis', () => {
 			/won back ground lost earlier — you are still slower than the 3:35:00 predicted on \w{3} \d+/
 		);
 		expect(screen.queryByText(/at your last 14 days'/)).toBeNull();
-		expect(container.querySelectorAll('path[stroke-dasharray="5,4"]').length).toBe(0);
+		// The plan's forecast is still a line to read, not only a figure.
+		expect(container.querySelectorAll('path[stroke-dasharray="5,4"]').length).toBe(1);
 	});
 });

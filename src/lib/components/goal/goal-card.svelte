@@ -498,13 +498,23 @@
 		}
 	}
 
+	/**
+	 * The dashed line: whichever projection the race-day figure comes from.
+	 *
+	 * The trend when there is one, the forecast otherwise. This used to draw
+	 * the trend or nothing, so whenever the trend stood aside (no km logged,
+	 * or a fortnight that only won back lost ground) the chart lost its line
+	 * while the table still quoted the forecast's figure beside it.
+	 */
+	const projectionPoints = $derived(recentLine?.points ?? raceForecast?.points ?? null);
+
 	const chartLines = $derived(
-		recentLine
+		projectionPoints
 			? [
 					{
 						label: 'Forecast',
 						colour: '#ec4899',
-						points: recentLine.points.map((point) => ({
+						points: projectionPoints.map((point) => ({
 							date: point.date,
 							seconds: point.seconds,
 							detail: forecastDetail(point)
