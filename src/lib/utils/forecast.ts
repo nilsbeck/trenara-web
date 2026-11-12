@@ -482,7 +482,12 @@ export type RecentTrendGap =
 	/** The readings for this goal reach back fewer than `MIN_RECENT_DAYS`. */
 	| { reason: 'few-days'; days: number; needed: number }
 	/** Nothing logged as run in the window, so there is nothing to divide by. */
-	| { reason: 'no-km'; days: number };
+	| { reason: 'no-km'; days: number }
+	/**
+	 * The window's gains only win back ground lost before it: today's
+	 * prediction is still no better than one already recorded for this goal.
+	 */
+	| { reason: 'recovering'; days: number; bestSeconds: number; bestDate: string };
 
 export function isRecentTrend(recent: RecentTrend | RecentTrendGap): recent is RecentTrend {
 	return 'endSeconds' in recent;
@@ -525,7 +530,7 @@ export function recentTrend({
 	raceDay: Date;
 }): RecentTrend | RecentTrendGap {
 	const points = samples
-		.map((s) => ({ stamp: stampOf(s.date), seconds: s.seconds }))
+		.map((s) => ({ date: s.date, stamp: stampOf(s.date), seconds: s.seconds }))
 		.filter((p) => Number.isFinite(p.stamp) && Number.isFinite(p.seconds))
 		.sort((a, b) => a.stamp - b.stamp);
 	if (points.length === 0) return { reason: 'no-readings' };
@@ -534,9 +539,19 @@ export function recentTrend({
 	// Readings are only written when the prediction changes, so the last one at
 	// or before the window opens is still what the prediction was when it did.
 	// Without one, the window starts at the first reading there is.
-	const before = points.filter((p) => p.stamp <= windowStart).at(-1);
+	const earlier = points.filter((p) => p.stamp <= windowStart);
+	const before = earlier.at(-1);
 	const baseline = before ?? points[0];
 	const from = before ? windowStart : baseline.stamp;
+
+	// The fastest this goal has already been predicted at, before the window.
+	// Gains are counted from here when it is faster than where the window
+	// opened: a window that opens at the top of a slide otherwise "gains"
+	// every second of climbing back down it, and extending that recovery to
+	// race day promised a 2:50 to a runner predicted at 3:00 a month earlier
+	// and 3:04 that day. Winning back fitness already shown is not new
+	// fitness, and does not say what the next fortnight will add.
+	const best = earlier.reduce((a, b) => (b.seconds < a.seconds ? b : a), baseline);
 
 	const days = (now.getTime() - from) / DAY_MS;
 	if (!(days >= MIN_RECENT_DAYS)) {
@@ -549,7 +564,16 @@ export function recentTrend({
 	const km = volumeBetween(done, new Date(from), new Date(now.getTime() + WEEK_MS));
 	if (!(km > 0)) return { reason: 'no-km', days: Math.round(days) };
 
-	const gainSeconds = baseline.seconds - nowSeconds;
+	if (best.seconds < baseline.seconds && nowSeconds >= best.seconds) {
+		return {
+			reason: 'recovering',
+			days: Math.round(days),
+			bestSeconds: best.seconds,
+			bestDate: best.date
+		};
+	}
+
+	const gainSeconds = best.seconds - nowSeconds;
 	const secondsPerKm = gainSeconds / km;
 
 	// Same cap as the forecast, for the same reason: the remaining plan is never
