@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeAll, afterEach } from 'vitest';
 import { render, screen, waitFor, cleanup, fireEvent } from '@testing-library/svelte';
 import TrainingDetails from '#lib/components/calendar/training-details.svelte';
-import type { ScheduledTraining } from '#lib/server/trenara/types.js';
+import type { Entry, ScheduledTraining } from '#lib/server/trenara/types.js';
 
 const base: ScheduledTraining = {
 	id: 42,
@@ -890,5 +890,35 @@ describe('the pacing plan on race day', () => {
 			)
 		);
 		vi.unstubAllGlobals();
+	});
+});
+
+describe('a session already run', () => {
+	afterEach(() => vi.unstubAllGlobals());
+
+	it('offers no move to another day', async () => {
+		// Trenara leaves `can_be_edited` true on a session once it has been run,
+		// so the move-date button stayed behind after every other control had
+		// gone — moving a run that already happened to another day.
+		vi.stubGlobal('fetch', vi.fn());
+		const entry = { id: 555, type: 'run', rpe: 5 } as unknown as Entry;
+		render(TrainingDetails, {
+			props: { selectedDate: '2026-08-22', training: base, entry, isLoading: false }
+		});
+
+		await waitFor(() => expect(screen.getAllByText('Tempo run').length).toBeGreaterThan(0));
+		expect(screen.queryByRole('button', { name: 'Change date' })).toBeNull();
+	});
+
+	it('still offers it before the run', async () => {
+		vi.stubGlobal(
+			'fetch',
+			vi.fn().mockResolvedValue({ ok: true, status: 200, json: async () => detail })
+		);
+		render(TrainingDetails, {
+			props: { selectedDate: '2026-08-22', training: base, entry: null, isLoading: false }
+		});
+
+		expect(await screen.findByRole('button', { name: 'Change date' })).toBeTruthy();
 	});
 });

@@ -85,8 +85,14 @@
 	// Show delete only for scheduled (unexecuted) trainings on today or future
 	// dates that the plan actually allows editing. `can_be_edited` is false on
 	// sessions Trenara pins — the goal race, for one — and offering delete there
-	// only produces a rejected call. The move-date control beside it already
-	// checks the same flag.
+	// only produces a rejected call. The move-date control beside it
+	// (`canMove`) checks the same flag.
+	// Move only a session not yet run. `can_be_edited` stays true on a session
+	// once it has been run, so on its own it left the move-date button behind
+	// after every other control had gone, offering to move a run that already
+	// happened. Unlike delete, a missed session in the past can still move.
+	const canMove = $derived(training !== null && training.can_be_edited && entry === null);
+
 	const canDelete = $derived(
 		training !== null && training.can_be_edited && entry === null && isTodayOrFuture
 	);
@@ -397,7 +403,7 @@
 						<Repeat class="h-5 w-5" />
 					</button>
 				{/if}
-				{#if training?.can_be_edited}
+				{#if canMove && training}
 					<ChangeDateModal
 						{training}
 						{selectedDate}
