@@ -91,6 +91,11 @@
 	// once it has been run, so on its own it left the move-date button behind
 	// after every other control had gone, offering to move a run that already
 	// happened. Unlike delete, a missed session in the past can still move.
+	// A rating on a day already gone is shown, not reopened. Only a rated one:
+	// a past run that was never rated still needs its rating, and the star is
+	// one of the two ways to give it.
+	const ratingSettled = $derived(entry != null && entry.rpe != null && !isTodayOrFuture);
+
 	const canMove = $derived(training !== null && training.can_be_edited && entry === null);
 
 	const canDelete = $derived(
@@ -386,7 +391,7 @@
 					<TreadmillMode training={shownTraining} />
 				{/if}
 				{#if entry && training}
-					<GiveFeedbackModal {training} {entry} onRated={onEntryChanged} />
+					<GiveFeedbackModal {training} {entry} onRated={onEntryChanged} readonly={ratingSettled} />
 				{/if}
 				{#if canChangeSession}
 					<!--
