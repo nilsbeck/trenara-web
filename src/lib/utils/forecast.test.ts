@@ -586,6 +586,54 @@ describe('recentTrend', () => {
 		expect(result.endSeconds).toBe(3700);
 	});
 
+	it('does not count winning back lost ground as new fitness', () => {
+		// 3600 at the start, a slide to 3960 by day 21, and back to 3800 by
+		// today. The fortnight from the top of the slide "gains" 160s, but the
+		// runner is still 200s slower than they already were: extending that
+		// recovery to race day promised a goal the runner had never been near.
+		const result = recentTrend({
+			nowSeconds: 3800,
+			now: day(35),
+			goalSeconds: 3000,
+			samples: [
+				{ date: iso(0), seconds: 3600 },
+				{ date: iso(14), seconds: 3800 },
+				{ date: iso(21), seconds: 3960 },
+				{ date: iso(28), seconds: 3880 }
+			],
+			done,
+			planned: weeks(10, 50),
+			raceDay: day(70)
+		});
+
+		expect(result).toEqual({
+			reason: 'recovering',
+			days: 14,
+			bestSeconds: 3600,
+			bestDate: iso(0)
+		});
+	});
+
+	it('counts only the gain past the best reading before the window', () => {
+		// Same slide, but today is 100s past the earlier best: only those 100s
+		// are new, over the fortnight's 100 km.
+		const result = recentTrend({
+			nowSeconds: 3500,
+			now: day(35),
+			goalSeconds: 3000,
+			samples: [
+				{ date: iso(0), seconds: 3600 },
+				{ date: iso(21), seconds: 3960 }
+			],
+			done,
+			planned: weeks(10, 50),
+			raceDay: day(70)
+		}) as RecentTrend;
+
+		expect(result.gainSeconds).toBe(100);
+		expect(result.secondsPerKm).toBeCloseTo(1, 6);
+	});
+
 	it('says how many days it has when the readings reach back less than a week', () => {
 		expect(
 			recentTrend({

@@ -85,8 +85,19 @@
 	// Show delete only for scheduled (unexecuted) trainings on today or future
 	// dates that the plan actually allows editing. `can_be_edited` is false on
 	// sessions Trenara pins — the goal race, for one — and offering delete there
-	// only produces a rejected call. The move-date control beside it already
-	// checks the same flag.
+	// only produces a rejected call. The move-date control beside it
+	// (`canMove`) checks the same flag.
+	// Move only a session not yet run. `can_be_edited` stays true on a session
+	// once it has been run, so on its own it left the move-date button behind
+	// after every other control had gone, offering to move a run that already
+	// happened. Unlike delete, a missed session in the past can still move.
+	// A rating on a day already gone is shown, not reopened. Only a rated one:
+	// a past run that was never rated still needs its rating, and the star is
+	// one of the two ways to give it.
+	const ratingSettled = $derived(entry != null && entry.rpe != null && !isTodayOrFuture);
+
+	const canMove = $derived(training !== null && training.can_be_edited && entry === null);
+
 	const canDelete = $derived(
 		training !== null && training.can_be_edited && entry === null && isTodayOrFuture
 	);
@@ -380,7 +391,7 @@
 					<TreadmillMode training={shownTraining} />
 				{/if}
 				{#if entry && training}
-					<GiveFeedbackModal {training} {entry} onRated={onEntryChanged} />
+					<GiveFeedbackModal {training} {entry} onRated={onEntryChanged} readonly={ratingSettled} />
 				{/if}
 				{#if canChangeSession}
 					<!--
@@ -397,7 +408,7 @@
 						<Repeat class="h-5 w-5" />
 					</button>
 				{/if}
-				{#if training?.can_be_edited}
+				{#if canMove && training}
 					<ChangeDateModal
 						{training}
 						{selectedDate}

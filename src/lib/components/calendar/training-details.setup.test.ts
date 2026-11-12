@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeAll, afterEach } from 'vitest';
 import { render, screen, waitFor, cleanup, fireEvent } from '@testing-library/svelte';
 import TrainingDetails from '#lib/components/calendar/training-details.svelte';
-import type { ScheduledTraining } from '#lib/server/trenara/types.js';
+import type { Entry, ScheduledTraining } from '#lib/server/trenara/types.js';
 
 const base: ScheduledTraining = {
 	id: 42,
@@ -890,5 +890,69 @@ describe('the pacing plan on race day', () => {
 			)
 		);
 		vi.unstubAllGlobals();
+	});
+});
+
+describe('a session already run', () => {
+	afterEach(() => vi.unstubAllGlobals());
+
+	it('offers no move to another day', async () => {
+		// Trenara leaves `can_be_edited` true on a session once it has been run,
+		// so the move-date button stayed behind after every other control had
+		// gone — moving a run that already happened to another day.
+		vi.stubGlobal('fetch', vi.fn());
+		const entry = { id: 555, type: 'run', rpe: 5 } as unknown as Entry;
+		render(TrainingDetails, {
+			props: { selectedDate: '2026-08-22', training: base, entry, isLoading: false }
+		});
+
+		await waitFor(() => expect(screen.getAllByText('Tempo run').length).toBeGreaterThan(0));
+		expect(screen.queryByRole('button', { name: 'Change date' })).toBeNull();
+	});
+
+	it('still offers it before the run', async () => {
+		vi.stubGlobal(
+			'fetch',
+			vi.fn().mockResolvedValue({ ok: true, status: 200, json: async () => detail })
+		);
+		render(TrainingDetails, {
+			props: { selectedDate: '2026-08-22', training: base, entry: null, isLoading: false }
+		});
+
+		expect(await screen.findByRole('button', { name: 'Change date' })).toBeTruthy();
+	});
+
+	it('shows a past rating without offering to change it', async () => {
+		vi.stubGlobal('fetch', vi.fn());
+		const entry = { id: 555, type: 'run', rpe: 6 } as unknown as Entry;
+		render(TrainingDetails, {
+			props: { selectedDate: '2020-01-06', training: base, entry, isLoading: false }
+		});
+
+		const rating = await screen.findByRole('img', { name: 'Rated 6 of 10' });
+		expect(rating.textContent).toContain('6');
+		expect(screen.queryByRole('button', { name: 'Give feedback' })).toBeNull();
+	});
+
+	it("keeps today's rating open to change", async () => {
+		vi.stubGlobal('fetch', vi.fn());
+		const today = new Date();
+		const iso = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+		const entry = { id: 555, type: 'run', rpe: 6 } as unknown as Entry;
+		render(TrainingDetails, {
+			props: { selectedDate: iso, training: base, entry, isLoading: false }
+		});
+
+		expect(await screen.findByRole('button', { name: 'Give feedback' })).toBeTruthy();
+	});
+
+	it('still lets a past run that was never rated be rated', async () => {
+		vi.stubGlobal('fetch', vi.fn());
+		const entry = { id: 555, type: 'run', rpe: null } as unknown as Entry;
+		render(TrainingDetails, {
+			props: { selectedDate: '2020-01-06', training: base, entry, isLoading: false }
+		});
+
+		expect(await screen.findByRole('button', { name: 'Give feedback' })).toBeTruthy();
 	});
 });

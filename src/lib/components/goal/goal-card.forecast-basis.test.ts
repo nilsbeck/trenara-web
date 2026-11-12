@@ -179,6 +179,28 @@ describe('goal card forecast basis', () => {
 			screen.getByText(/the plan's [\d.]+s\/km \(3 of the 5 readings yours needs\)/)
 		).toBeTruthy();
 		expect(screen.getByText(/if you follow the rest of the plan|short of goal pace/)).toBeTruthy();
-		expect(container.querySelectorAll('path[stroke-dasharray="5,4"]').length).toBe(0);
+		// And its line is drawn in the trend's place, ending on the projected figure.
+		expect(container.querySelectorAll('path[stroke-dasharray="5,4"]').length).toBe(1);
+	});
+
+	it('does not extend a recovery from a slide to race day', async () => {
+		// 3:35 five weeks ago, a slide to 3:43:20, and part of the way back to
+		// 3:40 today. The fortnight from the top of the slide looks like a gain,
+		// but the runner is still slower than they already were: the card used
+		// to project that climb back onto race day as if it were new fitness.
+		const slid = {
+			...userStats,
+			best_times: { time_for_goal: '03:40:00', pace_for_goal: '5:13 min/km' }
+		} as unknown as UserStats;
+		const history = [reading(34, 12900), reading(20, 13300), reading(14, 13400), reading(7, 13250)];
+		const { container } = render(GoalCard, { props: { goal, userStats: slid, history } });
+
+		const note = await screen.findByTestId('no-recent-line');
+		expect(note.textContent).toMatch(
+			/won back ground lost earlier — you are still slower than the 3:35:00 predicted on \w{3} \d+/
+		);
+		expect(screen.queryByText(/at your last 14 days'/)).toBeNull();
+		// The plan's forecast is still a line to read, not only a figure.
+		expect(container.querySelectorAll('path[stroke-dasharray="5,4"]').length).toBe(1);
 	});
 });

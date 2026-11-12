@@ -30,7 +30,7 @@
 	import { readPlanWeeks } from '#lib/utils/plan-weeks.js';
 	import { paceTrend, splitByGoalDistance } from '#lib/utils/prediction-graph.js';
 	import { impliedDistanceKm } from '#lib/utils/race-equivalent.js';
-	import { toDate, weeksRemaining } from '#lib/utils/date.js';
+	import { parseLocalDateString, toDate, weeksRemaining } from '#lib/utils/date.js';
 	import {
 		timeStringToSeconds,
 		paceStringToSeconds,
@@ -337,6 +337,14 @@
 		}
 	}
 
+	/** `Oct 5` for a bare `YYYY-MM-DD`, read as the local day it names. */
+	function localDay(date: string): string {
+		return (
+			parseLocalDateString(date)?.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) ??
+			date
+		);
+	}
+
 	/** Why the graph has no trend line, in place of one. */
 	function whyNoRecentTrend(gap: RecentTrendGap): string {
 		switch (gap.reason) {
@@ -346,6 +354,8 @@
 				return `readings reach back ${gap.days} of the ${gap.needed} days it needs.`;
 			case 'no-km':
 				return `no km logged as run in the last ${gap.days} days.`;
+			case 'recovering':
+				return `the last ${gap.days} days won back ground lost earlier — you are still slower than the ${secondsToTimeString(gap.bestSeconds)} predicted on ${localDay(gap.bestDate)} — so they say nothing yet about new fitness.`;
 		}
 	}
 
@@ -488,13 +498,23 @@
 		}
 	}
 
+	/**
+	 * The dashed line: whichever projection the race-day figure comes from.
+	 *
+	 * The trend when there is one, the forecast otherwise. This used to draw
+	 * the trend or nothing, so whenever the trend stood aside (no km logged,
+	 * or a fortnight that only won back lost ground) the chart lost its line
+	 * while the table still quoted the forecast's figure beside it.
+	 */
+	const projectionPoints = $derived(recentLine?.points ?? raceForecast?.points ?? null);
+
 	const chartLines = $derived(
-		recentLine
+		projectionPoints
 			? [
 					{
 						label: 'Forecast',
 						colour: '#ec4899',
-						points: recentLine.points.map((point) => ({
+						points: projectionPoints.map((point) => ({
 							date: point.date,
 							seconds: point.seconds,
 							detail: forecastDetail(point)
