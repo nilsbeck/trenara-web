@@ -79,6 +79,44 @@ describe('sharedSnapshotSchema', () => {
 	// deploy ahead of this one, or a shape from before this table existed.
 	// Rejecting it is what turns into the public route's "not updated yet"
 	// state rather than a crash.
+	// What Trenara actually sends for a goal past its first week: a finished
+	// week has no `todo*` left, and an upcoming one no `done*` yet. Rejecting
+	// the first kept every real shared link on "not updated yet".
+	it('parses finished weeks with null todo and upcoming weeks with null done', () => {
+		const row = stats.graph_stats.goal.data[0];
+		const snapshot = projectSnapshot(goal, {
+			...stats,
+			graph_stats: {
+				goal: {
+					...stats.graph_stats.goal,
+					data: [
+						{
+							...row,
+							is_current_week: false,
+							todo: null,
+							todo_value: null,
+							todo_unit: null,
+							todo_unit_text: null
+						},
+						{ ...row, week: 2, order: 2 },
+						{
+							...row,
+							week: 3,
+							order: 3,
+							is_current_week: false,
+							done: null,
+							done_value: null,
+							done_unit: null,
+							done_unit_text: null
+						}
+					]
+				}
+			}
+		} as unknown as UserStats);
+		// Through JSON, as it comes back out of the jsonb column.
+		expect(sharedSnapshotSchema.safeParse(JSON.parse(JSON.stringify(snapshot))).success).toBe(true);
+	});
+
 	it('rejects a version this schema carries no arm for', () => {
 		const snapshot = projectSnapshot(goal, stats);
 		expect(sharedSnapshotSchema.safeParse({ ...snapshot, v: 2 }).success).toBe(false);
