@@ -60,6 +60,18 @@ async function moveTo(container: HTMLElement, fraction: number) {
 describe('endurance chart', () => {
 	afterEach(cleanup);
 
+	// Same day printed twice across a year: see the prediction chart's test.
+	it('draws two readings a year apart that print the same day', () => {
+		const yearApart = [
+			{ date: '2025-11-13', exponent: 1.07 },
+			{ date: '2026-05-13', exponent: 1.06 },
+			{ date: '2026-11-13', exponent: 1.05 }
+		];
+		const { container } = mount({ data: yearApart });
+		const labels = [...container.querySelectorAll('text')].map((t) => t.textContent?.trim());
+		expect(labels.filter((l) => l === 'Nov 13')).toHaveLength(2);
+	});
+
 	it('prices the axis in marathons rather than in exponents', () => {
 		// 1.06 is a number nobody has intuition for; "4.60x your 10K" is the same
 		// fact and can be read.
