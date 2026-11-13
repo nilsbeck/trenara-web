@@ -124,12 +124,20 @@
 
 	const xLabels = $derived.by(() => {
 		if (data.length === 0) return [];
-		const picked: { x: number; label: string; isLatest: boolean }[] = [];
+		const picked: { x: number; label: string; date: string; isLatest: boolean }[] = [];
 
 		for (let i = data.length - 1; i >= 0; i--) {
 			const x = xPos(i);
 			if (picked.length > 0 && picked[picked.length - 1].x - x < MIN_LABEL_SPACING) continue;
-			picked.push({ x, label: formatDateShort(data[i].date), isLatest: i === data.length - 1 });
+			// Keyed by the reading's date, not the printed label: the label has no
+			// year, so a history longer than a year prints the same day twice
+			// ("Nov 13" in 2025 and in 2026) and the duplicate key took the page down.
+			picked.push({
+				x,
+				label: formatDateShort(data[i].date),
+				date: data[i].date,
+				isLatest: i === data.length - 1
+			});
 		}
 
 		return picked.reverse();
@@ -290,7 +298,7 @@
 						/>
 					{/each}
 
-					{#each xLabels as { x, label, isLatest } (label)}
+					{#each xLabels as { x, label, date, isLatest } (date)}
 						<text
 							{x}
 							y={ch + 17}

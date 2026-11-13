@@ -96,6 +96,23 @@ async function moveTo(container: HTMLElement, fraction: number) {
 describe('prediction chart', () => {
 	afterEach(cleanup);
 
+	// The axis prints a reading's day without its year, and a history longer
+	// than a year has the same day twice. Keyed by that text, the labels
+	// collided the first time a reading landed on the anniversary of the first
+	// one, and Svelte refused the whole page (`each_key_duplicate`) — the
+	// Prediction History page went down on 13 November 2026, a year and a
+	// month after its first record on 13 October 2025.
+	it('draws two readings a year apart that print the same day', () => {
+		const yearApart = [
+			{ ...readings[0], date: '2025-11-13' },
+			{ ...readings[1], date: '2026-05-13' },
+			{ ...readings[2], date: '2026-11-13' }
+		];
+		const { container } = mount({ data: yearApart, domainEnd: undefined });
+		const labels = [...container.querySelectorAll('text')].map((t) => t.textContent?.trim());
+		expect(labels.filter((l) => l === 'Nov 13')).toHaveLength(2);
+	});
+
 	it('gives every forecast vertex a dot of its own', () => {
 		const { container } = mount({ projections: [forecastSeries] });
 		const dots = container.querySelectorAll(`circle[fill="${forecastSeries.colour}"]`);
