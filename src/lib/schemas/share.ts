@@ -14,10 +14,14 @@ const planWeekRow = z.object({
 	done_value: z.number().nullable(),
 	done_unit: z.string().nullable(),
 	done_unit_text: z.string().nullable(),
-	todo: z.string(),
-	todo_value: z.number(),
-	todo_unit: z.string(),
-	todo_unit_text: z.string()
+	// Null on a week with nothing left to do — every finished week of a goal,
+	// as `UserStats['graph_stats']['goal']['data']` already says. Required
+	// here, it failed every snapshot from a goal's second week on, and the
+	// shared page read that as "not updated yet" forever.
+	todo: z.string().nullable(),
+	todo_value: z.number().nullable(),
+	todo_unit: z.string().nullable(),
+	todo_unit_text: z.string().nullable()
 });
 
 const planWeeks = z.object({

@@ -1213,10 +1213,11 @@ export interface UserStats {
 				done_value: number | null;
 				done_unit: string | null;
 				done_unit_text: string | null;
-				todo: string;
-				todo_value: number;
-				todo_unit: string;
-				todo_unit_text: string;
+				// Null on a finished week with nothing left planned.
+				todo: string | null;
+				todo_value: number | null;
+				todo_unit: string | null;
+				todo_unit_text: string | null;
 			}>;
 			done: string;
 			done_value: number;

@@ -187,6 +187,24 @@ describe('PUT /api/v1/goal-share', () => {
 		expect(mockIssue).toHaveBeenCalledWith(42, 7, expect.anything());
 	});
 
+	it('writes the first snapshot for the rotated link', async () => {
+		await PUT(makeEvent({ method: 'PUT' }));
+		expect(mockRefreshSnapshot).toHaveBeenCalledWith(42, 7, expect.anything());
+	});
+
+	it('still answers with the new link when the stats read fails', async () => {
+		mockGetUserStats.mockRejectedValue(new Error('upstream down'));
+		const res = await PUT(makeEvent({ method: 'PUT' }));
+		expect((await res.json()).token).toBe(shareRow.token);
+		expect(mockRefreshSnapshot).not.toHaveBeenCalled();
+	});
+
+	it('refuses without an active goal', async () => {
+		mockGetGoal.mockRejectedValue(new HttpError('No result found', 404));
+		await expect(PUT(makeEvent({ method: 'PUT' }))).rejects.toThrow();
+		expect(mockIssue).not.toHaveBeenCalled();
+	});
+
 	it('is limited per user', async () => {
 		mockCheck.mockReturnValue({ allowed: false, retryAfterSeconds: 30 });
 		await expect(PUT(makeEvent({ method: 'PUT' }))).rejects.toThrow();

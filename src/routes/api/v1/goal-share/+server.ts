@@ -115,16 +115,23 @@ export const PUT: RequestHandler = async ({ cookies, request, locals, url }) => 
 		error(429, 'Too many updates. Please slow down.');
 	}
 
-	const [goalId, title, account] = await Promise.all([
-		currentGoalId(cookies),
+	const [goal, title, account] = await Promise.all([
+		passthroughOptional(() => trainingApi.getGoal(cookies)),
 		parseTitle(request),
 		passthrough(() => userApi.getCurrentUser(cookies))
 	]);
+	if (!goal) error(400, 'There is no active goal to share.');
 
 	const issued = await fromStorage(
-		() => goalShareDAO.issue(user.id, goalId, { title, display_name: account.first_name || null }),
+		() => goalShareDAO.issue(user.id, goal.id, { title, display_name: account.first_name || null }),
 		STORAGE_WRITE_MESSAGE
 	);
+
+	// A rotated link is a new row with no snapshot, exactly like a first one,
+	// so it gets its first snapshot the same way POST's does — otherwise the
+	// new link reads "not updated yet" until the runner next opens the app.
+	const stats = await userApi.getUserStats(cookies).catch(() => null);
+	await refreshShareSnapshot(user.id, goal, stats);
 
 	return Response.json({
 		token: issued.token,
