@@ -64,8 +64,14 @@
 		`gap` rather than `lg:space-x-6`: the columns stack until `lg`, and a
 		horizontal-only rule left the cards sitting flush against the calendar at
 		every width below it. One gap covers both directions.
+
+		`max-w-full` here and on the calendar's wrapper below: each is a flex item
+		in a column aligned to the start or centre, which sizes it to its content —
+		the columns' 28rem — so the columns' own `max-w-full` resolved against
+		448px and capped nothing. On a 390px phone the calendar overflowed and was
+		clipped on both sides, Sunday off the edge of the week.
 	-->
-	<div class="flex flex-col items-start justify-center gap-6 lg:flex-row">
+	<div class="flex max-w-full flex-col items-start justify-center gap-6 lg:flex-row">
 		<!--
 			The goal column leads the source and steps behind the calendar from
 			`lg` up.
@@ -151,7 +157,7 @@
 			{/if}
 		</div>
 
-		<div class="flex flex-col items-center lg:order-1 lg:flex-row">
+		<div class="flex max-w-full flex-col items-center lg:order-1 lg:flex-row">
 			<Calendar today={new Date()} schedule={data.schedule} {refreshPageData} />
 		</div>
 	</div>
