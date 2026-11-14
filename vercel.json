@@ -1,6 +1,3 @@
 {
-	"github": {
-		"silent": true
-	},
 	"ignoreCommand": "test \"$VERCEL_PROJECT_ID\" = \"prj_kawOtpukRL5cA7nABAynsxU1h80y\""
 }
