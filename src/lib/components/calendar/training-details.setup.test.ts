@@ -314,6 +314,52 @@ describe('while the detail is still loading', () => {
 		await waitFor(() => expect(screen.getByText('No shoes in your locker yet.')).toBeTruthy());
 		vi.unstubAllGlobals();
 	});
+
+	it('says the locker could not be loaded, not that it is empty, and retries', async () => {
+		let shoeCalls = 0;
+		const fetchMock = vi.fn().mockImplementation((url: string) => {
+			if (url === '/api/v1/shoes') {
+				shoeCalls++;
+				return shoeCalls === 1
+					? Promise.reject(new TypeError('Failed to fetch'))
+					: Promise.resolve({
+							ok: true,
+							status: 200,
+							json: async () => [
+								{
+									id: 6404,
+									brand: 'Adidas',
+									name: 'Boston 13',
+									type: 'super_trainer',
+									distance_done: 445,
+									expected_lifetime_distance: 800,
+									lifetime_percentage: 56,
+									retired_at: null
+								}
+							]
+						});
+			}
+			return Promise.resolve({ ok: true, status: 200, json: async () => detail });
+		});
+		vi.stubGlobal('fetch', fetchMock);
+
+		render(TrainingDetails, {
+			props: { selectedDate: '2026-08-22', training: base, entry: null, isLoading: false }
+		});
+
+		await waitFor(() => expect(screen.getAllByText('Shoe').length).toBeGreaterThan(0));
+		await fireEvent.click(screen.getAllByText('Shoe')[0]);
+
+		await waitFor(() => expect(screen.getByTestId('shoes-failed')).toBeTruthy());
+		expect(screen.queryByText('No shoes in your locker yet.')).toBeNull();
+		expect(screen.queryByText(/Loading your shoes/)).toBeNull();
+
+		await fireEvent.click(screen.getByRole('button', { name: 'Try again' }));
+		await waitFor(() => expect(screen.getByText(/Boston 13/)).toBeTruthy());
+		expect(screen.queryByTestId('shoes-failed')).toBeNull();
+		expect(shoeCalls).toBe(2);
+		vi.unstubAllGlobals();
+	});
 });
 
 describe('cool-down', () => {
@@ -723,6 +769,50 @@ describe('changing the session from the card', () => {
 		await fireEvent.click(changeSession);
 
 		await waitFor(() => expect(screen.getByText('Change this session')).toBeTruthy());
+		vi.unstubAllGlobals();
+	});
+
+	it('says the alternatives could not be loaded, not that there are none, and retries', async () => {
+		let exchangeCalls = 0;
+		const fetchMock = vi.fn().mockImplementation((url: string) => {
+			if (url.endsWith('/exchange')) {
+				exchangeCalls++;
+				return Promise.resolve(
+					exchangeCalls === 1
+						? { ok: false, status: 503, headers: new Headers(), json: async () => ({}) }
+						: {
+								ok: true,
+								status: 200,
+								json: async () => [
+									{
+										id: 991,
+										title: 'Fartlek',
+										cross_type: null,
+										hex_training: '#f59e0b',
+										training: { total_distance: '10km', total_time: '00:50:00' }
+									}
+								]
+							}
+				);
+			}
+			return Promise.resolve({ ok: true, status: 200, json: async () => swappable });
+		});
+		vi.stubGlobal('fetch', fetchMock);
+
+		render(TrainingDetails, {
+			props: { selectedDate: '2026-08-22', training: base, entry: null, isLoading: false }
+		});
+		await fireEvent.click(
+			await waitFor(() => screen.getByRole('button', { name: 'Change session' }))
+		);
+
+		await waitFor(() => expect(screen.getByTestId('candidates-failed')).toBeTruthy());
+		expect(screen.queryByText('No alternatives offered for this session.')).toBeNull();
+
+		await fireEvent.click(screen.getByRole('button', { name: 'Try again' }));
+		await waitFor(() => expect(screen.getByText('Fartlek')).toBeTruthy());
+		expect(screen.queryByTestId('candidates-failed')).toBeNull();
+		expect(exchangeCalls).toBe(2);
 		vi.unstubAllGlobals();
 	});
 

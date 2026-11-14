@@ -463,7 +463,23 @@
 				life is visible before you pick it.
 			</p>
 
-			{#if store.shoes === null}
+			{#if store.shoesFailed}
+				<!-- Not "no shoes": the locker could not be read. Said apart from
+				     the empty state, with a way to ask again. -->
+				<div
+					class="flex flex-col items-center gap-2 py-4 text-center text-xs text-muted-foreground"
+					data-testid="shoes-failed"
+				>
+					<p>Your shoes could not be loaded.</p>
+					<button
+						type="button"
+						onclick={() => void store.loadShoes()}
+						class="rounded-md border border-border px-3 py-1.5 font-medium text-foreground hover:bg-foreground/5"
+					>
+						Try again
+					</button>
+				</div>
+			{:else if store.shoes === null}
 				<!-- The locker is a separate fetch, made the first time this section
 				     opens. A spinner says the list is coming; bare text read as the
 				     answer itself. -->
@@ -584,7 +600,21 @@
 				>
 					Another session
 				</p>
-				{#if store.candidates === null}
+				{#if store.candidatesFailed}
+					<div
+						class="flex flex-col items-center gap-2 py-3 text-center text-xs text-muted-foreground"
+						data-testid="candidates-failed"
+					>
+						<p>The alternatives could not be loaded.</p>
+						<button
+							type="button"
+							onclick={() => void store.loadCandidates()}
+							class="rounded-md border border-border px-3 py-1.5 font-medium text-foreground hover:bg-foreground/5"
+						>
+							Try again
+						</button>
+					</div>
+				{:else if store.candidates === null}
 					<p
 						class="flex items-center justify-center gap-2 py-3 text-xs text-muted-foreground"
 						role="status"

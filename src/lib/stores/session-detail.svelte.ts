@@ -41,6 +41,18 @@ export class SessionDetailStore {
 	shoes = $state<Shoe[] | null>(null);
 	candidates = $state<ExchangeCandidate[] | null>(null);
 
+	/**
+	 * Whether the last load of each picker list failed. A failure used to land
+	 * as an empty list, so the shoe picker said "No shoes in your locker yet"
+	 * under a banner telling the runner to try again — and the empty list
+	 * counted as loaded, so trying again never fetched anything. `null` is
+	 * "not here yet", `[]` is "none", and these say "could not load".
+	 */
+	shoesFailed = $state(false);
+	candidatesFailed = $state(false);
+	#shoesError: string | null = null;
+	#candidatesError: string | null = null;
+
 	/** Which setting is mid-flight, so its own control can show it. */
 	pending = $state<SettingKey | null>(null);
 	error = $state<string | null>(null);
@@ -70,6 +82,7 @@ export class SessionDetailStore {
 		this.#detailRequest?.abort();
 		this.detail = null;
 		this.candidates = null;
+		this.candidatesFailed = false;
 		this.pending = null;
 		this.error = null;
 		this.undoable = null;
@@ -106,30 +119,46 @@ export class SessionDetailStore {
 		}
 	}
 
-	/** The user's shoes, fetched once, the first time the picker opens. */
+	/**
+	 * The user's shoes, fetched once, the first time the picker opens — and
+	 * again only after a failure, when the runner asks to try again.
+	 */
 	async loadShoes(): Promise<void> {
 		if (this.shoes) return;
+		this.shoesFailed = false;
+		this.#clearOwnError(this.#shoesError);
 		try {
 			const res = await fetch('/api/v1/shoes');
 			if (!res.ok) throw new Error(await describeResponse(res, 'Could not load your shoes.'));
 			this.shoes = await res.json();
 		} catch (e) {
-			this.shoes = [];
-			this.error = describeError(e, 'Could not load your shoes.');
+			this.shoesFailed = true;
+			this.error = this.#shoesError = describeError(e, 'Could not load your shoes.');
 		}
 	}
 
 	/** Alternatives for this session, fetched when the workout picker opens. */
 	async loadCandidates(): Promise<void> {
 		if (this.candidates || this.#trainingId == null) return;
+		this.candidatesFailed = false;
+		this.#clearOwnError(this.#candidatesError);
 		try {
 			const res = await fetch(`/api/v1/training/${this.#trainingId}/exchange`);
 			if (!res.ok) throw new Error(await describeResponse(res, 'Could not load the alternatives.'));
 			this.candidates = await res.json();
 		} catch (e) {
-			this.candidates = [];
-			this.error = describeError(e, 'Could not load the alternatives.');
+			this.candidatesFailed = true;
+			this.error = this.#candidatesError = describeError(e, 'Could not load the alternatives.');
 		}
+	}
+
+	/**
+	 * A retry takes down the banner its own failure put up, and only that one:
+	 * `error` is shared with every mutation on the card, and an unrelated
+	 * failure must stay on screen.
+	 */
+	#clearOwnError(own: string | null): void {
+		if (own !== null && this.error === own) this.error = null;
 	}
 
 	/**
@@ -286,7 +315,10 @@ export class SessionDetailStore {
 			this.#onChange?.(detail);
 			// Replacing the session — by either route — leaves the cached
 			// alternatives describing a training that is no longer there.
-			if (key === 'session') this.candidates = null;
+			if (key === 'session') {
+				this.candidates = null;
+				this.candidatesFailed = false;
+			}
 			return true;
 		} catch (e) {
 			if (this.#trainingId === trainingId) {
