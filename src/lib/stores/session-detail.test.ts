@@ -375,6 +375,48 @@ describe('SessionDetailStore', () => {
 		expect(fetchMock.mock.calls.filter(([url]) => url === '/api/v1/shoes')).toHaveLength(1);
 	});
 
+	// A failed fetch used to land as an empty list: the picker said "No shoes
+	// in your locker yet" under a banner saying "please try again" — and the
+	// empty list counted as loaded, so trying again never fetched anything.
+	it('keeps a failed shoe load apart from an empty locker, and retries it', async () => {
+		const fetchMock = vi.mocked(fetch);
+		fetchMock.mockResolvedValueOnce(jsonResponse(detail()));
+		const store = new SessionDetailStore();
+		store.load(42);
+		await vi.waitFor(() => expect(store.detail).not.toBeNull());
+
+		fetchMock.mockRejectedValueOnce(new TypeError('Failed to fetch'));
+		await store.loadShoes();
+		expect(store.shoes).toBeNull();
+		expect(store.shoesFailed).toBe(true);
+		expect(store.error).not.toBeNull();
+
+		fetchMock.mockResolvedValueOnce(jsonResponse([{ id: 6404 }]));
+		await store.loadShoes();
+		expect(store.shoes).toEqual([{ id: 6404 }]);
+		expect(store.shoesFailed).toBe(false);
+		// the banner was about this load, and this load has now worked
+		expect(store.error).toBeNull();
+	});
+
+	it('keeps a failed alternatives load apart from "none offered", and retries it', async () => {
+		const fetchMock = vi.mocked(fetch);
+		fetchMock.mockResolvedValueOnce(jsonResponse(detail()));
+		const store = new SessionDetailStore();
+		store.load(42);
+		await vi.waitFor(() => expect(store.detail).not.toBeNull());
+
+		fetchMock.mockResolvedValueOnce(jsonResponse({ message: 'Too Many Attempts.' }, 429));
+		await store.loadCandidates();
+		expect(store.candidates).toBeNull();
+		expect(store.candidatesFailed).toBe(true);
+
+		fetchMock.mockResolvedValueOnce(jsonResponse([{ id: 991, title: 'Tempo run' }]));
+		await store.loadCandidates();
+		expect(store.candidates).toEqual([{ id: 991, title: 'Tempo run' }]);
+		expect(store.candidatesFailed).toBe(false);
+	});
+
 	it('ignores a response that arrives after the runner moved on', async () => {
 		const fetchMock = vi.mocked(fetch);
 		fetchMock.mockResolvedValueOnce(jsonResponse(detail({ id: 42 })));
