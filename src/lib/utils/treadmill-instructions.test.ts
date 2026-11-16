@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { buildTreadmillInstructions } from './treadmill-instructions';
+import { blockTypeColor } from './block-color';
 import type { ScheduledTraining, TrainingBlock } from '#lib/server/trenara/types.js';
 
 // ── Helpers ───────────────────────────────────────────────────
@@ -172,6 +173,19 @@ describe('buildTreadmillInstructions', () => {
 		const result = buildTreadmillInstructions(training);
 
 		expect(result[0].title).toBe('jog');
+	});
+
+	it("colours each step as the coach's pace zone does, so it matches the plan behind it", () => {
+		const training = makeTraining([
+			makeBlock({ text: 'Run 5km in 21:05', hex_graph: '#CC3311' }),
+			makeBlock({ text: 'Run 5km in 26:24', hex_graph: '#44A6D3' }),
+			makeBlock({ text: 'Rest', type: 'rest' })
+		]);
+		const [fast, steady, rest] = buildTreadmillInstructions(training);
+
+		expect(fast.color).toBe('#CC3311');
+		expect(steady.color).toBe('#44A6D3');
+		expect(rest.color).toBe(blockTypeColor('rest'));
 	});
 });
 

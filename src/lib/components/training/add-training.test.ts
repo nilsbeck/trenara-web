@@ -131,3 +131,30 @@ describe('AddTraining', () => {
 		expect(onAdded).not.toHaveBeenCalled();
 	});
 });
+
+describe('AddTraining colours', () => {
+	it('draws a candidate in its session colour', async () => {
+		stubFetch(() => json({ canAdd: true, candidates: [recovery] }));
+		render(AddTraining, { date: '2026-10-10', onAdded: vi.fn() });
+
+		await openPicker();
+
+		const option = await screen.findByRole('button', { name: /recovery run/i });
+		const rail = option.querySelector('[aria-hidden="true"]') as HTMLElement;
+		expect(rail.style.backgroundColor).toBe('rgb(144, 207, 241)'); // #90CFF1
+	});
+
+	it('keeps a colour that is not a colour out of the style attribute', async () => {
+		// Escaping does nothing about a `;` inside a style attribute, so a value
+		// like this used to add a declaration of its own and fetch from wherever
+		// it named.
+		const hostile = { ...recovery, hex_training: 'red; background-image: url(https://x.test/a)' };
+		stubFetch(() => json({ canAdd: true, candidates: [hostile] }));
+		render(AddTraining, { date: '2026-10-10', onAdded: vi.fn() });
+
+		await openPicker();
+		await screen.findByRole('button', { name: /recovery run/i });
+
+		expect(document.body.innerHTML).not.toContain('x.test');
+	});
+});

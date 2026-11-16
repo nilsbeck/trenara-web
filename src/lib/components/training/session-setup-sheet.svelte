@@ -32,6 +32,7 @@
 		type SettingKey
 	} from '#lib/utils/session-setup.js';
 	import { appConfig } from '#lib/stores/app-config.svelte.js';
+	import { trainingColor } from '#lib/utils/hex-color.js';
 
 	let {
 		training,
@@ -636,7 +637,7 @@
 						>
 							<span
 								class="h-8 w-1 shrink-0 rounded-full"
-								style="background-color: {candidate.hex_training}"
+								style="background-color: {trainingColor(candidate)}"
 							></span>
 							<span class="min-w-0 flex-1">
 								<span class="block text-sm">{candidate.title}</span>

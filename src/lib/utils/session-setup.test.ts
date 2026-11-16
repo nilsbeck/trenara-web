@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest';
+import { blockTypeColor } from './block-color';
 import {
 	TRAINING_SURFACES,
 	type AppConfig,
@@ -593,6 +594,18 @@ describe('shapeSegments', () => {
 		expect(segments).toHaveLength(1);
 		expect(segments[0].weight).toBeGreaterThan(0);
 		expect(segments[0].color).toBe('#1BB9AA');
+	});
+
+	it('falls back to the colour the plan below draws, not a blue of its own', () => {
+		const training = tempoRun();
+		training.training.blocks = [
+			{ order: 1, type: 'run', distance_value: 5, distance_unit: 'km' },
+			{ order: 2, type: 'rest', hex_graph: 'red; x: y', distance_value: 1, distance_unit: 'km' }
+		];
+		expect(shapeSegments(training).map((s) => s.color)).toEqual([
+			blockTypeColor('run'),
+			blockTypeColor('rest')
+		]);
 	});
 
 	it('skips blocks carrying neither a distance nor a time', () => {

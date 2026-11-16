@@ -1046,3 +1046,85 @@ describe('a session already run', () => {
 		expect(await screen.findByRole('button', { name: 'Give feedback' })).toBeTruthy();
 	});
 });
+
+describe('the session colour', () => {
+	// Escaping does nothing about a `;` inside a style attribute, so a value
+	// like this used to add a declaration of its own and fetch from wherever it
+	// named.
+	const hostile = 'red; background-image: url(https://x.test/a)';
+
+	it('draws the rail and the icon tile in the session colour', async () => {
+		vi.stubGlobal(
+			'fetch',
+			vi.fn().mockResolvedValue({ ok: true, status: 200, json: async () => detail })
+		);
+		render(TrainingDetails, {
+			props: { selectedDate: '2026-08-22', training: base, entry: null, isLoading: false }
+		});
+
+		await screen.findByText('Tempo run');
+		// #E69F00, as the DOM reports it back: the rail as its background, the
+		// icon tile as its glyph colour.
+		const orange = 'rgb(230, 159, 0)';
+		const tinted = Array.from(document.querySelectorAll<HTMLElement>('[style]')).filter(
+			(el) => el.style.backgroundColor === orange || el.style.color === orange
+		);
+		expect(tinted.length).toBeGreaterThanOrEqual(2);
+		vi.unstubAllGlobals();
+	});
+
+	it('keeps a colour that is not a colour out of the header', async () => {
+		const training = { ...base, hex_training: hostile };
+		vi.stubGlobal(
+			'fetch',
+			vi.fn().mockResolvedValue({
+				ok: true,
+				status: 200,
+				json: async () => ({ ...detail, hex_training: hostile })
+			})
+		);
+		render(TrainingDetails, {
+			props: { selectedDate: '2026-08-22', training, entry: null, isLoading: false }
+		});
+
+		await screen.findByText('Tempo run');
+		expect(document.body.innerHTML).not.toContain('x.test');
+		vi.unstubAllGlobals();
+	});
+
+	it('keeps it out of the list of sessions to swap to', async () => {
+		const swappable = { ...detail, can_cross_train: true, can_be_exchanged: true };
+		vi.stubGlobal(
+			'fetch',
+			vi.fn().mockImplementation((url: string) =>
+				Promise.resolve(
+					url.endsWith('/exchange')
+						? {
+								ok: true,
+								status: 200,
+								json: async () => [
+									{
+										id: 991,
+										title: 'Fartlek',
+										cross_type: null,
+										hex_training: hostile,
+										training: { total_distance: '10km', total_time: '00:50:00' }
+									}
+								]
+							}
+						: { ok: true, status: 200, json: async () => swappable }
+				)
+			)
+		);
+		render(TrainingDetails, {
+			props: { selectedDate: '2026-08-22', training: base, entry: null, isLoading: false }
+		});
+		await fireEvent.click(
+			await waitFor(() => screen.getByRole('button', { name: 'Change session' }))
+		);
+
+		await waitFor(() => expect(screen.getByText('Fartlek')).toBeTruthy());
+		expect(document.body.innerHTML).not.toContain('x.test');
+		vi.unstubAllGlobals();
+	});
+});

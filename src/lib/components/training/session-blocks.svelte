@@ -2,7 +2,7 @@
 	import type { TrainingBlock } from '#lib/server/trenara/types.js';
 	import CooldownBlock from '#lib/components/training/cooldown-block.svelte';
 	import TurnaroundMarker from '#lib/components/training/turnaround-marker.svelte';
-	import { blockTypeColor } from '#lib/utils/block-color.js';
+	import { blockColor, blockTypeColor } from '#lib/utils/block-color.js';
 	import { describeTurnaround, type Turnaround } from '#lib/utils/turnaround.js';
 
 	let {
@@ -55,13 +55,11 @@
 					<div class="relative h-4 w-4 shrink-0 overflow-hidden rounded-full">
 						<div
 							class="absolute inset-0 right-1/2"
-							style="background-color: {blockTypeColor(block.blocks[0]?.type)}"
+							style="background-color: {blockColor(block.blocks[0])}"
 						></div>
 						<div
 							class="absolute inset-0 left-1/2"
-							style="background-color: {blockTypeColor(
-								block.blocks[block.blocks.length - 1]?.type
-							)}"
+							style="background-color: {blockColor(block.blocks[block.blocks.length - 1])}"
 						></div>
 					</div>
 					<span class="text-sm font-medium text-foreground">
@@ -79,7 +77,7 @@
 						<div class="flex items-start gap-2 text-sm">
 							<div
 								class="mt-[4px] w-[3px] shrink-0 self-stretch rounded-full"
-								style="background-color: {blockTypeColor(sub.type)}; min-height: 12px"
+								style="background-color: {blockColor(sub)}; min-height: 12px"
 							></div>
 							<span class="leading-snug text-foreground">{sub.text}</span>
 						</div>
@@ -93,7 +91,7 @@
 			<CooldownBlock
 				hasCooldown={true}
 				text={block.text ?? 'Cool-down'}
-				color={blockTypeColor(block.type)}
+				color={blockColor(block)}
 				pending={cooldownPending}
 				onchange={onCooldownChange}
 			/>
@@ -102,7 +100,7 @@
 			<div class="flex items-center gap-2.5 text-sm">
 				<div
 					class="h-4 w-4 shrink-0 rounded-full"
-					style="background-color: {blockTypeColor(block.type)}"
+					style="background-color: {blockColor(block)}"
 				></div>
 				<span class="text-foreground">{block.text}</span>
 			</div>

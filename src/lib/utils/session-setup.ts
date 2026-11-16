@@ -8,6 +8,7 @@ import type {
 	TrainingBlock,
 	TrainingHeightDifference
 } from '#lib/server/trenara/types.js';
+import { blockColor } from './block-color';
 
 /**
  * Session setup: what a runner may change about one planned training, and how
@@ -574,8 +575,6 @@ export interface ShapeSegment {
 	color: string;
 }
 
-const FALLBACK_SEGMENT_COLOR = '#60a5fa';
-
 /**
  * Flatten a training's blocks into weighted segments for the shape bar.
  *
@@ -593,7 +592,9 @@ export function shapeSegments(training: ScheduledTraining): ShapeSegment[] {
 	const push = (block: TrainingBlock) => {
 		const weight = blockWeight(block);
 		if (weight <= 0) return;
-		segments.push({ weight, color: block.hex_graph || FALLBACK_SEGMENT_COLOR });
+		// The same colour the plan below draws for this block, so the bar and the
+		// list read as one picture; see `blockColor` for why it is the coach's.
+		segments.push({ weight, color: blockColor(block) });
 	};
 
 	for (const block of training.training?.blocks ?? []) {

@@ -32,6 +32,7 @@
 	import IntelligenceNote from '#lib/components/training/intelligence-note.svelte';
 	import { intelligenceParagraphs } from '#lib/utils/intelligence.js';
 	import { findTurnaround } from '#lib/utils/turnaround.js';
+	import { trainingColor } from '#lib/utils/hex-color.js';
 	import {
 		activityIcon,
 		cooldownBlockIndex,
@@ -333,22 +334,24 @@
 				{#if entry}
 					<Check class="mt-0.5 h-5 w-5 shrink-0 text-green-500" />
 				{:else if shownTraining}
+					{@const colour = trainingColor(shownTraining)}
 					<!--
 						hex_training is already per-workout-type and is the same value the
 						mobile app paints, so the colour coding comes from the server. It
 						is never used as text colour: several of those hues fail contrast
 						on the charcoal ground — the rail and an 18% tint behind the icon
-						carry it instead.
+						carry it instead. It is checked as a hex colour on the way in
+						(`trainingColor`), because it lands inside a style attribute.
 					-->
 					<span
 						class="w-[3px] shrink-0 self-stretch rounded-full"
-						style="background-color: {shownTraining.hex_training}"
+						style="background-color: {colour}"
 					></span>
 					{#if !entry}
 						{@const kind = activityIcon(shownTraining.cross_type)}
 						<span
 							class="mt-0.5 grid h-8 w-8 shrink-0 place-items-center rounded-lg"
-							style="background-color: color-mix(in srgb, {shownTraining.hex_training} 18%, transparent); color: {shownTraining.hex_training}"
+							style="background-color: color-mix(in srgb, {colour} 18%, transparent); color: {colour}"
 						>
 							{#if kind === 'bike'}
 								<Bike class="h-4 w-4" />
