@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { Loader2, Plus, X } from 'lucide-svelte';
 	import { AddTrainingStore } from '#lib/stores/add-training.svelte.js';
+	import { trainingColor } from '#lib/utils/hex-color.js';
 
 	let {
 		date,
@@ -92,7 +93,7 @@
 						>
 							<span
 								class="w-1 shrink-0 rounded-full"
-								style="background-color: {candidate.hex_training}"
+								style="background-color: {trainingColor(candidate)}"
 								aria-hidden="true"
 							></span>
 							<span class="flex min-w-0 flex-1 flex-col gap-1">

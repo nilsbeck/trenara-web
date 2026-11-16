@@ -42,6 +42,11 @@ const bannedSyntax = [
 	{
 		selector: "ImportExpression[source.value='dompurify']",
 		message: 'Load DOMPurify through loadSanitizer() in #lib/utils/sanitize, which owns its config.'
+	},
+	{
+		selector: 'MemberExpression[property.name=/^hex_(training|graph|completed|text)$/]',
+		message:
+			'An upstream colour reaches a style attribute only through trainingColor / blockColor (#lib/utils/hex-color, block-color) — see agents.md §3, XSS & sanitization.'
 	}
 ];
 
@@ -170,8 +175,9 @@ export default tseslint.config(
 			]
 		}
 	},
-	// The sanctioned homes of two of the banned patterns: the one timer that is
-	// gated on visibility, and the one module allowed to load DOMPurify.
+	// The sanctioned homes of the banned patterns: the one timer that is gated
+	// on visibility, the one module allowed to load DOMPurify, and the two that
+	// check an upstream colour before anything draws it.
 	{
 		files: ['src/lib/utils/revalidation.ts'],
 		rules: { 'no-restricted-syntax': bannedSyntaxExcept('setInterval') }
@@ -180,10 +186,16 @@ export default tseslint.config(
 		files: ['src/lib/utils/sanitize.ts'],
 		rules: { 'no-restricted-syntax': bannedSyntaxExcept('dompurify') }
 	},
-	// Tests build fixtures with fixed UTC timestamps and fake timers on purpose.
+	// The two modules that read an upstream colour, and check it as one.
+	{
+		files: ['src/lib/utils/hex-color.ts', 'src/lib/utils/block-color.ts'],
+		rules: { 'no-restricted-syntax': bannedSyntaxExcept('hex_') }
+	},
+	// Tests build fixtures with fixed UTC timestamps and fake timers on purpose,
+	// and read a fixture's colour back to compare it, which draws nothing.
 	{
 		files: ['**/*.test.ts'],
-		rules: { 'no-restricted-syntax': bannedSyntaxExcept('toISOString', 'setInterval') }
+		rules: { 'no-restricted-syntax': bannedSyntaxExcept('toISOString', 'setInterval', 'hex_') }
 	},
 	// Generated output — build artifacts and coverage reports, never edited.
 	// Mirrors the "Output" section of .gitignore; eslint does not read .gitignore

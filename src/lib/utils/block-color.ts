@@ -1,4 +1,5 @@
 import type { TrainingBlock } from '#lib/server/trenara/types.js';
+import { hexColor } from './hex-color';
 
 /**
  * The colour a block is drawn in, wherever it is drawn: the shape bar under
@@ -13,17 +14,12 @@ import type { TrainingBlock } from '#lib/server/trenara/types.js';
  *
  * The type is only the fallback, for a block that arrives without a colour.
  *
- * The value is checked as a hex colour before it is used, because every view
- * writes it into a `style` attribute, where escaping does nothing about a `;`
- * — a value that was not a colour would add declarations of its own.
+ * The value goes through `hexColor` first, as every upstream colour does on
+ * its way into a `style` attribute.
  */
 export function blockColor(block: Pick<TrainingBlock, 'type' | 'hex_graph'>): string {
-	const graph = block.hex_graph?.trim();
-	return graph && HEX_COLOUR.test(graph) ? graph : blockTypeColor(block.type);
+	return hexColor(block.hex_graph) ?? blockTypeColor(block.type);
 }
-
-/** `#rgb`, `#rgba`, `#rrggbb` or `#rrggbbaa` — the forms CSS accepts, and nothing else. */
-const HEX_COLOUR = /^#(?:[0-9a-f]{3,4}|[0-9a-f]{6}|[0-9a-f]{8})$/i;
 
 /**
  * Map a training block type string to a display colour.

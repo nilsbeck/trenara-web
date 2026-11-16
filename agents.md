@@ -29,6 +29,7 @@ it (§7).
 | `innerHTML =`, `outerHTML =`, `insertAdjacentHTML`            | `loadSanitizer()` and `{@html}`                  | §3  |
 | `{@html}` without a reason                                    | `svelte/no-at-html-tags` is on; disable with why | §3  |
 | `import … from 'dompurify'`, or `import('dompurify')`         | `loadSanitizer()` from `#lib/utils/sanitize`     | §3  |
+| `.hex_training`, `.hex_graph` read outside the colour helpers | `trainingColor()` / `blockColor()`               | §3  |
 | `axios`, `lodash`, `svelte/store`                             | `fetch`, native JS, runes                        | §5  |
 | `$app/stores`, `@vercel/speed-insights/sveltekit`             | `$app/state`; the root `+layout.svelte`          | §7  |
 | DOMPurify reachable without `import()`; shell over its budget | `scripts/check-bundle.ts`, after `bun run build` | §7  |
@@ -111,6 +112,14 @@ What follows is the design as it actually stands.
   from payload fields, rendered by a component, never from inside markup.
   Widening the config — allowing a tag back — needs a test in
   `sanitize.test.ts` and a reason in the commit.
+- **Upstream colours are checked before they are drawn.** Trenara's
+  `hex_training` and `hex_graph` land inside `style` attributes, and Svelte's
+  escaping does nothing there about a `;`: a value that was not a colour would
+  add declarations of its own — a `background-image` would fetch from any host
+  `img-src https:` allows, which is the same read receipt as an `<img>` in
+  markup. So no component reads them: `trainingColor()` (`#lib/utils/hex-color`)
+  and `blockColor()` (`#lib/utils/block-color`) accept a bare hex colour and
+  nothing else, and draw a fallback otherwise. A lint rule holds the line.
 - **Request bodies are bounded by their schema.** Every string and array a
   client can post has a `.max()`, so `parseBody` limits size as well as shape
   and nothing arbitrary is forwarded upstream. The ceiling is a guard, set well
