@@ -5,7 +5,6 @@
 		buildTreadmillInstructions,
 		type TreadmillInstruction
 	} from '#lib/utils/treadmill-instructions.js';
-	import { blockTypeColor } from '#lib/utils/block-color.js';
 
 	let { training }: { training: ScheduledTraining } = $props();
 
@@ -122,7 +121,7 @@
 		class="flex flex-1 basis-0 flex-col justify-center gap-1.5 overflow-hidden px-5 py-4 {active
 			? 'bg-muted/40'
 			: 'opacity-55'}"
-		style="border-left: 4px solid {blockTypeColor(step.type)}"
+		style="border-left: 4px solid {step.color}"
 	>
 		<div class="flex min-w-0 items-center gap-2">
 			<span

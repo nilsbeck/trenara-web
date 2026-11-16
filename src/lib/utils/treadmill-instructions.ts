@@ -1,11 +1,14 @@
 import type { ScheduledTraining, TrainingBlock } from '#lib/server/trenara/types.js';
 import { paceToKmh, formatSpeedKmh } from './format';
+import { blockColor } from './block-color';
 
 export interface TreadmillInstruction {
 	/** Human readable instruction text (falls back to block type). */
 	title: string;
-	/** Block type, used for colour coding. */
+	/** Block type. */
 	type?: string;
+	/** The colour the step is drawn in — the same as in the plan behind the dialog. */
+	color: string;
 	distance?: string;
 	time?: string;
 	/**
@@ -172,6 +175,7 @@ function toInstruction(
 		// "800m fast" into "800m" — the part that carries the instruction is lost.
 		title: block.text || block.type || 'Run',
 		type: block.type,
+		color: blockColor(block),
 		distance: block.distance || undefined,
 		time: block.time || undefined,
 		speedLabel: blockSpeedLabel(block),
