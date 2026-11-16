@@ -551,7 +551,7 @@ export function chipSettings(training: ScheduledTraining): Setting[] {
  * cannot be pointed at.
  *
  * The API does not flag which block is the cool-down, so this matches on the
- * block type containing "cool" — the same assumption `blockTypeColor` already
+ * block type containing "cool" — the same assumption `blockColor` already
  * makes. A session can report `has_cooldown` while naming its block something
  * we do not recognise, and mislabelling a core block would be worse than not
  * finding one: -1 means the control renders as its own row instead of being
@@ -593,7 +593,7 @@ export function shapeSegments(training: ScheduledTraining): ShapeSegment[] {
 		const weight = blockWeight(block);
 		if (weight <= 0) return;
 		// The same colour the plan below draws for this block, so the bar and the
-		// list read as one picture; see `blockColor` for why it is the coach's.
+		// list read as one picture — by kind of step; see `blockColor`.
 		segments.push({ weight, color: blockColor(block) });
 	};
 

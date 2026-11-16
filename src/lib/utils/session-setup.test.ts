@@ -1,5 +1,4 @@
 import { describe, it, expect } from 'vitest';
-import { blockTypeColor } from './block-color';
 import {
 	TRAINING_SURFACES,
 	type AppConfig,
@@ -557,8 +556,8 @@ describe('shapeSegments', () => {
 	it('weighs blocks by distance where the training has any', () => {
 		const segments = shapeSegments(tempoRun());
 		expect(segments).toEqual([
-			{ weight: 2, color: '#90CFF1' },
-			{ weight: 8, color: '#44A6D3' }
+			{ weight: 2, color: 'var(--color-block-easy)' },
+			{ weight: 8, color: 'var(--color-block-run)' }
 		]);
 	});
 
@@ -593,18 +592,20 @@ describe('shapeSegments', () => {
 		const segments = shapeSegments(bikeRide());
 		expect(segments).toHaveLength(1);
 		expect(segments[0].weight).toBeGreaterThan(0);
-		expect(segments[0].color).toBe('#1BB9AA');
+		expect(segments[0].color).toBe('var(--color-block-run)');
 	});
 
-	it('falls back to the colour the plan below draws, not a blue of its own', () => {
+	it('colours by the kind of step, not by the pace zone, as the plan below does', () => {
 		const training = tempoRun();
 		training.training.blocks = [
-			{ order: 1, type: 'run', distance_value: 5, distance_unit: 'km' },
-			{ order: 2, type: 'rest', hex_graph: 'red; x: y', distance_value: 1, distance_unit: 'km' }
+			{ order: 1, type: 'run', hex_graph: '#CC3311', distance_value: 5, distance_unit: 'km' },
+			{ order: 2, type: 'run', hex_graph: '#44A6D3', distance_value: 5, distance_unit: 'km' },
+			{ order: 3, type: 'rest', hex_graph: '#D6EAF8', distance_value: 1, distance_unit: 'km' }
 		];
 		expect(shapeSegments(training).map((s) => s.color)).toEqual([
-			blockTypeColor('run'),
-			blockTypeColor('rest')
+			'var(--color-block-run)',
+			'var(--color-block-run)',
+			'var(--color-block-rest)'
 		]);
 	});
 

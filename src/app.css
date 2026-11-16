@@ -31,6 +31,26 @@
 	--color-dot-missed: hsl(0 84% 60%);
 }
 
+/*
+ * Training blocks, by kind of step: the shape bar under a session's title, the
+ * plan in its details, and treadmill mode all draw from these through
+ * `blockColor` (#lib/utils/block-color). Static, because nothing names them in
+ * a class — they are reached through `var()` in a style attribute, which
+ * Tailwind cannot see, so it would otherwise leave them out of the build.
+ *
+ * Fitted to the palette above rather than picked on their own: the easy blue
+ * is the calendar's scheduled blue, so the app has one blue and not two that
+ * nearly match; a rest is the muted grey the rest of the app uses for
+ * whatever steps back. The run yellow is the one hue of its own here, and it
+ * is kept clear of pink (the accent: selection, the turnaround marker), red
+ * and green (missed, done).
+ */
+@theme static {
+	--color-block-easy: hsl(210 100% 70%);
+	--color-block-run: hsl(48 96% 53%);
+	--color-block-rest: hsl(220 12% 60%);
+}
+
 :root {
 	/* Renders native form controls, scrollbars and autofill dark to match. */
 	color-scheme: dark;
