@@ -2,7 +2,7 @@
 	import type { TrainingBlock } from '#lib/server/trenara/types.js';
 	import CooldownBlock from '#lib/components/training/cooldown-block.svelte';
 	import TurnaroundMarker from '#lib/components/training/turnaround-marker.svelte';
-	import { blockColor, blockTypeColor } from '#lib/utils/block-color.js';
+	import { blockColor } from '#lib/utils/block-color.js';
 	import { describeTurnaround, type Turnaround } from '#lib/utils/turnaround.js';
 
 	let {
@@ -117,7 +117,7 @@
 		<CooldownBlock
 			hasCooldown={true}
 			text="Cool-down"
-			color={blockTypeColor('cooldown')}
+			color={blockColor({ type: 'cooldown' })}
 			pending={cooldownPending}
 			onchange={onCooldownChange}
 		/>
@@ -129,7 +129,7 @@
 		<CooldownBlock
 			hasCooldown={false}
 			text="Cool-down removed"
-			color={blockTypeColor('cooldown')}
+			color={blockColor({ type: 'cooldown' })}
 			pending={cooldownPending}
 			onchange={onCooldownChange}
 		/>

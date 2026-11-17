@@ -46,7 +46,7 @@ const bannedSyntax = [
 	{
 		selector: 'MemberExpression[property.name=/^hex_(training|graph|completed|text)$/]',
 		message:
-			'An upstream colour reaches a style attribute only through trainingColor / blockColor (#lib/utils/hex-color, block-color) — see agents.md §3, XSS & sanitization.'
+			'An upstream colour reaches a style attribute only through trainingColor (#lib/utils/hex-color); a block is coloured by kind with blockColor — see agents.md §3, XSS & sanitization.'
 	}
 ];
 
@@ -186,9 +186,9 @@ export default tseslint.config(
 		files: ['src/lib/utils/sanitize.ts'],
 		rules: { 'no-restricted-syntax': bannedSyntaxExcept('dompurify') }
 	},
-	// The two modules that read an upstream colour, and check it as one.
+	// The one module that reads an upstream colour, and checks it as one.
 	{
-		files: ['src/lib/utils/hex-color.ts', 'src/lib/utils/block-color.ts'],
+		files: ['src/lib/utils/hex-color.ts'],
 		rules: { 'no-restricted-syntax': bannedSyntaxExcept('hex_') }
 	},
 	// Tests build fixtures with fixed UTC timestamps and fake timers on purpose,

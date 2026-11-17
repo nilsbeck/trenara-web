@@ -3,7 +3,6 @@ import { render, screen, cleanup } from '@testing-library/svelte';
 import SessionBlocks from '#lib/components/training/session-blocks.svelte';
 import type { ScheduledTraining, TrainingBlock } from '#lib/server/trenara/types.js';
 import type { Turnaround } from '#lib/utils/turnaround.js';
-import { blockTypeColor } from '#lib/utils/block-color.js';
 import { shapeSegments } from '#lib/utils/session-setup.js';
 
 const block = (text: string, overrides: Partial<TrainingBlock> = {}): TrainingBlock => ({
@@ -78,25 +77,21 @@ describe('SessionBlocks turnaround marker', () => {
 	});
 });
 
-/** A colour as the DOM reports it back, so `#009E73` and `rgb(0, 158, 115)` compare equal. */
-function css(color: string): string {
-	const probe = document.createElement('span');
-	probe.style.backgroundColor = color;
-	return probe.style.backgroundColor;
-}
-
 /** The swatch drawn beside a line of the plan: the dot of a block, the bar of a step. */
 function swatchOf(text: string): string {
 	return (screen.getByText(text).previousElementSibling as HTMLElement).style.backgroundColor;
 }
 
+const EASY = 'var(--color-block-easy)';
+const RUN = 'var(--color-block-run)';
+const REST = 'var(--color-block-rest)';
+
 describe('SessionBlocks colours', () => {
 	afterEach(() => cleanup());
 
-	// The tempo run that showed the bug: Trenara drew the warm-up green, the
-	// 04:13 step red and the 05:06–05:29 step blue, and the shape bar above
-	// said so, while this list called both steps yellow because both are
-	// typed "run".
+	// The tempo run from the report: Trenara colours the warm-up green, the
+	// 04:13 step red and the 05:06–05:29 step blue by pace zone. The plan draws
+	// by kind of step instead, and the shape bar above it now does the same.
 	const tempo: TrainingBlock[] = [
 		block('Warm-up: 5km in 24:34', {
 			type: 'warmup',
@@ -122,10 +117,10 @@ describe('SessionBlocks colours', () => {
 		})
 	];
 
-	function renderTempo(planned: TrainingBlock[] = tempo) {
+	function renderPlan(planned: TrainingBlock[] = tempo, cooldownIndex = -1) {
 		return render(SessionBlocks, {
 			blocks: planned,
-			cooldownIndex: -1,
+			cooldownIndex,
 			cooldownNeedsOwnRow: false,
 			cooldownRemoved: false,
 			cooldownPending: false,
@@ -133,43 +128,32 @@ describe('SessionBlocks colours', () => {
 		});
 	}
 
-	it("draws each step in the coach's pace-zone colour, not a guess from its type", () => {
-		renderTempo();
-		expect(swatchOf('Warm-up: 5km in 24:34')).toBe(css('#009E73'));
-		expect(swatchOf('Run 5km in 21:05')).toBe(css('#CC3311'));
-		expect(swatchOf('Run 5km in 26:24')).toBe(css('#44A6D3'));
+	it('draws each step by its kind, whatever pace zone the coach put it in', () => {
+		renderPlan();
+		expect(swatchOf('Warm-up: 5km in 24:34')).toBe(EASY);
+		expect(swatchOf('Run 5km in 21:05')).toBe(RUN);
+		expect(swatchOf('Run 5km in 26:24')).toBe(RUN);
 	});
 
 	it('splits a group’s dot between the colours of its first and last step', () => {
-		renderTempo();
-		const dot = screen.getByText('Block').previousElementSibling!;
+		renderPlan(blocks);
+		const dot = screen.getByText('Block ×3').previousElementSibling!;
 		const [left, right] = Array.from(dot.children) as HTMLElement[];
-		expect(left.style.backgroundColor).toBe(css('#CC3311'));
-		expect(right.style.backgroundColor).toBe(css('#44A6D3'));
+		expect(left.style.backgroundColor).toBe(RUN);
+		expect(right.style.backgroundColor).toBe(RUN);
+		expect(swatchOf('Walk 02:00')).toBe(REST);
 	});
 
 	it('agrees with the shape bar above it, step for step', () => {
-		renderTempo();
+		renderPlan();
 		const training = { training: { blocks: tempo } } as unknown as ScheduledTraining;
-		const bar = shapeSegments(training).map((s) => css(s.color));
+		const bar = shapeSegments(training).map((s) => s.color);
 		const list = ['Warm-up: 5km in 24:34', 'Run 5km in 21:05', 'Run 5km in 26:24'].map(swatchOf);
 		expect(list).toEqual(bar);
 	});
 
-	it('falls back to the type colour for a block the coach gave no colour', () => {
-		renderTempo([block('Warm-up: 2km', { type: 'warmup' })]);
-		expect(swatchOf('Warm-up: 2km')).toBe(css(blockTypeColor('warmup')));
-	});
-
-	it('colours the cool-down control by its own block too', () => {
-		render(SessionBlocks, {
-			blocks: [block('Cool-down: 1km', { type: 'cooldown', hex_graph: '#90CFF1' })],
-			cooldownIndex: 0,
-			cooldownNeedsOwnRow: false,
-			cooldownRemoved: false,
-			cooldownPending: false,
-			onCooldownChange: () => {}
-		});
-		expect(swatchOf('Cool-down: 1km')).toBe(css('#90CFF1'));
+	it('colours the cool-down control like the warm-up', () => {
+		renderPlan([block('Cool-down: 1km', { type: 'cooldown', hex_graph: '#90CFF1' })], 0);
+		expect(swatchOf('Cool-down: 1km')).toBe(EASY);
 	});
 });

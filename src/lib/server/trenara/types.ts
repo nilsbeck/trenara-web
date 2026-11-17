@@ -496,7 +496,8 @@ export interface TrainingBlock {
 	prior?: string;
 	/**
 	 * Graph colour. Derived from the pace zone, so it shifts when intensity
-	 * changes — re-read it from each response rather than caching it.
+	 * changes — re-read it from each response rather than caching it. Not
+	 * drawn: blocks are coloured by kind of step (`blockColor`).
 	 */
 	hex_graph?: string;
 	hex_text?: string;

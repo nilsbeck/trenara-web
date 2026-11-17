@@ -6,7 +6,7 @@ const HEX_COLOR = /^#(?:[0-9a-f]{3,4}|[0-9a-f]{6}|[0-9a-f]{8})$/i;
 /**
  * A colour from the upstream payload, if it is one.
  *
- * Trenara's colours (`hex_training`, `hex_graph`) are written into `style`
+ * Trenara's session colour (`hex_training`) is written into `style`
  * attributes, and Svelte's escaping does nothing there about a `;` — a value
  * that was not a colour would add declarations of its own, one of which could
  * be a `background-image` fetching from any host the CSP's `img-src https:`
