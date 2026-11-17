@@ -130,3 +130,36 @@ describe('the navbar', () => {
 		expect(container.querySelector('.animate-spin')).toBeNull();
 	});
 });
+
+/**
+ * Logout did nothing. The button closed the menu on click, and the form lives
+ * inside the menu's `{#if}` — so in a browser, Svelte's microtask flush
+ * unmounted the form between the click listener and the button's default
+ * action, and a form that is no longer in the document is not submitted.
+ * No error, no request: the click simply went nowhere.
+ *
+ * jsdom does not run microtasks inside a synchronous dispatch the way a real
+ * click does, so this pins the precondition instead: after the click has been
+ * handled and Svelte has flushed, the form must still be in the document.
+ */
+describe('logout', () => {
+	it('keeps the form in the document after the click, so it can submit', async () => {
+		const { tick } = await import('svelte');
+		show(loadResult(user('Nils')));
+
+		screen.getByRole('button', { name: 'Menu' }).click();
+		await tick();
+
+		const button = screen.getByRole('menuitem', { name: /logout/i });
+		const form = button.closest('form') as HTMLFormElement;
+		expect(form.getAttribute('action')).toBe('/logout');
+		expect(form.method).toBe('post');
+		// jsdom cannot navigate; stop it trying.
+		form.addEventListener('submit', (e) => e.preventDefault());
+
+		button.click();
+		await tick();
+
+		expect(form.isConnected).toBe(true);
+	});
+});

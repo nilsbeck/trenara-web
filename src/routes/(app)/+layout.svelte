@@ -218,13 +218,18 @@
 								A form, not a link: logout is a state change, and as a GET it
 								could be triggered by any third-party page embedding it as an
 								image. See src/routes/logout/+server.ts.
+
+								No `onclick={closeMenu}` on this one. The form lives inside the
+								menu's `{#if}`, so closing the menu on click unmounted the form
+								before the button's default action ran — and a form no longer in
+								the document is silently not submitted. Logout did nothing. The
+								POST navigates away anyway, which closes the menu for good.
 							-->
 							<form method="POST" action="/logout">
 								<button
 									type="submit"
 									class="flex w-full items-center gap-2 px-4 py-2 text-left text-sm text-destructive hover:bg-accent"
 									role="menuitem"
-									onclick={closeMenu}
 								>
 									<LogOut class="h-4 w-4" />
 									Logout
