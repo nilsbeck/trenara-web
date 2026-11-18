@@ -97,8 +97,15 @@ jobs:
       # advisory whose fix is a major away would otherwise hold every pull
       # request red until that major is scheduled, which is how a gate ends up
       # ignored. Dependabot still raises those.
+      #
+      # Ignored on purpose, each with its reason — drop the flag once a fix ships:
+      # - GHSA-fc5q-39xc-vjpf (picomatch <=4.0.7, ReDoS on repeated extglobs).
+      #   No fixed release exists yet (2026-11-18). picomatch only arrives through
+      #   build and dev tooling (vite, vitest, svelte-check, typescript-eslint,
+      #   @vercel/nft), which match this repo's own glob patterns, never input
+      #   from a runner or a request.
       - name: Audit dependencies
-        run: bun audit --audit-level=high
+        run: bun audit --audit-level=high --ignore GHSA-fc5q-39xc-vjpf
 
       - name: Type-check
         run: bun run check
