@@ -101,7 +101,9 @@ shown.
 - **A race-day projection from your last 14 days**: the graph's dashed line and the "Projected on
   race day" figure carry your recent rate forward over the plan still to come, with the plan's own
   figure quoted beside it — and when there is no fortnight to measure, or the fortnight only won
-  back ground lost earlier in the goal, the plan's forecast stands in and says why.
+  back ground lost earlier in the goal, the plan's forecast stands in and says why. Training in the
+  last ten days before the race still counts, at a discount that fades to nothing on race day, so
+  the line keeps falling through the final sessions instead of going flat.
 - **10K progress over time** in a chart — the 10K prediction rather than the goal distance, so the
   series stays comparable across training blocks — with the kilometres still planned drawn in
   alongside it, even on days there isn't yet enough history for a forecast.
