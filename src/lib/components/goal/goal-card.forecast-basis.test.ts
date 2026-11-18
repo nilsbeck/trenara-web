@@ -100,9 +100,9 @@ const goal = {
 	distance_value: 42.195,
 	distance_unit: 'km',
 	// Far enough off that neither projection is stopped at the goal.
-	pace: '4:44 min/km',
-	time: '03:20:00',
-	time_in_sec: 12000
+	pace: '4:37 min/km',
+	time: '03:15:00',
+	time_in_sec: 11700
 } as unknown as Goal;
 
 const userStats = {
@@ -201,6 +201,25 @@ describe('goal card forecast basis', () => {
 		);
 		expect(screen.queryByText(/at your last 14 days'/)).toBeNull();
 		// The plan's forecast is still a line to read, not only a figure.
+		expect(container.querySelectorAll('path[stroke-dasharray="5,4"]').length).toBe(1);
+	});
+
+	it('falls back to the plan when the old best was only just regained', async () => {
+		// The same slide, but back past 3:35 three days ago. Dividing the
+		// seconds past 3:35 by the whole fortnight's km, climb included, priced
+		// that at a fraction of the plan's rate and drew the line flat.
+		const back = {
+			...userStats,
+			best_times: { time_for_goal: '03:34:30', pace_for_goal: '5:05 min/km' }
+		} as unknown as UserStats;
+		const history = [reading(34, 12900), reading(20, 13300), reading(14, 13400), reading(3, 12890)];
+		const { container } = render(GoalCard, { props: { goal, userStats: back, history } });
+
+		const note = await screen.findByTestId('no-recent-line');
+		expect(note.textContent).toMatch(
+			/only got back past the 3:35:00 predicted on \w{3} \d+ on \w{3} \d+/
+		);
+		expect(screen.queryByText(/at your last \d+ days'/)).toBeNull();
 		expect(container.querySelectorAll('path[stroke-dasharray="5,4"]').length).toBe(1);
 	});
 });

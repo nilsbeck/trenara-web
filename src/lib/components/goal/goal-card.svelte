@@ -20,7 +20,6 @@
 	import { readWeekDistance, readGoalDistance } from '#lib/utils/distance-graph.js';
 	import {
 		forecast,
-		earnCutoff,
 		loadSlices,
 		isRecentTrend,
 		type ForecastPoint,
@@ -356,6 +355,8 @@
 				return `no km logged as run in the last ${gap.days} days.`;
 			case 'recovering':
 				return `the last ${gap.days} days won back ground lost earlier — you are still slower than the ${secondsToTimeString(gap.bestSeconds)} predicted on ${localDay(gap.bestDate)} — so they say nothing yet about new fitness.`;
+			case 'just-recovered':
+				return `you only got back past the ${secondsToTimeString(gap.bestSeconds)} predicted on ${localDay(gap.bestDate)} on ${localDay(gap.since)}, so there is not yet a week of new ground to measure.`;
 		}
 	}
 
@@ -492,7 +493,7 @@
 			case 'race':
 				return ['Race day'];
 			case 'cutoff':
-				return ['Last training that counts', since];
+				return ['Training counts for less from here', since];
 			default:
 				return [`${Math.round(point.segmentKm)} km this week`, since];
 		}
@@ -537,12 +538,11 @@
 	 */
 	const chartLoad = $derived.by(() => {
 		if (!raceDay || isPast || plan.weeks.length === 0) return [];
-		const cutoff = earnCutoff(raceDay);
-		if (!(cutoff.getTime() > now.getTime())) return [];
+		if (!(raceDay.getTime() > now.getTime())) return [];
 		return loadSlices(
 			plan.weeks.map((w) => ({ startsOn: w.startsOn, km: w.plannedKm })),
 			now,
-			cutoff
+			raceDay
 		);
 	});
 
@@ -569,8 +569,8 @@
 		if (splitHistory.forGoal.length === 0) {
 			return 'No prediction recorded yet for this goal — the forecast needs at least one earlier reading to price the plan against.';
 		}
-		if (raceDay && earnCutoff(raceDay) <= now) {
-			return 'Race week: training from here changes how fresh you are, not how fast, so there is nothing left to forecast.';
+		if (raceDay && raceDay <= now) {
+			return 'Race day: there is no training left to forecast.';
 		}
 		return 'Not enough of this block on record yet to forecast — the earliest reading is too recent to tell whether you are keeping pace.';
 	});

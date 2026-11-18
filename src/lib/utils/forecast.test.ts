@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
 	volumeBetween,
+	earningVolume,
 	earnCutoff,
 	observedRate,
 	measureRate,
@@ -46,23 +47,22 @@ describe('volumeBetween', () => {
 });
 
 describe('earnCutoff', () => {
-	it('stops counting training ten days out', () => {
+	it('marks where training starts to count for less, ten days out', () => {
 		expect(earnCutoff(day(90))).toEqual(day(90 - FITNESS_LAG_DAYS));
 	});
 });
 
 describe('planRate', () => {
 	it('prices the gap over the volume that can still close it', () => {
-		// 600s to find over 10 weeks of 50 km, less the 10-day lag window.
+		// 600s to find over 10 weeks of 50 km, the last ten days faded.
 		const planned = weeks(10, 50);
-		const cutoff = earnCutoff(day(70));
-		const volume = volumeBetween(planned, day(0), cutoff);
+		const volume = earningVolume(planned, day(0), day(70), day(70));
 		const rate = planRate({
 			anchorSeconds: 3600,
 			anchorDate: day(0),
 			goalSeconds: 3000,
 			planned,
-			cutoff,
+			raceDay: day(70),
 			now: day(35)
 		})!;
 		expect(rate.secondsPerKm).toBeCloseTo(600 / volume, 9);
@@ -73,16 +73,18 @@ describe('planRate', () => {
 		// Recording that began halfway through must not price the gap it found
 		// against kilometres that were already spent before it started.
 		const planned = weeks(10, 50);
-		const cutoff = earnCutoff(day(70));
 		const late = planRate({
 			anchorSeconds: 3300,
 			anchorDate: day(35),
 			goalSeconds: 3000,
 			planned,
-			cutoff,
+			raceDay: day(70),
 			now: day(45)
 		})!;
-		expect(late.secondsPerKm).toBeCloseTo(300 / volumeBetween(planned, day(35), cutoff), 9);
+		expect(late.secondsPerKm).toBeCloseTo(
+			300 / earningVolume(planned, day(35), day(70), day(70)),
+			9
+		);
 	});
 
 	it('has no rate when the goal was already in reach', () => {
@@ -93,7 +95,7 @@ describe('planRate', () => {
 				anchorDate: day(0),
 				goalSeconds: 3000,
 				planned,
-				cutoff: earnCutoff(day(70)),
+				raceDay: day(70),
 				now: day(35)
 			})
 		).toBeNull();
@@ -109,7 +111,7 @@ describe('planRate', () => {
 				anchorDate: day(32),
 				goalSeconds: 3000,
 				planned,
-				cutoff: earnCutoff(day(70)),
+				raceDay: day(70),
 				now: day(35)
 			})
 		).toBeNull();
@@ -199,11 +201,10 @@ describe('forecast', () => {
 	const planned = weeks(10, 50);
 
 	it('lands a runner who has done everything exactly on the goal', () => {
-		const cutoff = earnCutoff(race);
-		const rate = 600 / volumeBetween(planned, day(0), cutoff);
+		const rate = 600 / earningVolume(planned, day(0), race, race);
 		const now = day(35);
 		const result = forecast({
-			nowSeconds: 3600 - rate * volumeBetween(planned, day(0), now),
+			nowSeconds: 3600 - rate * earningVolume(planned, day(0), now, race),
 			now,
 			goalSeconds: 3000,
 			raceDay: race,
@@ -220,8 +221,7 @@ describe('forecast', () => {
 	it('lands short by exactly what the missed weeks were worth', () => {
 		// Same plan, but the runner banked nothing in the first five weeks, so
 		// today's prediction has not moved at all.
-		const cutoff = earnCutoff(race);
-		const rate = 600 / volumeBetween(planned, day(0), cutoff);
+		const rate = 600 / earningVolume(planned, day(0), race, race);
 		const now = day(35);
 		const result = forecast({
 			nowSeconds: 3600,
@@ -234,13 +234,18 @@ describe('forecast', () => {
 			goalStart: day(0)
 		})!;
 
-		const lost = volumeBetween(planned, day(0), now) * rate;
+		const lost = earningVolume(planned, day(0), now, race) * rate;
 		expect(result.shortfallSeconds).toBeCloseTo(lost, 6);
 		expect(result.doneToDateKm).toBe(0);
 		expect(result.askedToDateKm).toBeCloseTo(250, 6);
 	});
 
-	it('credits nothing to the days inside the taper window', () => {
+	it('fades the taper window rather than cutting it off', () => {
+		// The last ten days used to count for nothing, and the line went dead
+		// flat from there to race day with the final quality sessions — a 30 km
+		// race simulation, in the case that prompted this — still to run. This
+		// fails on the hard cutoff: remainingKm stopped at the cutoff and the
+		// last two vertices sat level.
 		const now = day(35);
 		const result = forecast({
 			nowSeconds: 3600,
@@ -253,12 +258,19 @@ describe('forecast', () => {
 			goalStart: day(0)
 		})!;
 
-		expect(result.remainingKm).toBeCloseTo(volumeBetween(planned, now, earnCutoff(race)), 9);
-		// The line is flat from the cutoff to race day.
-		const last = result.points[result.points.length - 1];
-		const penultimate = result.points[result.points.length - 2];
-		expect(last.seconds).toBeCloseTo(penultimate.seconds, 9);
+		// Everything up to the cutoff whole, and the ten days after it on a
+		// straight ramp down to nothing — worth five days' running, at 50 km a
+		// week.
+		const full = volumeBetween(planned, now, earnCutoff(race));
+		expect(result.remainingKm).toBeCloseTo(full + (50 * 5) / 7, 6);
+
+		// So the line keeps falling past the cutoff, into race day.
+		const cutoff = result.points.find((p) => p.kind === 'cutoff')!;
+		const last = result.points.at(-1)!;
+		expect(last.kind).toBe('race');
 		expect(last.date).toBe(iso(70));
+		expect(last.seconds).toBeLessThan(cutoff.seconds - 1);
+		expect(last.seconds).toBeCloseTo(result.endSeconds, 9);
 	});
 
 	it('prefers the rate the runner has actually shown over the plan design', () => {
@@ -300,12 +312,15 @@ describe('forecast', () => {
 			goalStart: day(0)
 		})!;
 
-		// Today, then a vertex per remaining week boundary, then the cutoff and
-		// race day.
+		// Today, then a vertex per remaining week boundary with the cutoff in
+		// date order among them, then race day.
 		expect(result.points[0].kind).toBe('today');
 		expect(result.points[0].kmToDate).toBe(0);
-		expect(result.points.at(-2)!.kind).toBe('cutoff');
+		expect(result.points.filter((p) => p.kind === 'cutoff')).toHaveLength(1);
 		expect(result.points.at(-1)!.kind).toBe('race');
+		const dates = result.points.map((p) => p.date);
+		expect([...dates].sort()).toEqual(dates);
+		expect(new Set(dates).size).toBe(dates.length);
 
 		const weekly = result.points.filter((p) => p.kind === 'week');
 		expect(weekly.length).toBeGreaterThan(1);
@@ -317,20 +332,16 @@ describe('forecast', () => {
 		// Every point stands on the kilometres between today and itself, and the
 		// segments add back up to that running total.
 		let running = 0;
-		for (const point of result.points.slice(0, -1)) {
+		for (const point of result.points) {
 			running += point.segmentKm;
 			expect(point.kmToDate).toBeCloseTo(running, 9);
 			expect(point.seconds).toBeCloseTo(3600 - point.kmToDate * result.rate.secondsPerKm, 9);
 		}
-
-		// Race day earns nothing of its own: it stands on the cutoff's total.
-		expect(result.points.at(-1)!.segmentKm).toBe(0);
 		expect(result.points.at(-1)!.kmToDate).toBeCloseTo(result.remainingKm, 9);
 	});
 
 	it('hands back the weekly load the line was priced from', () => {
 		const now = day(35);
-		const cutoff = earnCutoff(race);
 		const result = forecast({
 			nowSeconds: 3600,
 			now,
@@ -342,9 +353,11 @@ describe('forecast', () => {
 			goalStart: day(0)
 		})!;
 
-		// Nothing before today and nothing past the cutoff — the same window the
-		// forecast itself counts.
-		expect(result.load.every((slice) => slice.from >= now && slice.to <= cutoff)).toBe(true);
+		// Nothing before today and nothing from race day on — the same window
+		// the forecast itself counts.
+		expect(result.load.every((slice) => slice.from >= now && slice.to <= race)).toBe(true);
+		// And the race week is drawn at what it still earns, not what it asks.
+		expect(result.load.at(-1)!.km).toBeLessThan(50 / 2);
 		// A week the runner is standing in the middle of is priced at the part of
 		// it that is still ahead, so the slices total the remaining volume.
 		const total = result.load.reduce((sum, slice) => sum + slice.km, 0);
@@ -380,11 +393,13 @@ describe('forecast', () => {
 		expect(result.endSeconds).toBeCloseTo(goalSeconds, 6);
 		expect(result.shortfallSeconds).toBeCloseTo(0, 6);
 
-		// The line drawn to get there stays flat into the same capped endpoint —
-		// the cutoff point does not overshoot past where race day lands.
-		const cutoffPoint = result.points.find((p) => p.kind === 'cutoff')!;
-		const racePoint = result.points.at(-1)!;
-		expect(cutoffPoint.seconds).toBeCloseTo(racePoint.seconds, 9);
+		// The line drawn to get there never overshoots past where race day
+		// lands: it only ever falls, and it ends on the capped endpoint.
+		const seconds = result.points.map((p) => p.seconds);
+		for (let i = 1; i < seconds.length; i++) {
+			expect(seconds[i]).toBeLessThanOrEqual(seconds[i - 1] + 1e-9);
+		}
+		expect(seconds.at(-1)!).toBeCloseTo(goalSeconds, 6);
 	});
 
 	it('leaves a prediction already ahead of goal uncapped', () => {
@@ -409,11 +424,27 @@ describe('forecast', () => {
 		expect(result.endSeconds).toBeCloseTo(nowSeconds - result.remainingKm * rate, 6);
 	});
 
-	it('draws nothing once race day is inside the lag window', () => {
+	it('still forecasts inside the lag window, from what the fade leaves', () => {
+		const result = forecast({
+			nowSeconds: 3600,
+			now: day(65),
+			goalSeconds: 3000,
+			raceDay: race,
+			planned,
+			done: planned,
+			samples: [{ date: iso(0), seconds: 3600 }],
+			goalStart: day(0)
+		})!;
+		// Five days out, the fade has gone from half price to nothing: a quarter on average.
+		expect(result.remainingKm).toBeCloseTo((50 / 7) * (5 * 0.25), 6);
+		expect(result.points.some((p) => p.kind === 'cutoff')).toBe(false);
+	});
+
+	it('draws nothing once race day has come', () => {
 		expect(
 			forecast({
 				nowSeconds: 3600,
-				now: day(65),
+				now: day(70),
 				goalSeconds: 3000,
 				raceDay: race,
 				planned,
@@ -530,8 +561,8 @@ describe('recentTrend', () => {
 		// Days 21–35 are weeks four and five, both run in full: 100 km.
 		expect(result.km).toBeCloseTo(100, 6);
 		expect(result.secondsPerKm).toBeCloseTo(1.5, 6);
-		// Priced over the plan still to come: day 35 to the cutoff on day 60.
-		const remaining = volumeBetween(weeks(10, 50), day(35), earnCutoff(day(70)));
+		// Priced over the plan still to come: day 35 to race day, faded.
+		const remaining = earningVolume(weeks(10, 50), day(35), day(70), day(70));
 		expect(result.endSeconds).toBeCloseTo(3450 - 1.5 * remaining, 6);
 		// And drawn the same way, ending where the figure does.
 		expect(result.points[0].seconds).toBe(3450);
@@ -614,16 +645,22 @@ describe('recentTrend', () => {
 		});
 	});
 
-	it('counts only the gain past the best reading before the window', () => {
-		// Same slide, but today is 100s past the earlier best: only those 100s
-		// are new, over the fortnight's 100 km.
+	it('counts only the gain past the best reading, over the km run since it was regained', () => {
+		// Same slide, climbed back over the earlier best on day 27, and today
+		// 100s past it. Only those 100s are new — and only the kilometres since
+		// day 27 earned them; the ones before went on climbing back.
+		//
+		// Divided by the whole fortnight's 100 km instead, this read 1.00s/km.
+		// On a real account it read 0.20 against a plan rate of 1.28, and drew
+		// a line flat to race day with a 30 km race simulation still to come.
 		const result = recentTrend({
 			nowSeconds: 3500,
 			now: day(35),
 			goalSeconds: 3000,
 			samples: [
 				{ date: iso(0), seconds: 3600 },
-				{ date: iso(21), seconds: 3960 }
+				{ date: iso(21), seconds: 3960 },
+				{ date: iso(27), seconds: 3600 }
 			],
 			done,
 			planned: weeks(10, 50),
@@ -631,7 +668,38 @@ describe('recentTrend', () => {
 		}) as RecentTrend;
 
 		expect(result.gainSeconds).toBe(100);
-		expect(result.secondsPerKm).toBeCloseTo(1, 6);
+		// Day 27 to the end of the week holding today: a seventh of week four
+		// and all of week five.
+		const km = 50 / 7 + 50;
+		expect(result.km).toBeCloseTo(km, 6);
+		expect(result.secondsPerKm).toBeCloseTo(100 / km, 6);
+		expect(result.days).toBe(8);
+	});
+
+	it('waits a week after the old best is regained before pricing the new ground', () => {
+		// Past the earlier best today, but no reading has shown it before: the
+		// gain is real, the kilometres that earned it are not yet measurable.
+		const result = recentTrend({
+			nowSeconds: 3500,
+			now: day(35),
+			goalSeconds: 3000,
+			samples: [
+				{ date: iso(0), seconds: 3600 },
+				{ date: iso(21), seconds: 3960 },
+				{ date: iso(31), seconds: 3590 }
+			],
+			done,
+			planned: weeks(10, 50),
+			raceDay: day(70)
+		});
+
+		expect(result).toEqual({
+			reason: 'just-recovered',
+			days: 4,
+			bestSeconds: 3600,
+			bestDate: iso(0),
+			since: iso(31)
+		});
 	});
 
 	it('says how many days it has when the readings reach back less than a week', () => {
