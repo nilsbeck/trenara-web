@@ -67,10 +67,16 @@ What follows is the design as it actually stands.
   path, because doing so would mean keeping a runner's Trenara credential
   reachable by an anonymous visitor. If a change to this route ever needs to
   read `cookies` or call `trainingApi`/`userApi`, that is a sign the design
-  has been broken, not a feature to add.
+  has been broken, not a feature to add. The session hook stays out of it
+  too: `handleAuth` skips any route `isSessionFree` names, so a signed-in
+  visitor's token is neither checked against Trenara nor refreshed there —
+  a refresh would write the rotated tokens as `Set-Cookie` onto a response
+  marked `public`.
 - **A second public route meets the same bar as the first**, or it is not
   added. Before merging one, every line of this must be true and tested:
   - it lives outside `/api` and `/(app)`, and reads no cookie and no `locals.user`;
+  - it is named in `isSessionFree` (`hooks.server.ts`), so no response from it
+    can carry a `Set-Cookie`;
   - it makes no Trenara request, on any path — it serves a stored projection;
   - the capability in the URL is random (`crypto.getRandomValues`, as
     `#lib/server/share/token.ts` does, 256 bits), unique-indexed, and
