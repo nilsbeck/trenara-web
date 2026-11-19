@@ -414,6 +414,9 @@ the reason — that is what distinguishes a decision from a regression.
   mounted on the first tap (`change-date-modal.svelte` is the pattern). A
   failed load on a tap reloads the page — after a deploy the old chunk names
   are gone — and a failed warm-up stays quiet. Each is listed in `LAZY_ONLY`.
+  The chat window is the same arrangement in the layout: the bubble and its
+  badge are in the shell, and `chat-panel.svelte` — a view with no state of
+  its own — is the lazy chunk behind them.
 - **`{#each}` blocks are keyed**, with a key that identifies the item. Where
   position genuinely _is_ the identity — a chart column — say so with `(i)`
   rather than leaving it unkeyed.

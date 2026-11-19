@@ -1,6 +1,11 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { render, screen, waitFor, cleanup, fireEvent } from '@testing-library/svelte';
 import ChatBubble from './chat-bubble.svelte';
+// The window is a lazy chunk the bubble warms once the page is idle (see
+// `chat-bubble.lazy.test.ts`). Loaded up front here so that a case running
+// under fake timers is not left waiting on a module load the timers cannot
+// advance.
+import './chat-panel.svelte';
 import type { ChatMessage, ChatThread } from '#lib/server/trenara/types.js';
 
 const ME = 56540;
