@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import type { Cookies } from '@sveltejs/kit';
 import { HttpError, NetworkError } from '#lib/server/trenara/client.js';
 import { loginByIp, loginByUsername } from '#lib/server/security/rate-limit.js';
-import { actions } from './+page.server';
+import { actions, load } from './+page.server';
 
 const mockLogin = vi.fn();
 vi.mock('#lib/server/trenara/auth.js', () => ({
@@ -120,5 +120,58 @@ describe('login action — security logging', () => {
 
 		expect(result).toMatchObject({ status: 400 });
 		expect(warn).not.toHaveBeenCalled();
+	});
+});
+
+describe('login — where a sign-in lands', () => {
+	beforeEach(() => {
+		mockLogin.mockReset();
+		loginByIp.reset();
+		loginByUsername.reset();
+	});
+
+	function loadFor(search: string, signedIn: boolean) {
+		return load({
+			locals: { user: signedIn ? { id: 1, email: USERNAME } : null },
+			url: new URL(`https://app.test/login${search}`)
+		} as unknown as Parameters<typeof load>[0]);
+	}
+
+	it('sends a signed-in visitor on to the path they asked for', async () => {
+		await expect(loadFor('?next=/goal', true)).rejects.toMatchObject({
+			status: 302,
+			location: '/goal'
+		});
+	});
+
+	/**
+	 * The load redirects without a form in between, so this one was a link
+	 * anybody could send: `/login?next=/%5Cevil.example` took a signed-in
+	 * runner straight off the site.
+	 */
+	it('does not send a signed-in visitor off-site through a backslash', async () => {
+		await expect(loadFor('?next=/%5Cevil.example', true)).rejects.toMatchObject({
+			status: 302,
+			location: '/dashboard'
+		});
+	});
+
+	it('hands the form only a safe path to post back', async () => {
+		await expect(loadFor('?next=/%09/evil.example', false)).resolves.toEqual({
+			next: '/dashboard'
+		});
+	});
+
+	it('checks the posted target again rather than trusting the hidden field', async () => {
+		mockLogin.mockResolvedValue({
+			access_token: 'a',
+			refresh_token: 'r',
+			expires_in: 3600,
+			token_type: 'Bearer'
+		});
+
+		await expect(
+			actions.login(event({ username: USERNAME, password: PASSWORD, next: '/\\evil.example' }))
+		).rejects.toMatchObject({ location: '/dashboard' });
 	});
 });
