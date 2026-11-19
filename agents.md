@@ -177,16 +177,18 @@ A component draws; a view-model knows. The split is Model–View–ViewModel, an
 the codebase already has one half of it — the model is `#lib/server/trenara/*`
 and the DAOs, reached through `/api/v1` — and the right shape for the other half
 in `SessionDetailStore` and `createCalendarStore`. What it does not yet have is
-the rule, and it shows: four components (`goal-card`, `training-details`,
-`chat-bubble`, `prediction-chart`) run to between seven and nine hundred lines,
-most of it logic rather than markup, and eight components call `fetch`
-themselves — logic that can only be tested by mounting it.
+the rule, and it shows: three components (`goal-card`, `training-details`,
+`prediction-chart`) run to between seven hundred and a thousand lines, most of
+it logic rather than markup, and six components and two pages call `fetch`
+themselves — logic that can only be tested by mounting it. `chat-bubble` was
+the fourth; its logic is `ChatStore` now (`#lib/stores/chat.svelte.ts`), tested
+directly in `chat.test.ts`, and the bubble and its window only draw it.
 
 - **Model** — the server: Trenara wrappers and DAOs. The browser reaches it
   only through `fetch('/api/v1/…')`.
 - **View-model** — a `#lib/stores/*.svelte.ts` module: a factory
   (`createCalendarStore`), a class with `$state` fields
-  (`SessionDetailStore`), or a module-level `$state` holder
+  (`SessionDetailStore`, `ChatStore`), or a module-level `$state` holder
   (`app-config.svelte.ts`). It owns the requests, the loading / empty / error
   state of each (below), the derived values, and the mutations. It imports
   nothing from `.svelte` files and touches no DOM, so it is tested directly,
@@ -417,15 +419,30 @@ the reason — that is what distinguishes a decision from a regression.
   The chat window is the same arrangement in the layout: the bubble and its
   badge are in the shell, and `chat-panel.svelte` — a view with no state of
   its own — is the lazy chunk behind them.
+  The goal card's charts are the same arrangement without the tap: each its own
+  chunk, asked for while the card is set up in the browser so the download
+  overlaps the rest of hydration instead of following it, and each shown as
+  soon as its own chunk lands, behind a placeholder of their footprint. The
+  card's head — the prediction itself — still renders on the server. A lazy
+  load starts as soon as nothing it waits for is missing: not after
+  hydration when it does not need hydration, and not after a request it does
+  not depend on (the setup sheet's lists, the chat's sanitiser). The
+  prediction chart is also the whole of the prediction-history page, where it
+  is imported statically; `LAZY_ON_ROUTE` checks a module that is lazy on one
+  route and content on another.
 - **`{#each}` blocks are keyed**, with a key that identifies the item. Where
   position genuinely _is_ the identity — a chart column — say so with `(i)`
   rather than leaving it unkeyed.
 - **The signed-in shell has a byte budget.** `bun run check:bundle` (in CI,
-  after the build) sums the client entry, the root and `(app)` layouts and
-  everything they import statically, gzipped, and fails past the budget in
-  `scripts/check-bundle.ts`. It also fails if DOMPurify becomes reachable
-  without `import()`. The budget sits just above where the build stands; raise
-  it in the commit that needs the room and say why, as with coverage.
+  after the build) sums the client entry, SvelteKit's own client runtime, the
+  root and `(app)` layouts and everything they import statically, gzipped, and
+  fails past the budget in `scripts/check-bundle.ts`. It also fails if
+  DOMPurify becomes reachable without `import()`. The budget sits just above
+  where the build stands; raise it in the commit that needs the room and say
+  why, as with coverage. The runtime is named explicitly because SvelteKit 3
+  loads it through `import()`: a static walk never meets it, and for a while
+  the shell was weighed sixteen kilobytes light because of exactly that. A
+  module every page needs is counted, however it is reached.
 - **A dependency that touches SvelteKit is checked in the build, not trusted
   by its version range.** SvelteKit 3 kept `$app/stores` as a stub that
   throws on use, so a package still importing it builds and type-checks and

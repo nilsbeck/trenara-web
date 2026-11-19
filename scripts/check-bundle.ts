@@ -32,8 +32,17 @@ import { join } from 'node:path';
  * Lowered again from 52 KB when the chat window left the shell for a lazy
  * chunk, taking it from 47.1 KB to 45.4 KB — the same headroom as before, so
  * the saving is kept rather than banked for whoever asks next.
+ *
+ * Raised to 66 KB when the weighing started counting SvelteKit's own client
+ * runtime (`KIT_RUNTIME` below), which SvelteKit 3 loads through `import()`
+ * and the static walk had therefore never met: the shell measured 45.8 KB and
+ * weighs 61.7 KB, with nothing in the build having changed. The browser was
+ * always downloading those sixteen kilobytes; only the number was missing
+ * them. It also means most of the drop credited to SvelteKit 3 above was the
+ * runtime leaving the static graph rather than leaving the wire. The headroom
+ * is the same as before.
  */
-const SHELL_BUDGET_BYTES = 50 * 1024;
+const SHELL_BUDGET_BYTES = 66 * 1024;
 
 /**
  * Packages that must only be loaded on the branch that uses them, each with a
@@ -58,7 +67,28 @@ const LAZY_ONLY = [
 	{ name: 'treadmill mode', marker: 'No instructions available for this training' },
 	// The chat window behind the bubble. The bubble and its badge are in the
 	// shell; the window is warmed once idle and mounted on the first tap.
-	{ name: 'chat window', marker: 'This conversation is read-only.' }
+	{ name: 'chat window', marker: 'This conversation is read-only.' },
+	// The goal card's distance graphs, which it loads once the page has
+	// hydrated. The goal card is their only user.
+	{ name: 'distance chart', marker: 'Distance done against distance planned' }
+];
+
+/**
+ * Modules that must stay out of one route's static graph while another route
+ * may still import them statically.
+ *
+ * The prediction chart is the case: on the prediction-history page it is the
+ * page, and imported as such, but on the dashboard it sits behind the goal
+ * card's fold and is loaded once the page has hydrated. `LAZY_ONLY` would
+ * fail on the history page; this checks the dashboard alone, together with
+ * the shell every page carries.
+ */
+const LAZY_ON_ROUTE = [
+	{
+		route: 'src/routes/(app)/dashboard/+page.svelte',
+		name: 'prediction chart',
+		marker: 'Complete training sessions to start tracking your prediction trends'
+	}
 ];
 
 const OUT = '.svelte-kit/output/client';
@@ -70,6 +100,17 @@ const GENERATED_NODES = '.svelte-kit/generated/build/client-optimized/nodes';
 
 /** The route files whose nodes make up the shell. */
 const SHELL_SOURCES = ['src/routes/+layout.svelte', 'src/routes/(app)/+layout.svelte'];
+
+/**
+ * SvelteKit's own client runtime — the router, hydration, `devalue`.
+ *
+ * Since SvelteKit 3 the start script reaches it through `import()` rather than
+ * a static import, so a walk of the entries' static graph never met it, and
+ * the shell was weighed without it. It is not optional: `init` imports it
+ * unconditionally and `start` awaits it, so every page downloads it before it
+ * can hydrate. Counted as a root of the shell for that reason.
+ */
+const KIT_RUNTIME = 'node_modules/@sveltejs/kit/src/runtime/client/client-entry.js';
 
 interface Chunk {
 	file: string;
@@ -135,8 +176,14 @@ const manifest = JSON.parse(readFileSync(MANIFEST, 'utf8')) as Manifest;
 
 const entries = Object.keys(manifest).filter((key) => manifest[key].isEntry);
 const nodes = Object.keys(manifest).filter((key) => key.startsWith(GENERATED_NODES));
+if (!manifest[KIT_RUNTIME]) {
+	fail(
+		`${KIT_RUNTIME} is not in the build — has SvelteKit moved its runtime? Find it before trusting the shell's weight.`
+	);
+}
 const shellRoots = [
 	...entries.filter((key) => !key.startsWith(GENERATED_NODES)),
+	KIT_RUNTIME,
 	...SHELL_SOURCES.map((source) => nodeKeyFor(manifest, source))
 ];
 
@@ -161,6 +208,25 @@ for (const { name, marker } of LAZY_ONLY) {
 	}
 }
 if (!failed) console.log(`✔ ${LAZY_ONLY.map((l) => l.name).join(', ')} only reached by import()`);
+
+// 1b. Route-scoped lazy modules stay out of that route's static graph.
+for (const { route, name, marker } of LAZY_ON_ROUTE) {
+	if (
+		!Object.values(manifest).some((c) => readFileSync(join(OUT, c.file), 'utf8').includes(marker))
+	) {
+		fail(`No built file carries ${name}'s marker "${marker}" — update it.`);
+	}
+	const reachable = staticClosure(manifest, [...shellRoots, nodeKeyFor(manifest, route)]);
+	const hit = [...reachable].find((key) =>
+		readFileSync(join(OUT, manifest[key].file), 'utf8').includes(marker)
+	);
+	if (hit) {
+		console.error(`✖ ${name} is statically reachable from ${route}; it must be import()ed there.`);
+		failed = true;
+	} else {
+		console.log(`✔ ${name} only reached by import() from ${route}`);
+	}
+}
 
 // 2. Nothing in the client build reaches `$app/stores`.
 //

@@ -375,6 +375,73 @@ describe('SessionDetailStore', () => {
 		expect(fetchMock.mock.calls.filter(([url]) => url === '/api/v1/shoes')).toHaveLength(1);
 	});
 
+	/**
+	 * The card asks for the list as the sheet is opened, in parallel with the
+	 * sheet's own chunk, and the sheet asks again once it has mounted. The
+	 * second must join the first rather than send the request twice.
+	 */
+	it('joins a shoe request already in flight rather than sending a second', async () => {
+		const fetchMock = vi.mocked(fetch);
+		fetchMock.mockResolvedValueOnce(jsonResponse(detail()));
+		const store = new SessionDetailStore();
+		store.load(42);
+		await vi.waitFor(() => expect(store.detail).not.toBeNull());
+
+		const shoes = deferred<Response>();
+		fetchMock.mockReturnValueOnce(shoes.promise);
+		const first = store.loadShoes();
+		const second = store.loadShoes();
+		shoes.resolve(jsonResponse([{ id: 6404 }]));
+		await Promise.all([first, second]);
+
+		expect(fetchMock.mock.calls.filter(([url]) => url === '/api/v1/shoes')).toHaveLength(1);
+		expect(store.shoes).toEqual([{ id: 6404 }]);
+	});
+
+	it('joins an alternatives request already in flight for the same session', async () => {
+		const fetchMock = vi.mocked(fetch);
+		fetchMock.mockResolvedValueOnce(jsonResponse(detail()));
+		const store = new SessionDetailStore();
+		store.load(42);
+		await vi.waitFor(() => expect(store.detail).not.toBeNull());
+
+		const candidates = deferred<Response>();
+		fetchMock.mockReturnValueOnce(candidates.promise);
+		const first = store.loadCandidates();
+		const second = store.loadCandidates();
+		candidates.resolve(jsonResponse([{ id: 991, title: 'Tempo run' }]));
+		await Promise.all([first, second]);
+
+		expect(
+			fetchMock.mock.calls.filter(([url]) => url === '/api/v1/training/42/exchange')
+		).toHaveLength(1);
+	});
+
+	/**
+	 * A list asked for early is a list that can land late. The alternatives are
+	 * for one session; landing after the runner has moved to another day, they
+	 * used to be offered as swaps for a session they were never offered for.
+	 */
+	it('drops alternatives that arrive after the runner moved to another session', async () => {
+		const fetchMock = vi.mocked(fetch);
+		fetchMock.mockResolvedValueOnce(jsonResponse(detail()));
+		const store = new SessionDetailStore();
+		store.load(42);
+		await vi.waitFor(() => expect(store.detail).not.toBeNull());
+
+		const candidates = deferred<Response>();
+		fetchMock.mockReturnValueOnce(candidates.promise);
+		const loading = store.loadCandidates();
+
+		fetchMock.mockResolvedValueOnce(jsonResponse(detail({ id: 43 })));
+		store.load(43);
+		candidates.resolve(jsonResponse([{ id: 991, title: 'Tempo run' }]));
+		await loading;
+
+		expect(store.candidates).toBeNull();
+		expect(store.candidatesFailed).toBe(false);
+	});
+
 	// A failed fetch used to land as an empty list: the picker said "No shoes
 	// in your locker yet" under a banner saying "please try again" — and the
 	// empty list counted as loaded, so trying again never fetched anything.

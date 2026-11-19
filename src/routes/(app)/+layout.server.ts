@@ -28,7 +28,7 @@ export const load: LayoutServerLoad = async ({ cookies, locals, depends }) => {
 	 * and must never be able to take one down. Consumers that need a real
 	 * account — the profile page — say so themselves.
 	 */
-	const userData = await userApi.getCurrentUser(cookies).catch(() => null);
+	const accountRead = userApi.getCurrentUser(cookies).catch(() => null);
 
 	/**
 	 * The unread dot on the menu button, beside the avatar.
@@ -46,7 +46,14 @@ export const load: LayoutServerLoad = async ({ cookies, locals, depends }) => {
 	 * then renders without it, because a dot is worth no part of first paint.
 	 * The computation finishes in the background and the next navigation has it.
 	 */
-	const newsBadge = await newsBadgeIfReady(cookies, user.id);
+	const badgeRead = newsBadgeIfReady(cookies, user.id);
+
+	// Both awaited, and awaited together: neither needs the other, and asked for
+	// one after the other the badge's fifth of a second only started once the
+	// account had answered. The account is normally a cache hit — the hook has
+	// just resolved it for identity — so the saving is small today; the point is
+	// that it cannot turn into a real chain the day either read changes.
+	const [userData, newsBadge] = await Promise.all([accountRead, badgeRead]);
 
 	/**
 	 * The chat bubble's unread badge: the thread list plus how far the reader

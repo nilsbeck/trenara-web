@@ -6,6 +6,7 @@ import type { ChartDataPoint } from '#lib/components/charts/prediction-chart.sve
 import { secondsToTimeString, secondsToPaceString } from '#lib/utils/format.js';
 import { isoWeekStart } from '#lib/utils/plan-weeks.js';
 import { mondayOf, toLocalDateString } from '#lib/utils/date.js';
+import { graphLoaded } from '../../../test-utils/goal-card';
 
 // jsdom lays nothing out: it has no ResizeObserver, and every element measures
 // zero width, which would flatten every bar to nothing before the assertion
@@ -127,6 +128,7 @@ describe('goal card training-km bars', () => {
 		const { container } = render(GoalCard, {
 			props: { goal, userStats, history: [todaysReading()] }
 		});
+		await graphLoaded();
 
 		// No forecast yet — confirms the scenario is the one this test is for.
 		await waitFor(() =>

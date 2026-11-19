@@ -1,3 +1,27 @@
+<script module lang="ts">
+	import { loadOnce } from '#lib/utils/load-once.js';
+
+	/**
+	 * The two charts, fetched rather than shipped with the page.
+	 *
+	 * They are the heaviest drawing on the dashboard — an SVG of every reading
+	 * and every planned week, with its axes, ticks and hover layer — and the
+	 * card shows only one at a time, below its head. On a phone the card opens
+	 * folded, so neither is on screen at all until the runner unfolds it. Both
+	 * had to be downloaded, parsed and hydrated before the page answered a tap.
+	 * The head of the card, which carries the prediction itself, still renders
+	 * on the server; the graph below it holds its place and arrives as soon as
+	 * its own chunk has.
+	 *
+	 * One chunk each, loaded side by side rather than as a pair: only one graph
+	 * is on screen at a time, and the one in view should not wait for the other.
+	 */
+	const loadPredictionChart = loadOnce(
+		() => import('#lib/components/charts/prediction-chart.svelte')
+	);
+	const loadDistanceChart = loadOnce(() => import('#lib/components/charts/distance-chart.svelte'));
+</script>
+
 <script lang="ts">
 	import type { Goal, UserStats } from '#lib/server/trenara/types.js';
 	import { untrack, type Snippet } from 'svelte';
@@ -10,13 +34,13 @@
 		ChevronDown,
 		TrendingDown,
 		TrendingUp,
-		Minus
+		Minus,
+		Loader2
 	} from '@lucide/svelte';
 	import PredictionStats from './prediction-stats.svelte';
-	import PredictionChart, {
-		type ChartDataPoint
-	} from '#lib/components/charts/prediction-chart.svelte';
-	import DistanceChart from '#lib/components/charts/distance-chart.svelte';
+	import type { ChartDataPoint } from '#lib/components/charts/prediction-chart.svelte';
+	import { reloadOnStaleChunk } from '#lib/utils/load-once.js';
+	import { browser } from '$app/env';
 	import { readWeekDistance, readGoalDistance } from '#lib/utils/distance-graph.js';
 	import {
 		forecast,
@@ -679,6 +703,39 @@
 	// supply it (`keepHistory`, in `#lib/server/history/record.ts`), which is
 	// also where §5 of `agents.md` says they belonged: no `onMount` for data a
 	// `load` can already hold.
+
+	/** Each chart once its chunk has arrived; `null` until then. */
+	let PredictionChart = $state<
+		typeof import('#lib/components/charts/prediction-chart.svelte').default | null
+	>(null);
+	let DistanceChart = $state<
+		typeof import('#lib/components/charts/distance-chart.svelte').default | null
+	>(null);
+	let predictionFailed = $state(false);
+	let distanceFailed = $state(false);
+
+	/*
+		Asked for while the card is being set up in the browser, not from an
+		effect once the page has mounted.
+
+		Effects run only after the whole page has hydrated, so the graph used to
+		start downloading at the very end — page code, then hydration, then the
+		graph, one after the other. Started here, the request leaves while the
+		rest of the dashboard is still hydrating, and the two overlap: the
+		network fetches the graph while the main thread builds the calendar.
+		On the server there is nothing to fetch: the placeholder is what renders,
+		and the browser hydrates the same placeholder before either chunk lands.
+	*/
+	if (browser) {
+		loadPredictionChart().then(
+			(module) => (PredictionChart = module.default),
+			() => (predictionFailed = true)
+		);
+		loadDistanceChart().then(
+			(module) => (DistanceChart = module.default),
+			() => (distanceFailed = true)
+		);
+	}
 </script>
 
 <div class="rounded-lg border border-border bg-card p-6 shadow-sm">
@@ -985,12 +1042,56 @@
 	{/if}
 {/snippet}
 
+{#snippet chartPending(failed: boolean)}
+	{#if failed}
+		<!--
+			Almost always a deploy that has taken the old chunk away. A reload
+			lands on the new build, where the graph loads; it is offered rather
+			than forced, because the card's head is still worth reading.
+		-->
+		<div
+			class="flex h-[19.75rem] flex-col items-center justify-center gap-2 text-center"
+			data-testid="goal-chart-failed"
+		>
+			<p class="text-sm text-muted-foreground">The graph could not be loaded.</p>
+			<button
+				type="button"
+				onclick={() => reloadOnStaleChunk(new Error('goal card charts'))}
+				class="rounded-md px-3 py-1.5 text-sm font-medium text-primary hover:bg-muted"
+			>
+				Reload
+			</button>
+		</div>
+	{:else}
+		<!--
+			The graph's own footprint — legend, plot and read-out — so it arrives
+			in place rather than pushing the forecast note down.
+		-->
+		<div
+			class="flex h-[19.75rem] items-center justify-center"
+			role="status"
+			data-testid="goal-chart-loading"
+		>
+			<Loader2 class="h-5 w-5 animate-spin text-muted-foreground" aria-hidden="true" />
+			<span class="sr-only">Loading the graph</span>
+		</div>
+	{/if}
+{/snippet}
+
 {#snippet graph()}
 	{#if graphView === 'week'}
-		<DistanceChart series={weekSeries} emptyMessage="No distance planned for this week" />
+		{#if DistanceChart}
+			<DistanceChart series={weekSeries} emptyMessage="No distance planned for this week" />
+		{:else}
+			{@render chartPending(distanceFailed)}
+		{/if}
 	{:else if graphView === 'goal'}
-		<DistanceChart series={goalSeries} emptyMessage="No weekly distances for this goal yet" />
-	{:else}
+		{#if DistanceChart}
+			<DistanceChart series={goalSeries} emptyMessage="No weekly distances for this goal yet" />
+		{:else}
+			{@render chartPending(distanceFailed)}
+		{/if}
+	{:else if PredictionChart}
 		<PredictionChart
 			data={splitHistory.forGoal}
 			loading={false}
@@ -1000,6 +1101,8 @@
 			reference={goalReference}
 			load={chartLoad}
 		/>
+	{:else}
+		{@render chartPending(predictionFailed)}
 	{/if}
 
 	<!--

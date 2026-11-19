@@ -4,6 +4,7 @@ import GoalCard from './goal-card.svelte';
 import type { Goal, UserStats } from '#lib/server/trenara/types.js';
 import type { ChartDataPoint } from '#lib/components/charts/prediction-chart.svelte';
 import { secondsToTimeString, secondsToPaceString } from '#lib/utils/format.js';
+import { graphLoaded } from '../../../test-utils/goal-card';
 
 // The card mounts a chart and jsdom lays nothing out.
 beforeAll(() => {
@@ -55,15 +56,16 @@ function record(daysAgo: number, paceSeconds: number, distanceKm: number): Chart
 	};
 }
 
-function mount(history: ChartDataPoint[]) {
+async function mount(history: ChartDataPoint[]) {
 	render(GoalCard, { props: { goal, userStats, history } });
+	await graphLoaded();
 }
 
 describe('goal card after a goal change', () => {
 	it('leaves out a reading recorded for the goal that was replaced', async () => {
 		// The morning's 15 km reading, still inside the new goal's window
 		// because the new goal started today.
-		mount([record(0, 253, 15)]);
+		await mount([record(0, 253, 15)]);
 
 		await waitFor(() =>
 			expect(screen.getByText(/1 earlier reading for a 15 km goal/i)).toBeTruthy()
@@ -74,14 +76,14 @@ describe('goal card after a goal change', () => {
 	});
 
 	it('says nothing when every reading is for this goal', async () => {
-		mount([record(9, 306, 42.195), record(4, 304, 42.195), record(0, 302, 42.195)]);
+		await mount([record(9, 306, 42.195), record(4, 304, 42.195), record(0, 302, 42.195)]);
 
 		await waitFor(() => expect(screen.queryByText(/no prediction data yet/i)).toBeNull());
 		expect(screen.queryByText(/not plotted/i)).toBeNull();
 	});
 
 	it('keeps the readings for this goal and drops only the old ones', async () => {
-		mount([record(1, 253, 15), record(0, 306, 42.195)]);
+		await mount([record(1, 253, 15), record(0, 306, 42.195)]);
 
 		await waitFor(() => expect(screen.getByText(/not plotted/i)).toBeTruthy());
 		expect(screen.queryByText(/no prediction data yet/i)).toBeNull();
