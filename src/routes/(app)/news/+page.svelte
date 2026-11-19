@@ -7,6 +7,7 @@
 	import NewsContent from '#lib/components/news/news-content.svelte';
 	import { isNewer, isUnread, newestOf, type NewsMark } from '#lib/utils/news-unread.js';
 	import { describeError, describeResponse } from '#lib/utils/network.js';
+	import { externalLinkTarget } from '#lib/utils/external-link.js';
 
 	let { data }: { data: PageServerData } = $props();
 
@@ -87,7 +88,18 @@
 		}
 	}
 
-	onMount(markRead);
+	/**
+	 * A new tab in a browser, an in-place navigation in the installed app —
+	 * where `_blank` on Android brought the runner back into Trainara instead
+	 * of the video. Server-rendered as a browser would want it, then read from
+	 * the window once there is one: the display mode is only known here.
+	 */
+	let linkTarget = $state<'_blank' | undefined>('_blank');
+
+	onMount(() => {
+		linkTarget = externalLinkTarget();
+		markRead();
+	});
 </script>
 
 <svelte:head><title>News</title></svelte:head>
@@ -154,7 +166,7 @@
 					{#if item.video_url}
 						<a
 							href={item.video_url}
-							target="_blank"
+							target={linkTarget}
 							rel="noopener noreferrer"
 							class="mt-3 inline-flex items-center gap-1.5 text-sm font-medium text-primary hover:underline"
 						>

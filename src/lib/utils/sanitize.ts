@@ -11,13 +11,18 @@
  * no use for one and it is removed along with the other tags that can fetch,
  * submit or restyle the page.
  *
- * Links stay, and are opened in a new tab with no opener and no referrer: this
- * is an installed PWA, and following a link in the same window leaves it.
+ * Links stay, with no opener and no referrer. In a browser they open in a new
+ * tab, because following one in the same tab leaves the app. In the installed
+ * app they do not: there `_blank` on Android reopened Trainara instead of the
+ * linked page, and a plain navigation opens it in an in-app browser sheet
+ * instead — see `#lib/utils/external-link`.
  *
  * DOMPurify is ~27KB and is only needed once markup is about to be drawn, so
  * it is imported here, lazily, and the promise is kept — every caller after
  * the first shares one import and one configured instance.
  */
+
+import { externalLinkTarget } from './external-link';
 
 export type Sanitize = (html: string) => string;
 
@@ -56,7 +61,9 @@ export function loadSanitizer(): Promise<Sanitize> {
 
 			purifier.addHook('afterSanitizeAttributes', (node) => {
 				if (node.tagName === 'A' && node.hasAttribute('href')) {
-					node.setAttribute('target', '_blank');
+					const target = externalLinkTarget();
+					if (target) node.setAttribute('target', target);
+					else node.removeAttribute('target');
 					node.setAttribute('rel', 'noopener noreferrer nofollow');
 				}
 			});
