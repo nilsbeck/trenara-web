@@ -33,6 +33,7 @@ import {
 	describeUpstreamError,
 	isUnreachable,
 	parseBody,
+	readBody,
 	passthrough,
 	passthroughOptional,
 	isMissingUpstream,
@@ -84,6 +85,44 @@ describe('describeUpstreamError', () => {
 		expect(describeUpstreamError(new HttpError('Unprocessable', 422, { errors: {} }))).toBe(
 			'Unprocessable'
 		);
+	});
+});
+
+describe('readBody', () => {
+	const schema = z.object({ entryId: z.number() });
+
+	function put(body: string): Request {
+		return new Request('https://app.test/api/v1/x', { method: 'PUT', body });
+	}
+
+	async function refusal(run: Promise<unknown>): Promise<{ status: number; message: string }> {
+		try {
+			await run;
+		} catch (e) {
+			const { status, body } = e as { status: number; body: { message: string } };
+			return { status, message: body.message };
+		}
+		throw new Error('expected a refusal');
+	}
+
+	it('reads and parses a JSON body', async () => {
+		await expect(readBody(schema, put('{"entryId":7}'))).resolves.toEqual({ entryId: 7 });
+	});
+
+	it('refuses a body that is not JSON as a 400 that says so', async () => {
+		const { status, message } = await refusal(readBody(schema, put('{"entryId":')));
+		expect(status).toBe(400);
+		expect(message).toBe('body: not valid JSON');
+	});
+
+	it('refuses an empty body the same way', async () => {
+		expect((await refusal(readBody(schema, put('')))).status).toBe(400);
+	});
+
+	it('still names the field when the JSON is well-formed but wrong', async () => {
+		const { status, message } = await refusal(readBody(schema, put('{"entryId":"x"}')));
+		expect(status).toBe(400);
+		expect(message).toContain('entryId');
 	});
 });
 

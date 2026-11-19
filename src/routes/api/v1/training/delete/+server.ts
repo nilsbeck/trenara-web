@@ -1,6 +1,6 @@
 import type { RequestHandler } from './$types';
 import { trainingApi } from '#lib/server/trenara/index.js';
-import { parseBody, passthrough } from '#lib/server/trenara/request.js';
+import { passthrough, readBody } from '#lib/server/trenara/request.js';
 import { deleteTrainingSchema } from '#lib/schemas/training.js';
 
 /**
@@ -15,7 +15,7 @@ import { deleteTrainingSchema } from '#lib/schemas/training.js';
  * possibly later sessions, which is not what a delete button promises.
  */
 export const DELETE: RequestHandler = async ({ request, cookies }) => {
-	const { trainingId, type } = parseBody(deleteTrainingSchema, await request.json());
+	const { trainingId, type } = await readBody(deleteTrainingSchema, request);
 
 	if (type === 'scheduled') {
 		await passthrough(() => trainingApi.testRemoveTraining(cookies, trainingId, false));

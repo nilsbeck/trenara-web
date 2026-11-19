@@ -40,6 +40,12 @@ const bannedSyntax = [
 			'Markup reaches the DOM only through #lib/utils/sanitize — see agents.md §3, XSS & sanitization.'
 	},
 	{
+		selector:
+			"CallExpression[callee.name='parseBody'] > AwaitExpression > CallExpression[callee.property.name='json']",
+		message:
+			'request.json() throws on a body that is not JSON and answers 500. Use readBody(schema, request) — see agents.md §9, Where things go.'
+	},
+	{
 		selector: "ImportExpression[source.value='dompurify']",
 		message: 'Load DOMPurify through loadSanitizer() in #lib/utils/sanitize, which owns its config.'
 	},

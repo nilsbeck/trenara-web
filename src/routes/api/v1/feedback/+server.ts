@@ -1,6 +1,6 @@
 import type { RequestHandler } from './$types';
 import { trainingApi } from '#lib/server/trenara/index.js';
-import { parseBody, passthrough } from '#lib/server/trenara/request.js';
+import { passthrough, readBody } from '#lib/server/trenara/request.js';
 import { rpeFeedbackSchema } from '#lib/schemas/feedback.js';
 
 /**
@@ -11,7 +11,7 @@ import { rpeFeedbackSchema } from '#lib/schemas/feedback.js';
  * rather than patch its own from what it sent.
  */
 export const PUT: RequestHandler = async ({ request, cookies }) => {
-	const { entryId, feedback } = parseBody(rpeFeedbackSchema, await request.json());
+	const { entryId, feedback } = await readBody(rpeFeedbackSchema, request);
 
 	return Response.json(
 		await passthrough(() => trainingApi.putFeedback(cookies, entryId, feedback))

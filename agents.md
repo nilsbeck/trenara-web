@@ -26,6 +26,7 @@ it (§7).
 | `locals.user!`                                                | `requireUser(locals)`                            | §7  |
 | `.toISOString().slice/split/substring(…)`                     | `#lib/utils/date`                                | §9  |
 | `setInterval(…)`                                              | `#lib/utils/revalidation`                        | §7  |
+| `parseBody(schema, await request.json())`                     | `readBody(schema, request)`                      | §9  |
 | `innerHTML =`, `outerHTML =`, `insertAdjacentHTML`            | `loadSanitizer()` and `{@html}`                  | §3  |
 | `{@html}` without a reason                                    | `svelte/no-at-html-tags` is on; disable with why | §3  |
 | `import … from 'dompurify'`, or `import('dompurify')`         | `loadSanitizer()` from `#lib/utils/sanitize`     | §3  |
@@ -129,7 +130,7 @@ What follows is the design as it actually stands.
   (`#lib/utils/block-color`) picks one of the app's `--color-block-*` tokens by
   kind of step. A lint rule keeps every `hex_*` field out of components.
 - **Request bodies are bounded by their schema.** Every string and array a
-  client can post has a `.max()`, so `parseBody` limits size as well as shape
+  client can post has a `.max()`, so `readBody` limits size as well as shape
   and nothing arbitrary is forwarded upstream. The ceiling is a guard, set well
   past real input; the product rule, where there is one, is applied after
   parsing.
@@ -542,17 +543,17 @@ the drift — fix it rather than copying it.
 
 ### Where things go
 
-| Layer           | Location                                           | Use                                                                                                                                    |
-| --------------- | -------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
-| Page data       | `+page.server.ts` / `+layout.server.ts`            | `requireUser(locals)`; await only what first paint needs, stream the rest (§7, first-paint)                                            |
-| JSON endpoint   | `src/routes/api/v1/**/+server.ts`                  | `parseBody(schema, await request.json())`, then `passthrough(() => …Api.x())`; never a hand-rolled `safeParse` or field-by-field check |
-| Body schemas    | `#lib/schemas/*.ts`, with a `*.test.ts`            | shape only; what is _allowed_ is Trenara's `can_*` flags                                                                               |
-| Upstream calls  | `#lib/server/trenara/{training,user,chat,news}.ts` | reads through `cachedRead` with a `CacheKey`; writes through `mutating`; shape checked with `expectObject` / `expectCollections`       |
-| Upstream types  | `#lib/server/trenara/types.ts`                     | what captured traffic held, not what we hope for                                                                                       |
-| Storage         | `#lib/server/db/*.ts`                              | singleton DAO, `.eq('user_id', …)`, `storageFailed()` on error; the route wraps the call in `fromStorage`                              |
-| Client state    | `#lib/stores/*.svelte.ts`                          | the view-model (§4); runes, not `svelte/store`; a factory, a class with `$state` fields, or a module-level `$state` holder             |
-| Client → server | `fetch('/api/v1/…')` from a component or store     | a failure the runner sees is worded by `describeResponse` / `describeError` (`#lib/utils/network`)                                     |
-| Pure logic      | `#lib/utils/*.ts`, with a `*.test.ts` beside it    | no SvelteKit imports, so it tests without mocks                                                                                        |
+| Layer           | Location                                           | Use                                                                                                                                                                                                             |
+| --------------- | -------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Page data       | `+page.server.ts` / `+layout.server.ts`            | `requireUser(locals)`; await only what first paint needs, stream the rest (§7, first-paint)                                                                                                                     |
+| JSON endpoint   | `src/routes/api/v1/**/+server.ts`                  | `await readBody(schema, request)`, then `passthrough(() => …Api.x())`; never a hand-rolled `safeParse` or field-by-field check, and never a bare `request.json()`, which answers 500 to a body that is not JSON |
+| Body schemas    | `#lib/schemas/*.ts`, with a `*.test.ts`            | shape only; what is _allowed_ is Trenara's `can_*` flags                                                                                                                                                        |
+| Upstream calls  | `#lib/server/trenara/{training,user,chat,news}.ts` | reads through `cachedRead` with a `CacheKey`; writes through `mutating`; shape checked with `expectObject` / `expectCollections`                                                                                |
+| Upstream types  | `#lib/server/trenara/types.ts`                     | what captured traffic held, not what we hope for                                                                                                                                                                |
+| Storage         | `#lib/server/db/*.ts`                              | singleton DAO, `.eq('user_id', …)`, `storageFailed()` on error; the route wraps the call in `fromStorage`                                                                                                       |
+| Client state    | `#lib/stores/*.svelte.ts`                          | the view-model (§4); runes, not `svelte/store`; a factory, a class with `$state` fields, or a module-level `$state` holder                                                                                      |
+| Client → server | `fetch('/api/v1/…')` from a component or store     | a failure the runner sees is worded by `describeResponse` / `describeError` (`#lib/utils/network`)                                                                                                              |
+| Pure logic      | `#lib/utils/*.ts`, with a `*.test.ts` beside it    | no SvelteKit imports, so it tests without mocks                                                                                                                                                                 |
 
 Failures are told apart by which server failed, and each has one helper:
 
@@ -644,7 +645,7 @@ the rule; they do not restate it.
 
 - [ ] under `src/routes/api/v1/`, on a method that is not GET if it changes anything (§7)
 - [ ] `requireUser(locals)`; no guard of its own (§7)
-- [ ] body through `parseBody` with a schema in `#lib/schemas/`, every string and array `.max()`ed (§3)
+- [ ] body through `readBody` with a schema in `#lib/schemas/`, every string and array `.max()`ed (§3)
 - [ ] upstream through `passthrough` / `passthroughOptional`, storage through `fromStorage` (§9)
 - [ ] a read goes through `cachedRead`; a write `invalidate`s what it changes (§7)
 - [ ] a write to Supabase is behind a per-user limiter (§3)
