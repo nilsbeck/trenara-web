@@ -19,6 +19,8 @@
  * the first shares one import and one configured instance.
  */
 
+import { externalUrl } from './external-url';
+
 export type Sanitize = (html: string) => string;
 
 /** Tags that can fetch, submit, embed or restyle — none of which markup needs. */
@@ -56,6 +58,16 @@ export function loadSanitizer(): Promise<Sanitize> {
 
 			purifier.addHook('afterSanitizeAttributes', (node) => {
 				if (node.tagName === 'A' && node.hasAttribute('href')) {
+					// An address typed without its scheme (`youtu.be/…`) is relative,
+					// and opened this app again instead of the site. A link in a
+					// message always means another site, so it is read as one; one
+					// that is not a web address keeps its text and loses its href.
+					const href = node.getAttribute('href') ?? '';
+					if (!/^[a-z][a-z\d+.-]*:/i.test(href.trim())) {
+						const absolute = externalUrl(href);
+						if (absolute) node.setAttribute('href', absolute);
+						else node.removeAttribute('href');
+					}
 					node.setAttribute('target', '_blank');
 					node.setAttribute('rel', 'noopener noreferrer nofollow');
 				}

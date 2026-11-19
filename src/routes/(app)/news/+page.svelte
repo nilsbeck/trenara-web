@@ -7,6 +7,7 @@
 	import NewsContent from '#lib/components/news/news-content.svelte';
 	import { isNewer, isUnread, newestOf, type NewsMark } from '#lib/utils/news-unread.js';
 	import { describeError, describeResponse } from '#lib/utils/network.js';
+	import { externalUrl } from '#lib/utils/external-url.js';
 
 	let { data }: { data: PageServerData } = $props();
 
@@ -123,6 +124,8 @@
 		<div class="space-y-4">
 			{#each items as item (item.id)}
 				{@const unread = isUnread(item, markOnArrival, now)}
+				<!-- Typed by hand upstream, sometimes without its scheme: see external-url.ts. -->
+				{@const link = externalUrl(item.video_url)}
 				<article
 					class="rounded-lg border bg-card p-5 shadow-sm {unread
 						? 'border-primary/60 ring-1 ring-primary/30'
@@ -151,9 +154,9 @@
 
 					<NewsContent content={item.content} />
 
-					{#if item.video_url}
+					{#if link}
 						<a
-							href={item.video_url}
+							href={link}
 							target="_blank"
 							rel="noopener noreferrer"
 							class="mt-3 inline-flex items-center gap-1.5 text-sm font-medium text-primary hover:underline"

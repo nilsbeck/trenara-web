@@ -46,6 +46,15 @@ describe('loadSanitizer', () => {
 		expect(link?.getAttribute('rel')).toBe('noopener noreferrer nofollow');
 	});
 
+	it('reads a link without its scheme as another site, not a page of this app', async () => {
+		const sanitize = await loadSanitizer();
+		const out = sanitize('<a href="youtu.be/fJlCe7RPPDA">watch</a> <a href="nowhere">x</a>');
+		const links = new DOMParser().parseFromString(out, 'text/html').querySelectorAll('a');
+		expect(links[0]?.getAttribute('href')).toBe('https://youtu.be/fJlCe7RPPDA');
+		expect(links[0]?.getAttribute('target')).toBe('_blank');
+		expect(links[1]?.hasAttribute('href')).toBe(false);
+	});
+
 	it('drops a javascript: href', async () => {
 		const sanitize = await loadSanitizer();
 		expect(sanitize('<a href="javascript:alert(1)">x</a>')).not.toContain('javascript:');
