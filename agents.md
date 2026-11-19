@@ -419,9 +419,14 @@ the reason — that is what distinguishes a decision from a regression.
   The chat window is the same arrangement in the layout: the bubble and its
   badge are in the shell, and `chat-panel.svelte` — a view with no state of
   its own — is the lazy chunk behind them.
-  The goal card's charts are the same arrangement without the tap: loaded once
-  the page has hydrated, behind a placeholder of their own footprint, so the
-  card's head — the prediction itself — still renders on the server. The
+  The goal card's charts are the same arrangement without the tap: each its own
+  chunk, asked for while the card is set up in the browser so the download
+  overlaps the rest of hydration instead of following it, and each shown as
+  soon as its own chunk lands, behind a placeholder of their footprint. The
+  card's head — the prediction itself — still renders on the server. A lazy
+  load starts as soon as nothing it waits for is missing: not after
+  hydration when it does not need hydration, and not after a request it does
+  not depend on (the setup sheet's lists, the chat's sanitiser). The
   prediction chart is also the whole of the prediction-history page, where it
   is imported statically; `LAZY_ON_ROUTE` checks a module that is lazy on one
   route and content on another.

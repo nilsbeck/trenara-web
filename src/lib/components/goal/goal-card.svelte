@@ -10,15 +10,16 @@
 	 * folded, so neither is on screen at all until the runner unfolds it. Both
 	 * had to be downloaded, parsed and hydrated before the page answered a tap.
 	 * The head of the card, which carries the prediction itself, still renders
-	 * on the server; the graph below it holds its place and arrives once the
-	 * page has hydrated.
+	 * on the server; the graph below it holds its place and arrives as soon as
+	 * its own chunk has.
+	 *
+	 * One chunk each, loaded side by side rather than as a pair: only one graph
+	 * is on screen at a time, and the one in view should not wait for the other.
 	 */
-	const loadCharts = loadOnce(() =>
-		Promise.all([
-			import('#lib/components/charts/prediction-chart.svelte'),
-			import('#lib/components/charts/distance-chart.svelte')
-		])
+	const loadPredictionChart = loadOnce(
+		() => import('#lib/components/charts/prediction-chart.svelte')
 	);
+	const loadDistanceChart = loadOnce(() => import('#lib/components/charts/distance-chart.svelte'));
 </script>
 
 <script lang="ts">
@@ -39,6 +40,7 @@
 	import PredictionStats from './prediction-stats.svelte';
 	import type { ChartDataPoint } from '#lib/components/charts/prediction-chart.svelte';
 	import { reloadOnStaleChunk } from '#lib/utils/load-once.js';
+	import { browser } from '$app/env';
 	import { readWeekDistance, readGoalDistance } from '#lib/utils/distance-graph.js';
 	import {
 		forecast,
@@ -702,33 +704,38 @@
 	// also where §5 of `agents.md` says they belonged: no `onMount` for data a
 	// `load` can already hold.
 
-	type Charts = {
-		PredictionChart: typeof import('#lib/components/charts/prediction-chart.svelte').default;
-		DistanceChart: typeof import('#lib/components/charts/distance-chart.svelte').default;
-	};
+	/** Each chart once its chunk has arrived; `null` until then. */
+	let PredictionChart = $state<
+		typeof import('#lib/components/charts/prediction-chart.svelte').default | null
+	>(null);
+	let DistanceChart = $state<
+		typeof import('#lib/components/charts/distance-chart.svelte').default | null
+	>(null);
+	let predictionFailed = $state(false);
+	let distanceFailed = $state(false);
 
-	/** The chart components once their chunk has arrived; `null` until then. */
-	let charts = $state<Charts | null>(null);
-	let chartsFailed = $state(false);
+	/*
+		Asked for while the card is being set up in the browser, not from an
+		effect once the page has mounted.
 
-	// Fetching a chunk is syncing with the network, not deriving state. Effects
-	// run only once the page has hydrated, so the graph never competes with the
-	// first paint for the wire or the main thread.
-	$effect(() => {
-		let current = true;
-		loadCharts()
-			.then(([prediction, distance]) => {
-				if (current) {
-					charts = { PredictionChart: prediction.default, DistanceChart: distance.default };
-				}
-			})
-			.catch(() => {
-				if (current) chartsFailed = true;
-			});
-		return () => {
-			current = false;
-		};
-	});
+		Effects run only after the whole page has hydrated, so the graph used to
+		start downloading at the very end — page code, then hydration, then the
+		graph, one after the other. Started here, the request leaves while the
+		rest of the dashboard is still hydrating, and the two overlap: the
+		network fetches the graph while the main thread builds the calendar.
+		On the server there is nothing to fetch: the placeholder is what renders,
+		and the browser hydrates the same placeholder before either chunk lands.
+	*/
+	if (browser) {
+		loadPredictionChart().then(
+			(module) => (PredictionChart = module.default),
+			() => (predictionFailed = true)
+		);
+		loadDistanceChart().then(
+			(module) => (DistanceChart = module.default),
+			() => (distanceFailed = true)
+		);
+	}
 </script>
 
 <div class="rounded-lg border border-border bg-card p-6 shadow-sm">
@@ -1035,25 +1042,8 @@
 	{/if}
 {/snippet}
 
-{#snippet graph()}
-	{#if charts}
-		{@const { DistanceChart, PredictionChart } = charts}
-		{#if graphView === 'week'}
-			<DistanceChart series={weekSeries} emptyMessage="No distance planned for this week" />
-		{:else if graphView === 'goal'}
-			<DistanceChart series={goalSeries} emptyMessage="No weekly distances for this goal yet" />
-		{:else}
-			<PredictionChart
-				data={splitHistory.forGoal}
-				loading={false}
-				error={historyError}
-				domainEnd={raceDay}
-				projections={chartLines}
-				reference={goalReference}
-				load={chartLoad}
-			/>
-		{/if}
-	{:else if chartsFailed}
+{#snippet chartPending(failed: boolean)}
+	{#if failed}
 		<!--
 			Almost always a deploy that has taken the old chunk away. A reload
 			lands on the new build, where the graph loads; it is offered rather
@@ -1085,6 +1075,34 @@
 			<Loader2 class="h-5 w-5 animate-spin text-muted-foreground" aria-hidden="true" />
 			<span class="sr-only">Loading the graph</span>
 		</div>
+	{/if}
+{/snippet}
+
+{#snippet graph()}
+	{#if graphView === 'week'}
+		{#if DistanceChart}
+			<DistanceChart series={weekSeries} emptyMessage="No distance planned for this week" />
+		{:else}
+			{@render chartPending(distanceFailed)}
+		{/if}
+	{:else if graphView === 'goal'}
+		{#if DistanceChart}
+			<DistanceChart series={goalSeries} emptyMessage="No weekly distances for this goal yet" />
+		{:else}
+			{@render chartPending(distanceFailed)}
+		{/if}
+	{:else if PredictionChart}
+		<PredictionChart
+			data={splitHistory.forGoal}
+			loading={false}
+			error={historyError}
+			domainEnd={raceDay}
+			projections={chartLines}
+			reference={goalReference}
+			load={chartLoad}
+		/>
+	{:else}
+		{@render chartPending(predictionFailed)}
 	{/if}
 
 	<!--

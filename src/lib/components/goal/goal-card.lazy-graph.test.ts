@@ -8,19 +8,42 @@ import type { Goal, UserStats } from '#lib/server/trenara/types.js';
  * are on their way, once they have arrived, and when they cannot be had.
  *
  * The load is controlled through `loadOnce`, which the card's module script
- * wraps its imports in: each call here waits on `charts.gate` and then either
- * fails or performs the real imports.
+ * wraps each chart's import in: a call here waits on that chart's gate and
+ * then either fails or performs the real import. Which chart a loader is for
+ * is read from the import it wraps.
  */
 
+type Which = 'prediction' | 'distance';
+
 const charts = vi.hoisted(() => {
-	let release: () => void = () => {};
+	const open = () => Promise.resolve();
+	const gates: Record<'prediction' | 'distance', Promise<void>> = {
+		prediction: open(),
+		distance: open()
+	};
+	const releases: Record<'prediction' | 'distance', () => void> = {
+		prediction: () => {},
+		distance: () => {}
+	};
 	return {
-		gate: Promise.resolve(),
+		gates,
 		fail: false,
-		hold() {
-			this.gate = new Promise<void>((resolve) => (release = resolve));
+		hold(...which: ('prediction' | 'distance')[]) {
+			for (const w of which.length ? which : (['prediction', 'distance'] as const)) {
+				gates[w] = new Promise<void>((resolve) => (releases[w] = resolve));
+			}
 		},
-		release: () => release()
+		release(...which: ('prediction' | 'distance')[]) {
+			for (const w of which.length ? which : (['prediction', 'distance'] as const)) {
+				releases[w]();
+			}
+		},
+		reset() {
+			this.release();
+			gates.prediction = open();
+			gates.distance = open();
+			this.fail = false;
+		}
 	};
 });
 
@@ -31,7 +54,8 @@ vi.mock('#lib/utils/load-once.js', async (importOriginal) => ({
 	loadOnce:
 		<T>(load: () => Promise<T>) =>
 		async () => {
-			await charts.gate;
+			const which: Which = String(load).includes('distance-chart') ? 'distance' : 'prediction';
+			await charts.gates[which];
 			if (charts.fail) throw new TypeError('Failed to fetch dynamically imported module');
 			return load();
 		},
@@ -48,9 +72,7 @@ beforeAll(() => {
 });
 
 afterEach(() => {
-	charts.release();
-	charts.gate = Promise.resolve();
-	charts.fail = false;
+	charts.reset();
 	reload.mockReset();
 	cleanup();
 });
@@ -99,6 +121,26 @@ describe('the goal card graph, loaded after the page', () => {
 
 		await waitFor(() => expect(screen.getByText(/no prediction data yet/i)).toBeTruthy());
 		expect(screen.queryByTestId('goal-chart-loading')).toBeNull();
+	});
+
+	/**
+	 * The two charts used to be loaded as a pair, so the prediction graph —
+	 * the one the card opens on — waited for the distance chart it was not
+	 * showing. Each is its own chunk and arrives on its own now.
+	 */
+	it('shows the graph in view without waiting for the other one', async () => {
+		charts.hold('distance');
+		render(GoalCard, { goal, userStats, history: [] });
+
+		await waitFor(() => expect(screen.getByText(/no prediction data yet/i)).toBeTruthy());
+
+		// The distance chart is still on its way, and only its graph waits for it.
+		const picker = screen.getByLabelText('Which graph to show') as HTMLSelectElement;
+		await fireEvent.change(picker, { target: { value: 'week' } });
+		expect(screen.getByTestId('goal-chart-loading')).toBeTruthy();
+
+		charts.release('distance');
+		await waitFor(() => expect(screen.queryByTestId('goal-chart-loading')).toBeNull());
 	});
 
 	it('says the graph could not be loaded, rather than spinning forever, and offers a reload', async () => {
