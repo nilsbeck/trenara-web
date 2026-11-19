@@ -340,9 +340,9 @@ the reason — that is what distinguishes a decision from a regression.
   minutes, and `reconcileRatedEntries` patches it back onto any read that
   still shows the entry unrated. Call it wherever a fetched schedule is about
   to be trusted — `calendar.svelte.ts`'s `commitSchedule` covers the store,
-  but `calendar.svelte`'s own opening-day effect reads the page's schedule
-  prop directly and needs the same reconciliation before `initialCalendarDay`
-  runs, not after.
+  but `calendar.svelte`'s own opening-day pick, made during setup, reads the
+  page's schedule prop directly and needs the same reconciliation before
+  `initialCalendarDay` runs, not after.
 - **Load data is a snapshot from when the load ran; seat it once.**
   SvelteKit hands a page a new `data` object whenever any load above it
   re-runs, with the page's own fields carried over by reference — so an effect
@@ -442,6 +442,14 @@ the reason — that is what distinguishes a decision from a regression.
   flickers on every page (`(app)/+layout.server.ts` explains the case that
   taught this). Streamed values render with `{#await}` and follow "Loading,
   empty, and error states" (§4).
+- **What a load awaited is seated during setup, not in an effect.** Effects
+  never run on the server, so a view-model seeded by one renders empty there:
+  the dashboard's load awaited the whole month from Trenara and the server's
+  HTML showed a month of blank days until the JavaScript hydrated. Seed it in
+  the component's `<script>` (untracked, once), keep effects for what follows
+  a change, and pin it with a test that renders through `svelte/server` under
+  `// @vitest-environment node` — `calendar.ssr.test.ts` is the pattern; a
+  jsdom mount runs the effects and cannot see the gap.
 
 ### The tooling has to actually run
 

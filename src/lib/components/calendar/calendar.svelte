@@ -32,21 +32,57 @@
 
 	setContext<CalendarStore>('calendar', store);
 
-	// Keep schedule in sync whenever the parent passes a new one — on first
-	// render, and again whenever a page load that really ran brings another. The month it covers goes
-	// with it: if the runner has paged to March while a refresh for August was in
-	// flight, August belongs in the cache, not on screen.
-	//
-	// Deliberately the first effect in the component, ahead of both the
-	// opening-day pick and the viewport fold below: each of those can go and
-	// fetch a month of its own the moment it runs, and the page already handed
-	// one down. Seated here first, `scheduleCache` already holds it by the time
-	// either looks — so instead of a fetch, they find it cached and current and
-	// do nothing. Run after them, this was firing a second, redundant request
-	// for the very month the page just loaded, landing moments after the first
-	// had already drawn it: whatever came back replaced dots that were already
-	// correct, and correct only by luck if it did not also replace them with a
-	// week that could not yet answer for itself.
+	/**
+	 * The plan, and the day the calendar opens on, seated while the component is
+	 * set up rather than by effects once it has mounted.
+	 *
+	 * Effects do not run on the server, and both of these used to be effects.
+	 * So the dashboard's server-rendered HTML was a month of empty days: the
+	 * load had awaited five or six weeks of schedule from Trenara and serialised
+	 * them into the page, and the first paint showed none of it — no session on
+	 * any day, no detail under the grid. The plan arrived only once the page's
+	 * JavaScript had downloaded and hydrated, which on a phone opening the app
+	 * from its home screen is the longest wait of the launch, spent looking at
+	 * what reads as a rest week.
+	 *
+	 * Seated here, the server renders them, and the browser seats the same thing
+	 * while it hydrates. `initialCalendarDay` is pure. The one input that can
+	 * differ between the two is `reconcileRatedEntries`, which reads this
+	 * browser's own memory of a rating it just made (`rated-locally.ts`) and has
+	 * nothing to read on the server: in the minutes after a rating, the browser
+	 * can open on a later day than the HTML did, and hydration repaints the
+	 * difference — which is exactly the case that memory exists for. The page's
+	 * own schedule has not been through the store's reconciliation when the
+	 * opening day is picked from it, so it is reconciled the same way here, or a
+	 * reload landing on a read that has not caught up with a rating would open
+	 * right back on the session it was just cleared off.
+	 *
+	 * Seated first, too, ahead of the opening-day paging and the viewport fold
+	 * below: each of those can go and fetch a month of its own, and with the
+	 * page's month already in `scheduleCache` they find it cached and current
+	 * instead of asking Trenara for it a second time.
+	 *
+	 * Untracked throughout: the page hands down a fresh `new Date()` and, on
+	 * every re-run of any load above it, a fresh `data` object, so tracking
+	 * either would throw the runner's chosen day away on each background
+	 * refresh. Both are first-paint decisions, not standing ones.
+	 */
+	let seated: Schedule = untrack(() => schedule);
+	const opening: Date = untrack(() => {
+		store.setSchedule(seated, today);
+
+		const day = initialCalendarDay(
+			{ ...seated, entries: reconcileRatedEntries(seated.entries) },
+			today
+		);
+		store.setSelectedDate({ year: day.getFullYear(), month: day.getMonth(), day: day.getDate() });
+		return day;
+	});
+
+	// A schedule the parent passes later — from a page load that really ran
+	// again — is seated as it arrives. The month it covers goes with it: if the
+	// runner has paged to March while a refresh for August was in flight, August
+	// belongs in the cache, not on screen.
 	//
 	// Only a schedule it has not seated before, though. The page passes
 	// `data.schedule`, and SvelteKit hands the page a new `data` object whenever
@@ -55,10 +91,7 @@
 	// very same object as before. That object is the plan as it stood when the
 	// page loaded, and seating it again took back everything changed since: a
 	// PWA resumed the next day revalidated, re-ran the layout load, and asked
-	// for the rating of a session the runner had rated the evening before. A
-	// page load that really ran again brings a new object, and that one is
-	// seated as it always was.
-	let seated: Schedule | null = null;
+	// for the rating of a session the runner had rated the evening before.
 	$effect(() => {
 		const incoming = schedule;
 		if (incoming === seated) return;
@@ -69,39 +102,12 @@
 		);
 	});
 
-	// Initialise selected date on mount inside an effect so Svelte 5 doesn't
-	// warn about capturing the initial prop value outside a closure.
-	//
-	// Everything read here is untracked deliberately: the page hands down a
-	// fresh `new Date()` and a fresh schedule on every render, so tracking them
-	// would throw the runner's chosen day away each time a background refresh
-	// brought new data in. The opening day is a first-paint decision, not a
-	// standing one.
+	// The opening day can land outside the month the page loaded — a session
+	// late last month still waiting on a rating, or the next one over the turn
+	// of the month. Page the grid there too, or the highlight sits on a day it
+	// is not showing. That is a fetch, so it waits for the browser.
 	$effect(() => {
 		const day = untrack(() => today);
-		// The page's own schedule has not been through the store's reconciliation
-		// yet — that happened in `setSchedule` above, and this effect reads no
-		// further than the prop itself. Reconciled the same way here, or a reload
-		// landing on a read that has not caught up with a rating this browser just
-		// made opens right back on the session it was just cleared off, instead of
-		// moving past it.
-		const rawSchedule = untrack(() => schedule);
-		const reconciledSchedule: Schedule = {
-			...rawSchedule,
-			entries: reconcileRatedEntries(rawSchedule.entries)
-		};
-		const opening = untrack(() => initialCalendarDay(reconciledSchedule, day));
-
-		store.setSelectedDate({
-			year: opening.getFullYear(),
-			month: opening.getMonth(),
-			day: opening.getDate()
-		});
-
-		// The pick can land outside the month the page loaded — a session late
-		// last month still waiting on a rating, or the next one over the turn of
-		// the month. Page the grid there too, or the highlight sits on a day it
-		// is not showing.
 		if (opening.getFullYear() !== day.getFullYear() || opening.getMonth() !== day.getMonth()) {
 			untrack(() => void store.loadMonthData(opening));
 		}
