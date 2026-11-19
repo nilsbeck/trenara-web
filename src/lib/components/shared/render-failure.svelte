@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { TriangleAlert, RefreshCw } from 'lucide-svelte';
+	import { TriangleAlert, RefreshCw } from '@lucide/svelte';
 
 	/**
 	 * What is shown in place of a part of the app that threw while rendering.

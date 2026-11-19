@@ -1,6 +1,6 @@
 <script lang="ts">
 	import type { PageServerData } from './$types';
-	import { UserCircle, ArrowLeft } from 'lucide-svelte';
+	import { UserCircle, ArrowLeft } from '@lucide/svelte';
 
 	let { data }: { data: PageServerData } = $props();
 </script>

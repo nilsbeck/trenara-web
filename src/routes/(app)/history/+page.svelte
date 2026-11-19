@@ -7,7 +7,7 @@
 		type EnduranceDataPoint
 	} from '#lib/components/charts/endurance-chart.svelte';
 	import { timeStringToSeconds, paceStringToSeconds } from '#lib/utils/format.js';
-	import { History, ArrowLeft, Loader2 } from 'lucide-svelte';
+	import { History, ArrowLeft, Loader2 } from '@lucide/svelte';
 	import { onMount } from 'svelte';
 
 	let { data }: { data: PageServerData } = $props();

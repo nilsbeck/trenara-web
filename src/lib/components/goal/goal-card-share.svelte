@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { page } from '$app/state';
 	import { refreshAll } from '$app/navigation';
-	import { Share2, X, Copy, Check, Loader2, RefreshCw, Trash2 } from 'lucide-svelte';
+	import { Share2, X, Copy, Check, Loader2, RefreshCw, Trash2 } from '@lucide/svelte';
 	import { describeError, describeResponse } from '#lib/utils/network.js';
 	import type { ShareRow } from '#lib/server/db/goal-share.js';
 

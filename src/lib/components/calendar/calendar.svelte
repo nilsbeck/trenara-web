@@ -9,7 +9,7 @@
 	import CalendarHeader from './calendar-header.svelte';
 	import CalendarGrid from './calendar-grid.svelte';
 	import CalendarDetails from './calendar-details.svelte';
-	import { Loader2 } from 'lucide-svelte';
+	import { Loader2 } from '@lucide/svelte';
 
 	let {
 		today,

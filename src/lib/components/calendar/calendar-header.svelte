@@ -2,7 +2,7 @@
 	import { getContext } from 'svelte';
 	import type { CalendarStore } from '#lib/stores/calendar.svelte.js';
 	import CalendarNavigation from './calendar-navigation.svelte';
-	import { ChevronDown, ChevronUp } from 'lucide-svelte';
+	import { ChevronDown, ChevronUp } from '@lucide/svelte';
 
 	const store = getContext<CalendarStore>('calendar');
 

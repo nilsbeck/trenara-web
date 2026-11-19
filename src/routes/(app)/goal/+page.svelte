@@ -5,7 +5,7 @@
 	import PredictionsCard from '#lib/components/predictions/predictions-card.svelte';
 	import { isRenderableStats } from '#lib/utils/user-stats.js';
 	import { refreshAll } from '$app/navigation';
-	import { Loader2, ArrowLeft, RefreshCw, Target, Archive } from 'lucide-svelte';
+	import { Loader2, ArrowLeft, RefreshCw, Target, Archive } from '@lucide/svelte';
 
 	let { data }: { data: PageServerData } = $props();
 </script>

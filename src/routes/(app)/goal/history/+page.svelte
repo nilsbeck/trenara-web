@@ -1,6 +1,6 @@
 <script lang="ts">
 	import type { PageServerData } from './$types';
-	import { ArrowLeft, Archive } from 'lucide-svelte';
+	import { ArrowLeft, Archive } from '@lucide/svelte';
 
 	let { data }: { data: PageServerData } = $props();
 

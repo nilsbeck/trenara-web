@@ -32,6 +32,7 @@ it (§7).
 | `import … from 'dompurify'`, or `import('dompurify')`         | `loadSanitizer()` from `#lib/utils/sanitize`     | §3  |
 | `.hex_training`, `.hex_graph` read outside `hex-color.ts`     | `trainingColor()` / `blockColor()`               | §3  |
 | `axios`, `lodash`, `svelte/store`                             | `fetch`, native JS, runes                        | §5  |
+| `lucide-svelte`                                               | `@lucide/svelte`                                 | §4  |
 | `$app/stores`, `@vercel/speed-insights/sveltekit`             | `$app/state`; the root `+layout.svelte`          | §7  |
 | DOMPurify reachable without `import()`; shell over its budget | `scripts/check-bundle.ts`, after `bun run build` | §7  |
 | `$app/stores` anywhere in the client build, dependencies too  | `scripts/check-bundle.ts`, after `bun run build` | §7  |
@@ -166,7 +167,7 @@ What follows is the design as it actually stands.
 ## 4. UI Architecture & Reusability
 
 - **Components:** Domain components live in `#lib/components`, grouped by feature (`calendar/`, `training/`, `chat/`, `charts/`). There is no UI primitive library — components are written directly against Tailwind classes.
-- **Icons:** Use `lucide-svelte`.
+- **Icons:** Use `@lucide/svelte`, the runes-native package. `lucide-svelte` is deprecated upstream and ships Svelte 4 components; lint refuses it.
 - **Theming:** The app is dark only. The palette is defined once as `@theme` tokens in `src/app.css`; there is no light palette and no theme switcher.
 - **Native-First:** Use native HTML validation attributes alongside Zod. The login form is the one Form Action, with `enhance`; every other mutation is a `fetch` to a JSON route under `/api/v1` (see §3, CSRF, and §9).
 
@@ -239,7 +240,7 @@ draws only two of them lies during the third.
   has a pending state at all, because `history` is now supplied to the card
   already resolved rather than fetched on mount; see "Reusing the goal card"
   in `.kiro/specs/goal-sharing/design.md`.)
-- **Say what is waiting.** `Loader2` from `lucide-svelte` with `animate-spin`
+- **Say what is waiting.** `Loader2` from `@lucide/svelte` with `animate-spin`
   and `aria-hidden="true"`, inside a `role="status"` wrapper carrying an
   `sr-only` sentence. A bare spinning glyph reads as nothing at all to a
   screen reader.

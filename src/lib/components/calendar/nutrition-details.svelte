@@ -9,7 +9,7 @@
 		mealShares,
 		orderedMeals
 	} from '#lib/utils/nutrition.js';
-	import { Equal, Lightbulb, TriangleAlert, UtensilsCrossed } from 'lucide-svelte';
+	import { Equal, Lightbulb, TriangleAlert, UtensilsCrossed } from '@lucide/svelte';
 
 	let {
 		selectedDate,

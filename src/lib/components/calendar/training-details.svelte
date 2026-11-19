@@ -15,7 +15,7 @@
 		Repeat,
 		TriangleAlert,
 		X
-	} from 'lucide-svelte';
+	} from '@lucide/svelte';
 	import GiveFeedbackModal from '#lib/components/modals/give-feedback-modal.svelte';
 	import ChangeDateModal from '#lib/components/modals/change-date-modal.svelte';
 	import RateTrainingInline from '#lib/components/training/rate-training-inline.svelte';

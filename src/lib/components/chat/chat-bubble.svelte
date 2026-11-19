@@ -1,6 +1,6 @@
 <script lang="ts">
 	import type { ChatThread, ChatMessage } from '#lib/server/trenara/types.js';
-	import { MessageCircle, X, Loader2, Bot, Send } from 'lucide-svelte';
+	import { MessageCircle, X, Loader2, Bot, Send } from '@lucide/svelte';
 	import { onDestroy } from 'svelte';
 	import { describeError, describeResponse } from '#lib/utils/network.js';
 	import { loadSanitizer, type Sanitize } from '#lib/utils/sanitize.js';

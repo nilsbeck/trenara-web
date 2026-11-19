@@ -1,6 +1,6 @@
 <script lang="ts">
 	import type { UserStats } from '#lib/server/trenara/types.js';
-	import { Timer } from 'lucide-svelte';
+	import { Timer } from '@lucide/svelte';
 	import { riegelCurve } from '#lib/utils/race-equivalent.js';
 	import {
 		timeStringToSeconds,

@@ -12,7 +12,7 @@
 		SearchX,
 		TriangleAlert,
 		Loader2
-	} from 'lucide-svelte';
+	} from '@lucide/svelte';
 
 	/**
 	 * What the app shows when a load function threw.

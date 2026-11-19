@@ -15,7 +15,7 @@
 <script lang="ts">
 	import { tick } from 'svelte';
 	import type { ScheduledTraining } from '#lib/server/trenara/types.js';
-	import { CalendarDays } from 'lucide-svelte';
+	import { CalendarDays } from '@lucide/svelte';
 	import { reloadOnStaleChunk, whenIdle } from '#lib/utils/load-once.js';
 
 	let {

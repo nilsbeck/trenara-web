@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { Loader2, Plus, X } from 'lucide-svelte';
+	import { Loader2, Plus, X } from '@lucide/svelte';
 	import { AddTrainingStore } from '#lib/stores/add-training.svelte.js';
 	import { trainingColor } from '#lib/utils/hex-color.js';
 

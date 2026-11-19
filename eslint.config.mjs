@@ -85,6 +85,11 @@ export default tseslint.config(
 						},
 						{ name: 'axios', message: 'Use fetch — agents.md §5.' },
 						{
+							name: 'lucide-svelte',
+							message:
+								'Deprecated upstream, and its icons are Svelte 4 components. Use @lucide/svelte — agents.md §4.'
+						},
+						{
 							name: 'svelte/store',
 							message: 'Client state is runes — agents.md §9, Client state.'
 						},
