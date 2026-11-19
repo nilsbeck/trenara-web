@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/svelte';
 import CalendarDetails from './calendar-details.svelte';
+import CalendarContext from '../../../test-utils/calendar-context.svelte';
 import { createCalendarStore } from '#lib/stores/calendar.svelte.js';
 import type { Schedule } from '#lib/server/trenara/types.js';
 
@@ -127,7 +128,7 @@ function mount() {
 	const store = createCalendarStore(new Date('2026-08-24'));
 	store.setSchedule(schedule());
 	store.setSelectedDate({ year: 2026, month: 7, day: 24 });
-	render(CalendarDetails, { context: new Map([['calendar', store]]) });
+	render(CalendarContext, { props: { store, part: CalendarDetails } });
 	return store;
 }
 

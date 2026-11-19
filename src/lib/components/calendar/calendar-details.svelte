@@ -1,14 +1,13 @@
 <script lang="ts">
-	import { getContext } from 'svelte';
 	import { browser } from '$app/env';
-	import type { CalendarStore } from '#lib/stores/calendar.svelte.js';
+	import { getCalendarStore } from '#lib/stores/calendar.svelte.js';
 	import { Tab } from '#lib/stores/calendar.svelte.js';
 	import type { NutritionAdvice } from '#lib/server/trenara/types.js';
 	import TrainingDetails from './training-details.svelte';
 	import StrengthDetails from './strength-details.svelte';
 	import NutritionDetails from './nutrition-details.svelte';
 
-	const store = getContext<CalendarStore>('calendar');
+	const store = getCalendarStore();
 
 	let activeTab = $state<Tab>(Tab.Training);
 

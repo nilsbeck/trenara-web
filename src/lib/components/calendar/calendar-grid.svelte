@@ -1,10 +1,9 @@
 <script lang="ts">
-	import { getContext } from 'svelte';
-	import type { CalendarDate, CalendarStore } from '#lib/stores/calendar.svelte.js';
+	import { getCalendarStore, type CalendarDate } from '#lib/stores/calendar.svelte.js';
 	import { followOffset, isHorizontalSwipe, swipeStep } from '#lib/utils/swipe.js';
 	import CalendarCell from './calendar-cell.svelte';
 
-	const store = getContext<CalendarStore>('calendar');
+	const store = getCalendarStore();
 
 	const DAY_NAMES = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 

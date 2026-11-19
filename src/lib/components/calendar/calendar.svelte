@@ -1,6 +1,10 @@
 <script lang="ts">
-	import { setContext, untrack } from 'svelte';
-	import { createCalendarStore, type CalendarStore } from '#lib/stores/calendar.svelte.js';
+	import { untrack } from 'svelte';
+	import {
+		createCalendarStore,
+		setCalendarStore,
+		type CalendarStore
+	} from '#lib/stores/calendar.svelte.js';
 	import { createRevalidationTrigger } from '#lib/utils/revalidation.js';
 	import { whenIdle } from '#lib/utils/load-once.js';
 	import { initialCalendarDay } from '#lib/utils/initial-day.js';
@@ -30,7 +34,7 @@
 	// svelte-ignore state_referenced_locally
 	const store: CalendarStore = createCalendarStore(today, { refreshPageData });
 
-	setContext<CalendarStore>('calendar', store);
+	setCalendarStore(store);
 
 	/**
 	 * The plan, and the day the calendar opens on, seated while the component is
