@@ -177,16 +177,18 @@ A component draws; a view-model knows. The split is Model–View–ViewModel, an
 the codebase already has one half of it — the model is `#lib/server/trenara/*`
 and the DAOs, reached through `/api/v1` — and the right shape for the other half
 in `SessionDetailStore` and `createCalendarStore`. What it does not yet have is
-the rule, and it shows: four components (`goal-card`, `training-details`,
-`chat-bubble`, `prediction-chart`) run to between seven and nine hundred lines,
-most of it logic rather than markup, and eight components call `fetch`
-themselves — logic that can only be tested by mounting it.
+the rule, and it shows: three components (`goal-card`, `training-details`,
+`prediction-chart`) run to between seven hundred and a thousand lines, most of
+it logic rather than markup, and six components and two pages call `fetch`
+themselves — logic that can only be tested by mounting it. `chat-bubble` was
+the fourth; its logic is `ChatStore` now (`#lib/stores/chat.svelte.ts`), tested
+directly in `chat.test.ts`, and the bubble and its window only draw it.
 
 - **Model** — the server: Trenara wrappers and DAOs. The browser reaches it
   only through `fetch('/api/v1/…')`.
 - **View-model** — a `#lib/stores/*.svelte.ts` module: a factory
   (`createCalendarStore`), a class with `$state` fields
-  (`SessionDetailStore`), or a module-level `$state` holder
+  (`SessionDetailStore`, `ChatStore`), or a module-level `$state` holder
   (`app-config.svelte.ts`). It owns the requests, the loading / empty / error
   state of each (below), the derived values, and the mutations. It imports
   nothing from `.svelte` files and touches no DOM, so it is tested directly,

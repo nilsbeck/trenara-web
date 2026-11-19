@@ -1,8 +1,7 @@
 <script lang="ts">
-	import type { ChatThread, ChatMessage } from '#lib/server/trenara/types.js';
-	import type { Sanitize } from '#lib/utils/sanitize.js';
+	import type { ChatStore } from '#lib/stores/chat.svelte.js';
 	import { X, Loader2, Bot, Send } from '@lucide/svelte';
-	import { formatUnreadBadge, threadUnread, type SeenMessageIds } from './unread';
+	import { formatUnreadBadge, threadUnread } from './unread';
 
 	/**
 	 * The open chat window: thread list, conversation and composer.
@@ -14,57 +13,19 @@
 	 * every launch for a conversation most launches never open. The bubble now
 	 * warms this file once the page is idle and mounts it on the first tap.
 	 *
-	 * A view and nothing more: every request, timer and piece of state stays in
-	 * the bubble, which owns them, and arrives here as props. What the reader
-	 * does goes back up through the callbacks. The two element references and
-	 * the effect that keeps the newest message in view are the only things this
-	 * file owns, because they are about its own DOM.
+	 * A view and nothing more. It is handed the chat's view-model, which the
+	 * bubble owns (`#lib/stores/chat.svelte.ts`), reads it and calls its
+	 * methods. The two element references and the effect that keeps the newest
+	 * message in view are the only things this file owns, because they are
+	 * about its own DOM.
 	 */
-	let {
-		threads,
-		selectedThread,
-		seenMessageIds,
-		messages,
-		sanitize,
-		loadingThreads,
-		loadingMessages,
-		error,
-		awaitingReply,
-		canSendMessages,
-		sendError,
-		sending,
-		draft = $bindable(),
-		isOwnMessage,
-		onclose,
-		onselect,
-		onsend
-	}: {
-		threads: ChatThread[];
-		selectedThread: ChatThread | null;
-		seenMessageIds: SeenMessageIds;
-		messages: ChatMessage[];
-		/** DOMPurify once it has loaded; until then markup renders as its plain-text body. */
-		sanitize: Sanitize | null;
-		loadingThreads: boolean;
-		loadingMessages: boolean;
-		error: string | null;
-		awaitingReply: boolean;
-		canSendMessages: boolean;
-		sendError: string | null;
-		sending: boolean;
-		draft: string;
-		isOwnMessage: (message: ChatMessage) => boolean;
-		onclose: () => void;
-		onselect: (thread: ChatThread) => void;
-		/** Settles once the post has been answered, so the composer can take focus back. */
-		onsend: () => Promise<void>;
-	} = $props();
+	let { chat }: { chat: ChatStore } = $props();
 
 	let messagesContainer: HTMLDivElement | undefined = $state();
 	let draftInput: HTMLTextAreaElement | undefined = $state();
 
 	async function submit() {
-		await onsend();
+		await chat.send();
 		draftInput?.focus();
 	}
 
@@ -77,7 +38,7 @@
 	}
 
 	function responderName(): string {
-		return selectedThread?.title ?? 'Coach';
+		return chat.selectedThread?.title ?? 'Coach';
 	}
 
 	function formatTimestamp(ts: number): string {
@@ -91,7 +52,7 @@
 
 	// Keeps the newest message — or the typing indicator — in view.
 	$effect(() => {
-		if (messagesContainer && (messages.length > 0 || awaitingReply)) {
+		if (messagesContainer && (chat.messages.length > 0 || chat.awaitingReply)) {
 			messagesContainer.scrollTop = messagesContainer.scrollHeight;
 		}
 	});
@@ -103,11 +64,11 @@
 	<!-- Header -->
 	<div class="flex items-center justify-between border-b border-border bg-primary px-4 py-3">
 		<h3 class="text-sm font-semibold text-primary-foreground">
-			{selectedThread ? selectedThread.title : 'Chat'}
+			{chat.selectedThread ? chat.selectedThread.title : 'Chat'}
 		</h3>
 		<button
 			type="button"
-			onclick={onclose}
+			onclick={() => chat.close()}
 			class="rounded-md p-1 text-primary-foreground/80 hover:text-primary-foreground"
 		>
 			<X class="h-4 w-4" />
@@ -115,13 +76,13 @@
 	</div>
 
 	<!-- Thread list (shown when no thread selected or multiple threads) -->
-	{#if !selectedThread && !loadingThreads}
+	{#if !chat.selectedThread && !chat.loadingThreads}
 		<div class="flex-1 overflow-y-auto">
-			{#each threads as thread (thread.id)}
-				{@const threadUnreadLabel = formatUnreadBadge(threadUnread(thread, seenMessageIds))}
+			{#each chat.threads as thread (thread.id)}
+				{@const threadUnreadLabel = formatUnreadBadge(threadUnread(thread, chat.seenMessageIds))}
 				<button
 					type="button"
-					onclick={() => onselect(thread)}
+					onclick={() => chat.selectThread(thread)}
 					class="flex w-full items-start gap-3 border-b border-border px-4 py-3 text-left hover:bg-muted/50"
 				>
 					<div class="flex-1 min-w-0">
@@ -146,20 +107,20 @@
 	{/if}
 
 	<!-- Messages -->
-	{#if selectedThread}
+	{#if chat.selectedThread}
 		<div bind:this={messagesContainer} class="flex-1 overflow-y-auto p-4 space-y-3">
-			{#if loadingMessages}
+			{#if chat.loadingMessages}
 				<div class="flex items-center justify-center h-full">
 					<Loader2 class="h-5 w-5 animate-spin text-muted-foreground" />
 				</div>
-			{:else if error}
-				<p class="text-center text-sm text-destructive">{error}</p>
-			{:else if messages.length === 0}
+			{:else if chat.error}
+				<p class="text-center text-sm text-destructive">{chat.error}</p>
+			{:else if chat.messages.length === 0}
 				<p class="text-center text-sm text-muted-foreground">No messages yet.</p>
 			{:else}
-				{#each messages as message, i (message.id)}
-					{@const isOwn = isOwnMessage(message)}
-					{@const startsGroup = i === 0 || isOwnMessage(messages[i - 1]) !== isOwn}
+				{#each chat.messages as message, i (message.id)}
+					{@const isOwn = chat.isOwnMessage(message)}
+					{@const startsGroup = i === 0 || chat.isOwnMessage(chat.messages[i - 1]) !== isOwn}
 					{#if isOwn}
 						<!-- Own message -->
 						<div class="flex justify-end">
@@ -168,11 +129,11 @@
 									class="rounded-2xl rounded-br-sm bg-primary px-3 py-2 text-sm text-primary-foreground"
 								>
 									<div class="chat-content">
-										{#if message.body_html && sanitize}
-											<!-- Sanitised: `sanitize` is DOMPurify and is null until it
+										{#if message.body_html && chat.sanitize}
+											<!-- Sanitised: `chat.sanitize` is DOMPurify and is null until it
 													 has loaded, so this branch is not taken before then. -->
 											<!-- eslint-disable-next-line svelte/no-at-html-tags -->
-											{@html sanitize(message.body_html)}
+											{@html chat.sanitize(message.body_html)}
 										{:else}
 											{message.body}
 										{/if}
@@ -213,11 +174,11 @@
 									class="rounded-2xl rounded-tl-sm border border-border bg-muted px-3 py-2 text-sm text-card-foreground"
 								>
 									<div class="chat-content">
-										{#if message.body_html && sanitize}
-											<!-- Sanitised: `sanitize` is DOMPurify and is null until it
+										{#if message.body_html && chat.sanitize}
+											<!-- Sanitised: `chat.sanitize` is DOMPurify and is null until it
 													 has loaded, so this branch is not taken before then. -->
 											<!-- eslint-disable-next-line svelte/no-at-html-tags -->
-											{@html sanitize(message.body_html)}
+											{@html chat.sanitize(message.body_html)}
 										{:else}
 											{message.body}
 										{/if}
@@ -232,7 +193,7 @@
 				{/each}
 			{/if}
 
-			{#if awaitingReply}
+			{#if chat.awaitingReply}
 				<!-- Waiting on the coach's reply -->
 				<div class="flex justify-start gap-2">
 					<div class="w-7 shrink-0"></div>
@@ -250,9 +211,9 @@
 
 		<!-- Composer -->
 		<div class="border-t border-border px-3 py-2.5">
-			{#if canSendMessages}
-				{#if sendError}
-					<p class="mb-1.5 px-1 text-xs text-destructive">{sendError}</p>
+			{#if chat.canSendMessages}
+				{#if chat.sendError}
+					<p class="mb-1.5 px-1 text-xs text-destructive">{chat.sendError}</p>
 				{/if}
 				<form
 					class="flex items-end gap-2"
@@ -265,20 +226,20 @@
 					<textarea
 						id="chat-draft"
 						bind:this={draftInput}
-						bind:value={draft}
+						bind:value={chat.draft}
 						onkeydown={onDraftKeydown}
 						rows="1"
 						placeholder="Ask a question..."
-						disabled={sending}
+						disabled={chat.sending}
 						class="max-h-24 min-h-9 flex-1 resize-none rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring disabled:opacity-60"
 					></textarea>
 					<button
 						type="submit"
-						disabled={sending || !draft.trim()}
+						disabled={chat.sending || !chat.draft.trim()}
 						aria-label="Send message"
 						class="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-primary text-primary-foreground transition-opacity hover:opacity-90 disabled:opacity-40"
 					>
-						{#if sending}
+						{#if chat.sending}
 							<Loader2 class="h-4 w-4 animate-spin" />
 						{:else}
 							<Send class="h-4 w-4" />
@@ -292,7 +253,7 @@
 	{/if}
 
 	<!-- Loading threads -->
-	{#if loadingThreads}
+	{#if chat.loadingThreads}
 		<div class="flex flex-1 items-center justify-center">
 			<Loader2 class="h-5 w-5 animate-spin text-muted-foreground" />
 		</div>
