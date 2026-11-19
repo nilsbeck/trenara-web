@@ -53,7 +53,9 @@
 			"type": "image/png"
 		}
 	],
-	"start_url": "/",
+	"id": "/",
+	"start_url": "/dashboard",
+	"scope": "/",
 	"display": "standalone",
 	"theme_color": "#1d2328",
 	"background_color": "#1d2328"
