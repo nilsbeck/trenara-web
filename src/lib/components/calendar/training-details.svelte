@@ -236,6 +236,12 @@
 	function openSetup(key: SettingKey) {
 		setupSection = key;
 		setupOpen = true;
+		// The list the editor shows is asked for now, alongside the sheet's own
+		// chunk, rather than by the sheet once that chunk has arrived and mounted
+		// — which put the two one after the other on every first open. The sheet
+		// still asks when it mounts, and joins this request rather than repeating it.
+		if (key === 'shoe') void detailStore.loadShoes();
+		if (key === 'session') void detailStore.loadCandidates();
 		loadSetupSheet().then((module) => (SessionSetupSheet = module.default), reloadOnStaleChunk);
 	}
 

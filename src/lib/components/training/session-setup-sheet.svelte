@@ -159,9 +159,16 @@
 		stagedClimb = conditionClimb(training);
 	});
 
+	// The card asks for the list as the editor opens, alongside this sheet's
+	// chunk (`openSetup` in training-details); asking again here covers a
+	// section reached some other way, and joins a request still in flight.
+	// Not a load that has already failed, though: that one waits for the
+	// runner's own "Try again". Repeated here, a failure the card's request met
+	// before this sheet had mounted was retried behind the runner's back and
+	// never shown — at the cost of a second request against the budget.
 	$effect(() => {
-		if (section === 'shoe') void store.loadShoes();
-		if (section === 'session') void store.loadCandidates();
+		if (section === 'shoe' && !store.shoesFailed) void store.loadShoes();
+		if (section === 'session' && !store.candidatesFailed) void store.loadCandidates();
 	});
 
 	function close() {

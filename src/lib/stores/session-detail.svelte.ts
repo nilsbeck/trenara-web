@@ -123,8 +123,23 @@ export class SessionDetailStore {
 	 * The user's shoes, fetched once, the first time the picker opens — and
 	 * again only after a failure, when the runner asks to try again.
 	 */
-	async loadShoes(): Promise<void> {
-		if (this.shoes) return;
+	loadShoes(): Promise<void> {
+		if (this.shoes) return Promise.resolve();
+		this.#shoesRequest ??= this.#fetchShoes().finally(() => {
+			this.#shoesRequest = null;
+		});
+		return this.#shoesRequest;
+	}
+
+	/**
+	 * The shoe request in flight, which a second caller joins rather than
+	 * repeats. The card asks for the list the moment the sheet is opened, in
+	 * parallel with the sheet's own chunk, and the sheet asks again once it has
+	 * mounted — two callers, one request.
+	 */
+	#shoesRequest: Promise<void> | null = null;
+
+	async #fetchShoes(): Promise<void> {
 		this.shoesFailed = false;
 		this.#clearOwnError(this.#shoesError);
 		try {
@@ -137,16 +152,47 @@ export class SessionDetailStore {
 		}
 	}
 
-	/** Alternatives for this session, fetched when the workout picker opens. */
-	async loadCandidates(): Promise<void> {
-		if (this.candidates || this.#trainingId == null) return;
+	/**
+	 * Alternatives for this session, fetched when the workout picker opens —
+	 * joining a request already out for the same session, as `loadShoes` does.
+	 */
+	loadCandidates(): Promise<void> {
+		const trainingId = this.#trainingId;
+		if (this.candidates || trainingId == null) return Promise.resolve();
+		if (this.#candidatesRequest?.trainingId === trainingId) {
+			return this.#candidatesRequest.promise;
+		}
+
+		const request: { trainingId: number; promise: Promise<void> } = {
+			trainingId,
+			promise: this.#fetchCandidates(trainingId).finally(() => {
+				if (this.#candidatesRequest === request) this.#candidatesRequest = null;
+			})
+		};
+		this.#candidatesRequest = request;
+		return request.promise;
+	}
+
+	/** Keyed by the session it was asked for, so a request for another one is never joined. */
+	#candidatesRequest: { trainingId: number; promise: Promise<void> } | null = null;
+
+	/**
+	 * A list asked for early is a list that can land late. The alternatives are
+	 * for one session, so an answer that arrives after the runner has moved to
+	 * another day is dropped — it used to be offered as the swaps for a session
+	 * it was never offered for.
+	 */
+	async #fetchCandidates(trainingId: number): Promise<void> {
 		this.candidatesFailed = false;
 		this.#clearOwnError(this.#candidatesError);
 		try {
-			const res = await fetch(`/api/v1/training/${this.#trainingId}/exchange`);
+			const res = await fetch(`/api/v1/training/${trainingId}/exchange`);
 			if (!res.ok) throw new Error(await describeResponse(res, 'Could not load the alternatives.'));
-			this.candidates = await res.json();
+			const candidates = await res.json();
+			if (this.#trainingId !== trainingId) return;
+			this.candidates = candidates;
 		} catch (e) {
+			if (this.#trainingId !== trainingId) return;
 			this.candidatesFailed = true;
 			this.error = this.#candidatesError = describeError(e, 'Could not load the alternatives.');
 		}
