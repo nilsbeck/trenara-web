@@ -429,11 +429,15 @@ the reason — that is what distinguishes a decision from a regression.
   position genuinely _is_ the identity — a chart column — say so with `(i)`
   rather than leaving it unkeyed.
 - **The signed-in shell has a byte budget.** `bun run check:bundle` (in CI,
-  after the build) sums the client entry, the root and `(app)` layouts and
-  everything they import statically, gzipped, and fails past the budget in
-  `scripts/check-bundle.ts`. It also fails if DOMPurify becomes reachable
-  without `import()`. The budget sits just above where the build stands; raise
-  it in the commit that needs the room and say why, as with coverage.
+  after the build) sums the client entry, SvelteKit's own client runtime, the
+  root and `(app)` layouts and everything they import statically, gzipped, and
+  fails past the budget in `scripts/check-bundle.ts`. It also fails if
+  DOMPurify becomes reachable without `import()`. The budget sits just above
+  where the build stands; raise it in the commit that needs the room and say
+  why, as with coverage. The runtime is named explicitly because SvelteKit 3
+  loads it through `import()`: a static walk never meets it, and for a while
+  the shell was weighed sixteen kilobytes light because of exactly that. A
+  module every page needs is counted, however it is reached.
 - **A dependency that touches SvelteKit is checked in the build, not trusted
   by its version range.** SvelteKit 3 kept `$app/stores` as a stub that
   throws on use, so a package still importing it builds and type-checks and

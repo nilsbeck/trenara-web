@@ -32,8 +32,17 @@ import { join } from 'node:path';
  * Lowered again from 52 KB when the chat window left the shell for a lazy
  * chunk, taking it from 47.1 KB to 45.4 KB — the same headroom as before, so
  * the saving is kept rather than banked for whoever asks next.
+ *
+ * Raised to 66 KB when the weighing started counting SvelteKit's own client
+ * runtime (`KIT_RUNTIME` below), which SvelteKit 3 loads through `import()`
+ * and the static walk had therefore never met: the shell measured 45.8 KB and
+ * weighs 61.7 KB, with nothing in the build having changed. The browser was
+ * always downloading those sixteen kilobytes; only the number was missing
+ * them. It also means most of the drop credited to SvelteKit 3 above was the
+ * runtime leaving the static graph rather than leaving the wire. The headroom
+ * is the same as before.
  */
-const SHELL_BUDGET_BYTES = 50 * 1024;
+const SHELL_BUDGET_BYTES = 66 * 1024;
 
 /**
  * Packages that must only be loaded on the branch that uses them, each with a
@@ -91,6 +100,17 @@ const GENERATED_NODES = '.svelte-kit/generated/build/client-optimized/nodes';
 
 /** The route files whose nodes make up the shell. */
 const SHELL_SOURCES = ['src/routes/+layout.svelte', 'src/routes/(app)/+layout.svelte'];
+
+/**
+ * SvelteKit's own client runtime — the router, hydration, `devalue`.
+ *
+ * Since SvelteKit 3 the start script reaches it through `import()` rather than
+ * a static import, so a walk of the entries' static graph never met it, and
+ * the shell was weighed without it. It is not optional: `init` imports it
+ * unconditionally and `start` awaits it, so every page downloads it before it
+ * can hydrate. Counted as a root of the shell for that reason.
+ */
+const KIT_RUNTIME = 'node_modules/@sveltejs/kit/src/runtime/client/client-entry.js';
 
 interface Chunk {
 	file: string;
@@ -156,8 +176,14 @@ const manifest = JSON.parse(readFileSync(MANIFEST, 'utf8')) as Manifest;
 
 const entries = Object.keys(manifest).filter((key) => manifest[key].isEntry);
 const nodes = Object.keys(manifest).filter((key) => key.startsWith(GENERATED_NODES));
+if (!manifest[KIT_RUNTIME]) {
+	fail(
+		`${KIT_RUNTIME} is not in the build — has SvelteKit moved its runtime? Find it before trusting the shell's weight.`
+	);
+}
 const shellRoots = [
 	...entries.filter((key) => !key.startsWith(GENERATED_NODES)),
+	KIT_RUNTIME,
 	...SHELL_SOURCES.map((source) => nodeKeyFor(manifest, source))
 ];
 
