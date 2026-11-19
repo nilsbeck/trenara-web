@@ -2,6 +2,19 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import type { ChatMessage, ChatThread } from '#lib/server/trenara/types.js';
 import { ChatStore } from './chat.svelte';
 
+/** How many times the store asked for the sanitiser, which is otherwise the real one. */
+const sanitizer = vi.hoisted(() => ({ loads: 0 }));
+vi.mock('#lib/utils/sanitize.js', async (importOriginal) => {
+	const real = await importOriginal<typeof import('#lib/utils/sanitize.js')>();
+	return {
+		...real,
+		loadSanitizer: () => {
+			sanitizer.loads++;
+			return real.loadSanitizer();
+		}
+	};
+});
+
 /**
  * The chat's view-model, driven directly: no component is mounted, and what
  * is asserted is the state a view would draw from.
@@ -41,6 +54,8 @@ interface Server {
 	/** Newest first, as Trenara pages them. */
 	messages: Record<number, ChatMessage[]>;
 	failThreads?: boolean;
+	/** Leave the thread list unanswered, as a slow connection would. */
+	holdThreads?: boolean;
 	failSend?: boolean;
 	sent: unknown[];
 	marks: unknown[];
@@ -53,6 +68,7 @@ function json(body: unknown, status = 200) {
 }
 
 beforeEach(() => {
+	sanitizer.loads = 0;
 	server = { threads: [], messages: {}, sent: [], marks: [] };
 	vi.stubGlobal(
 		'fetch',
@@ -71,6 +87,7 @@ beforeEach(() => {
 				return json({ data: { ...message(500, ME), body: content } });
 			}
 			if (msgs) return json({ data: server.messages[Number(msgs[1])] ?? [] });
+			if (server.holdThreads) return new Promise<Response>(() => {});
 			if (server.failThreads) return json({ message: 'down' }, 502);
 			return json(server.threads);
 		})
@@ -153,6 +170,22 @@ describe('ChatStore — opening a conversation', () => {
 		await vi.waitFor(() => expect(chat.error).not.toBeNull());
 		expect(chat.loadingThreads).toBe(false);
 		expect(chat.selectedThread).toBeNull();
+	});
+
+	/**
+	 * Opening with no thread list in hand is two requests in a row — the list,
+	 * then the first thread's messages — and the sanitiser used to wait for
+	 * the first of them, starting only alongside the second. It depends on
+	 * neither, so it starts the moment the chat is opened.
+	 */
+	it('starts loading the sanitiser while the thread list is still on its way', () => {
+		server.holdThreads = true;
+		const chat = new ChatStore(() => ME);
+
+		chat.open();
+
+		expect(chat.loadingThreads).toBe(true);
+		expect(sanitizer.loads).toBe(1);
 	});
 
 	it('loads the sanitiser with the first messages, not before', async () => {

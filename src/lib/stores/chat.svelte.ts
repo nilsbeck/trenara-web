@@ -167,6 +167,12 @@ export class ChatStore {
 		if (this.isOpen) return;
 		this.isOpen = true;
 
+		// Started now, in parallel with the requests below, rather than with the
+		// first page of messages: with no thread list in hand that page waits on
+		// the list, and the sanitiser depends on neither. `loadSanitizer` shares
+		// one load between callers, so the later call there costs nothing.
+		void this.#ensureSanitizer();
+
 		if (this.threads.length === 0) {
 			void this.#fetchThreads();
 		} else if (!this.selectedThread) {
