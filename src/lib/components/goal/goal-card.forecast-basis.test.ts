@@ -6,6 +6,7 @@ import type { ChartDataPoint } from '#lib/components/charts/prediction-chart.sve
 import { secondsToTimeString, secondsToPaceString } from '#lib/utils/format.js';
 import { isoWeekStart } from '#lib/utils/plan-weeks.js';
 import { mondayOf, toLocalDateString } from '#lib/utils/date.js';
+import { graphLoaded } from '../../../test-utils/goal-card';
 
 // jsdom lays nothing out; see goal-card.load-bars.test.ts.
 beforeAll(() => {
@@ -131,6 +132,7 @@ describe('goal card forecast basis', () => {
 		// Three readings: two short of a measured rate, but a fortnight of them.
 		const history = [reading(34, 13200), reading(20, 13200), reading(7, 13000)];
 		const { container } = render(GoalCard, { props: { goal, userStats, history } });
+		await graphLoaded();
 
 		// The basis names the fortnight's rate, and the plan's figure beside it.
 		await waitFor(() =>
@@ -171,6 +173,7 @@ describe('goal card forecast basis', () => {
 		} as unknown as UserStats;
 		const history = [reading(34, 13200), reading(20, 13200), reading(7, 13000)];
 		const { container } = render(GoalCard, { props: { goal, userStats: idle, history } });
+		await graphLoaded();
 
 		const note = await screen.findByTestId('no-recent-line');
 		expect(note.textContent).toMatch(/No trend line: no km logged as run in the last 14 days/);
@@ -194,6 +197,7 @@ describe('goal card forecast basis', () => {
 		} as unknown as UserStats;
 		const history = [reading(34, 12900), reading(20, 13300), reading(14, 13400), reading(7, 13250)];
 		const { container } = render(GoalCard, { props: { goal, userStats: slid, history } });
+		await graphLoaded();
 
 		const note = await screen.findByTestId('no-recent-line');
 		expect(note.textContent).toMatch(
@@ -214,6 +218,7 @@ describe('goal card forecast basis', () => {
 		} as unknown as UserStats;
 		const history = [reading(34, 12900), reading(20, 13300), reading(14, 13400), reading(3, 12890)];
 		const { container } = render(GoalCard, { props: { goal, userStats: back, history } });
+		await graphLoaded();
 
 		const note = await screen.findByTestId('no-recent-line');
 		expect(note.textContent).toMatch(

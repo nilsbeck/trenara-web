@@ -58,7 +58,28 @@ const LAZY_ONLY = [
 	{ name: 'treadmill mode', marker: 'No instructions available for this training' },
 	// The chat window behind the bubble. The bubble and its badge are in the
 	// shell; the window is warmed once idle and mounted on the first tap.
-	{ name: 'chat window', marker: 'This conversation is read-only.' }
+	{ name: 'chat window', marker: 'This conversation is read-only.' },
+	// The goal card's distance graphs, which it loads once the page has
+	// hydrated. The goal card is their only user.
+	{ name: 'distance chart', marker: 'Distance done against distance planned' }
+];
+
+/**
+ * Modules that must stay out of one route's static graph while another route
+ * may still import them statically.
+ *
+ * The prediction chart is the case: on the prediction-history page it is the
+ * page, and imported as such, but on the dashboard it sits behind the goal
+ * card's fold and is loaded once the page has hydrated. `LAZY_ONLY` would
+ * fail on the history page; this checks the dashboard alone, together with
+ * the shell every page carries.
+ */
+const LAZY_ON_ROUTE = [
+	{
+		route: 'src/routes/(app)/dashboard/+page.svelte',
+		name: 'prediction chart',
+		marker: 'Complete training sessions to start tracking your prediction trends'
+	}
 ];
 
 const OUT = '.svelte-kit/output/client';
@@ -161,6 +182,25 @@ for (const { name, marker } of LAZY_ONLY) {
 	}
 }
 if (!failed) console.log(`✔ ${LAZY_ONLY.map((l) => l.name).join(', ')} only reached by import()`);
+
+// 1b. Route-scoped lazy modules stay out of that route's static graph.
+for (const { route, name, marker } of LAZY_ON_ROUTE) {
+	if (
+		!Object.values(manifest).some((c) => readFileSync(join(OUT, c.file), 'utf8').includes(marker))
+	) {
+		fail(`No built file carries ${name}'s marker "${marker}" — update it.`);
+	}
+	const reachable = staticClosure(manifest, [...shellRoots, nodeKeyFor(manifest, route)]);
+	const hit = [...reachable].find((key) =>
+		readFileSync(join(OUT, manifest[key].file), 'utf8').includes(marker)
+	);
+	if (hit) {
+		console.error(`✖ ${name} is statically reachable from ${route}; it must be import()ed there.`);
+		failed = true;
+	} else {
+		console.log(`✔ ${name} only reached by import() from ${route}`);
+	}
+}
 
 // 2. Nothing in the client build reaches `$app/stores`.
 //
