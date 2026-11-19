@@ -85,6 +85,23 @@ describe('news content', () => {
 		expect(container.querySelector('strong')).toBeNull();
 	});
 
+	/**
+	 * Both the old effect and a first cut of the attachment read `content`
+	 * only inside the promise callback, where nothing tracks it. The effect
+	 * re-ran on `looksLikeMarkup`, a boolean that stays `true` from one piece
+	 * of markup to the next — so new markup after the first had loaded left
+	 * the old one on screen.
+	 */
+	it('shows new markup when the content changes after the first has rendered', async () => {
+		const { container, rerender } = render(NewsContent, { content: '<p>Old <em>item</em></p>' });
+		await waitFor(() => expect(container.querySelector('em')).not.toBeNull());
+
+		await rerender({ content: '<p>New <b>item</b></p>' });
+
+		await waitFor(() => expect(container.querySelector('b')?.textContent).toBe('item'));
+		expect(container.querySelector('em')).toBeNull();
+	});
+
 	it('writes only the newest content when it changes while the sanitiser loads', async () => {
 		sanitizer.hold();
 		const { container, rerender } = render(NewsContent, { content: '<p>Old <em>item</em></p>' });
