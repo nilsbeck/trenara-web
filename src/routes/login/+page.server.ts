@@ -5,21 +5,9 @@ import { authApi } from '#lib/server/trenara/auth.js';
 import { TokenManager } from '#lib/server/auth/token-manager.js';
 import { loginByIp, loginByUsername } from '#lib/server/security/rate-limit.js';
 import { HttpError } from '#lib/server/trenara/client.js';
+import { safeNext } from '#lib/utils/safe-next.js';
 
 const tokenManager = TokenManager.getInstance();
-
-/**
- * Where to send someone after they sign in.
- *
- * Only a path on this app, never a caller-supplied absolute URL: `next` comes
- * from the query string, and a login form that will redirect anywhere is an
- * open redirect wearing a helpful face. A leading `//` is rejected too — the
- * browser reads that as a protocol-relative URL to another host.
- */
-function safeNext(raw: string | null): string {
-	if (!raw || !raw.startsWith('/') || raw.startsWith('//')) return '/dashboard';
-	return raw;
-}
 
 /**
  * One line in the log for every sign-in this app refused.
@@ -113,6 +101,11 @@ export const actions: Actions = {
 		// No identity cookies are written. `hooks.server.ts` resolves the runner
 		// from the access token on each request, through the read cache — the
 		// only arrangement in which the token and the identity cannot disagree.
-		redirect(302, safeNext(formData.get('next')?.toString() ?? null));
+		//
+		// 303, not 302: this answers a POST, and 303 is the status that says
+		// "now GET this" in so many words. A 302 leaves the method to the
+		// browser's discretion, which every browser happens to resolve to GET
+		// today — the spec only permits it.
+		redirect(303, safeNext(formData.get('next')?.toString() ?? null));
 	}
 };

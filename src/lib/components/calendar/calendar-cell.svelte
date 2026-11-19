@@ -1,12 +1,11 @@
 <script lang="ts">
-	import { getContext } from 'svelte';
-	import type { CalendarDate, CalendarStore } from '#lib/stores/calendar.svelte.js';
+	import { getCalendarStore, type CalendarDate } from '#lib/stores/calendar.svelte.js';
 
 	// `null` is a filler cell: the days before the 1st in the month grid, and the
 	// nothing there is to show for them.
 	let { date }: { date: CalendarDate | null } = $props();
 
-	const store = getContext<CalendarStore>('calendar');
+	const store = getCalendarStore();
 
 	const isDay = $derived(date !== null);
 

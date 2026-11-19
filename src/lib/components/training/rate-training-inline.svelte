@@ -1,6 +1,6 @@
 <script lang="ts">
 	import type { Entry } from '#lib/server/trenara/types.js';
-	import { Loader2, Star } from 'lucide-svelte';
+	import { Loader2, Star } from '@lucide/svelte';
 	import RpeSlider from '#lib/components/training/rpe-slider.svelte';
 	import { rpeColors } from '#lib/components/training/rpe.js';
 	import { describeError, describeResponse } from '#lib/utils/network.js';

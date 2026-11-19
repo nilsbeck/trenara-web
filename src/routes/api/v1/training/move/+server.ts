@@ -1,6 +1,6 @@
 import type { RequestHandler } from './$types';
 import { trainingApi } from '#lib/server/trenara/index.js';
-import { parseBody, passthrough } from '#lib/server/trenara/request.js';
+import { passthrough, readBody } from '#lib/server/trenara/request.js';
 import { changeDateSchema } from '#lib/schemas/training.js';
 
 /**
@@ -8,10 +8,7 @@ import { changeDateSchema } from '#lib/schemas/training.js';
  * to the rest of the plan without making it; `save` makes it.
  */
 export const PUT: RequestHandler = async ({ request, cookies }) => {
-	const { entryId, newDate, includeFuture, action } = parseBody(
-		changeDateSchema,
-		await request.json()
-	);
+	const { entryId, newDate, includeFuture, action } = await readBody(changeDateSchema, request);
 
 	if (action === 'test') {
 		return Response.json(

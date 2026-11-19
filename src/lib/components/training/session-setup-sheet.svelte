@@ -13,7 +13,7 @@
 		MoveHorizontal,
 		Repeat,
 		X
-	} from 'lucide-svelte';
+	} from '@lucide/svelte';
 	import CooldownIcon from '#lib/components/icons/cooldown-icon.svelte';
 	import type { SessionDetailStore } from '#lib/stores/session-detail.svelte.js';
 	import {

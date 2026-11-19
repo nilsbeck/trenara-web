@@ -28,8 +28,12 @@ import { join } from 'node:path';
  * Lowered from 64 KB with SvelteKit 3, whose client runtime took the shell
  * from 59.8 KB to 47.1 KB. Left at 64 the budget would have handed the next
  * twelve kilobytes to whoever asked first, without anyone deciding to.
+ *
+ * Lowered again from 52 KB when the chat window left the shell for a lazy
+ * chunk, taking it from 47.1 KB to 45.4 KB — the same headroom as before, so
+ * the saving is kept rather than banked for whoever asks next.
  */
-const SHELL_BUDGET_BYTES = 52 * 1024;
+const SHELL_BUDGET_BYTES = 50 * 1024;
 
 /**
  * Packages that must only be loaded on the branch that uses them, each with a
@@ -51,7 +55,10 @@ const LAZY_ONLY = [
 		marker: 'If a training is already scheduled, they will be swapped'
 	},
 	{ name: 'rating dialog', marker: 'Rate Perceived Exertion' },
-	{ name: 'treadmill mode', marker: 'No instructions available for this training' }
+	{ name: 'treadmill mode', marker: 'No instructions available for this training' },
+	// The chat window behind the bubble. The bubble and its badge are in the
+	// shell; the window is warmed once idle and mounted on the first tap.
+	{ name: 'chat window', marker: 'This conversation is read-only.' }
 ];
 
 const OUT = '.svelte-kit/output/client';

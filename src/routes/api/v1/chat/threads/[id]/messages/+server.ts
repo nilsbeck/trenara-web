@@ -1,7 +1,7 @@
 import { error } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { chatApi } from '#lib/server/trenara/index.js';
-import { parseBody, passthrough } from '#lib/server/trenara/request.js';
+import { passthrough, readBody } from '#lib/server/trenara/request.js';
 import { sendMessageSchema } from '#lib/schemas/chat.js';
 
 export const GET: RequestHandler = async ({ params, url, cookies }) => {
@@ -33,7 +33,7 @@ export const POST: RequestHandler = async ({ params, request, cookies }) => {
 		error(400, 'Invalid thread ID');
 	}
 
-	const { content } = parseBody(sendMessageSchema, await request.json());
+	const { content } = await readBody(sendMessageSchema, request);
 
 	return Response.json(await passthrough(() => chatApi.sendMessage(cookies, threadId, content)));
 };

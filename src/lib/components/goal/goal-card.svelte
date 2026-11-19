@@ -11,7 +11,7 @@
 		TrendingDown,
 		TrendingUp,
 		Minus
-	} from 'lucide-svelte';
+	} from '@lucide/svelte';
 	import PredictionStats from './prediction-stats.svelte';
 	import PredictionChart, {
 		type ChartDataPoint

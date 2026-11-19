@@ -40,6 +40,12 @@ const bannedSyntax = [
 			'Markup reaches the DOM only through #lib/utils/sanitize — see agents.md §3, XSS & sanitization.'
 	},
 	{
+		selector:
+			"CallExpression[callee.name='parseBody'] > AwaitExpression > CallExpression[callee.property.name='json']",
+		message:
+			'request.json() throws on a body that is not JSON and answers 500. Use readBody(schema, request) — see agents.md §9, Where things go.'
+	},
+	{
 		selector: "ImportExpression[source.value='dompurify']",
 		message: 'Load DOMPurify through loadSanitizer() in #lib/utils/sanitize, which owns its config.'
 	},
@@ -78,6 +84,11 @@ export default tseslint.config(
 								'A static import ships DOMPurify in whichever chunk imports it. Use loadSanitizer() from #lib/utils/sanitize.'
 						},
 						{ name: 'axios', message: 'Use fetch — agents.md §5.' },
+						{
+							name: 'lucide-svelte',
+							message:
+								'Deprecated upstream, and its icons are Svelte 4 components. Use @lucide/svelte — agents.md §4.'
+						},
 						{
 							name: 'svelte/store',
 							message: 'Client state is runes — agents.md §9, Client state.'

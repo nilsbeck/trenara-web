@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { Activity } from 'lucide-svelte';
+	import { Activity } from '@lucide/svelte';
 	import { formatDateShort, secondsToTimeString } from '#lib/utils/format.js';
 
 	/**

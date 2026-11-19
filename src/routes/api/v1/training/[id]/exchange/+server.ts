@@ -1,6 +1,6 @@
 import type { RequestHandler } from './$types';
 import { trainingApi } from '#lib/server/trenara/index.js';
-import { parseBody, parseTrainingId, passthrough } from '#lib/server/trenara/request.js';
+import { parseTrainingId, passthrough, readBody } from '#lib/server/trenara/request.js';
 import { exchangeTrainingSchema } from '#lib/schemas/training.js';
 
 /** Alternative sessions Trenara will accept in place of this one. */
@@ -17,7 +17,7 @@ export const GET: RequestHandler = async ({ params, cookies }) => {
  */
 export const PUT: RequestHandler = async ({ params, request, cookies }) => {
 	const id = parseTrainingId(params.id);
-	const body = parseBody(exchangeTrainingSchema, await request.json());
+	const body = await readBody(exchangeTrainingSchema, request);
 
 	return Response.json(
 		await passthrough(() => trainingApi.exchangeTraining(cookies, id, body.candidateId))

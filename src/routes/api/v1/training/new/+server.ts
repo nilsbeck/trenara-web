@@ -1,7 +1,7 @@
 import { error, type Cookies } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { trainingApi } from '#lib/server/trenara/index.js';
-import { parseBody, passthrough } from '#lib/server/trenara/request.js';
+import { parseBody, passthrough, readBody } from '#lib/server/trenara/request.js';
 import { addNewTrainingSchema, newTrainingDaySchema } from '#lib/schemas/training.js';
 import { parseLocalDateString, toLocalDateString, weekAnchorOf } from '#lib/utils/date.js';
 import type { Schedule } from '#lib/server/trenara/types.js';
@@ -55,7 +55,7 @@ export const GET: RequestHandler = async ({ url, cookies }) => {
  * Trenara can rework the rest of the week around it.
  */
 export const POST: RequestHandler = async ({ request, cookies }) => {
-	const { date, candidateId } = parseBody(addNewTrainingSchema, await request.json());
+	const { date, candidateId } = await readBody(addNewTrainingSchema, request);
 
 	const week = await weekHolding(cookies, date);
 	if (!week?.can_receive_new_trainings) {

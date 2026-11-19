@@ -14,7 +14,7 @@
 <script lang="ts">
 	import { tick } from 'svelte';
 	import type { ScheduledTraining, Entry } from '#lib/server/trenara/types.js';
-	import { Star } from 'lucide-svelte';
+	import { Star } from '@lucide/svelte';
 	import { reloadOnStaleChunk, whenIdle } from '#lib/utils/load-once.js';
 
 	/**

@@ -1,9 +1,8 @@
 <script lang="ts">
-	import { getContext } from 'svelte';
-	import type { CalendarStore } from '#lib/stores/calendar.svelte.js';
-	import { RefreshCw, ChevronLeft, ChevronRight } from 'lucide-svelte';
+	import { getCalendarStore } from '#lib/stores/calendar.svelte.js';
+	import { RefreshCw, ChevronLeft, ChevronRight } from '@lucide/svelte';
 
-	const store = getContext<CalendarStore>('calendar');
+	const store = getCalendarStore();
 
 	// The arrows step by whatever the grid is showing: a month when it is open,
 	// a week once it has been folded.

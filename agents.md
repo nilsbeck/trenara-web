@@ -26,11 +26,13 @@ it (§7).
 | `locals.user!`                                                | `requireUser(locals)`                            | §7  |
 | `.toISOString().slice/split/substring(…)`                     | `#lib/utils/date`                                | §9  |
 | `setInterval(…)`                                              | `#lib/utils/revalidation`                        | §7  |
+| `parseBody(schema, await request.json())`                     | `readBody(schema, request)`                      | §9  |
 | `innerHTML =`, `outerHTML =`, `insertAdjacentHTML`            | `loadSanitizer()` and `{@html}`                  | §3  |
 | `{@html}` without a reason                                    | `svelte/no-at-html-tags` is on; disable with why | §3  |
 | `import … from 'dompurify'`, or `import('dompurify')`         | `loadSanitizer()` from `#lib/utils/sanitize`     | §3  |
 | `.hex_training`, `.hex_graph` read outside `hex-color.ts`     | `trainingColor()` / `blockColor()`               | §3  |
 | `axios`, `lodash`, `svelte/store`                             | `fetch`, native JS, runes                        | §5  |
+| `lucide-svelte`                                               | `@lucide/svelte`                                 | §4  |
 | `$app/stores`, `@vercel/speed-insights/sveltekit`             | `$app/state`; the root `+layout.svelte`          | §7  |
 | DOMPurify reachable without `import()`; shell over its budget | `scripts/check-bundle.ts`, after `bun run build` | §7  |
 | `$app/stores` anywhere in the client build, dependencies too  | `scripts/check-bundle.ts`, after `bun run build` | §7  |
@@ -67,10 +69,16 @@ What follows is the design as it actually stands.
   path, because doing so would mean keeping a runner's Trenara credential
   reachable by an anonymous visitor. If a change to this route ever needs to
   read `cookies` or call `trainingApi`/`userApi`, that is a sign the design
-  has been broken, not a feature to add.
+  has been broken, not a feature to add. The session hook stays out of it
+  too: `handleAuth` skips any route `isSessionFree` names, so a signed-in
+  visitor's token is neither checked against Trenara nor refreshed there —
+  a refresh would write the rotated tokens as `Set-Cookie` onto a response
+  marked `public`.
 - **A second public route meets the same bar as the first**, or it is not
   added. Before merging one, every line of this must be true and tested:
   - it lives outside `/api` and `/(app)`, and reads no cookie and no `locals.user`;
+  - it is named in `isSessionFree` (`hooks.server.ts`), so no response from it
+    can carry a `Set-Cookie`;
   - it makes no Trenara request, on any path — it serves a stored projection;
   - the capability in the URL is random (`crypto.getRandomValues`, as
     `#lib/server/share/token.ts` does, 256 bits), unique-indexed, and
@@ -123,7 +131,7 @@ What follows is the design as it actually stands.
   (`#lib/utils/block-color`) picks one of the app's `--color-block-*` tokens by
   kind of step. A lint rule keeps every `hex_*` field out of components.
 - **Request bodies are bounded by their schema.** Every string and array a
-  client can post has a `.max()`, so `parseBody` limits size as well as shape
+  client can post has a `.max()`, so `readBody` limits size as well as shape
   and nothing arbitrary is forwarded upstream. The ceiling is a guard, set well
   past real input; the product rule, where there is one, is applied after
   parsing.
@@ -159,7 +167,7 @@ What follows is the design as it actually stands.
 ## 4. UI Architecture & Reusability
 
 - **Components:** Domain components live in `#lib/components`, grouped by feature (`calendar/`, `training/`, `chat/`, `charts/`). There is no UI primitive library — components are written directly against Tailwind classes.
-- **Icons:** Use `lucide-svelte`.
+- **Icons:** Use `@lucide/svelte`, the runes-native package. `lucide-svelte` is deprecated upstream and ships Svelte 4 components; lint refuses it.
 - **Theming:** The app is dark only. The palette is defined once as `@theme` tokens in `src/app.css`; there is no light palette and no theme switcher.
 - **Native-First:** Use native HTML validation attributes alongside Zod. The login form is the one Form Action, with `enhance`; every other mutation is a `fetch` to a JSON route under `/api/v1` (see §3, CSRF, and §9).
 
@@ -232,7 +240,7 @@ draws only two of them lies during the third.
   has a pending state at all, because `history` is now supplied to the card
   already resolved rather than fetched on mount; see "Reusing the goal card"
   in `.kiro/specs/goal-sharing/design.md`.)
-- **Say what is waiting.** `Loader2` from `lucide-svelte` with `animate-spin`
+- **Say what is waiting.** `Loader2` from `@lucide/svelte` with `animate-spin`
   and `aria-hidden="true"`, inside a `role="status"` wrapper carrying an
   `sr-only` sentence. A bare spinning glyph reads as nothing at all to a
   screen reader.
@@ -333,9 +341,9 @@ the reason — that is what distinguishes a decision from a regression.
   minutes, and `reconcileRatedEntries` patches it back onto any read that
   still shows the entry unrated. Call it wherever a fetched schedule is about
   to be trusted — `calendar.svelte.ts`'s `commitSchedule` covers the store,
-  but `calendar.svelte`'s own opening-day effect reads the page's schedule
-  prop directly and needs the same reconciliation before `initialCalendarDay`
-  runs, not after.
+  but `calendar.svelte`'s own opening-day pick, made during setup, reads the
+  page's schedule prop directly and needs the same reconciliation before
+  `initialCalendarDay` runs, not after.
 - **Load data is a snapshot from when the load ran; seat it once.**
   SvelteKit hands a page a new `data` object whenever any load above it
   re-runs, with the page's own fields carried over by reference — so an effect
@@ -406,6 +414,9 @@ the reason — that is what distinguishes a decision from a regression.
   mounted on the first tap (`change-date-modal.svelte` is the pattern). A
   failed load on a tap reloads the page — after a deploy the old chunk names
   are gone — and a failed warm-up stays quiet. Each is listed in `LAZY_ONLY`.
+  The chat window is the same arrangement in the layout: the bubble and its
+  badge are in the shell, and `chat-panel.svelte` — a view with no state of
+  its own — is the lazy chunk behind them.
 - **`{#each}` blocks are keyed**, with a key that identifies the item. Where
   position genuinely _is_ the identity — a chart column — say so with `(i)`
   rather than leaving it unkeyed.
@@ -435,6 +446,14 @@ the reason — that is what distinguishes a decision from a regression.
   flickers on every page (`(app)/+layout.server.ts` explains the case that
   taught this). Streamed values render with `{#await}` and follow "Loading,
   empty, and error states" (§4).
+- **What a load awaited is seated during setup, not in an effect.** Effects
+  never run on the server, so a view-model seeded by one renders empty there:
+  the dashboard's load awaited the whole month from Trenara and the server's
+  HTML showed a month of blank days until the JavaScript hydrated. Seed it in
+  the component's `<script>` (untracked, once), keep effects for what follows
+  a change, and pin it with a test that renders through `svelte/server` under
+  `// @vitest-environment node` — `calendar.ssr.test.ts` is the pattern; a
+  jsdom mount runs the effects and cannot see the gap.
 
 ### The tooling has to actually run
 
@@ -536,17 +555,17 @@ the drift — fix it rather than copying it.
 
 ### Where things go
 
-| Layer           | Location                                           | Use                                                                                                                                    |
-| --------------- | -------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
-| Page data       | `+page.server.ts` / `+layout.server.ts`            | `requireUser(locals)`; await only what first paint needs, stream the rest (§7, first-paint)                                            |
-| JSON endpoint   | `src/routes/api/v1/**/+server.ts`                  | `parseBody(schema, await request.json())`, then `passthrough(() => …Api.x())`; never a hand-rolled `safeParse` or field-by-field check |
-| Body schemas    | `#lib/schemas/*.ts`, with a `*.test.ts`            | shape only; what is _allowed_ is Trenara's `can_*` flags                                                                               |
-| Upstream calls  | `#lib/server/trenara/{training,user,chat,news}.ts` | reads through `cachedRead` with a `CacheKey`; writes through `mutating`; shape checked with `expectObject` / `expectCollections`       |
-| Upstream types  | `#lib/server/trenara/types.ts`                     | what captured traffic held, not what we hope for                                                                                       |
-| Storage         | `#lib/server/db/*.ts`                              | singleton DAO, `.eq('user_id', …)`, `storageFailed()` on error; the route wraps the call in `fromStorage`                              |
-| Client state    | `#lib/stores/*.svelte.ts`                          | the view-model (§4); runes, not `svelte/store`; a factory, a class with `$state` fields, or a module-level `$state` holder             |
-| Client → server | `fetch('/api/v1/…')` from a component or store     | a failure the runner sees is worded by `describeResponse` / `describeError` (`#lib/utils/network`)                                     |
-| Pure logic      | `#lib/utils/*.ts`, with a `*.test.ts` beside it    | no SvelteKit imports, so it tests without mocks                                                                                        |
+| Layer           | Location                                           | Use                                                                                                                                                                                                             |
+| --------------- | -------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Page data       | `+page.server.ts` / `+layout.server.ts`            | `requireUser(locals)`; await only what first paint needs, stream the rest (§7, first-paint)                                                                                                                     |
+| JSON endpoint   | `src/routes/api/v1/**/+server.ts`                  | `await readBody(schema, request)`, then `passthrough(() => …Api.x())`; never a hand-rolled `safeParse` or field-by-field check, and never a bare `request.json()`, which answers 500 to a body that is not JSON |
+| Body schemas    | `#lib/schemas/*.ts`, with a `*.test.ts`            | shape only; what is _allowed_ is Trenara's `can_*` flags                                                                                                                                                        |
+| Upstream calls  | `#lib/server/trenara/{training,user,chat,news}.ts` | reads through `cachedRead` with a `CacheKey`; writes through `mutating`; shape checked with `expectObject` / `expectCollections`                                                                                |
+| Upstream types  | `#lib/server/trenara/types.ts`                     | what captured traffic held, not what we hope for                                                                                                                                                                |
+| Storage         | `#lib/server/db/*.ts`                              | singleton DAO, `.eq('user_id', …)`, `storageFailed()` on error; the route wraps the call in `fromStorage`                                                                                                       |
+| Client state    | `#lib/stores/*.svelte.ts`                          | the view-model (§4); runes, not `svelte/store`; a factory, a class with `$state` fields, or a module-level `$state` holder                                                                                      |
+| Client → server | `fetch('/api/v1/…')` from a component or store     | a failure the runner sees is worded by `describeResponse` / `describeError` (`#lib/utils/network`)                                                                                                              |
+| Pure logic      | `#lib/utils/*.ts`, with a `*.test.ts` beside it    | no SvelteKit imports, so it tests without mocks                                                                                                                                                                 |
 
 Failures are told apart by which server failed, and each has one helper:
 
@@ -638,7 +657,7 @@ the rule; they do not restate it.
 
 - [ ] under `src/routes/api/v1/`, on a method that is not GET if it changes anything (§7)
 - [ ] `requireUser(locals)`; no guard of its own (§7)
-- [ ] body through `parseBody` with a schema in `#lib/schemas/`, every string and array `.max()`ed (§3)
+- [ ] body through `readBody` with a schema in `#lib/schemas/`, every string and array `.max()`ed (§3)
 - [ ] upstream through `passthrough` / `passthroughOptional`, storage through `fromStorage` (§9)
 - [ ] a read goes through `cachedRead`; a write `invalidate`s what it changes (§7)
 - [ ] a write to Supabase is behind a per-user limiter (§3)

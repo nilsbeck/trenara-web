@@ -3,7 +3,7 @@
 	import GoalCard from '#lib/components/goal/goal-card.svelte';
 	import { relativeTimeAgo } from '#lib/utils/relative-time.js';
 	import { toDate } from '#lib/utils/date.js';
-	import { Target } from 'lucide-svelte';
+	import { Target } from '@lucide/svelte';
 
 	let { data }: { data: PageServerData } = $props();
 

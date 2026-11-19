@@ -9,10 +9,12 @@ const { tokenState, userState } = vi.hoisted(() => ({
 	tokenState: {
 		hasCookies: true,
 		status: 'valid' as 'valid' | 'refreshed' | 'invalid' | 'unavailable',
-		loggedOut: false
+		loggedOut: false,
+		validations: 0
 	},
 	userState: {
-		user: { id: 42, email: 'runner@example.com' } as { id: number; email: string } | null
+		user: { id: 42, email: 'runner@example.com' } as { id: number; email: string } | null,
+		reads: 0
 	}
 }));
 
@@ -20,7 +22,10 @@ vi.mock('#lib/server/auth/token-manager.js', () => ({
 	TokenManager: {
 		getInstance: () => ({
 			hasSessionCookies: () => tokenState.hasCookies,
-			validateAndRefreshToken: async () => tokenState.status,
+			validateAndRefreshToken: async () => {
+				tokenState.validations++;
+				return tokenState.status;
+			},
 			logout: async () => {
 				tokenState.loggedOut = true;
 			}
@@ -31,6 +36,7 @@ vi.mock('#lib/server/auth/token-manager.js', () => ({
 vi.mock('#lib/server/trenara/user.js', () => ({
 	userApi: {
 		getCurrentUser: async () => {
+			userState.reads++;
 			if (!userState.user) throw new Error('unreachable');
 			return userState.user;
 		}
@@ -81,7 +87,9 @@ beforeEach(async () => {
 	tokenState.hasCookies = true;
 	tokenState.status = 'valid';
 	tokenState.loggedOut = false;
+	tokenState.validations = 0;
 	userState.user = { id: 42, email: 'runner@example.com' };
+	userState.reads = 0;
 });
 
 describe('identity', () => {
@@ -125,6 +133,41 @@ describe('identity', () => {
 
 		expect(tokenState.loggedOut).toBe(false);
 		expect(event.locals.user).toBeNull();
+	});
+});
+
+describe('the public share page', () => {
+	/**
+	 * `/s/[token]` is answered `public, max-age=60` and must make no Trenara
+	 * request on any path (agents.md §3). The session hook ran for it all the
+	 * same: a signed-in runner opening their own link had their token checked
+	 * against Trenara — and, near expiry, refreshed, which wrote the new
+	 * access and refresh tokens as `Set-Cookie` onto a response marked
+	 * cacheable by anyone.
+	 */
+	it('resolves no session for a visitor who happens to be signed in', async () => {
+		tokenState.status = 'refreshed';
+		const event = eventFor('/s/[token]', '/s/abc');
+
+		await run(event);
+
+		expect(tokenState.validations).toBe(0);
+		expect(userState.reads).toBe(0);
+		expect(event.locals.user).toBeNull();
+	});
+
+	it('does not clear a session from there either', async () => {
+		tokenState.status = 'invalid';
+
+		await run(eventFor('/s/[token]', '/s/abc'));
+
+		expect(tokenState.loggedOut).toBe(false);
+	});
+
+	it('still resolves the session everywhere else', async () => {
+		await run(eventFor('/(app)/goal', '/goal'));
+
+		expect(tokenState.validations).toBe(1);
 	});
 });
 

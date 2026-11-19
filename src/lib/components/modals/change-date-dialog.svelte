@@ -1,6 +1,6 @@
 <script lang="ts">
 	import type { ScheduledTraining } from '#lib/server/trenara/types.js';
-	import { ChevronLeft, ChevronRight, X, Loader2, TriangleAlert } from 'lucide-svelte';
+	import { ChevronLeft, ChevronRight, X, Loader2, TriangleAlert } from '@lucide/svelte';
 	import {
 		describeError,
 		describeResponse,

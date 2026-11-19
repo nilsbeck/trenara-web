@@ -3,7 +3,7 @@
 	import type { NewsItem, Pagination } from '#lib/server/trenara/types.js';
 	import { onMount } from 'svelte';
 	import { invalidate } from '$app/navigation';
-	import { ArrowLeft, ExternalLink, Loader2, Newspaper } from 'lucide-svelte';
+	import { ArrowLeft, ExternalLink, Loader2, Newspaper } from '@lucide/svelte';
 	import NewsContent from '#lib/components/news/news-content.svelte';
 	import { isNewer, isUnread, newestOf, type NewsMark } from '#lib/utils/news-unread.js';
 	import { describeError, describeResponse } from '#lib/utils/network.js';

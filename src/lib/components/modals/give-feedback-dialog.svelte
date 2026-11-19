@@ -1,6 +1,6 @@
 <script lang="ts">
 	import type { ScheduledTraining, Entry } from '#lib/server/trenara/types.js';
-	import { X, Loader2 } from 'lucide-svelte';
+	import { X, Loader2 } from '@lucide/svelte';
 	import RpeSlider from '#lib/components/training/rpe-slider.svelte';
 	import { rpeColors } from '#lib/components/training/rpe.js';
 	import { describeError, describeResponse } from '#lib/utils/network.js';

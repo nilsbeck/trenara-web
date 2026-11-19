@@ -1,6 +1,6 @@
 <script lang="ts">
 	import type { ScheduledTraining } from '#lib/server/trenara/types.js';
-	import { X, ChevronUp, ChevronDown, Flag } from 'lucide-svelte';
+	import { X, ChevronUp, ChevronDown, Flag } from '@lucide/svelte';
 	import {
 		buildTreadmillInstructions,
 		type TreadmillInstruction

@@ -69,14 +69,57 @@ sw.addEventListener('install', (event) => {
 
 sw.addEventListener('activate', (event) => {
 	event.waitUntil(
-		caches
-			.keys()
-			.then((keys) =>
-				Promise.all(keys.filter((key) => key !== CACHE).map((key) => caches.delete(key)))
-			)
-			.then(() => sw.clients.claim())
+		Promise.all([
+			caches
+				.keys()
+				.then((keys) =>
+					Promise.all(keys.filter((key) => key !== CACHE).map((key) => caches.delete(key)))
+				),
+			/**
+			 * Navigation preload: send a page request at the same moment the
+			 * browser starts this worker, rather than after.
+			 *
+			 * A worker with a `fetch` listener sits in front of every navigation,
+			 * so the browser has to boot it before the request for the page can
+			 * leave — and a worker that has been asleep, which on a phone is every
+			 * launch from the home screen, takes tens to hundreds of milliseconds
+			 * to boot. All of it was added to the one wait a runner sees when they
+			 * open the app. With preload on, the request runs while the worker
+			 * boots, and the handler below answers with it.
+			 *
+			 * Optional: Safari before 15.4 has no `navigationPreload`, and there
+			 * the handler simply fetches as it always did.
+			 */
+			sw.registration.navigationPreload?.enable()
+		]).then(() => sw.clients.claim())
 	);
 });
+
+/**
+ * A page, from the network — the preloaded response when the browser sent one,
+ * a fetch of our own when it did not — or the offline page when there is no
+ * network at all.
+ *
+ * The preload has to be awaited even when it is not wanted: one left hanging is
+ * cancelled with a console warning, and one that rejects is an unhandled
+ * rejection. Awaiting it inside the `try` also means a preload that failed for
+ * want of a connection lands on the offline page, the same as a fetch would.
+ */
+async function navigate(event: FetchEvent): Promise<Response> {
+	try {
+		const preloaded: Response | undefined = await event.preloadResponse;
+		return preloaded ?? (await fetch(event.request));
+	} catch {
+		const offline = OFFLINE_PAGE ? await caches.match(OFFLINE_PAGE) : undefined;
+		return (
+			offline ??
+			new Response('Offline', {
+				status: 503,
+				headers: { 'content-type': 'text/plain; charset=utf-8' }
+			})
+		);
+	}
+}
 
 /** Whether a URL is one of the files precached at install. */
 function isPrecached(url: URL): boolean {
@@ -105,18 +148,7 @@ sw.addEventListener('fetch', (event) => {
 	// gone entirely does the offline page stand in — and it says what it is,
 	// rather than showing an empty calendar that reads as a rest week.
 	if (request.mode === 'navigate') {
-		event.respondWith(
-			fetch(request).catch(async () => {
-				const offline = OFFLINE_PAGE ? await caches.match(OFFLINE_PAGE) : undefined;
-				return (
-					offline ??
-					new Response('Offline', {
-						status: 503,
-						headers: { 'content-type': 'text/plain; charset=utf-8' }
-					})
-				);
-			})
-		);
+		event.respondWith(navigate(event));
 		return;
 	}
 

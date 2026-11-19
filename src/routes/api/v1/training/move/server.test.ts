@@ -53,6 +53,25 @@ describe('PUT /api/v1/training/move', () => {
 		expect(await res.json()).toEqual({ preview: true });
 	});
 
+	/**
+	 * `request.json()` throws a `SyntaxError` on a body that is not JSON, and
+	 * nothing caught it: a truncated request reached `handleError` as an
+	 * unexpected bug, was logged as one, and was answered 500 — the caller's
+	 * mistake reported as the server's.
+	 */
+	it('answers a body that is not JSON with a 400, not a crash', async () => {
+		const request = new Request('https://app.test/api/v1/training/move', {
+			method: 'PUT',
+			body: '{"entryId": 42,'
+		});
+
+		const { status, message } = await refusal(PUT({ request, cookies } as never));
+
+		expect(status).toBe(400);
+		expect(message).toMatch(/JSON/);
+		expect(mockSave).not.toHaveBeenCalled();
+	});
+
 	it('names the field that was wrong, rather than that something was', async () => {
 		const { status, message } = await refusal(PUT(event({ ...move, entryId: 'x' })));
 		expect(status).toBe(400);

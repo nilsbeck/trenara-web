@@ -274,6 +274,29 @@ export function parseBody<T>(schema: ZodType<T>, raw: unknown): T {
 }
 
 /**
+ * Read a JSON request body and parse it, in one step.
+ *
+ * Routes used to write `parseBody(schema, await request.json())`, and the
+ * `await` is where a body that is not JSON at all — truncated by a dropped
+ * connection, sent with the wrong `content-type`, empty — threw a bare
+ * `SyntaxError`. Nothing caught it before `handleError`, which logged it as an
+ * unexpected bug and answered 500: the caller's mistake, reported as the
+ * server's, in the log the maintainer reads for real failures.
+ *
+ * So the read is a refusal like any other rejected body: a 400 that says what
+ * was wrong with it.
+ */
+export async function readBody<T>(schema: ZodType<T>, request: Request): Promise<T> {
+	let raw: unknown;
+	try {
+		raw = await request.json();
+	} catch {
+		error(400, 'body: not valid JSON');
+	}
+	return parseBody(schema, raw);
+}
+
+/**
  * Whether a refusal means "there is nothing there" rather than "this failed".
  *
  * Trenara answers a read for a record the account does not have with a 404 and

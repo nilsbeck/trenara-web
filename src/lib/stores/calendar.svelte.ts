@@ -2,7 +2,7 @@
  * Calendar store using Svelte 5 runes
  */
 
-import { untrack } from 'svelte';
+import { createContext, untrack } from 'svelte';
 import type {
 	Schedule,
 	ScheduledTraining,
@@ -1332,3 +1332,15 @@ export function createCalendarStore(initialDate: Date, options: CalendarStoreOpt
 }
 
 export type CalendarStore = ReturnType<typeof createCalendarStore>;
+
+/**
+ * The calendar's store, handed from `calendar.svelte` — its one owner — to the
+ * components the calendar is drawn from.
+ *
+ * `createContext` rather than `setContext('calendar', …)` and
+ * `getContext<CalendarStore>('calendar')` in each reader: those were a string
+ * key and a type, written out six times and checked by nothing. A typo in the
+ * key read `undefined`, and the generic asserted whatever it was told. Here the
+ * key is private and the type travels with it.
+ */
+export const [getCalendarStore, setCalendarStore] = createContext<CalendarStore>();

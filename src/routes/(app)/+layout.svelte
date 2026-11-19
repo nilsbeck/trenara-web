@@ -10,7 +10,7 @@
 		History,
 		Archive,
 		Newspaper
-	} from 'lucide-svelte';
+	} from '@lucide/svelte';
 	import ChatBubble from '#lib/components/chat/chat-bubble.svelte';
 	import RenderFailure from '#lib/components/shared/render-failure.svelte';
 	import { formatUnread } from '#lib/utils/news-unread.js';

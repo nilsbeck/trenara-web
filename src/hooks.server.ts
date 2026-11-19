@@ -29,6 +29,12 @@ const tokenManager = TokenManager.getInstance();
 export const handleAuth: Handle = async ({ event, resolve }) => {
 	event.locals.user = null;
 
+	// The shared-goal page is the one route that must never see a session —
+	// see `isSessionFree` below.
+	if (isSessionFree(event.route.id)) {
+		return resolve(event);
+	}
+
 	// Nothing to restore — an anonymous visitor, not an expired session.
 	if (!tokenManager.hasSessionCookies(event.cookies)) {
 		return resolve(event);
@@ -59,6 +65,23 @@ export const handleAuth: Handle = async ({ event, resolve }) => {
 
 	return resolve(event);
 };
+
+/**
+ * Routes served without resolving a session, even for a visitor who has one.
+ *
+ * Only the public shared-goal page, `/s/[token]`. It reads no cookie and no
+ * `locals.user`, and agents.md §3 holds it to making no Trenara request on any
+ * path — but this hook runs before every route, and for a signed-in runner
+ * opening their own link it did make them: the token check, the account read,
+ * and near expiry a refresh. A refresh writes the rotated access and refresh
+ * tokens back as `Set-Cookie`, and this page answers `public, max-age=60`, so
+ * the one response in the app that any shared cache is invited to store could
+ * carry a runner's live credentials. Skipping the session here keeps every
+ * response from this route cookie-free by construction.
+ */
+function isSessionFree(routeId: string | null): boolean {
+	return routeId?.startsWith('/s/') ?? false;
+}
 
 /** Routes that answer in JSON, and must be refused in JSON. */
 function isApiRoute(routeId: string | null): boolean {
