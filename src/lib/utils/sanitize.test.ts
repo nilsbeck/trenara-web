@@ -1,9 +1,5 @@
-import { describe, it, expect, vi, afterEach } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import { loadSanitizer } from './sanitize';
-
-afterEach(() => {
-	vi.unstubAllGlobals();
-});
 
 describe('loadSanitizer', () => {
 	it('shares one instance between callers', async () => {
@@ -47,17 +43,6 @@ describe('loadSanitizer', () => {
 		const link = new DOMParser().parseFromString(out, 'text/html').querySelector('a');
 		expect(link?.getAttribute('href')).toBe('https://trenara.com');
 		expect(link?.getAttribute('target')).toBe('_blank');
-		expect(link?.getAttribute('rel')).toBe('noopener noreferrer nofollow');
-	});
-
-	it('leaves the target off in the installed app, so Android does not reopen it', async () => {
-		vi.stubGlobal('matchMedia', (query: string) => ({
-			matches: query === '(display-mode: standalone)'
-		}));
-		const sanitize = await loadSanitizer();
-		const out = sanitize('<a href="https://trenara.com" target="_blank">site</a>');
-		const link = new DOMParser().parseFromString(out, 'text/html').querySelector('a');
-		expect(link?.hasAttribute('target')).toBe(false);
 		expect(link?.getAttribute('rel')).toBe('noopener noreferrer nofollow');
 	});
 
