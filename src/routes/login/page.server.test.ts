@@ -111,7 +111,7 @@ describe('login action — security logging', () => {
 			token_type: 'Bearer'
 		});
 
-		await expect(actions.login(event())).rejects.toMatchObject({ status: 302 });
+		await expect(actions.login(event())).rejects.toMatchObject({ status: 303 });
 		expect(warn).not.toHaveBeenCalled();
 	});
 
@@ -172,6 +172,6 @@ describe('login — where a sign-in lands', () => {
 
 		await expect(
 			actions.login(event({ username: USERNAME, password: PASSWORD, next: '/\\evil.example' }))
-		).rejects.toMatchObject({ location: '/dashboard' });
+		).rejects.toMatchObject({ status: 303, location: '/dashboard' });
 	});
 });

@@ -101,6 +101,11 @@ export const actions: Actions = {
 		// No identity cookies are written. `hooks.server.ts` resolves the runner
 		// from the access token on each request, through the read cache — the
 		// only arrangement in which the token and the identity cannot disagree.
-		redirect(302, safeNext(formData.get('next')?.toString() ?? null));
+		//
+		// 303, not 302: this answers a POST, and 303 is the status that says
+		// "now GET this" in so many words. A 302 leaves the method to the
+		// browser's discretion, which every browser happens to resolve to GET
+		// today — the spec only permits it.
+		redirect(303, safeNext(formData.get('next')?.toString() ?? null));
 	}
 };
