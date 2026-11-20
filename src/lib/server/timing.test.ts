@@ -51,6 +51,40 @@ describe('createTiming', () => {
 		expect(timing.header()).toContain('account;dur=0.0;desc="account from +0ms"');
 	});
 
+	/**
+	 * The dashboard's reads had all settled by +377ms on a preview and the
+	 * response was ready at +576ms, with nothing to say what the difference was.
+	 */
+	it('records the render from the last read settling to the HTML being ready', async () => {
+		const c = clock();
+		const timing = createTiming(c.now);
+
+		let finishGoal!: () => void;
+		let finishShare!: () => void;
+		timing.measure('goal', new Promise<void>((r) => (finishGoal = r)));
+		c.advance(220);
+		finishGoal();
+		await settle();
+		timing.measure('share', new Promise<void>((r) => (finishShare = r)));
+		c.advance(140);
+		finishShare();
+		await settle();
+		c.advance(200);
+		timing.rendered();
+
+		expect(timing.header()).toContain('render;dur=200.0;desc="render from +360ms"');
+	});
+
+	it('counts the whole request as the render when nothing was read', () => {
+		const c = clock();
+		const timing = createTiming(c.now);
+
+		c.advance(12);
+		timing.rendered();
+
+		expect(timing.header()).toBe('render;dur=12.0;desc="render from +0ms", total;dur=12.0');
+	});
+
 	it('leaves out what has not settled by the time the header is written', () => {
 		const timing = createTiming(clock().now);
 
@@ -82,6 +116,29 @@ describe('serverTiming', () => {
 
 		expect(response.headers.get('server-timing')).toMatch(
 			/^account;dur=[\d.]+;desc="account from \+\d+ms", total;dur=[\d.]+$/
+		);
+	});
+
+	it('times the render once, on the first chunk of HTML, and leaves the HTML alone', async () => {
+		const event = { locals: { user: null } } as unknown as RequestEvent;
+		const chunks: string[] = [];
+
+		const response = await serverTiming({
+			event,
+			resolve: async (e, options) => {
+				await timed(e.locals, 'account', Promise.resolve('runner'));
+				// A page that streams: the shell first, a streamed promise after.
+				chunks.push((await options?.transformPageChunk?.({ html: '<main>', done: false })) ?? '');
+				chunks.push((await options?.transformPageChunk?.({ html: '</main>', done: true })) ?? '');
+				return new Response(chunks.join(''));
+			}
+		});
+
+		expect(chunks).toEqual(['<main>', '</main>']);
+		const header = response.headers.get('server-timing') ?? '';
+		expect(header.match(/render;/g)).toHaveLength(1);
+		expect(header).toMatch(
+			/^account;dur=[\d.]+;desc="[^"]+", render;dur=[\d.]+;desc="render from \+\d+ms", total/
 		);
 	});
 

@@ -16,8 +16,10 @@ import type { Handle } from '@sveltejs/kit/hooks';
  * Chrome's Timing panel shows the description in place of the name whenever
  * there is one: with only the start time there, every row read "+7ms" and
  * nothing said which was which.
- * Overlap and waiting are read off those two figures; `total` is the server's
- * whole share of the wait, up to the moment the response was handed back.
+ * Overlap and waiting are read off those two figures; `render` is the page
+ * being built once its data is in (see `serverTiming` below); `total` is the
+ * server's whole share of the wait, up to the moment the response was handed
+ * back.
  *
  * Timings only: no names of runners, no tokens, nothing a request carried.
  * Same-origin, too — without `Timing-Allow-Origin` no other site's script can
@@ -26,6 +28,11 @@ import type { Handle } from '@sveltejs/kit/hooks';
 export interface Timing {
 	/** Time `work` from now until it settles, under `name`, and hand it back untouched. */
 	measure<T>(name: string, work: Promise<T>): Promise<T>;
+	/**
+	 * The page's HTML is ready: record `render`, from the moment the last timed
+	 * read settled until now.
+	 */
+	rendered(): void;
 	/** The `Server-Timing` value: every entry that has settled, and the total so far. */
 	header(): string;
 }
@@ -51,6 +58,15 @@ export function createTiming(now: () => number = () => performance.now()): Timin
 			// leave it unhandled.
 			work.then(done, done);
 			return work;
+		},
+
+		rendered() {
+			const at = now() - origin;
+			const dataReady = entries.reduce(
+				(latest, { start, duration }) => Math.max(latest, start + duration),
+				0
+			);
+			entries.push({ name: 'render', start: dataReady, duration: at - dataReady });
 		},
 
 		header() {
@@ -80,12 +96,33 @@ export function timed<T>(locals: App.Locals, name: string, work: Promise<T>): Pr
  * along with the route. A response whose headers cannot be changed goes out
  * without the header rather than failing: this is a diagnostic, and a
  * diagnostic must never be the thing that breaks a page.
+ *
+ * `render` is the one entry no read reports. The first measurements of the
+ * dashboard on a preview had every read settled by +377ms and the response
+ * ready at +576ms, and nothing in the header said where the two hundred
+ * milliseconds between went. SvelteKit hands `transformPageChunk` the page's
+ * HTML as soon as it is rendered — the first call, on a page that streams, is
+ * everything that does not wait on a streamed promise — so that call marks the
+ * end of the render, and the last timed read settling marks its start: the
+ * loads' data merged, written into the page, and the components rendered.
+ * Anything a load awaits without timing it lands in `render` too, so it is an
+ * upper bound on rendering rather than an exact figure — which is a reason to
+ * time a new read on the page, not to trust this less.
  */
 export const serverTiming: Handle = async ({ event, resolve }) => {
 	const timing = createTiming();
 	event.locals.timing = timing;
 
-	const response = await resolve(event);
+	let rendered = false;
+	const response = await resolve(event, {
+		transformPageChunk: ({ html }) => {
+			if (!rendered) {
+				rendered = true;
+				timing.rendered();
+			}
+			return html;
+		}
+	});
 	try {
 		response.headers.append('server-timing', timing.header());
 	} catch {
