@@ -682,8 +682,15 @@ chosen per field; the API reference says which.
 - **CSP:** the browser talks only to this app. A new external origin — a font,
   an image host, a script — needs its directive in `vite.config.ts`.
 - **Service worker:** caches the built shell and static files only, never an
-  API response or a rendered page; see the comment at the top of
-  `src/service-worker/index.ts` for why. It is its own TypeScript project
+  API response or a page rendered for a runner; see the comment at the top of
+  `src/service-worker/index.ts` for why. The one page it holds is the launch
+  placeholder (`src/routes/launch`), prerendered at build time with nothing of
+  the runner's in it, which it shows when the dashboard is slow to answer —
+  holding the request in flight and handing it to the placeholder's own
+  navigation, so the server is still asked once. Its frame and columns are
+  the shared `AppFrame` and `DashboardColumns`, so those follow the real page;
+  its card heights are measured values, to re-measure when the goal card's
+  head or the calendar's cards change height. It is its own TypeScript project
   (`src/service-worker/tsconfig.json`), which `bun run check` type-checks
   separately.
 - **Server-Timing:** every response carries where its server time went

@@ -48,6 +48,10 @@ everything from the reverse-engineered Trenara API.
 - **Fewer clicks, more at your fingertips.** Everything you actually need is on the screen you are
   already on: the settings you can change are chips on the session itself, the ones you have changed
   are marked, and rating, moving or deleting a session never leaves the calendar.
+- **The app shows up at once, even on a slow connection.** Opened from the home screen on a weak
+  signal, it draws its own frame and says your plan is loading within a moment, instead of leaving
+  the splash screen up for the seconds the plan takes to arrive. The plan itself is never stored on
+  the phone — what you see once it lands is always fresh.
 
 ### Your training month
 
