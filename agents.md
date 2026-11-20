@@ -471,6 +471,15 @@ the reason — that is what distinguishes a decision from a regression.
   a change, and pin it with a test that renders through `svelte/server` under
   `// @vitest-environment node` — `calendar.ssr.test.ts` is the pattern; a
   jsdom mount runs the effects and cannot see the gap.
+- **What the server cannot measure, it is told.** The calendar's view follows a
+  media query, which the server cannot run, so it rendered the month for every
+  device and a phone folded it to a week after hydrating — a six-row grid
+  collapsing to one on every launch. The browser now remembers what its query
+  said in a cookie and the load reads it (`#lib/utils/opening-view`, with the
+  device's user agent standing in on a first visit), so the server draws the
+  view the screen will ask for. The query keeps the last word once the page is
+  live; the cookie is a layout hint, not identity, and only its two known
+  values are read.
 
 ### The tooling has to actually run
 

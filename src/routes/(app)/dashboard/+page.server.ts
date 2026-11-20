@@ -6,9 +6,10 @@ import { requireUser } from '#lib/server/auth/guard.js';
 import { keepHistory } from '#lib/server/history/record.js';
 import { readGoalChart, readGoalShare } from '#lib/server/history/goal-card-data.js';
 import { afterResponse } from '#lib/server/after-response.js';
+import { OPENING_VIEW_COOKIE, openingViewFor } from '#lib/utils/opening-view.js';
 import type { PageServerLoad } from './$types';
 
-export const load: PageServerLoad = async ({ cookies, locals, isDataRequest }) => {
+export const load: PageServerLoad = async ({ cookies, locals, request, isDataRequest }) => {
 	const user = requireUser(locals);
 
 	/**
@@ -67,7 +68,14 @@ export const load: PageServerLoad = async ({ cookies, locals, isDataRequest }) =
 		goal,
 		userStats,
 		history,
-		share
+		share,
+		/**
+		 * The view the calendar is drawn in, from what this device's media query
+		 * said last time, or failing that from the device itself. Decided here
+		 * rather than in the browser so the server draws the week a phone will
+		 * fold to anyway, instead of a month it collapses after hydrating.
+		 */
+		openingView: openingViewFor(cookies.get(OPENING_VIEW_COOKIE), request.headers)
 	};
 };
 

@@ -1103,6 +1103,20 @@ export function createCalendarStore(initialDate: Date, options: CalendarStoreOpt
 		return addDays(weekAnchor, 3);
 	}
 
+	/**
+	 * Fold onto the week of whatever is selected, and ask for nothing.
+	 *
+	 * The synchronous half of folding, for the calendar's setup: it runs on the
+	 * server, where the page is rendered folded for a phone, and nothing may be
+	 * fetched there. The months either side of the week are left to
+	 * `ensureWeekMonthsLoaded`, which the calendar calls once it is in the
+	 * browser — `setViewMode` does both halves together.
+	 */
+	function openFolded(): void {
+		weekAnchor = mondayOf(foldAnchorDay());
+		viewMode = 'week';
+	}
+
 	async function setViewMode(mode: ViewMode): Promise<void> {
 		if (mode === viewMode) return;
 
@@ -1111,8 +1125,7 @@ export function createCalendarStore(initialDate: Date, options: CalendarStoreOpt
 		navigationDirection = 0;
 
 		if (mode === 'week') {
-			weekAnchor = mondayOf(foldAnchorDay());
-			viewMode = 'week';
+			openFolded();
 			await ensureWeekMonthsLoaded();
 			return;
 		}
@@ -1302,6 +1315,8 @@ export function createCalendarStore(initialDate: Date, options: CalendarStoreOpt
 		setSelectedDate,
 		selectDay,
 		setViewMode,
+		openFolded,
+		ensureWeekMonthsLoaded,
 		setPreferredViewMode,
 		toggleViewMode,
 		setSchedule,

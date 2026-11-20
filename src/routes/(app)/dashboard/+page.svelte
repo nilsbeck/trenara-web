@@ -158,7 +158,12 @@
 		</div>
 
 		<div class="flex max-w-full flex-col items-center lg:order-1 lg:flex-row">
-			<Calendar today={new Date()} schedule={data.schedule} {refreshPageData} />
+			<Calendar
+				today={new Date()}
+				schedule={data.schedule}
+				openingView={data.openingView}
+				{refreshPageData}
+			/>
 		</div>
 	</div>
 </div>

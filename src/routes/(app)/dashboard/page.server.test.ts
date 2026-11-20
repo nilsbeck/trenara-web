@@ -55,10 +55,14 @@ const week = {
 const goal = { id: 7, name: 'Berlin Marathon', start_date: '2026-01-06' };
 const stats = { best_times: { time_for_goal: '3:35:00', pace_for_goal: '5:06 min/km' } };
 
-function makeEvent() {
+function makeEvent({
+	cookies = {},
+	headers = {}
+}: { cookies?: Record<string, string>; headers?: Record<string, string> } = {}) {
 	return {
-		cookies: { get: () => undefined },
+		cookies: { get: (name: string) => cookies[name] },
 		locals: { user: { id: 42, email: '' } },
+		request: new Request('https://trainara.test/dashboard', { headers }),
 		isDataRequest: false
 	} as unknown as Parameters<typeof rawLoad>[0];
 }
@@ -79,6 +83,30 @@ describe('dashboard load', () => {
 			goal_id: 7,
 			snapshot: { v: 1 }
 		});
+	});
+
+	/**
+	 * The calendar's opening view is decided here, so the server draws what
+	 * the phone's media query will ask for instead of a month it then folds.
+	 * See `#lib/utils/opening-view` for the rule.
+	 */
+	it('tells the calendar which view to open on', async () => {
+		expect((await load(makeEvent({ cookies: { 'calendar-view': 'week' } }))).openingView).toBe(
+			'week'
+		);
+		expect(
+			(
+				await load(
+					makeEvent({
+						headers: {
+							'user-agent':
+								'Mozilla/5.0 (iPhone; CPU iPhone OS 19_1 like Mac OS X) AppleWebKit/605.1.15 Mobile/15E148'
+						}
+					})
+				)
+			).openingView
+		).toBe('week');
+		expect((await load(makeEvent())).openingView).toBe('month');
 	});
 
 	it('answers without waiting for the history write, and hands it to afterResponse', async () => {

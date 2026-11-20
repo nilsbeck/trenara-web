@@ -155,7 +155,10 @@ describe('the view the screen opens on', () => {
 			)
 		);
 	});
-	afterEach(() => vi.unstubAllGlobals());
+	afterEach(() => {
+		vi.unstubAllGlobals();
+		document.cookie = 'calendar-view=; Max-Age=0; Path=/';
+	});
 
 	it('opens on the week on a phone', async () => {
 		stubViewport(390);
@@ -182,6 +185,55 @@ describe('the view the screen opens on', () => {
 
 		resize(1280);
 		await waitFor(() => expect(shownDays()).toHaveLength(31));
+	});
+
+	/**
+	 * The server has no viewport, so it renders whatever view this cookie
+	 * last said (`#lib/utils/opening-view`). It is the media query's answer
+	 * that is remembered, because after a reload the query decides again.
+	 */
+	it('remembers what the screen asked for, for the next page the server draws', async () => {
+		const resize = stubViewport(390);
+		render(Calendar, { props: { today: TODAY, schedule: schedule() } });
+		await waitFor(() => expect(document.cookie).toContain('calendar-view=week'));
+
+		resize(1280);
+		await waitFor(() => expect(document.cookie).toContain('calendar-view=month'));
+	});
+
+	it('stays on the week it was opened folded on when the screen agrees', async () => {
+		stubViewport(390);
+		render(Calendar, { props: { today: TODAY, schedule: schedule(), openingView: 'week' } });
+
+		expect(shownDays()).toEqual(['24', '25', '26', '27', '28', '29', '30']);
+		await new Promise((resolve) => setTimeout(resolve, 0));
+		expect(shownDays()).toEqual(['24', '25', '26', '27', '28', '29', '30']);
+	});
+
+	/**
+	 * Folding asks for the month either side of the week; opened folded on
+	 * the server, nothing could be asked for, and the media query then finds
+	 * the calendar already folded and asks for nothing either. Monday 31
+	 * August folds onto a week that runs into September.
+	 */
+	it('fetches the month a week opened folded reaches into', async () => {
+		stubViewport(390);
+		const monday = new Date(2026, 7, 31, 8, 0);
+		render(Calendar, {
+			props: {
+				today: monday,
+				schedule: schedule({ trainings: [training('2026-08-31')] }),
+				openingView: 'week'
+			}
+		});
+
+		expect(shownDays()).toEqual(['31', '1', '2', '3', '4', '5', '6']);
+
+		// Straight away, as a fold would — not a second later, when the idle
+		// prefetch of the weeks either side would have got round to it.
+		await new Promise((resolve) => setTimeout(resolve, 50));
+		const asked = vi.mocked(fetch).mock.calls.map(([url]) => String(url));
+		expect(asked.some((url) => url.includes('/api/v1/schedule?date=2026-09-01'))).toBe(true);
 	});
 
 	it('leaves the view alone once the runner has set it themselves', async () => {
