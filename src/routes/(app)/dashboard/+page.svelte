@@ -6,6 +6,7 @@
 	import GoalCard from '#lib/components/goal/goal-card.svelte';
 	import GoalCardShare from '#lib/components/goal/goal-card-share.svelte';
 	import PredictionsCard from '#lib/components/predictions/predictions-card.svelte';
+	import DashboardColumns from '#lib/components/dashboard/dashboard-columns.svelte';
 	import { isRenderableStats } from '#lib/utils/user-stats.js';
 
 	let { data }: { data: PageServerData } = $props();
@@ -54,86 +55,47 @@
 	}
 </script>
 
-<!--
-	Side by side at `lg`, not `md`. Both columns are 28rem, so the pair needs
-	920px before the gap — more than the 768px `md` was letting them try, which
-	pushed the second column off the side of the viewport.
--->
-<div class="flex flex-col items-center justify-center lg:flex-row">
-	<!--
-		`gap` rather than `lg:space-x-6`: the columns stack until `lg`, and a
-		horizontal-only rule left the cards sitting flush against the calendar at
-		every width below it. One gap covers both directions.
-
-		`max-w-full` here and on the calendar's wrapper below: each is a flex item
-		in a column aligned to the start or centre, which sizes it to its content —
-		the columns' 28rem — so the columns' own `max-w-full` resolved against
-		448px and capped nothing. On a 390px phone the calendar overflowed and was
-		clipped on both sides, Sunday off the edge of the week.
-	-->
-	<div class="flex max-w-full flex-col items-start justify-center gap-6 lg:flex-row">
-		<!--
-			The goal column leads the source and steps behind the calendar from
-			`lg` up.
-
-			`lg` and not `sm`, because `lg` is where the columns actually split.
-			Below it they are stacked however wide the window is, and ordering the
-			goal column second there drops it under a full month grid — off the
-			bottom of a tablet exactly as it would be off the bottom of a phone.
-			Whenever the cards sit above the calendar they lead, and they fold.
-
-			That the cards lead is the whole point of the stack: a month grid and
-			its day detail fill the screen, so anything below the calendar is as
-			far out of reach as it was in the menu. Source order rather than
-			`order` alone, so they are also the first thing a keyboard or a screen
-			reader meets — the same argument. The cost is that from `lg` up both
-			land on the cards before the calendar; there the two are side-by-side
-			peers, and the mismatch is worth the narrow screen.
-
-			The width is definite, matching the calendar. Without one this column
-			is sized by its content, which means by the widest thing the cards
-			happen to contain — and lines up with the calendar only by chance.
-		-->
-		<div class="w-[28rem] min-w-0 max-w-full lg:order-2">
-			{#if goal && isRenderableStats(userStats)}
-				<!--
+<DashboardColumns>
+	{#snippet cards()}
+		{#if goal && isRenderableStats(userStats)}
+			<!--
 					The goal card folds down to its own head wherever it is stacked
 					above the calendar, and the predictions table folds with it: the
 					two are one disclosure, opened by the head that stays put above
 					them.
 				-->
-				<GoalCard
-					{goal}
-					{userStats}
-					history={history.records}
-					historyError={history.error}
-					collapsible
-					expanded={goalOpen}
-					ontoggle={() => (goalOpen = !goalOpen)}
-					bodyId="goal-card-body"
-				>
-					{#snippet headerExtra()}
-						<GoalCardShare share={data.share} goalName={goal.name} />
-					{/snippet}
-				</GoalCard>
+			<GoalCard
+				{goal}
+				{userStats}
+				history={history.records}
+				historyError={history.error}
+				collapsible
+				expanded={goalOpen}
+				ontoggle={() => (goalOpen = !goalOpen)}
+				bodyId="goal-card-body"
+			>
+				{#snippet headerExtra()}
+					<GoalCardShare share={data.share} goalName={goal.name} />
+				{/snippet}
+			</GoalCard>
 
-				<!--
+			<!--
 					The gap between the cards is inside the fold, not above it, so a
 					closed card is not left holding 24px of nothing open beneath it.
 				-->
-				<div
-					class="grid transition-[grid-template-rows,opacity] duration-300 ease-out motion-reduce:transition-none lg:visible lg:grid-rows-[1fr] lg:opacity-100 {goalOpen
-						? 'visible grid-rows-[1fr] opacity-100'
-						: 'invisible grid-rows-[0fr] opacity-0'}"
-				>
-					<div class="overflow-hidden lg:overflow-visible">
-						<div class="pt-6">
-							<PredictionsCard {userStats} />
-						</div>
+			<div
+				class="grid transition-[grid-template-rows,opacity] duration-300 ease-out motion-reduce:transition-none lg:visible lg:grid-rows-[1fr] lg:opacity-100 {goalOpen
+					? 'visible grid-rows-[1fr] opacity-100'
+					: 'invisible grid-rows-[0fr] opacity-0'}"
+			>
+				<div class="overflow-hidden lg:overflow-visible">
+					<div class="pt-6">
+						<PredictionsCard {userStats} />
 					</div>
 				</div>
-			{:else if isRenderableStats(userStats)}
-				<!--
+			</div>
+		{:else if isRenderableStats(userStats)}
+			<!--
 					No goal is not "some data could not be loaded".
 
 					The goal read fails soft here, so an account with no goal — one just
@@ -142,28 +104,27 @@
 					nothing had. The predictions stay: they are a fitness estimate and
 					do not depend on a goal existing.
 				-->
-				<div class="rounded-lg border border-border bg-card p-4 shadow-sm">
-					<p class="text-sm font-medium text-card-foreground">No goal set</p>
-					<p class="mt-1 text-sm text-muted-foreground">
-						Set a goal in the Trenara app to see it here.
-					</p>
-				</div>
+			<div class="rounded-lg border border-border bg-card p-4 shadow-sm">
+				<p class="text-sm font-medium text-card-foreground">No goal set</p>
+				<p class="mt-1 text-sm text-muted-foreground">
+					Set a goal in the Trenara app to see it here.
+				</p>
+			</div>
 
-				<div class="pt-6">
-					<PredictionsCard {userStats} />
-				</div>
-			{:else}
-				<p class="text-sm text-muted-foreground">Some data could not be loaded</p>
-			{/if}
-		</div>
+			<div class="pt-6">
+				<PredictionsCard {userStats} />
+			</div>
+		{:else}
+			<p class="text-sm text-muted-foreground">Some data could not be loaded</p>
+		{/if}
+	{/snippet}
 
-		<div class="flex max-w-full flex-col items-center lg:order-1 lg:flex-row">
-			<Calendar
-				today={new Date()}
-				schedule={data.schedule}
-				openingView={data.openingView}
-				{refreshPageData}
-			/>
-		</div>
-	</div>
-</div>
+	{#snippet calendar()}
+		<Calendar
+			today={new Date()}
+			schedule={data.schedule}
+			openingView={data.openingView}
+			{refreshPageData}
+		/>
+	{/snippet}
+</DashboardColumns>
