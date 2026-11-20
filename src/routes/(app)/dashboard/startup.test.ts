@@ -14,6 +14,8 @@ import { serverTiming } from '#lib/server/timing.js';
 
 const ACCOUNT_MS = 200;
 const READ_MS = 300;
+/** Each of the goal card's two database reads: the chart's rows and the share link. */
+const DB_MS = 80;
 
 function after<T>(ms: number, value: T): Promise<T> {
 	return new Promise((resolve) => setTimeout(() => resolve(value), ms));
@@ -53,15 +55,20 @@ vi.mock('#lib/server/trenara/user.js', () => ({
 vi.mock('#lib/server/trenara/index.js', () => ({
 	trainingApi: {
 		getSchedule: () => after(READ_MS, week),
-		getGoal: () => after(READ_MS, null)
+		getGoal: () => after(READ_MS, { id: 7, start_date: '2026-01-06' })
 	},
 	userApi: { getUserStats: () => after(READ_MS, null) }
 }));
 vi.mock('#lib/server/history/record.js', () => ({ keepHistory: () => Promise.resolve() }));
 vi.mock('#lib/server/after-response.js', () => ({ afterResponse: () => {} }));
-vi.mock('#lib/server/history/goal-card-data.js', () => ({
-	readGoalChart: async () => ({ records: [], error: null }),
-	readGoalShare: async () => null
+vi.mock('#lib/server/db/prediction-history.js', () => ({
+	predictionHistoryDAO: { getUserPredictionHistory: () => after(DB_MS, []) }
+}));
+vi.mock('#lib/server/db/goal-share.js', () => ({
+	goalShareDAO: {
+		getForGoal: () => after(DB_MS, null),
+		listLive: () => after(DB_MS, [])
+	}
 }));
 
 function compose(...chain: Handle[]): Handle {
@@ -129,14 +136,21 @@ describe('a dashboard load, against a Trenara of fixed latency', () => {
 	/**
 	 * The identity check used to come first and the dashboard's reads after
 	 * it: 200 ms, then 300 ms, before the page could be rendered. The reads
-	 * need only the token, so they now start alongside it, and the server has
-	 * its data when the slower of the two answers.
+	 * need only the token, so they now start alongside it.
+	 *
+	 * The goal card's two database reads used to wait for the goal as well —
+	 * one needs its start date, the other its id — and then took their own
+	 * round trip after it: 300 ms and then 80. They are asked for by the
+	 * runner's id now, as soon as the identity check has answered, and the goal
+	 * only decides which rows to keep. So the server has its data when the
+	 * slower of the two chains answers: the Trenara reads, or the identity
+	 * check and then the database.
 	 */
 	it('has its data when the slower of the identity check and the reads answers', async () => {
 		const { response, tookMs } = await serve();
 
 		expect(response?.status).toBe(200);
-		expect(tookMs).toBe(Math.max(ACCOUNT_MS, READ_MS));
+		expect(tookMs).toBe(Math.max(ACCOUNT_MS + DB_MS, READ_MS));
 		expect(response?.headers.get('server-timing')).toMatch(
 			/schedule;dur=300\.0;desc="schedule from \+0ms"/
 		);
@@ -147,6 +161,8 @@ describe('a dashboard load, against a Trenara of fixed latency', () => {
 
 		const { tookMs } = await serve();
 
+		// The database reads leave with the Trenara ones and are long done by
+		// the time the goal answers.
 		expect(tookMs).toBe(ACCOUNT_MS + READ_MS);
 	});
 

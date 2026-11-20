@@ -33,9 +33,9 @@ vi.mock('#lib/server/db/prediction-history.js', () => ({
 	}
 }));
 
-const mockGetForGoal = vi.fn();
+const mockListLive = vi.fn();
 vi.mock('#lib/server/db/goal-share.js', () => ({
-	goalShareDAO: { getForGoal: (...args: unknown[]) => mockGetForGoal(...args) }
+	goalShareDAO: { listLive: (...args: unknown[]) => mockListLive(...args) }
 }));
 
 function makeEvent() {
@@ -53,7 +53,7 @@ describe('goal load', () => {
 			best_times: { time_for_goal: '3:35:00', pace_for_goal: '5:06 min/km' }
 		});
 		mockGetUserPredictionHistory.mockResolvedValue([]);
-		mockGetForGoal.mockResolvedValue({ token: 't'.repeat(43), title: 'Race day', user_id: 42 });
+		mockListLive.mockResolvedValue([{ goal_id: 7, token: 't'.repeat(43), title: 'Race day' }]);
 	});
 
 	it('settles the chart and share without waiting for the history write', async () => {

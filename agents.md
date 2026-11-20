@@ -369,9 +369,14 @@ the reason — that is what distinguishes a decision from a regression.
   write produced, derive that from what the load already holds, as
   `withCurrentReading` does for the chart, rather than reading the write back.
 - **Reads that do not depend on each other run together.** A read that needs
-  one value (the goal's id) chains on that value's promise, not on the end of
-  the `Promise.all` it sits in — the dashboard's chart and share reads run
-  beside the schedule, not after it.
+  one value chains on that value's promise, not on the end of the
+  `Promise.all` it sits in. Better still, a read that needs the value only to
+  choose among rows asks by what it already has and chooses afterwards: the
+  goal card's chart and share reads used to wait for the goal (its start date,
+  its id) and were then the last thing the dashboard waited for — 220 ms of
+  goal and 140 of database, one after the other. They are keyed by the
+  runner's id now and pick by the goal once it answers
+  (`#lib/server/history/goal-card-data`).
 - **Trenara reads do not wait for the identity check; storage reads do.**
   Trenara checks the token on every request, so a read that needs only the
   token is no safer for being sent after the account read — it only waits

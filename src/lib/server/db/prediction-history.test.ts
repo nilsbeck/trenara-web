@@ -451,6 +451,33 @@ describe('PredictionHistoryDAO.getUserPredictionHistory', () => {
 		expect(mockChain.limit as ReturnType<typeof vi.fn>).toHaveBeenCalledWith(50);
 	});
 
+	it('reads oldest first by default', async () => {
+		await dao.getUserPredictionHistory(1, { limit: 50 });
+		expect(mockChain.order as ReturnType<typeof vi.fn>).toHaveBeenCalledWith('recorded_at', {
+			ascending: true
+		});
+	});
+
+	/**
+	 * The goal card's chart ends at today's reading, so when the limit cuts the
+	 * series it is the oldest rows that have to go — and the chart still draws
+	 * left to right.
+	 */
+	it('takes the newest rows when asked, and still hands them back oldest first', async () => {
+		setThenResult([
+			{ id: 2, recorded_at: '2025-03-05' },
+			{ id: 1, recorded_at: '2025-03-01' }
+		]);
+
+		const records = await dao.getUserPredictionHistory(1, { limit: 2, newestFirst: true });
+
+		expect(mockChain.order as ReturnType<typeof vi.fn>).toHaveBeenCalledWith('recorded_at', {
+			ascending: false
+		});
+		expect(mockChain.limit as ReturnType<typeof vi.fn>).toHaveBeenCalledWith(2);
+		expect(records.map((r) => r.recorded_at)).toEqual(['2025-03-01', '2025-03-05']);
+	});
+
 	// An unreadable table used to plot as a flat "no progress recorded", which
 	// is a statement about the runner's training rather than about the database.
 	it('raises rather than plotting a history it could not read', async () => {

@@ -52,26 +52,21 @@ export const load: PageServerLoad = async ({ cookies, locals, request, isDataReq
 
 	/**
 	 * The goal card's chart and share link, read beside the schedule instead
-	 * of one after the other behind it. Each waits only for what it needs —
-	 * the goal, and the stats for today's reading — which a cached read
-	 * settles long before six weeks of schedule do, so they cost the page no
-	 * time of their own. Awaited rather than streamed: the card's head shows
-	 * the trend and the share button, and it is the first thing on a phone.
+	 * of one after the other behind it. Their database reads leave now, keyed
+	 * by the runner's id, and only the choice of rows waits for the goal and
+	 * the stats — handed over as promises for that reason (`goal-card-data`).
+	 * They used to be asked for once the goal had answered, and on the first
+	 * measured preview load that was the last thing to finish: the goal at
+	 * 220 ms, then 140 ms of database behind it. Awaited rather than streamed:
+	 * the card's head shows the trend and the share button, and it is the
+	 * first thing on a phone.
 	 */
 	const [schedule, goal, userStats, history, share] = await Promise.all([
 		reads.schedule,
 		reads.goal,
 		reads.stats,
-		timed(
-			locals,
-			'chart',
-			Promise.all([reads.goal, reads.stats]).then(([g, s]) => readGoalChart(user.id, g, s))
-		),
-		timed(
-			locals,
-			'share',
-			reads.goal.then((g) => readGoalShare(user.id, g))
-		)
+		timed(locals, 'chart', readGoalChart(user.id, reads.goal, reads.stats)),
+		timed(locals, 'share', readGoalShare(user.id, reads.goal))
 	]);
 
 	return {

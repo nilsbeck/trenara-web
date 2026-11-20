@@ -345,3 +345,24 @@ describe('GoalShareDAO.revokeStale', () => {
 		await expect(dao.revokeStale(42, 9)).rejects.toBeInstanceOf(DatabaseError);
 	});
 });
+
+describe('GoalShareDAO.listLive', () => {
+	it("scopes the read to the owner's live links, and names its columns", async () => {
+		setThenResult([{ goal_id: 7, token: sampleRow.token, title: sampleRow.title }]);
+
+		const links = await dao.listLive(42);
+
+		expect(links).toEqual([{ goal_id: 7, token: sampleRow.token, title: sampleRow.title }]);
+		expect(mockFrom).toHaveBeenCalledWith('goal_share');
+		expect(mockChain.select as ReturnType<typeof vi.fn>).toHaveBeenCalledWith(
+			'goal_id, token, title'
+		);
+		expect(mockChain.eq as ReturnType<typeof vi.fn>).toHaveBeenCalledWith('user_id', 42);
+		expect(mockChain.is as ReturnType<typeof vi.fn>).toHaveBeenCalledWith('revoked_at', null);
+	});
+
+	it('raises rather than reporting a failed read as no links', async () => {
+		setThenResult(null, { message: 'down' });
+		await expect(dao.listLive(42)).rejects.toBeInstanceOf(DatabaseError);
+	});
+});
