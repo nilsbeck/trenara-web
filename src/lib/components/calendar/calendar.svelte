@@ -9,6 +9,7 @@
 	import { whenIdle } from '#lib/utils/load-once.js';
 	import { initialCalendarDay } from '#lib/utils/initial-day.js';
 	import { reconcileRatedEntries } from '#lib/utils/rated-locally.js';
+	import { openingViewCookie, type OpeningView } from '#lib/utils/opening-view.js';
 	import type { Schedule } from '#lib/server/trenara/types.js';
 	import CalendarHeader from './calendar-header.svelte';
 	import CalendarGrid from './calendar-grid.svelte';
@@ -18,10 +19,18 @@
 	let {
 		today,
 		schedule,
+		openingView = 'month',
 		refreshPageData
 	}: {
 		today: Date;
 		schedule: Schedule;
+		/**
+		 * The view the screen will ask for, as far as the page could tell before
+		 * there was a screen to ask (`#lib/utils/opening-view`). The server draws
+		 * this one; the media query below still has the last word once the page
+		 * is live.
+		 */
+		openingView?: OpeningView;
 		/**
 		 * Re-runs the page's `load`. Passed in rather than reached for here so
 		 * the calendar stays usable outside a route that has one.
@@ -80,6 +89,14 @@
 			today
 		);
 		store.setSelectedDate({ year: day.getFullYear(), month: day.getMonth(), day: day.getDate() });
+
+		// Folded here, during setup, for the same reason as the plan above: the
+		// media query that folds a phone's calendar runs only in the browser, so
+		// the server drew the month and the page collapsed it to a week once it
+		// had hydrated — a six-row grid shrinking to one, and the session
+		// underneath jumping up the screen, on every launch. Onto the week of the
+		// opening day, which is the day the fold has always opened on.
+		if (openingView === 'week') store.openFolded();
 		return day;
 	});
 
@@ -110,11 +127,18 @@
 	// late last month still waiting on a rating, or the next one over the turn
 	// of the month. Page the grid there too, or the highlight sits on a day it
 	// is not showing. That is a fetch, so it waits for the browser.
+	//
+	// And a week opened folded may reach into the month either side, which the
+	// page did not load: `openFolded` could not ask for it on the server, so it
+	// is asked for here, as `setViewMode` would have done.
 	$effect(() => {
 		const day = untrack(() => today);
-		if (opening.getFullYear() !== day.getFullYear() || opening.getMonth() !== day.getMonth()) {
-			untrack(() => void store.loadMonthData(opening));
-		}
+		untrack(() => {
+			if (opening.getFullYear() !== day.getFullYear() || opening.getMonth() !== day.getMonth()) {
+				void store.loadMonthData(opening);
+			}
+			if (store.viewMode === 'week') void store.ensureWeekMonthsLoaded();
+		});
 	});
 
 	/*
@@ -127,12 +151,22 @@
 		viewport across a resize or a turn of the device, right up until the runner
 		works the fold arrow themselves, after which their choice is the only one
 		that counts.
+
+		What it says is also remembered in a cookie, so the next page the server
+		renders for this device draws the same view rather than the month
+		(`#lib/utils/opening-view`). The query's answer, not the runner's own
+		fold: after a reload the query decides again, and the server should draw
+		what it will decide.
 	*/
 	$effect(() => {
 		if (typeof window.matchMedia !== 'function') return;
 
 		const query = window.matchMedia('(max-width: 767px)');
-		const apply = () => void store.setPreferredViewMode(query.matches ? 'week' : 'month');
+		const apply = () => {
+			const view = query.matches ? 'week' : 'month';
+			document.cookie = openingViewCookie(view, location.protocol === 'https:');
+			void store.setPreferredViewMode(view);
+		};
 
 		apply();
 		query.addEventListener('change', apply);

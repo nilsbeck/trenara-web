@@ -432,7 +432,14 @@ export function createCalendarStore(initialDate: Date, options: CalendarStoreOpt
 		if (year === currentDate.getFullYear() && month === currentDate.getMonth()) {
 			return statusIndex;
 		}
-		return weekStatusIndexes.get(monthKeyOf(year, month)) ?? null;
+		// The neighbouring month's own copy once it has arrived. Until then, the
+		// weeks in hand: Trenara's weeks run Monday to Sunday, so the month the
+		// page loaded already holds the days of a week that crosses the turn of
+		// the month. Looking only in the neighbour's cache left those days bare
+		// until it had been fetched — and on the server, which now draws a phone's
+		// week folded and can fetch nothing, they would have stayed bare in the
+		// first paint.
+		return weekStatusIndexes.get(monthKeyOf(year, month)) ?? statusIndex;
 	}
 
 	/**
@@ -1103,6 +1110,20 @@ export function createCalendarStore(initialDate: Date, options: CalendarStoreOpt
 		return addDays(weekAnchor, 3);
 	}
 
+	/**
+	 * Fold onto the week of whatever is selected, and ask for nothing.
+	 *
+	 * The synchronous half of folding, for the calendar's setup: it runs on the
+	 * server, where the page is rendered folded for a phone, and nothing may be
+	 * fetched there. The months either side of the week are left to
+	 * `ensureWeekMonthsLoaded`, which the calendar calls once it is in the
+	 * browser — `setViewMode` does both halves together.
+	 */
+	function openFolded(): void {
+		weekAnchor = mondayOf(foldAnchorDay());
+		viewMode = 'week';
+	}
+
 	async function setViewMode(mode: ViewMode): Promise<void> {
 		if (mode === viewMode) return;
 
@@ -1111,8 +1132,7 @@ export function createCalendarStore(initialDate: Date, options: CalendarStoreOpt
 		navigationDirection = 0;
 
 		if (mode === 'week') {
-			weekAnchor = mondayOf(foldAnchorDay());
-			viewMode = 'week';
+			openFolded();
 			await ensureWeekMonthsLoaded();
 			return;
 		}
@@ -1302,6 +1322,8 @@ export function createCalendarStore(initialDate: Date, options: CalendarStoreOpt
 		setSelectedDate,
 		selectDay,
 		setViewMode,
+		openFolded,
+		ensureWeekMonthsLoaded,
 		setPreferredViewMode,
 		toggleViewMode,
 		setSchedule,
