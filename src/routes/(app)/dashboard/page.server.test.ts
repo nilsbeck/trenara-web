@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { load as rawLoad } from './+page.server';
 import type { ChartDataPoint } from '#lib/components/charts/prediction-chart.svelte';
+import { createTiming } from '#lib/server/timing.js';
 
 /** `PageServerLoad` admits `void`; this load never returns it. */
 async function load(...args: Parameters<typeof rawLoad>) {
@@ -90,6 +91,20 @@ describe('dashboard load', () => {
 	 * the phone's media query will ask for instead of a month it then folds.
 	 * See `#lib/utils/opening-view` for the rule.
 	 */
+	it('times each of its reads for the Server-Timing header', async () => {
+		const timing = createTiming();
+		const event = makeEvent();
+		event.locals.timing = timing;
+
+		await load(event);
+		await new Promise((resolve) => setTimeout(resolve, 0));
+
+		const header = timing.header();
+		for (const name of ['schedule', 'goal', 'stats', 'chart', 'share']) {
+			expect(header).toContain(`${name};dur=`);
+		}
+	});
+
 	it('tells the calendar which view to open on', async () => {
 		expect((await load(makeEvent({ cookies: { 'calendar-view': 'week' } }))).openingView).toBe(
 			'week'

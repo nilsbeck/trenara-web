@@ -7,6 +7,7 @@ import { RateLimitError } from '#lib/server/trenara/client.js';
 import { isDatabaseError, STORAGE_READ_MESSAGE } from '#lib/server/db/errors.js';
 import { securityHeaders } from '#lib/server/security/headers.js';
 import { apiRequests } from '#lib/server/security/rate-limit.js';
+import { serverTiming, timed } from '#lib/server/timing.js';
 
 const tokenManager = TokenManager.getInstance();
 
@@ -40,7 +41,11 @@ export const handleAuth: Handle = async ({ event, resolve }) => {
 		return resolve(event);
 	}
 
-	const status = await tokenManager.validateAndRefreshToken(event.cookies);
+	const status = await timed(
+		event.locals,
+		'token',
+		tokenManager.validateAndRefreshToken(event.cookies)
+	);
 
 	if (status === 'invalid') {
 		await tokenManager.logout(event.cookies);
@@ -54,7 +59,7 @@ export const handleAuth: Handle = async ({ event, resolve }) => {
 	}
 
 	try {
-		const user = await userApi.getCurrentUser(event.cookies);
+		const user = await timed(event.locals, 'account', userApi.getCurrentUser(event.cookies));
 		event.locals.user = { id: user.id, email: user.email };
 	} catch {
 		// The token was good enough to validate but the account could not be
@@ -157,11 +162,15 @@ export const handleGuard: Handle = async ({ event, resolve }) => {
  * response except the refusals — the one class of response most likely to be
  * read by something other than a browser.
  *
- * The three are exported individually as well, because `sequence` reaches for
+ * `serverTiming` comes next, for the same reason: inside the security headers
+ * and around everything else, so the identity check and the guard's refusals
+ * are timed along with the route (`#lib/server/timing`).
+ *
+ * The hooks are exported individually as well, because `sequence` reaches for
  * SvelteKit's request store and so cannot be driven outside a real request;
  * the tests compose them by hand.
  */
-export const handle = sequence(securityHeaders, handleAuth, handleGuard);
+export const handle = sequence(securityHeaders, serverTiming, handleAuth, handleGuard);
 
 /**
  * Last word on a failure nothing else caught.

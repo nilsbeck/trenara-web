@@ -2,6 +2,7 @@ import type { Handle, HandleServerError } from '@sveltejs/kit/hooks';
 import type { RequestEvent } from '@sveltejs/kit';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { securityHeaders } from '#lib/server/security/headers.js';
+import { serverTiming } from '#lib/server/timing.js';
 
 vi.mock('$app/env', () => ({ dev: false }));
 
@@ -83,7 +84,7 @@ let handle: Handle;
 
 beforeEach(async () => {
 	hooks = await import('./hooks.server');
-	handle = compose(securityHeaders, hooks.handleAuth, hooks.handleGuard);
+	handle = compose(securityHeaders, serverTiming, hooks.handleAuth, hooks.handleGuard);
 	tokenState.hasCookies = true;
 	tokenState.status = 'valid';
 	tokenState.loggedOut = false;
@@ -168,6 +169,30 @@ describe('the public share page', () => {
 		await run(eventFor('/(app)/goal', '/goal'));
 
 		expect(tokenState.validations).toBe(1);
+	});
+});
+
+describe('server timing', () => {
+	/**
+	 * What the identity check costs a page, read in the browser's Network tab
+	 * on a preview (`#lib/server/timing`).
+	 */
+	it('times the token check and the account read on a signed-in page', async () => {
+		const { response } = await run(eventFor('/(app)/dashboard'));
+
+		const header = response?.headers.get('server-timing') ?? '';
+		expect(header).toMatch(/token;dur=[\d.]+;desc="\+\d+ms"/);
+		expect(header).toMatch(/account;dur=[\d.]+;desc="\+\d+ms"/);
+		expect(header).toMatch(/total;dur=[\d.]+$/);
+	});
+
+	it('times a refusal too', async () => {
+		tokenState.hasCookies = false;
+
+		const { response } = await run(eventFor('/api/v1/schedule', '/api/v1/schedule'));
+
+		expect(response?.status).toBe(401);
+		expect(response?.headers.get('server-timing')).toMatch(/^total;dur=/);
 	});
 });
 

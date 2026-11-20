@@ -6,6 +6,7 @@ import { requireUser } from '#lib/server/auth/guard.js';
 import { keepHistory } from '#lib/server/history/record.js';
 import { readGoalChart, readGoalShare } from '#lib/server/history/goal-card-data.js';
 import { afterResponse } from '#lib/server/after-response.js';
+import { timed } from '#lib/server/timing.js';
 import { OPENING_VIEW_COOKIE, openingViewFor } from '#lib/utils/opening-view.js';
 import type { PageServerLoad } from './$types';
 
@@ -44,8 +45,8 @@ export const load: PageServerLoad = async ({ cookies, locals, request, isDataReq
 	afterResponse(keepHistory(cookies, user.id));
 
 	// Cached reads, shared with `keepHistory` above: one upstream call each.
-	const goalRead = trainingApi.getGoal(cookies).catch(() => null);
-	const statsRead = userApi.getUserStats(cookies).catch(() => null);
+	const goalRead = timed(locals, 'goal', trainingApi.getGoal(cookies)).catch(() => null);
+	const statsRead = timed(locals, 'stats', userApi.getUserStats(cookies)).catch(() => null);
 
 	/**
 	 * The goal card's chart and share link, read beside the schedule instead
@@ -56,11 +57,19 @@ export const load: PageServerLoad = async ({ cookies, locals, request, isDataReq
 	 * the trend and the share button, and it is the first thing on a phone.
 	 */
 	const [schedule, goal, userStats, history, share] = await Promise.all([
-		getMonthlySchedule(cookies, fresh),
+		timed(locals, 'schedule', getMonthlySchedule(cookies, fresh)),
 		goalRead,
 		statsRead,
-		Promise.all([goalRead, statsRead]).then(([g, s]) => readGoalChart(user.id, g, s)),
-		goalRead.then((g) => readGoalShare(user.id, g))
+		timed(
+			locals,
+			'chart',
+			Promise.all([goalRead, statsRead]).then(([g, s]) => readGoalChart(user.id, g, s))
+		),
+		timed(
+			locals,
+			'share',
+			goalRead.then((g) => readGoalShare(user.id, g))
+		)
 	]);
 
 	return {

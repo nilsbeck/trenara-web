@@ -29,6 +29,12 @@ declare global {
 				id: number;
 				email: string;
 			} | null;
+			/**
+			 * Where this request's server time goes, written out as
+			 * `Server-Timing` (`#lib/server/timing`). Absent outside a real
+			 * request — a load called from a test — so read it through `timed`.
+			 */
+			timing?: import('#lib/server/timing.js').Timing;
 		}
 	}
 }
