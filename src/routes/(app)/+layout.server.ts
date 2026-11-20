@@ -3,6 +3,7 @@ import { configApi, userApi } from '#lib/server/trenara/index.js';
 import { newsBadgeIfReady } from '#lib/server/news/badge.js';
 import { loadChatBadge } from '#lib/server/chat/badge.js';
 import { requireUser } from '#lib/server/auth/guard.js';
+import { timed } from '#lib/server/timing.js';
 
 export const load: LayoutServerLoad = async ({ cookies, locals, depends }) => {
 	const user = requireUser(locals);
@@ -46,7 +47,7 @@ export const load: LayoutServerLoad = async ({ cookies, locals, depends }) => {
 	 * then renders without it, because a dot is worth no part of first paint.
 	 * The computation finishes in the background and the next navigation has it.
 	 */
-	const badgeRead = newsBadgeIfReady(cookies, user.id);
+	const badgeRead = timed(locals, 'badge', newsBadgeIfReady(cookies, user.id));
 
 	// Both awaited, and awaited together: neither needs the other, and asked for
 	// one after the other the badge's fifth of a second only started once the

@@ -369,9 +369,25 @@ the reason — that is what distinguishes a decision from a regression.
   write produced, derive that from what the load already holds, as
   `withCurrentReading` does for the chart, rather than reading the write back.
 - **Reads that do not depend on each other run together.** A read that needs
-  one value (the goal's id) chains on that value's promise, not on the end of
-  the `Promise.all` it sits in — the dashboard's chart and share reads run
-  beside the schedule, not after it.
+  one value chains on that value's promise, not on the end of the
+  `Promise.all` it sits in. Better still, a read that needs the value only to
+  choose among rows asks by what it already has and chooses afterwards: the
+  goal card's chart and share reads used to wait for the goal (its start date,
+  its id) and were then the last thing the dashboard waited for — 220 ms of
+  goal and 140 of database, one after the other. They are keyed by the
+  runner's id now and pick by the goal once it answers
+  (`#lib/server/history/goal-card-data`).
+- **Trenara reads do not wait for the identity check; storage reads do.**
+  Trenara checks the token on every request, so a read that needs only the
+  token is no safer for being sent after the account read — it only waits
+  longer, and the account read is a real round trip on most launches (its
+  cache lasts a minute). `handleAuth` therefore starts the dashboard's
+  schedule, goal and stats beside it (`startsDashboardEarly`), on a document
+  request with a token that was not just refreshed, and hands them to the load
+  through `locals`. What is keyed by the runner's id — every DAO — still waits
+  for the id. Nothing read early reaches a response unless the guard lets the
+  request through, and every early promise is handled, because the page it
+  was meant for may never run.
 - **Every module-scope `Map` has a ceiling and an eviction rule.** They live as
   long as the serverless instance does. `read-cache` and the rate limiters
   carry one; see the ceilings below for the one that does not.
@@ -670,6 +686,16 @@ chosen per field; the API reference says which.
   `src/service-worker/index.ts` for why. It is its own TypeScript project
   (`src/service-worker/tsconfig.json`), which `bun run check` type-checks
   separately.
+- **Server-Timing:** every response carries where its server time went
+  (`#lib/server/timing`) — `token` and `account` from the identity check,
+  each of the dashboard's reads, the layout's `badge`, `render` (from the last
+  timed read settling to the page's HTML being ready), and `total`. Read it in
+  the browser on a preview: Network, the request, Timing. Each entry's
+  description is its name and when it started relative to the request, so
+  waiting and overlap show up as numbers — the name has to be in it, because
+  Chrome shows the description in place of the name. A new read on a hot path
+  is wrapped in `timed` so it shows up there too; one that is not lands in
+  `render` and reads as rendering time.
 - **Time budgets come in a pair:** `DEFAULT_BUDGET_MS` in
   `#lib/server/trenara/client.ts` sits inside `maxDuration` in
   `vite.config.ts`. Change one, check the other.

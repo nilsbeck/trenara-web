@@ -29,6 +29,18 @@ declare global {
 				id: number;
 				email: string;
 			} | null;
+			/**
+			 * Where this request's server time goes, written out as
+			 * `Server-Timing` (`#lib/server/timing`). Absent outside a real
+			 * request — a load called from a test — so read it through `timed`.
+			 */
+			timing?: import('#lib/server/timing.js').Timing;
+			/**
+			 * The dashboard's Trenara reads, when `handleAuth` started them beside
+			 * the identity check (`startsDashboardEarly` in `hooks.server.ts`). The
+			 * dashboard's load uses these rather than asking again.
+			 */
+			dashboardReads?: import('#lib/server/dashboard/reads.js').DashboardReads;
 		}
 	}
 }

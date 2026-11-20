@@ -56,12 +56,11 @@ export const load: PageServerLoad = async ({ cookies, locals }) => {
 	 * The prediction history, and the runner's own share link for this goal —
 	 * what seeds the share dialog. Neither throws: this chart failing to load
 	 * must not take the goal card down with it, and sharing is a side feature
-	 * of this page, not a reason to fail it.
+	 * of this page, not a reason to fail it. Their database reads leave now,
+	 * beside the goal and stats, rather than once those have answered.
 	 */
-	const history = Promise.all([currentGoal, currentStats]).then(([g, s]) =>
-		readGoalChart(user.id, g, s)
-	);
-	const share = currentGoal.then((g) => readGoalShare(user.id, g));
+	const history = readGoalChart(user.id, currentGoal, currentStats);
+	const share = readGoalShare(user.id, currentGoal);
 
 	return { goal, userStats, history, share };
 };

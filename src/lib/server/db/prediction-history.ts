@@ -100,6 +100,11 @@ interface PredictionHistoryOptions {
 	startDate?: string;
 	endDate?: string;
 	limit?: number;
+	/**
+	 * Take the newest rows rather than the oldest when `limit` cuts the series
+	 * short. Returned oldest first either way, as the chart draws them.
+	 */
+	newestFirst?: boolean;
 }
 
 /** The four distances a recorded prediction set covers, in km. */
@@ -323,11 +328,12 @@ export class PredictionHistoryDAO {
 		userId: number,
 		options: PredictionHistoryOptions = {}
 	): Promise<PredictionRecord[]> {
+		const newestFirst = options.newestFirst ?? false;
 		let query = supabase
 			.from('prediction_history')
 			.select('*')
 			.eq('user_id', userId)
-			.order('recorded_at', { ascending: true });
+			.order('recorded_at', { ascending: !newestFirst });
 
 		if (options.startDate) {
 			query = query.gte('recorded_at', options.startDate);
@@ -346,7 +352,8 @@ export class PredictionHistoryDAO {
 		// is a claim about the runner's training rather than about the database.
 		if (error) storageFailed('prediction history read', error);
 
-		return (data ?? []) as PredictionRecord[];
+		const records = (data ?? []) as PredictionRecord[];
+		return newestFirst ? records.reverse() : records;
 	}
 
 	/**

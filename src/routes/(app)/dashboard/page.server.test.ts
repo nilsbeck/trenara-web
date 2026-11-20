@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { load as rawLoad } from './+page.server';
 import type { ChartDataPoint } from '#lib/components/charts/prediction-chart.svelte';
+import { createTiming } from '#lib/server/timing.js';
 
 /** `PageServerLoad` admits `void`; this load never returns it. */
 async function load(...args: Parameters<typeof rawLoad>) {
@@ -37,9 +38,9 @@ vi.mock('#lib/server/db/prediction-history.js', () => ({
 	}
 }));
 
-const mockGetForGoal = vi.fn();
+const mockListLive = vi.fn();
 vi.mock('#lib/server/db/goal-share.js', () => ({
-	goalShareDAO: { getForGoal: (...args: unknown[]) => mockGetForGoal(...args) }
+	goalShareDAO: { listLive: (...args: unknown[]) => mockListLive(...args) }
 }));
 
 const week = {
@@ -76,13 +77,7 @@ describe('dashboard load', () => {
 		mockGetUserPredictionHistory.mockResolvedValue([
 			{ recorded_at: '2026-09-01', predicted_time: '3:40:00', predicted_pace: '5:13' }
 		]);
-		mockGetForGoal.mockResolvedValue({
-			token: 't'.repeat(43),
-			title: 'Race day',
-			user_id: 42,
-			goal_id: 7,
-			snapshot: { v: 1 }
-		});
+		mockListLive.mockResolvedValue([{ goal_id: 7, token: 't'.repeat(43), title: 'Race day' }]);
 	});
 
 	/**
@@ -90,6 +85,40 @@ describe('dashboard load', () => {
 	 * the phone's media query will ask for instead of a month it then folds.
 	 * See `#lib/utils/opening-view` for the rule.
 	 */
+	/**
+	 * On a launch onto this page `handleAuth` has already sent these, beside
+	 * the identity check. Asking again here would be the very wait the head
+	 * start exists to remove — or, with `fresh`, a second request for each.
+	 */
+	it('uses the reads the hook already started instead of asking again', async () => {
+		const event = makeEvent();
+		event.locals.dashboardReads = {
+			schedule: Promise.resolve({ ...week, trainings: [{ id: 99 }] } as never),
+			goal: Promise.resolve(goal as never),
+			stats: Promise.resolve(stats as never)
+		};
+
+		const data = await load(event);
+
+		expect(mockGetSchedule).not.toHaveBeenCalled();
+		expect(data.schedule.trainings).toEqual([{ id: 99 }]);
+		expect(data.goal).toEqual(goal);
+	});
+
+	it('times each of its reads for the Server-Timing header', async () => {
+		const timing = createTiming();
+		const event = makeEvent();
+		event.locals.timing = timing;
+
+		await load(event);
+		await new Promise((resolve) => setTimeout(resolve, 0));
+
+		const header = timing.header();
+		for (const name of ['schedule', 'goal', 'stats', 'chart', 'share']) {
+			expect(header).toContain(`${name};dur=`);
+		}
+	});
+
 	it('tells the calendar which view to open on', async () => {
 		expect((await load(makeEvent({ cookies: { 'calendar-view': 'week' } }))).openingView).toBe(
 			'week'
@@ -132,8 +161,8 @@ describe('dashboard load', () => {
 			'3:35:00'
 		]);
 		expect(mockGetUserPredictionHistory).toHaveBeenCalledWith(42, {
-			startDate: '2026-01-06',
-			limit: 200
+			limit: 200,
+			newestFirst: true
 		});
 	});
 
@@ -143,10 +172,10 @@ describe('dashboard load', () => {
 		const data = await load(makeEvent());
 
 		expect(data.share).toEqual({ token: 't'.repeat(43), title: 'Race day' });
-		expect(mockGetForGoal).toHaveBeenCalledWith(42, 7);
+		expect(mockListLive).toHaveBeenCalledWith(42);
 	});
 
-	it('renders without a goal: no share read, the chart unfiltered', async () => {
+	it('renders without a goal: no share link, the chart unfiltered', async () => {
 		mockKeepHistory.mockResolvedValue(undefined);
 		mockGetGoal.mockRejectedValue(new Error('No result found'));
 
@@ -154,11 +183,33 @@ describe('dashboard load', () => {
 
 		expect(data.goal).toBeNull();
 		expect(data.share).toBeNull();
-		expect(mockGetForGoal).not.toHaveBeenCalled();
-		expect(mockGetUserPredictionHistory).toHaveBeenCalledWith(42, {
-			startDate: undefined,
-			limit: 200
-		});
+		expect(data.history.records.map((p: ChartDataPoint) => p.formattedTime)).toEqual([
+			'3:40:00',
+			'3:35:00'
+		]);
+	});
+
+	/**
+	 * The goal card's two database reads used to wait for the goal — one
+	 * needed its start date, the other its id — and on the first measured
+	 * preview load they were the last thing the page waited for.
+	 */
+	it("sends the goal card's database reads before the goal has answered", async () => {
+		let answerGoal!: () => void;
+		const event = makeEvent();
+		event.locals.dashboardReads = {
+			schedule: Promise.resolve(week as never),
+			goal: new Promise((resolve) => (answerGoal = () => resolve(goal as never))),
+			stats: Promise.resolve(stats as never)
+		};
+
+		const data = load(event);
+		await new Promise((resolve) => setTimeout(resolve, 0));
+
+		expect(mockGetUserPredictionHistory).toHaveBeenCalledTimes(1);
+		expect(mockListLive).toHaveBeenCalledTimes(1);
+		answerGoal();
+		expect((await data).share).toEqual({ token: 't'.repeat(43), title: 'Race day' });
 	});
 
 	it('shows a failed chart read inline rather than failing the page', async () => {

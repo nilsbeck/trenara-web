@@ -81,6 +81,30 @@ export class GoalShareDAO {
 	}
 
 	/**
+	 * Every live link the runner has, with the goal each one is for — the
+	 * three fields the share button needs, not the rows.
+	 *
+	 * Scoped by `user_id` alone so it can be asked for before the runner's
+	 * current goal is known: the dashboard sends it as soon as the identity
+	 * check answers, beside Trenara's reads, and picks the link for the goal
+	 * once that arrives (`readGoalShare`). Asked by goal as well, it waited for
+	 * the goal and then took a round trip of its own after it.
+	 *
+	 * Bounded by the row cap (`goal_share_row_cap`, a hundred rows a runner),
+	 * and served by the `UNIQUE (user_id, goal_id)` index's leading column.
+	 */
+	async listLive(userId: number): Promise<Pick<ShareRow, 'goal_id' | 'token' | 'title'>[]> {
+		const { data, error } = await supabase
+			.from('goal_share')
+			.select('goal_id, token, title')
+			.eq('user_id', userId)
+			.is('revoked_at', null);
+
+		if (error) storageFailed('share links read', error);
+		return (data ?? []) as Pick<ShareRow, 'goal_id' | 'token' | 'title'>[];
+	}
+
+	/**
 	 * Give this goal a live link with a fresh token — creating the row if none
 	 * exists, rotating the token in place if one does, and reactivating it if
 	 * it was revoked.

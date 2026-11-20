@@ -1,11 +1,9 @@
-import { trainingApi, userApi } from '#lib/server/trenara/index.js';
-import { passthrough } from '#lib/server/trenara/request.js';
-import type { Schedule } from '#lib/server/trenara/types.js';
-import { getMonthTimestamps } from '#lib/utils/date.js';
 import { requireUser } from '#lib/server/auth/guard.js';
 import { keepHistory } from '#lib/server/history/record.js';
 import { readGoalChart, readGoalShare } from '#lib/server/history/goal-card-data.js';
 import { afterResponse } from '#lib/server/after-response.js';
+import { timed } from '#lib/server/timing.js';
+import { startDashboardReads } from '#lib/server/dashboard/reads.js';
 import { OPENING_VIEW_COOKIE, openingViewFor } from '#lib/utils/opening-view.js';
 import type { PageServerLoad } from './$types';
 
@@ -43,24 +41,32 @@ export const load: PageServerLoad = async ({ cookies, locals, request, isDataReq
 	 */
 	afterResponse(keepHistory(cookies, user.id));
 
-	// Cached reads, shared with `keepHistory` above: one upstream call each.
-	const goalRead = trainingApi.getGoal(cookies).catch(() => null);
-	const statsRead = userApi.getUserStats(cookies).catch(() => null);
+	/**
+	 * The schedule, the goal and the stats from Trenara — already on their way
+	 * if `handleAuth` started them beside the identity check, which it does for
+	 * a launch onto this page (`startsDashboardEarly` in `hooks.server.ts`), and
+	 * asked for here otherwise. The goal and stats are cached reads, shared with
+	 * `keepHistory` above: one upstream call each either way.
+	 */
+	const reads = locals.dashboardReads ?? startDashboardReads(cookies, { fresh }, locals);
 
 	/**
 	 * The goal card's chart and share link, read beside the schedule instead
-	 * of one after the other behind it. Each waits only for what it needs —
-	 * the goal, and the stats for today's reading — which a cached read
-	 * settles long before six weeks of schedule do, so they cost the page no
-	 * time of their own. Awaited rather than streamed: the card's head shows
-	 * the trend and the share button, and it is the first thing on a phone.
+	 * of one after the other behind it. Their database reads leave now, keyed
+	 * by the runner's id, and only the choice of rows waits for the goal and
+	 * the stats — handed over as promises for that reason (`goal-card-data`).
+	 * They used to be asked for once the goal had answered, and on the first
+	 * measured preview load that was the last thing to finish: the goal at
+	 * 220 ms, then 140 ms of database behind it. Awaited rather than streamed:
+	 * the card's head shows the trend and the share button, and it is the
+	 * first thing on a phone.
 	 */
 	const [schedule, goal, userStats, history, share] = await Promise.all([
-		getMonthlySchedule(cookies, fresh),
-		goalRead,
-		statsRead,
-		Promise.all([goalRead, statsRead]).then(([g, s]) => readGoalChart(user.id, g, s)),
-		goalRead.then((g) => readGoalShare(user.id, g))
+		reads.schedule,
+		reads.goal,
+		reads.stats,
+		timed(locals, 'chart', readGoalChart(user.id, reads.goal, reads.stats)),
+		timed(locals, 'share', readGoalShare(user.id, reads.goal))
 	]);
 
 	return {
@@ -78,46 +84,3 @@ export const load: PageServerLoad = async ({ cookies, locals, request, isDataReq
 		openingView: openingViewFor(cookies.get(OPENING_VIEW_COOKIE), request.headers)
 	};
 };
-
-/**
- * The whole of the current month, every week of it.
- *
- * No trimming here, unlike `/api/v1/schedule`: this is what seeds an empty
- * calendar, so there is nothing already in hand for a partial answer to be
- * grafted onto. Refreshes go through the API route, which does trim.
- */
-async function getMonthlySchedule(
-	cookies: import('@sveltejs/kit').Cookies,
-	fresh: boolean
-): Promise<Schedule> {
-	// The calendar is the page, so this one is allowed to fail it — but it has
-	// to fail it as a status the error page can speak to. Left bare, a Trenara
-	// outage told the runner "Internal Error", which points at the wrong server.
-	const schedules = await passthrough(() =>
-		Promise.all(
-			getMonthTimestamps(new Date()).map((ts) =>
-				trainingApi.getSchedule(cookies, Math.floor(ts.getTime() / 1000), { fresh })
-			)
-		)
-	);
-
-	// Merge all weekly schedules into one
-	const merged: Schedule = {
-		id: 0,
-		start_day: 0,
-		start_day_long: '',
-		training_week: 0,
-		type: 'ultimate',
-		trainings: [],
-		strength_trainings: [],
-		entries: []
-	};
-
-	for (const s of schedules) {
-		merged.trainings = merged.trainings.concat(s.trainings);
-		merged.strength_trainings = merged.strength_trainings.concat(s.strength_trainings);
-		merged.entries = merged.entries.concat(s.entries);
-	}
-
-	return merged;
-}
