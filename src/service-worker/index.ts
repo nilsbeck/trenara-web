@@ -88,8 +88,21 @@ const PLACEHOLDER_AFTER_MS = 300;
  */
 const HANDOVER_WINDOW_MS = 10_000;
 
+/**
+ * How long a held dashboard may take to answer before its hand-over stops
+ * waiting for it and asks the server again.
+ *
+ * The server gives up at 15 seconds (`maxDuration` in `vite.config.ts`), so a
+ * request with no answer after 20 is not going to get one. Without a ceiling,
+ * a request that never answered — whatever the reason — left the placeholder
+ * on screen for good, in a home-screen app that has no reload button.
+ */
+const HELD_CEILING_MS = 20_000;
+
 interface HeldPage {
 	page: Promise<Response>;
+	/** When the request behind `page` was sent, for `HELD_CEILING_MS`. */
+	since: number;
 	collect: () => void;
 }
 
@@ -99,9 +112,6 @@ interface HeldPage {
  * each is one response to one request, handed over once and then gone.
  */
 const held = new Map<string, HeldPage>();
-
-/** How many placeholders are waiting for their hand-over; preload is off while any are. */
-let handovers = 0;
 
 const ignore = () => {};
 
@@ -129,60 +139,30 @@ sw.addEventListener('activate', (event) => {
 					Promise.all(keys.filter((key) => key !== CACHE).map((key) => caches.delete(key)))
 				),
 			/**
-			 * Navigation preload: send a page request at the same moment the
-			 * browser starts this worker, rather than after.
+			 * Navigation preload off — on purpose, and turned off rather than
+			 * left alone, because an earlier version of this worker turned it on
+			 * and the setting outlives the worker that made it.
 			 *
-			 * A worker with a `fetch` listener sits in front of every navigation,
-			 * so the browser has to boot it before the request for the page can
-			 * leave — and a worker that has been asleep, which on a phone is every
-			 * launch from the home screen, takes tens to hundreds of milliseconds
-			 * to boot. All of it was added to the one wait a runner sees when they
-			 * open the app. With preload on, the request runs while the worker
-			 * boots, and the handler below answers with it.
+			 * Preload sends the page request while the browser is still starting
+			 * this worker, which saves the worker's start-up time on a cold
+			 * launch: tens to a couple of hundred milliseconds. It was on until
+			 * the launch placeholder (`navigate` below) needed to hand a request
+			 * from one navigation to the next. In Safari that hand-over hung — the
+			 * placeholder stayed up, and the server's log showed no request for
+			 * that launch — while it worked in Chromium. The likeliest reason,
+			 * not confirmed in WebKit itself: a preloaded request belongs to the
+			 * browser and the navigation it was sent for, and does not survive
+			 * being handed to another. A request this worker makes itself is a
+			 * plain promise, which it can hand to any navigation in any browser.
+			 * The placeholder covers the start-up time this costs; a launch that
+			 * hangs, nothing covers.
 			 *
-			 * Optional: Safari before 15.4 has no `navigationPreload`, and there
-			 * the handler simply fetches as it always did.
+			 * Optional: Safari before 15.4 has no `navigationPreload` at all.
 			 */
-			sw.registration.navigationPreload?.enable()
+			sw.registration.navigationPreload?.disable()
 		]).then(() => sw.clients.claim())
 	);
 });
-
-/**
- * Turn navigation preload on or off.
- *
- * Off while a placeholder is waiting to hand over. The navigation the
- * placeholder starts would otherwise send a preload of its own as the worker
- * woke for it, and that request would run the whole dashboard on the server —
- * half a dozen reads from Trenara, the history write — only for its answer to
- * be thrown away, because the answer this navigation gets is the one already
- * held. On again as soon as nothing is held.
- *
- * A refusal is not worth failing a navigation over: with preload still on,
- * the hand-over still works and the server is merely asked twice.
- */
-async function setPreload(on: boolean): Promise<void> {
-	const preload = sw.registration.navigationPreload;
-	if (!preload) return;
-	try {
-		await (on ? preload.enable() : preload.disable());
-	} catch {
-		// As above: a second request, not a broken one.
-	}
-}
-
-/**
- * A page from the network — the preloaded response when the browser sent one,
- * a fetch of our own when it did not. Rejects when there is no network at all.
- *
- * The preload has to be awaited even when it is not wanted: one left hanging is
- * cancelled with a console warning, and one that rejects is an unhandled
- * rejection.
- */
-async function fromNetwork(event: FetchEvent): Promise<Response> {
-	const preloaded: Response | undefined = await event.preloadResponse;
-	return preloaded ?? (await fetch(event.request));
-}
 
 /** The offline page, for a navigation that could not reach the network. */
 async function offlinePage(): Promise<Response> {
@@ -226,23 +206,18 @@ function standIn(placeholder: Response): Response {
 }
 
 /**
- * Keep a dashboard in flight for the navigation the placeholder will start.
+ * Keep a dashboard in flight for the navigation the placeholder will start,
+ * and return what the worker has to stay alive for.
  *
- * `ready` settles once navigation preload is off — the placeholder must not be
- * served before then, or its hand-over would ask the server again. `lifetime`
- * is what the worker has to stay alive for, because the response is answered
- * from this event but delivered through another one. A worker that stopped
- * once this event had answered would take the request in flight with it.
- *
- * It stays alive until the page has arrived in full, read through a copy, not
- * merely until it has started arriving: the page reaches the window through
- * the hand-over, and its body is still streaming through this worker after
- * the hand-over has been answered.
+ * The response is asked for from this event but delivered through another
+ * one, so a worker that stopped once this event had answered would take the
+ * request in flight with it. It stays alive until the page has arrived in
+ * full, read through a copy, not merely until it has started arriving: the
+ * page reaches the window through the hand-over, and its body is still
+ * streaming through this worker after the hand-over has been answered. No
+ * longer than `HELD_CEILING_MS`, though, for a request that never answers.
  */
-function hold(
-	url: string,
-	page: Promise<Response>
-): { ready: Promise<void>; lifetime: Promise<unknown> } {
+function hold(url: string, page: Promise<Response>, since: number): Promise<unknown> {
 	let collect: () => void = ignore;
 	const collected = new Promise<void>((resolve) => (collect = resolve));
 
@@ -254,19 +229,16 @@ function hold(
 		return response;
 	});
 	kept.catch(ignore);
-	held.set(url, { page: kept, collect });
+	held.set(url, { page: kept, since, collect });
 
-	handovers += 1;
-	const ready = setPreload(false);
-
-	const released = Promise.race([collected, delay(HANDOVER_WINDOW_MS)]).then(async () => {
+	const released = Promise.race([collected, delay(HANDOVER_WINDOW_MS)]).then(() => {
 		if (held.get(url)?.page === kept) held.delete(url);
-		await ready;
-		handovers -= 1;
-		if (handovers === 0) await setPreload(true);
 	});
 
-	return { ready, lifetime: Promise.all([released, kept.then(() => arrived, ignore)]) };
+	return Promise.all([
+		released,
+		Promise.race([kept.then(() => arrived, ignore), delay(HELD_CEILING_MS)])
+	]);
 }
 
 interface Answer {
@@ -277,26 +249,40 @@ interface Answer {
 }
 
 /**
+ * The page asked for again, as a fresh request, when the held one failed or
+ * never answered.
+ *
+ * Past the browser's cache, because otherwise the browser queues it behind
+ * the request it replaces. Chromium was seen holding a second request for the
+ * dashboard back until the first had answered — a first request stalled for
+ * 25 seconds kept its replacement off the network for all 25, and the
+ * ceiling saved nothing.
+ */
+function askAgain(request: Request): Promise<Response> {
+	return fetch(new Request(request, { cache: 'no-store' }));
+}
+
+/**
  * The navigation the placeholder started: answered with the dashboard already
  * in flight, rather than by asking the server again.
  *
- * Should the held request have failed, the network is tried once before the
- * offline page — the hand-over is what failed, not necessarily the connection.
+ * Should the held request fail, or still have no answer `HELD_CEILING_MS`
+ * after it was sent, the network is asked once more before the offline page —
+ * the hand-over is what failed, not necessarily the connection.
  */
 function collect(event: FetchEvent, handover: HeldPage): Answer {
 	held.delete(event.request.url);
 	handover.collect();
 
+	const waited = Math.max(0, HELD_CEILING_MS - (Date.now() - handover.since));
+	const page = Promise.race([
+		handover.page,
+		delay(waited).then(() => Promise.reject(new Error('The held dashboard never answered')))
+	]);
+
 	return {
-		response: handover.page.catch(() => fetch(event.request)).catch(offlinePage),
-		// Preload was turned off for this navigation, so normally there is none.
-		// If turning it off was refused, one was sent anyway: drained, so it is
-		// not cancelled with a warning, and never used — the held page is the
-		// same page, asked for earlier.
-		lifetime: Promise.all([
-			handover.page.catch(ignore),
-			Promise.resolve(event.preloadResponse).catch(ignore)
-		])
+		response: page.catch(() => askAgain(event.request)).catch(offlinePage),
+		lifetime: page.catch(ignore)
 	};
 }
 
@@ -324,7 +310,8 @@ function navigate(event: FetchEvent): Answer {
 	const handover = held.get(request.url);
 	if (handover) return collect(event, handover);
 
-	const page = fromNetwork(event);
+	const sent = Date.now();
+	const page = fetch(event.request);
 	const settled = page.then(ignore, ignore);
 
 	if (!LAUNCH_PLACEHOLDER || !standsInFor(request)) {
@@ -352,9 +339,7 @@ function navigate(event: FetchEvent): Answer {
 			return page.catch(offlinePage);
 		}
 
-		const { ready, lifetime: held } = hold(request.url, page);
-		settle(held);
-		await ready;
+		settle(hold(request.url, page, sent));
 		return standIn(placeholder);
 	});
 

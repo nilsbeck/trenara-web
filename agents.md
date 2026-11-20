@@ -687,7 +687,11 @@ chosen per field; the API reference says which.
   placeholder (`src/routes/launch`), prerendered at build time with nothing of
   the runner's in it, which it shows when the dashboard is slow to answer —
   holding the request in flight and handing it to the placeholder's own
-  navigation, so the server is still asked once. Its frame and columns are
+  navigation, so the server is still asked once. Navigation preload is off for
+  that reason, and must stay off while the hand-over exists: a preloaded
+  request belongs to the navigation it was sent for, and in Safari the
+  hand-over of one hung with the placeholder on screen. The worker fetches
+  every page itself, and stops waiting for a held one after 20 seconds. Its frame and columns are
   the shared `AppFrame` and `DashboardColumns`, so those follow the real page;
   its card heights are measured values, to re-measure when the goal card's
   head or the calendar's cards change height. It is its own TypeScript project

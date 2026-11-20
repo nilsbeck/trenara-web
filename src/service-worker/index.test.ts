@@ -77,16 +77,25 @@ async function fire(type: string, fields: Record<string, unknown> = {}) {
 	return response ? await response : lifetime === undefined ? undefined : await lifetime;
 }
 
-/** A page navigation as the browser hands it to the worker: a window's own page. */
+/**
+ * A page navigation as the browser hands it to the worker: a window's own page
+ * unless said otherwise, and with no preload — the worker turns preload off.
+ */
 function navigation(
 	path: string,
-	preloadResponse?: Promise<Response | undefined>,
-	destination = 'document'
-) {
-	return {
-		request: { method: 'GET', url: `https://trainara.test${path}`, mode: 'navigate', destination },
+	{
+		destination = 'document',
 		preloadResponse
-	};
+	}: { destination?: string; preloadResponse?: Promise<Response | undefined> } = {}
+) {
+	// A real Request, so that the worker can ask for it again with options of
+	// its own; `mode` and `destination` are what the browser would set, and a
+	// script cannot.
+	const request = Object.defineProperties(new Request(`https://trainara.test${path}`), {
+		mode: { value: 'navigate' },
+		destination: { value: destination }
+	});
+	return { request, preloadResponse };
 }
 
 /** A promise the test settles by hand — a response still on its way. */
@@ -139,10 +148,13 @@ describe('service worker — activation', () => {
 		expect(scope.claim).toHaveBeenCalled();
 	});
 
-	it('turns on navigation preload', async () => {
+	it('turns off the navigation preload an earlier worker turned on', async () => {
+		// The setting outlives the worker that made it, so leaving it alone
+		// would leave it on.
 		await fire('activate');
 
-		expect(scope.enablePreload).toHaveBeenCalled();
+		expect(scope.disablePreload).toHaveBeenCalled();
+		expect(scope.enablePreload).not.toHaveBeenCalled();
 	});
 
 	it('still activates in a browser without navigation preload', async () => {
@@ -155,36 +167,27 @@ describe('service worker — activation', () => {
 });
 
 describe('service worker — navigations', () => {
-	/**
-	 * With a fetch handler installed, the browser has to start this worker
-	 * before a navigation can even be sent. Navigation preload sends it in
-	 * parallel with that start-up, and the worker must then answer with the
-	 * response already in flight rather than ask the network a second time.
-	 */
-	it('answers with the preloaded response, without fetching again', async () => {
-		const page = new Response('dashboard');
-
-		const answer = await fire('fetch', navigation('/dashboard', Promise.resolve(page)));
-
-		expect(answer).toBe(page);
-		expect(network).not.toHaveBeenCalled();
-	});
-
-	it('fetches the page itself when nothing was preloaded', async () => {
+	it('fetches the page itself', async () => {
 		const page = new Response('dashboard');
 		network.mockResolvedValue(page);
 
-		const answer = await fire('fetch', navigation('/dashboard', Promise.resolve(undefined)));
+		const answer = await fire('fetch', navigation('/dashboard'));
 
 		expect(answer).toBe(page);
 		expect(network).toHaveBeenCalledTimes(1);
 	});
 
-	it('fetches the page itself in a browser that has no preload at all', async () => {
+	it('fetches the page itself even when a preload was sent', async () => {
+		// Only possible in the moment before activation has turned preload off.
+		// A preload belongs to the navigation it was sent for and cannot be
+		// relied on to survive a hand-over, so the worker never answers with one.
 		const page = new Response('dashboard');
 		network.mockResolvedValue(page);
 
-		const answer = await fire('fetch', navigation('/dashboard'));
+		const answer = await fire(
+			'fetch',
+			navigation('/dashboard', { preloadResponse: Promise.resolve(new Response('preloaded')) })
+		);
 
 		expect(answer).toBe(page);
 	});
@@ -192,10 +195,7 @@ describe('service worker — navigations', () => {
 	it('shows the offline page when there is no network', async () => {
 		network.mockRejectedValue(new TypeError('Failed to fetch'));
 
-		const answer = (await fire(
-			'fetch',
-			navigation('/dashboard', Promise.reject(new TypeError('Failed to fetch')))
-		)) as Response;
+		const answer = (await fire('fetch', navigation('/dashboard'))) as Response;
 
 		expect(await answer.text()).toBe('offline page');
 	});
@@ -215,7 +215,7 @@ describe('service worker — navigations', () => {
  *
  * The network here behaves as a slow one does — a response that has not
  * arrived yet, a body still streaming after its headers, a request that fails
- * part-way — rather than answering the moment it is asked.
+ * part-way or never answers — rather than answering the moment it is asked.
  */
 describe('service worker — a slow dashboard', () => {
 	beforeEach(() => {
@@ -229,19 +229,20 @@ describe('service worker — a slow dashboard', () => {
 	/** A launch whose dashboard has not answered, carried past the point the placeholder stands in. */
 	async function slowLaunch() {
 		const page = deferred<Response>();
-		const launch = dispatch('fetch', navigation('/dashboard', page.promise));
+		network.mockReturnValueOnce(page.promise);
+		const launch = dispatch('fetch', navigation('/dashboard'));
 		await vi.advanceTimersByTimeAsync(300);
 		return { page, launch, placeholder: (await launch.response) as Response };
 	}
 
-	/** The navigation the placeholder's meta refresh starts, with preload off. */
+	/** The navigation the placeholder's meta refresh starts. */
 	function handover() {
-		return dispatch('fetch', navigation('/dashboard', Promise.resolve(undefined)));
+		return dispatch('fetch', navigation('/dashboard'));
 	}
 
 	it('shows nothing of its own while the dashboard may still answer in time', async () => {
-		const page = deferred<Response>();
-		const launch = dispatch('fetch', navigation('/dashboard', page.promise));
+		network.mockReturnValueOnce(new Promise(() => {}));
+		const launch = dispatch('fetch', navigation('/dashboard'));
 		const answered = track(launch.response);
 
 		await vi.advanceTimersByTimeAsync(299);
@@ -251,7 +252,8 @@ describe('service worker — a slow dashboard', () => {
 
 	it('goes straight to a dashboard that answers in time, with no placeholder', async () => {
 		const page = deferred<Response>();
-		const launch = dispatch('fetch', navigation('/dashboard', page.promise));
+		network.mockReturnValueOnce(page.promise);
+		const launch = dispatch('fetch', navigation('/dashboard'));
 		const dashboard = new Response('dashboard');
 
 		await vi.advanceTimersByTimeAsync(200);
@@ -259,7 +261,6 @@ describe('service worker — a slow dashboard', () => {
 
 		expect(await launch.response).toBe(dashboard);
 		expect(cacheStorage.match).not.toHaveBeenCalled();
-		expect(scope.disablePreload).not.toHaveBeenCalled();
 	});
 
 	it('stands the placeholder in once the dashboard has gone 300ms without an answer', async () => {
@@ -286,7 +287,7 @@ describe('service worker — a slow dashboard', () => {
 		page.resolve(dashboard);
 
 		expect(await collected.response).toBe(dashboard);
-		expect(network).not.toHaveBeenCalled();
+		expect(network).toHaveBeenCalledTimes(1);
 	});
 
 	it('hands it over once: the next navigation asks the network afresh', async () => {
@@ -295,46 +296,10 @@ describe('service worker — a slow dashboard', () => {
 		await handover().response;
 
 		const fresh = new Response('second');
-		const next = dispatch('fetch', navigation('/dashboard', Promise.resolve(fresh)));
+		network.mockResolvedValueOnce(fresh);
+		const next = dispatch('fetch', navigation('/dashboard'));
 
 		expect(await next.response).toBe(fresh);
-	});
-
-	it('turns navigation preload off before the placeholder is shown', async () => {
-		// Shown first, the placeholder's navigation could leave with a preload of
-		// its own: a second request for the whole dashboard, thrown away unread.
-		const turningOff = deferred<void>();
-		scope.disablePreload.mockReturnValueOnce(turningOff.promise);
-		const page = deferred<Response>();
-		const launch = dispatch('fetch', navigation('/dashboard', page.promise));
-		const answered = track(launch.response);
-
-		await vi.advanceTimersByTimeAsync(300);
-		expect(scope.disablePreload).toHaveBeenCalled();
-		expect(answered.settled).toBe(false);
-
-		turningOff.resolve();
-		await vi.advanceTimersByTimeAsync(0);
-		expect(answered.settled).toBe(true);
-	});
-
-	it('turns navigation preload back on once the dashboard is collected', async () => {
-		const { page } = await slowLaunch();
-		expect(scope.enablePreload).not.toHaveBeenCalled();
-
-		handover();
-		await vi.advanceTimersByTimeAsync(0);
-
-		expect(scope.enablePreload).toHaveBeenCalledTimes(1);
-		page.resolve(new Response('dashboard'));
-	});
-
-	it('still stands in where turning preload off is refused', async () => {
-		scope.disablePreload.mockRejectedValueOnce(new Error('InvalidStateError'));
-
-		const { placeholder } = await slowLaunch();
-
-		expect(await placeholder.text()).toBe('launch placeholder');
 	});
 
 	it('keeps the worker alive until the dashboard has arrived in full', async () => {
@@ -368,7 +333,7 @@ describe('service worker — a slow dashboard', () => {
 		page.reject(new TypeError('network connection was lost'));
 
 		expect(await collected.response).toBe(retried);
-		expect(network).toHaveBeenCalledTimes(1);
+		expect(network).toHaveBeenCalledTimes(2);
 	});
 
 	it('shows the offline page when the held request and the retry both fail', async () => {
@@ -381,15 +346,62 @@ describe('service worker — a slow dashboard', () => {
 		expect(await ((await collected.response) as Response).text()).toBe('offline page');
 	});
 
-	it('lets go of a dashboard nobody collects, and turns preload back on', async () => {
+	it('stops waiting for a held request that never answers, and asks again', async () => {
+		// The hang this ceiling exists for: the placeholder up for good, in an
+		// app with no reload button. The server itself gives up at 15 seconds.
+		await slowLaunch();
+		const retried = new Response('dashboard, asked again');
+		network.mockResolvedValueOnce(retried);
+		const collected = handover();
+		const answered = track(collected.response);
+
+		await vi.advanceTimersByTimeAsync(19_000);
+		expect(answered.settled).toBe(false);
+		expect(network).toHaveBeenCalledTimes(1);
+
+		await vi.advanceTimersByTimeAsync(1_000);
+		expect(await collected.response).toBe(retried);
+		expect(network).toHaveBeenCalledTimes(2);
+	});
+
+	it('asks again past the browser cache, so the stalled request cannot hold it back', async () => {
+		await slowLaunch();
+		network.mockResolvedValueOnce(new Response('dashboard, asked again'));
+		const collected = handover();
+
+		await vi.advanceTimersByTimeAsync(20_000);
+		await collected.response;
+
+		const [again] = network.mock.calls[1] as [Request];
+		expect(again.url).toBe('https://trainara.test/dashboard');
+		expect(again.cache).toBe('no-store');
+	});
+
+	it('counts the ceiling from when the request was sent, not from the hand-over', async () => {
+		// Sent at 0, stood in for at 300, handed over at 5,300: the ceiling is
+		// still at 20,000, not 25,300.
+		await slowLaunch();
+		await vi.advanceTimersByTimeAsync(5_000);
+		network.mockResolvedValueOnce(new Response('asked again'));
+		const collected = handover();
+		const answered = track(collected.response);
+
+		await vi.advanceTimersByTimeAsync(14_699);
+		expect(answered.settled).toBe(false);
+
+		await vi.advanceTimersByTimeAsync(1);
+		expect(answered.settled).toBe(true);
+	});
+
+	it('lets go of a dashboard nobody collects', async () => {
 		const { page } = await slowLaunch();
 
 		await vi.advanceTimersByTimeAsync(10_000);
-		expect(scope.enablePreload).toHaveBeenCalledTimes(1);
 
 		// Later navigations are answered by their own request, not the stale one.
 		const own = new Response('own');
-		const later = dispatch('fetch', navigation('/dashboard', Promise.resolve(own)));
+		network.mockResolvedValueOnce(own);
+		const later = dispatch('fetch', navigation('/dashboard'));
 		page.resolve(new Response('stale'));
 		expect(await later.response).toBe(own);
 	});
@@ -397,7 +409,8 @@ describe('service worker — a slow dashboard', () => {
 	it('waits for the network, as before, when the placeholder is not on disk', async () => {
 		cacheStorage.match.mockResolvedValueOnce(undefined);
 		const page = deferred<Response>();
-		const launch = dispatch('fetch', navigation('/dashboard', page.promise));
+		network.mockReturnValueOnce(page.promise);
+		const launch = dispatch('fetch', navigation('/dashboard'));
 		const answered = track(launch.response);
 		await vi.advanceTimersByTimeAsync(1_000);
 		expect(answered.settled).toBe(false);
@@ -406,14 +419,14 @@ describe('service worker — a slow dashboard', () => {
 		page.resolve(dashboard);
 
 		expect(await launch.response).toBe(dashboard);
-		expect(scope.disablePreload).not.toHaveBeenCalled();
 	});
 
 	it.each([
-		['another page', navigation('/goal', new Promise(() => {}))],
-		['the dashboard with a query string', navigation('/dashboard?week=2', new Promise(() => {}))],
-		['the dashboard inside a frame', navigation('/dashboard', new Promise(() => {}), 'iframe')]
+		['another page', navigation('/goal')],
+		['the dashboard with a query string', navigation('/dashboard?week=2')],
+		['the dashboard inside a frame', navigation('/dashboard', { destination: 'iframe' })]
 	])('never stands in for %s', async (_name, event) => {
+		network.mockReturnValueOnce(new Promise(() => {}));
 		const { response } = dispatch('fetch', event);
 		const answered = track(response);
 
