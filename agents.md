@@ -685,8 +685,9 @@ chosen per field; the API reference says which.
   (`#lib/server/timing`) — `token` and `account` from the identity check,
   each of the dashboard's reads, the layout's `badge`, and `total`. Read it in
   the browser on a preview: Network, the request, Timing. Each entry's
-  description is when it started, relative to the request, so waiting and
-  overlap show up as numbers. A new read on a hot path is wrapped in `timed`
+  description is its name and when it started relative to the request, so
+  waiting and overlap show up as numbers — the name has to be in it, because
+  Chrome shows the description in place of the name. A new read on a hot path is wrapped in `timed`
   so it shows up there too.
 - **Time budgets come in a pair:** `DEFAULT_BUDGET_MS` in
   `#lib/server/trenara/client.ts` sits inside `maxDuration` in

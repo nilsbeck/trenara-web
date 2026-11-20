@@ -137,7 +137,9 @@ describe('a dashboard load, against a Trenara of fixed latency', () => {
 
 		expect(response?.status).toBe(200);
 		expect(tookMs).toBe(Math.max(ACCOUNT_MS, READ_MS));
-		expect(response?.headers.get('server-timing')).toMatch(/schedule;dur=300\.0;desc="\+0ms"/);
+		expect(response?.headers.get('server-timing')).toMatch(
+			/schedule;dur=300\.0;desc="schedule from \+0ms"/
+		);
 	});
 
 	it('keeps the old order when the token has just been refreshed', async () => {

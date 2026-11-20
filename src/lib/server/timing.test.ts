@@ -23,7 +23,21 @@ describe('createTiming', () => {
 
 		await expect(work).resolves.toBe('done');
 		await settle();
-		expect(timing.header()).toBe('schedule;dur=310.0;desc="+250ms", total;dur=560.0');
+		expect(timing.header()).toBe('schedule;dur=310.0;desc="schedule from +250ms", total;dur=560.0');
+	});
+
+	/**
+	 * Chrome's Timing panel shows an entry's description in place of its name
+	 * whenever there is one, so a description that was only the start time
+	 * left every row reading "+7ms" and nothing to say which was which.
+	 */
+	it('names each entry in its description, which is what the browser shows', async () => {
+		const timing = createTiming(clock().now);
+
+		await timing.measure('account', Promise.resolve());
+		await settle();
+
+		expect(timing.header()).toMatch(/^account;dur=[\d.]+;desc="account from \+0ms"/);
 	});
 
 	it('records a failure too, and leaves the rejection with the caller', async () => {
@@ -34,7 +48,7 @@ describe('createTiming', () => {
 
 		await expect(work).rejects.toThrow('down');
 		await settle();
-		expect(timing.header()).toContain('account;dur=0.0;desc="+0ms"');
+		expect(timing.header()).toContain('account;dur=0.0;desc="account from +0ms"');
 	});
 
 	it('leaves out what has not settled by the time the header is written', () => {
@@ -67,7 +81,7 @@ describe('serverTiming', () => {
 		});
 
 		expect(response.headers.get('server-timing')).toMatch(
-			/^account;dur=[\d.]+;desc="\+\d+ms", total;dur=[\d.]+$/
+			/^account;dur=[\d.]+;desc="account from \+\d+ms", total;dur=[\d.]+$/
 		);
 	});
 

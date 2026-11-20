@@ -250,8 +250,8 @@ describe('server timing', () => {
 		const { response } = await run(eventFor('/(app)/dashboard'));
 
 		const header = response?.headers.get('server-timing') ?? '';
-		expect(header).toMatch(/token;dur=[\d.]+;desc="\+\d+ms"/);
-		expect(header).toMatch(/account;dur=[\d.]+;desc="\+\d+ms"/);
+		expect(header).toMatch(/token;dur=[\d.]+;desc="token from \+\d+ms"/);
+		expect(header).toMatch(/account;dur=[\d.]+;desc="account from \+\d+ms"/);
 		expect(header).toMatch(/total;dur=[\d.]+$/);
 	});
 

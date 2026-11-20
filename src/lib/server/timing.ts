@@ -9,9 +9,13 @@ import type { Handle } from '@sveltejs/kit/hooks';
  * It exists to answer questions like "how much of a dashboard load is the
  * identity check, and how much is the plan?" with a number rather than a guess.
  *
- * Each entry has its duration and, in its description, when it started
- * relative to the request: `schedule;dur=310;desc="+250ms"` is a schedule read
- * that began 250ms in — after something else had finished — and took 310ms.
+ * Each entry has its duration and, in its description, its name and when it
+ * started relative to the request: `schedule;dur=310;desc="schedule from
+ * +250ms"` is a schedule read that began 250ms in — after something else had
+ * finished — and took 310ms. The name is repeated in the description because
+ * Chrome's Timing panel shows the description in place of the name whenever
+ * there is one: with only the start time there, every row read "+7ms" and
+ * nothing said which was which.
  * Overlap and waiting are read off those two figures; `total` is the server's
  * whole share of the wait, up to the moment the response was handed back.
  *
@@ -52,7 +56,7 @@ export function createTiming(now: () => number = () => performance.now()): Timin
 		header() {
 			const parts = entries.map(
 				({ name, start, duration }) =>
-					`${name};dur=${duration.toFixed(1)};desc="+${Math.round(start)}ms"`
+					`${name};dur=${duration.toFixed(1)};desc="${name} from +${Math.round(start)}ms"`
 			);
 			parts.push(`total;dur=${(now() - origin).toFixed(1)}`);
 			return parts.join(', ');
