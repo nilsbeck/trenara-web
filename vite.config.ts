@@ -40,6 +40,19 @@ export default defineConfig({
 				regions: ['fra1']
 			}),
 
+			/**
+			 * One prerendered page, named, and nothing found by following links.
+			 *
+			 * The launch placeholder (`src/routes/launch`) is the only page built
+			 * ahead of time. It draws the signed-in navbar, whose logo links to
+			 * `/dashboard`, and crawling followed that link into a page that needs a
+			 * session and cannot be built at all — which failed the build.
+			 */
+			prerender: {
+				crawl: false,
+				entries: ['/launch']
+			},
+
 			csp: {
 				directives: {
 					'default-src': ['self'],

@@ -13,6 +13,7 @@
 	} from '@lucide/svelte';
 	import ChatBubble from '#lib/components/chat/chat-bubble.svelte';
 	import RenderFailure from '#lib/components/shared/render-failure.svelte';
+	import AppFrame from '#lib/components/shared/app-frame.svelte';
 	import { formatUnread } from '#lib/utils/news-unread.js';
 	import { appConfig } from '#lib/stores/app-config.svelte.js';
 	import type { Snippet } from 'svelte';
@@ -79,142 +80,128 @@
 
 <svelte:window onclick={closeMenu} />
 
-<div class="min-h-screen bg-background text-foreground">
-	<!-- Navbar -->
-	<nav class="border-b border-border bg-card">
-		<div class="mx-auto flex max-w-7xl items-center justify-between px-4 py-3 sm:px-6 lg:px-8">
-			<div class="flex shrink-0 items-center gap-4">
-				<a href="/dashboard" class="flex items-center gap-2.5">
-					<img src="/logo.svg" alt="" width="32" height="32" class="h-8 w-8" />
-					<span
-						class="flex flex-col leading-tight"
-						title="This is an unofficial, unaffiliated third-party client. It is not developed, endorsed or supported by Trenara."
-					>
-						<span class="text-xl font-bold tracking-tight text-foreground">Trainara</span>
-						<span class="text-xs text-muted-foreground">
-							<!--
-								Rendered on the server, so there is no pending state to show
-								and nothing to swap in afterwards. It used to be an `{#await}`
-								over a streamed promise, which meant a spinner first — every
-								page load, for a name that had not changed all day.
-							-->
-							{#if userData}
-								Hi, {userData.first_name}!
-							{:else}
-								<span class="text-destructive">Could not load user data</span>
-							{/if}
-						</span>
-					</span>
-				</a>
-			</div>
+<AppFrame>
+	{#snippet greeting()}
+		<!--
+			Rendered on the server, so there is no pending state to show
+			and nothing to swap in afterwards. It used to be an `{#await}`
+			over a streamed promise, which meant a spinner first — every
+			page load, for a name that had not changed all day.
+		-->
+		{#if userData}
+			Hi, {userData.first_name}!
+		{:else}
+			<span class="text-destructive">Could not load user data</span>
+		{/if}
+	{/snippet}
 
-			<div class="flex shrink-0 items-center gap-2">
-				<!-- User Menu -->
-				<div class="relative">
-					<button
-						type="button"
-						class="relative flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium text-foreground hover:bg-accent"
-						aria-label={newsBadgeLabel ? `Menu, ${newsBadgeLabel} unread news items` : 'Menu'}
-						onclick={(e) => {
-							e.stopPropagation();
-							toggleMenu();
-						}}
-					>
-						{#if userData?.profile_picture?.path}
-							<img
-								src={userData.profile_picture.path}
-								alt="Profile"
-								class="h-8 w-8 rounded-full object-cover"
-							/>
-						{:else}
-							<UserCircle class="h-8 w-8 text-muted-foreground" />
-						{/if}
-						<ChevronDown class="h-4 w-4 text-muted-foreground" />
-						<!--
+	{#snippet menu()}
+		<!-- User Menu -->
+		<div class="relative">
+			<button
+				type="button"
+				class="relative flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium text-foreground hover:bg-accent"
+				aria-label={newsBadgeLabel ? `Menu, ${newsBadgeLabel} unread news items` : 'Menu'}
+				onclick={(e) => {
+					e.stopPropagation();
+					toggleMenu();
+				}}
+			>
+				{#if userData?.profile_picture?.path}
+					<img
+						src={userData.profile_picture.path}
+						alt="Profile"
+						class="h-8 w-8 rounded-full object-cover"
+					/>
+				{:else}
+					<UserCircle class="h-8 w-8 text-muted-foreground" />
+				{/if}
+				<ChevronDown class="h-4 w-4 text-muted-foreground" />
+				<!--
 							The menu is collapsed, so the count lives on the row inside it and
 							only a dot shows out here — enough to say "there is something in
 							here" without competing with the chat bubble for attention. The
 							label is on the button, so this is decoration.
 						-->
+				{#if newsBadgeLabel}
+					<span
+						class="absolute right-1.5 top-1.5 h-2.5 w-2.5 rounded-full bg-primary ring-2 ring-card"
+						aria-hidden="true"
+					></span>
+				{/if}
+			</button>
+
+			{#if menuOpen}
+				<div
+					class="absolute right-0 z-50 mt-2 w-48 rounded-md border border-border bg-card py-1 shadow-lg"
+					role="menu"
+					tabindex="-1"
+					onclick={(e) => e.stopPropagation()}
+					onkeydown={(e) => e.key === 'Escape' && closeMenu()}
+				>
+					<a
+						href="/dashboard"
+						class="flex items-center gap-2 px-4 py-2 text-sm text-foreground hover:bg-accent"
+						role="menuitem"
+						onclick={closeMenu}
+					>
+						<LayoutDashboard class="h-4 w-4" />
+						Dashboard
+					</a>
+					<a
+						href="/profile"
+						class="flex items-center gap-2 px-4 py-2 text-sm text-foreground hover:bg-accent"
+						role="menuitem"
+						onclick={closeMenu}
+					>
+						<UserCircle class="h-4 w-4" />
+						Profile
+					</a>
+					<a
+						href="/goal"
+						class="flex items-center gap-2 px-4 py-2 text-sm text-foreground hover:bg-accent sm:hidden"
+						role="menuitem"
+						onclick={closeMenu}
+					>
+						<Target class="h-4 w-4" />
+						Goal/Predictions
+					</a>
+					<a
+						href="/news"
+						class="flex items-center gap-2 px-4 py-2 text-sm text-foreground hover:bg-accent"
+						role="menuitem"
+						onclick={closeMenu}
+					>
+						<Newspaper class="h-4 w-4" />
+						News
 						{#if newsBadgeLabel}
 							<span
-								class="absolute right-1.5 top-1.5 h-2.5 w-2.5 rounded-full bg-primary ring-2 ring-card"
-								aria-hidden="true"
-							></span>
+								class="ml-auto inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1.5 text-xs font-medium text-primary-foreground"
+							>
+								{newsBadgeLabel}
+							</span>
 						{/if}
-					</button>
-
-					{#if menuOpen}
-						<div
-							class="absolute right-0 z-50 mt-2 w-48 rounded-md border border-border bg-card py-1 shadow-lg"
-							role="menu"
-							tabindex="-1"
-							onclick={(e) => e.stopPropagation()}
-							onkeydown={(e) => e.key === 'Escape' && closeMenu()}
-						>
-							<a
-								href="/dashboard"
-								class="flex items-center gap-2 px-4 py-2 text-sm text-foreground hover:bg-accent"
-								role="menuitem"
-								onclick={closeMenu}
-							>
-								<LayoutDashboard class="h-4 w-4" />
-								Dashboard
-							</a>
-							<a
-								href="/profile"
-								class="flex items-center gap-2 px-4 py-2 text-sm text-foreground hover:bg-accent"
-								role="menuitem"
-								onclick={closeMenu}
-							>
-								<UserCircle class="h-4 w-4" />
-								Profile
-							</a>
-							<a
-								href="/goal"
-								class="flex items-center gap-2 px-4 py-2 text-sm text-foreground hover:bg-accent sm:hidden"
-								role="menuitem"
-								onclick={closeMenu}
-							>
-								<Target class="h-4 w-4" />
-								Goal/Predictions
-							</a>
-							<a
-								href="/news"
-								class="flex items-center gap-2 px-4 py-2 text-sm text-foreground hover:bg-accent"
-								role="menuitem"
-								onclick={closeMenu}
-							>
-								<Newspaper class="h-4 w-4" />
-								News
-								{#if newsBadgeLabel}
-									<span
-										class="ml-auto inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1.5 text-xs font-medium text-primary-foreground"
-									>
-										{newsBadgeLabel}
-									</span>
-								{/if}
-							</a>
-							<a
-								href="/history"
-								class="flex items-center gap-2 px-4 py-2 text-sm text-foreground hover:bg-accent"
-								role="menuitem"
-								onclick={closeMenu}
-							>
-								<History class="h-4 w-4" />
-								Prediction History
-							</a>
-							<a
-								href="/goal/history"
-								class="flex items-center gap-2 px-4 py-2 text-sm text-foreground hover:bg-accent"
-								role="menuitem"
-								onclick={closeMenu}
-							>
-								<Archive class="h-4 w-4" />
-								Goal History
-							</a>
-							<div class="my-1 border-t border-border"></div>
-							<!--
+					</a>
+					<a
+						href="/history"
+						class="flex items-center gap-2 px-4 py-2 text-sm text-foreground hover:bg-accent"
+						role="menuitem"
+						onclick={closeMenu}
+					>
+						<History class="h-4 w-4" />
+						Prediction History
+					</a>
+					<a
+						href="/goal/history"
+						class="flex items-center gap-2 px-4 py-2 text-sm text-foreground hover:bg-accent"
+						role="menuitem"
+						onclick={closeMenu}
+					>
+						<Archive class="h-4 w-4" />
+						Goal History
+					</a>
+					<div class="my-1 border-t border-border"></div>
+					<!--
 								A form, not a link: logout is a state change, and as a GET it
 								could be triggered by any third-party page embedding it as an
 								image. See src/routes/logout/+server.ts.
@@ -225,22 +212,20 @@
 								the document is silently not submitted. Logout did nothing. The
 								POST navigates away anyway, which closes the menu for good.
 							-->
-							<form method="POST" action="/logout">
-								<button
-									type="submit"
-									class="flex w-full items-center gap-2 px-4 py-2 text-left text-sm text-destructive hover:bg-accent"
-									role="menuitem"
-								>
-									<LogOut class="h-4 w-4" />
-									Logout
-								</button>
-							</form>
-						</div>
-					{/if}
+					<form method="POST" action="/logout">
+						<button
+							type="submit"
+							class="flex w-full items-center gap-2 px-4 py-2 text-left text-sm text-destructive hover:bg-accent"
+							role="menuitem"
+						>
+							<LogOut class="h-4 w-4" />
+							Logout
+						</button>
+					</form>
 				</div>
-			</div>
+			{/if}
 		</div>
-	</nav>
+	{/snippet}
 
 	<!--
 		Main Content.
@@ -254,16 +239,14 @@
 		already handled where they happen, by the stores and the `network`
 		helpers, and would be silent here.
 	-->
-	<main class="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
-		<svelte:boundary>
-			{@render children()}
+	<svelte:boundary>
+		{@render children()}
 
-			{#snippet failed(error, reset)}
-				<RenderFailure title="This page could not be shown" {error} {reset} />
-			{/snippet}
-		</svelte:boundary>
-	</main>
-</div>
+		{#snippet failed(error, reset)}
+			<RenderFailure title="This page could not be shown" {error} {reset} />
+		{/snippet}
+	</svelte:boundary>
+</AppFrame>
 
 <!--
 	The bubble is chrome on every page, so it gets its own boundary rather than

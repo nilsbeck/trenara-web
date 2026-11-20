@@ -1,11 +1,11 @@
 import { version } from '$app/env';
-import { assets, immutable } from '$app/manifest';
+import { assets, immutable, prerendered } from '$app/manifest';
 // Typed as `ServiceWorkerGlobalScope` by SvelteKit 3, which is what the
 // `self as unknown as ServiceWorkerGlobalScope` cast here used to assert.
 import { self as sw } from '$app/service-worker';
 
 /**
- * What the app does with no connection.
+ * What the app does with no connection, and with a slow one.
  *
  * It is installable — there is a manifest and a set of icons — so it can be on
  * a home screen, which is exactly where a running app belongs. Opened from
@@ -16,15 +16,20 @@ import { self as sw } from '$app/service-worker';
  *
  * - **The shell** — the built JS and CSS, the icons, the offline page. All
  *   content-hashed or static, so serving them from disk cannot be wrong.
- * - **Nothing else.** No API responses and no rendered pages. Both carry the
- *   runner's training plan, and a plan served from disk without saying so is
- *   the same lie this app has spent its error handling removing: yesterday's
- *   session shown as today's, a completed run missing, a change that appears
- *   not to have saved. It would also outlive a logout, sitting in Cache
- *   Storage until something evicted it.
+ * - **The launch placeholder** (`src/routes/launch`) — the frame of the app
+ *   and a line saying the plan is loading, prerendered at build time. It is
+ *   the same file for everyone and holds nothing of the runner's, so it is
+ *   shell in the same sense: it cannot be out of date about anything.
+ * - **Nothing else.** No API responses and no page rendered for a runner.
+ *   Both carry the runner's training plan, and a plan served from disk
+ *   without saying so is the same lie this app has spent its error handling
+ *   removing: yesterday's session shown as today's, a completed run missing,
+ *   a change that appears not to have saved. It would also outlive a logout,
+ *   sitting in Cache Storage until something evicted it.
  *
  * So offline gets the shell and an honest page saying so, rather than a
- * plausible-looking plan that might be days old.
+ * plausible-looking plan that might be days old; and a slow start gets the
+ * shell and an honest line saying the plan is on its way (`navigate` below).
  */
 
 /** Versioned by the build, so a deploy cannot be served half old and half new. */
@@ -44,8 +49,8 @@ function pathnameOf({ path }: { path: string }): string {
 	return new URL(path, sw.location.href).pathname;
 }
 
-/** Everything worth having on disk: the built app, and the static files. */
-const PRECACHE = [...immutable, ...assets].map(pathnameOf);
+/** Everything worth having on disk: the built app, the static files, the placeholder. */
+const PRECACHE = [...immutable, ...assets, ...prerendered].map(pathnameOf);
 
 /**
  * The page shown for a navigation that cannot reach the network.
@@ -55,6 +60,64 @@ const PRECACHE = [...immutable, ...assets].map(pathnameOf);
  * cache the day this is ever served from a sub-path.
  */
 const OFFLINE_PAGE = PRECACHE.find((file) => file.endsWith('/offline.html'));
+
+/** The page that stands in for a dashboard still on its way, found the same way. */
+const LAUNCH_PLACEHOLDER = PRECACHE.find((file) => file.endsWith('/launch'));
+
+/** The page a launch opens on — the manifest's `start_url` — and the one the placeholder is for. */
+const DASHBOARD = pathnameOf({ path: 'dashboard' });
+
+/**
+ * How long a launch shows nothing before the placeholder stands in.
+ *
+ * Short enough that a slow start shows the app almost at once — the splash
+ * screen, or on iOS a blank one, was all a runner saw for the several seconds
+ * a slow connection takes. Long enough that a quick start, a warm server on a
+ * good signal, goes straight to the dashboard without a placeholder flashing
+ * past on the way.
+ */
+const PLACEHOLDER_AFTER_MS = 300;
+
+/**
+ * How long a dashboard held behind a placeholder waits to be collected.
+ *
+ * The placeholder asks for it as soon as it has loaded, within a frame or two
+ * of being served, so this is only the ceiling for one that never asks — the
+ * app closed the moment it opened — and keeps a response from being held for
+ * the life of the worker.
+ */
+const HANDOVER_WINDOW_MS = 10_000;
+
+/**
+ * How long a held dashboard may take to answer before its hand-over stops
+ * waiting for it and asks the server again.
+ *
+ * The server gives up at 15 seconds (`maxDuration` in `vite.config.ts`), so a
+ * request with no answer after 20 is not going to get one. Without a ceiling,
+ * a request that never answered — whatever the reason — left the placeholder
+ * on screen for good, in a home-screen app that has no reload button.
+ */
+const HELD_CEILING_MS = 20_000;
+
+interface HeldPage {
+	page: Promise<Response>;
+	/** When the request behind `page` was sent, for `HELD_CEILING_MS`. */
+	since: number;
+	collect: () => void;
+}
+
+/**
+ * Dashboards in flight behind a placeholder, by URL, until the navigation the
+ * placeholder starts collects them. Held in memory and never in Cache Storage:
+ * each is one response to one request, handed over once and then gone.
+ */
+const held = new Map<string, HeldPage>();
+
+const ignore = () => {};
+
+function delay(ms: number): Promise<void> {
+	return new Promise((resolve) => setTimeout(resolve, ms));
+}
 
 sw.addEventListener('install', (event) => {
 	event.waitUntil(
@@ -76,49 +139,211 @@ sw.addEventListener('activate', (event) => {
 					Promise.all(keys.filter((key) => key !== CACHE).map((key) => caches.delete(key)))
 				),
 			/**
-			 * Navigation preload: send a page request at the same moment the
-			 * browser starts this worker, rather than after.
+			 * Navigation preload off — on purpose, and turned off rather than
+			 * left alone, because an earlier version of this worker turned it on
+			 * and the setting outlives the worker that made it.
 			 *
-			 * A worker with a `fetch` listener sits in front of every navigation,
-			 * so the browser has to boot it before the request for the page can
-			 * leave — and a worker that has been asleep, which on a phone is every
-			 * launch from the home screen, takes tens to hundreds of milliseconds
-			 * to boot. All of it was added to the one wait a runner sees when they
-			 * open the app. With preload on, the request runs while the worker
-			 * boots, and the handler below answers with it.
+			 * Preload sends the page request while the browser is still starting
+			 * this worker, which saves the worker's start-up time on a cold
+			 * launch: tens to a couple of hundred milliseconds. It was on until
+			 * the launch placeholder (`navigate` below) needed to hand a request
+			 * from one navigation to the next. In Safari that hand-over hung — the
+			 * placeholder stayed up, and the server's log showed no request for
+			 * that launch — while it worked in Chromium. The likeliest reason,
+			 * not confirmed in WebKit itself: a preloaded request belongs to the
+			 * browser and the navigation it was sent for, and does not survive
+			 * being handed to another. A request this worker makes itself is a
+			 * plain promise, which it can hand to any navigation in any browser.
+			 * The placeholder covers the start-up time this costs; a launch that
+			 * hangs, nothing covers.
 			 *
-			 * Optional: Safari before 15.4 has no `navigationPreload`, and there
-			 * the handler simply fetches as it always did.
+			 * Optional: Safari before 15.4 has no `navigationPreload` at all.
 			 */
-			sw.registration.navigationPreload?.enable()
+			sw.registration.navigationPreload?.disable()
 		]).then(() => sw.clients.claim())
 	);
 });
 
+/** The offline page, for a navigation that could not reach the network. */
+async function offlinePage(): Promise<Response> {
+	const offline = OFFLINE_PAGE ? await caches.match(OFFLINE_PAGE) : undefined;
+	return (
+		offline ??
+		new Response('Offline', {
+			status: 503,
+			headers: { 'content-type': 'text/plain; charset=utf-8' }
+		})
+	);
+}
+
 /**
- * A page, from the network — the preloaded response when the browser sent one,
- * a fetch of our own when it did not — or the offline page when there is no
- * network at all.
+ * Whether a navigation may be stood in for: the dashboard, loaded as a
+ * window's own page, at exactly its plain URL.
  *
- * The preload has to be awaited even when it is not wanted: one left hanging is
- * cancelled with a console warning, and one that rejects is an unhandled
- * rejection. Awaiting it inside the `try` also means a preload that failed for
- * want of a connection lands on the offline page, the same as a fetch would.
+ * The plain URL because that is what the placeholder asks for when it hands
+ * over, and the held page is found by its URL; a query string would leave it
+ * uncollected. A window's page, because a frame has no launch to cover.
  */
-async function navigate(event: FetchEvent): Promise<Response> {
-	try {
-		const preloaded: Response | undefined = await event.preloadResponse;
-		return preloaded ?? (await fetch(event.request));
-	} catch {
-		const offline = OFFLINE_PAGE ? await caches.match(OFFLINE_PAGE) : undefined;
-		return (
-			offline ??
-			new Response('Offline', {
-				status: 503,
-				headers: { 'content-type': 'text/plain; charset=utf-8' }
-			})
-		);
+function standsInFor(request: Request): boolean {
+	const url = new URL(request.url);
+	return request.destination === 'document' && url.pathname === DASHBOARD && url.search === '';
+}
+
+/**
+ * The placeholder as the answer to a navigation that asked for the dashboard.
+ *
+ * Rebuilt rather than returned as it came from the cache: a response made here
+ * carries no URL of its own, so the document takes the one it was asked for —
+ * the dashboard's, which is the address the runner opened, the one the
+ * placeholder hands over to, and the one its relative stylesheet links resolve
+ * against.
+ */
+function standIn(placeholder: Response): Response {
+	return new Response(placeholder.body, {
+		status: 200,
+		headers: { 'content-type': 'text/html; charset=utf-8' }
+	});
+}
+
+/**
+ * Keep a dashboard in flight for the navigation the placeholder will start,
+ * and return what the worker has to stay alive for.
+ *
+ * The response is asked for from this event but delivered through another
+ * one, so a worker that stopped once this event had answered would take the
+ * request in flight with it. It stays alive until the page has arrived in
+ * full, read through a copy, not merely until it has started arriving: the
+ * page reaches the window through the hand-over, and its body is still
+ * streaming through this worker after the hand-over has been answered. No
+ * longer than `HELD_CEILING_MS`, though, for a request that never answers.
+ */
+function hold(url: string, page: Promise<Response>, since: number): Promise<unknown> {
+	let collect: () => void = ignore;
+	const collected = new Promise<void>((resolve) => (collect = resolve));
+
+	let arrived: Promise<unknown> = Promise.resolve();
+	const kept = page.then((response) => {
+		// Copied before anything else can read it: the hand-over below only ever
+		// sees `kept`, which settles after this has run.
+		arrived = response.clone().arrayBuffer().catch(ignore);
+		return response;
+	});
+	kept.catch(ignore);
+	held.set(url, { page: kept, since, collect });
+
+	const released = Promise.race([collected, delay(HANDOVER_WINDOW_MS)]).then(() => {
+		if (held.get(url)?.page === kept) held.delete(url);
+	});
+
+	return Promise.all([
+		released,
+		Promise.race([kept.then(() => arrived, ignore), delay(HELD_CEILING_MS)])
+	]);
+}
+
+interface Answer {
+	/** What the navigation is answered with. */
+	response: Promise<Response>;
+	/** What the worker must stay alive for after that. */
+	lifetime: Promise<unknown>;
+}
+
+/**
+ * The page asked for again, as a fresh request, when the held one failed or
+ * never answered.
+ *
+ * Past the browser's cache, because otherwise the browser queues it behind
+ * the request it replaces. Chromium was seen holding a second request for the
+ * dashboard back until the first had answered — a first request stalled for
+ * 25 seconds kept its replacement off the network for all 25, and the
+ * ceiling saved nothing.
+ */
+function askAgain(request: Request): Promise<Response> {
+	return fetch(new Request(request, { cache: 'no-store' }));
+}
+
+/**
+ * The navigation the placeholder started: answered with the dashboard already
+ * in flight, rather than by asking the server again.
+ *
+ * Should the held request fail, or still have no answer `HELD_CEILING_MS`
+ * after it was sent, the network is asked once more before the offline page —
+ * the hand-over is what failed, not necessarily the connection.
+ */
+function collect(event: FetchEvent, handover: HeldPage): Answer {
+	held.delete(event.request.url);
+	handover.collect();
+
+	const waited = Math.max(0, HELD_CEILING_MS - (Date.now() - handover.since));
+	const page = Promise.race([
+		handover.page,
+		delay(waited).then(() => Promise.reject(new Error('The held dashboard never answered')))
+	]);
+
+	return {
+		response: page.catch(() => askAgain(event.request)).catch(offlinePage),
+		lifetime: page.catch(ignore)
+	};
+}
+
+/**
+ * A page: always the network, because the page carries the plan and the plan
+ * is the thing that must not be stale — with two things standing in when it
+ * cannot answer.
+ *
+ * - **No network at all**: the offline page, which says what it is, rather
+ *   than an empty calendar that reads as a rest week.
+ * - **A dashboard slow to arrive**: the launch placeholder, once the request
+ *   has gone `PLACEHOLDER_AFTER_MS` without an answer. The request is not
+ *   abandoned. It is held here, and the placeholder at once starts a
+ *   navigation to the dashboard again (a meta refresh in its head), which
+ *   `collect` answers with that same held request. The window keeps showing
+ *   the placeholder while that navigation is pending, and the dashboard
+ *   replaces it the moment it arrives: one request to the server, as before,
+ *   and something on screen in the meantime. Two navigations rather than one
+ *   because a document cannot be partly one page and partly another, and a
+ *   service worker answers each navigation exactly once.
+ */
+function navigate(event: FetchEvent): Answer {
+	const { request } = event;
+
+	const handover = held.get(request.url);
+	if (handover) return collect(event, handover);
+
+	const sent = Date.now();
+	const page = fetch(event.request);
+	const settled = page.then(ignore, ignore);
+
+	if (!LAUNCH_PLACEHOLDER || !standsInFor(request)) {
+		return { response: page.catch(offlinePage), lifetime: settled };
 	}
+	const placeholderPath = LAUNCH_PLACEHOLDER;
+
+	// The lifetime depends on which way the race goes, and `waitUntil` has to be
+	// handed it before the race is run.
+	let settle: (lifetime: Promise<unknown>) => void = ignore;
+	const lifetime = new Promise<unknown>((resolve) => (settle = resolve));
+
+	const response = Promise.race([
+		settled.then(() => true),
+		delay(PLACEHOLDER_AFTER_MS).then(() => false)
+	]).then(async (inTime) => {
+		const placeholder = inTime
+			? undefined
+			: await caches.match(placeholderPath).catch(() => undefined);
+
+		// In time, or late with no placeholder to show: wait for the page, as
+		// every other navigation does.
+		if (!placeholder) {
+			settle(settled);
+			return page.catch(offlinePage);
+		}
+
+		settle(hold(request.url, page, sent));
+		return standIn(placeholder);
+	});
+
+	return { response, lifetime };
 }
 
 /** Whether a URL is one of the files precached at install. */
@@ -143,12 +368,11 @@ sw.addEventListener('fetch', (event) => {
 		return;
 	}
 
-	// A page. Always the network first, because the page carries the plan and
-	// the plan is the thing that must not be stale. Only when the network is
-	// gone entirely does the offline page stand in — and it says what it is,
-	// rather than showing an empty calendar that reads as a rest week.
+	// A page — see `navigate` for what answers it.
 	if (request.mode === 'navigate') {
-		event.respondWith(navigate(event));
+		const { response, lifetime } = navigate(event);
+		event.respondWith(response);
+		event.waitUntil(lifetime);
 		return;
 	}
 
