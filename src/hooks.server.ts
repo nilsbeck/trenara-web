@@ -1,4 +1,4 @@
-import { redirect } from '@sveltejs/kit';
+import { redirect, type RequestEvent } from '@sveltejs/kit';
 import { sequence, type Handle, type HandleServerError } from '@sveltejs/kit/hooks';
 import { TokenManager } from '#lib/server/auth/token-manager.js';
 import { userApi } from '#lib/server/trenara/user.js';
@@ -8,6 +8,7 @@ import { isDatabaseError, STORAGE_READ_MESSAGE } from '#lib/server/db/errors.js'
 import { securityHeaders } from '#lib/server/security/headers.js';
 import { apiRequests } from '#lib/server/security/rate-limit.js';
 import { serverTiming, timed } from '#lib/server/timing.js';
+import { startDashboardReads } from '#lib/server/dashboard/reads.js';
 
 const tokenManager = TokenManager.getInstance();
 
@@ -58,6 +59,22 @@ export const handleAuth: Handle = async ({ event, resolve }) => {
 		return resolve(event);
 	}
 
+	// The dashboard's own reads, sent now rather than once the account has
+	// answered — see `startsDashboardEarly` below for why that is safe.
+	if (status === 'valid' && startsDashboardEarly(event)) {
+		try {
+			event.locals.dashboardReads = startDashboardReads(
+				event.cookies,
+				{ fresh: true },
+				event.locals
+			);
+		} catch {
+			// A head start, and nothing more: if it cannot even begin, the load
+			// asks for the same reads itself, and any real failure surfaces there
+			// with its proper status. It must never cost the runner the session.
+		}
+	}
+
 	try {
 		const user = await timed(event.locals, 'account', userApi.getCurrentUser(event.cookies));
 		event.locals.user = { id: user.id, email: user.email };
@@ -86,6 +103,40 @@ export const handleAuth: Handle = async ({ event, resolve }) => {
  */
 function isSessionFree(routeId: string | null): boolean {
 	return routeId?.startsWith('/s/') ?? false;
+}
+
+/**
+ * Whether to start the dashboard's Trenara reads beside the identity check
+ * instead of after it.
+ *
+ * The account read above is a request to Trenara like any other, and its
+ * answer is cached for a minute — so on a launch after a minute idle, which is
+ * most launches, the dashboard waited for one whole round trip to Trenara
+ * before it could ask for a single thing it shows. But the schedule, the goal
+ * and the stats need only the token: Trenara checks it on each of them, as it
+ * does on the account read, and none of them is keyed by the runner's id. Only
+ * the reads from this app's own database are, and those still wait for it, in
+ * the load.
+ *
+ * Nothing read early can reach anyone it should not. The results sit in
+ * `locals` until the dashboard's load uses them, and the load runs only once
+ * `handleGuard` has let the request through on a resolved account; a token
+ * Trenara refuses sends the runner to sign in, and the reads are thrown away
+ * with their promises already handled.
+ *
+ * Three conditions, each for a reason:
+ *
+ * - **the dashboard**, the page a launch opens on, and only its document
+ *   request. A `__data.json` request may re-run only the layout's load — the
+ *   news badge's `invalidate` does exactly that — and reads started for a page
+ *   load that never runs would be spent against Trenara's budget for nothing;
+ * - **`valid`**, a token that was not refreshed on this request. A refresh
+ *   writes a new token, and reads sent with the old one would be wasted; it
+ *   happens about once a day, and those loads keep the old order;
+ * - not on any other route, so nothing about other pages changes.
+ */
+function startsDashboardEarly(event: RequestEvent): boolean {
+	return event.route.id === '/(app)/dashboard' && !event.isDataRequest;
 }
 
 /** Routes that answer in JSON, and must be refused in JSON. */

@@ -15,7 +15,8 @@ const { tokenState, userState } = vi.hoisted(() => ({
 	},
 	userState: {
 		user: { id: 42, email: 'runner@example.com' } as { id: number; email: string } | null,
-		reads: 0
+		reads: 0,
+		settled: false
 	}
 }));
 
@@ -38,9 +39,23 @@ vi.mock('#lib/server/trenara/user.js', () => ({
 	userApi: {
 		getCurrentUser: async () => {
 			userState.reads++;
+			await Promise.resolve();
+			userState.settled = true;
 			if (!userState.user) throw new Error('unreachable');
 			return userState.user;
 		}
+	}
+}));
+
+// The dashboard's reads, which `handleAuth` starts early on a launch onto the
+// dashboard. Stubbed: what is under test here is when they are started, not
+// what they fetch (see `dashboard/startup.test.ts` for that, end to end).
+const early = vi.hoisted(() => ({ starts: [] as { fresh: boolean; accountSettled: boolean }[] }));
+vi.mock('#lib/server/dashboard/reads.js', () => ({
+	startDashboardReads: (_cookies: unknown, { fresh }: { fresh: boolean }) => {
+		early.starts.push({ fresh, accountSettled: userState.settled });
+		const none = Promise.resolve(null);
+		return { schedule: none, goal: none, stats: none };
 	}
 }));
 
@@ -59,9 +74,15 @@ function compose(...chain: Handle[]): Handle {
 }
 
 /** A request event with just the parts the hooks actually read. */
-function eventFor(routeId: string | null, path = '/dashboard', search = ''): RequestEvent {
+function eventFor(
+	routeId: string | null,
+	path = '/dashboard',
+	search = '',
+	isDataRequest = false
+): RequestEvent {
 	return {
 		route: { id: routeId },
+		isDataRequest,
 		url: new URL(`https://trainara.test${path}${search}`),
 		cookies: { get: () => undefined },
 		locals: {},
@@ -91,6 +112,8 @@ beforeEach(async () => {
 	tokenState.validations = 0;
 	userState.user = { id: 42, email: 'runner@example.com' };
 	userState.reads = 0;
+	userState.settled = false;
+	early.starts = [];
 });
 
 describe('identity', () => {
@@ -169,6 +192,52 @@ describe('the public share page', () => {
 		await run(eventFor('/(app)/goal', '/goal'));
 
 		expect(tokenState.validations).toBe(1);
+	});
+});
+
+describe("the dashboard's head start", () => {
+	/**
+	 * The account read is a Trenara round trip on most launches — its cache
+	 * lasts a minute — and the dashboard's reads need only the token. So on a
+	 * launch onto the dashboard they leave beside it, not after it.
+	 */
+	it('starts the dashboard reads before the account read has answered', async () => {
+		const event = eventFor('/(app)/dashboard');
+
+		await run(event);
+
+		expect(early.starts).toEqual([{ fresh: true, accountSettled: false }]);
+		expect(event.locals.dashboardReads).toBeDefined();
+		expect(event.locals.user).toEqual({ id: 42, email: 'runner@example.com' });
+	});
+
+	it('leaves a data request to the load, which may not even run for it', async () => {
+		await run(eventFor('/(app)/dashboard', '/dashboard', '', true));
+
+		expect(early.starts).toEqual([]);
+	});
+
+	it('keeps the old order when the token was refreshed on this request', async () => {
+		tokenState.status = 'refreshed';
+
+		await run(eventFor('/(app)/dashboard'));
+
+		expect(early.starts).toEqual([]);
+	});
+
+	it('starts nothing for any other page', async () => {
+		await run(eventFor('/(app)/goal', '/goal'));
+
+		expect(early.starts).toEqual([]);
+	});
+
+	it('still sends a runner Trenara will not vouch for to sign in', async () => {
+		userState.user = null;
+
+		const { thrown } = await run(eventFor('/(app)/dashboard'));
+
+		expect(early.starts).toHaveLength(1);
+		expect(thrown?.status).toBe(302);
 	});
 });
 

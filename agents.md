@@ -372,6 +372,17 @@ the reason — that is what distinguishes a decision from a regression.
   one value (the goal's id) chains on that value's promise, not on the end of
   the `Promise.all` it sits in — the dashboard's chart and share reads run
   beside the schedule, not after it.
+- **Trenara reads do not wait for the identity check; storage reads do.**
+  Trenara checks the token on every request, so a read that needs only the
+  token is no safer for being sent after the account read — it only waits
+  longer, and the account read is a real round trip on most launches (its
+  cache lasts a minute). `handleAuth` therefore starts the dashboard's
+  schedule, goal and stats beside it (`startsDashboardEarly`), on a document
+  request with a token that was not just refreshed, and hands them to the load
+  through `locals`. What is keyed by the runner's id — every DAO — still waits
+  for the id. Nothing read early reaches a response unless the guard lets the
+  request through, and every early promise is handled, because the page it
+  was meant for may never run.
 - **Every module-scope `Map` has a ceiling and an eviction rule.** They live as
   long as the serverless instance does. `read-cache` and the rate limiters
   carry one; see the ceilings below for the one that does not.

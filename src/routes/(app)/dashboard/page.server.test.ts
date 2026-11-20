@@ -91,6 +91,26 @@ describe('dashboard load', () => {
 	 * the phone's media query will ask for instead of a month it then folds.
 	 * See `#lib/utils/opening-view` for the rule.
 	 */
+	/**
+	 * On a launch onto this page `handleAuth` has already sent these, beside
+	 * the identity check. Asking again here would be the very wait the head
+	 * start exists to remove — or, with `fresh`, a second request for each.
+	 */
+	it('uses the reads the hook already started instead of asking again', async () => {
+		const event = makeEvent();
+		event.locals.dashboardReads = {
+			schedule: Promise.resolve({ ...week, trainings: [{ id: 99 }] } as never),
+			goal: Promise.resolve(goal as never),
+			stats: Promise.resolve(stats as never)
+		};
+
+		const data = await load(event);
+
+		expect(mockGetSchedule).not.toHaveBeenCalled();
+		expect(data.schedule.trainings).toEqual([{ id: 99 }]);
+		expect(data.goal).toEqual(goal);
+	});
+
 	it('times each of its reads for the Server-Timing header', async () => {
 		const timing = createTiming();
 		const event = makeEvent();
