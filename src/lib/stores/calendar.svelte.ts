@@ -432,7 +432,14 @@ export function createCalendarStore(initialDate: Date, options: CalendarStoreOpt
 		if (year === currentDate.getFullYear() && month === currentDate.getMonth()) {
 			return statusIndex;
 		}
-		return weekStatusIndexes.get(monthKeyOf(year, month)) ?? null;
+		// The neighbouring month's own copy once it has arrived. Until then, the
+		// weeks in hand: Trenara's weeks run Monday to Sunday, so the month the
+		// page loaded already holds the days of a week that crosses the turn of
+		// the month. Looking only in the neighbour's cache left those days bare
+		// until it had been fetched — and on the server, which now draws a phone's
+		// week folded and can fetch nothing, they would have stayed bare in the
+		// first paint.
+		return weekStatusIndexes.get(monthKeyOf(year, month)) ?? statusIndex;
 	}
 
 	/**

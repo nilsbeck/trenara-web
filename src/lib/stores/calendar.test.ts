@@ -2304,3 +2304,50 @@ describe('prefetchAdjacentWeeks', () => {
 		expect(store.currentDate.getMonth()).toBe(9);
 	});
 });
+
+// ─────────────────────────────────────────────────────────────
+// The folded week across the turn of a month
+// ─────────────────────────────────────────────────────────────
+describe('the folded week across the turn of a month', () => {
+	// Monday 31 March 2025: the week it folds onto runs into April.
+	const monday = new Date(2025, 2, 31);
+	const marchWeeks = makeSchedule({
+		// The page's schedule is whole weeks, so it already holds the April days
+		// of the week that starts in March.
+		trainings: [{ id: 1, day_long: '2025-04-02' } as Schedule['trainings'][number]]
+	});
+
+	function foldedOnMonday() {
+		const store = createCalendarStore(monday);
+		store.setSchedule(marchWeeks);
+		store.setSelectedDate({ year: 2025, month: 2, day: 31 });
+		store.openFolded();
+		return store;
+	}
+
+	/**
+	 * A day of the next month used to be looked up in that month's cache
+	 * alone, which is empty until it has been fetched — so the server drew a
+	 * phone's week at the turn of a month with its April days bare, and they
+	 * lit up only once April had arrived, although the month in hand had them
+	 * all along.
+	 */
+	it("answers next month's days from the weeks in hand before that month arrives", () => {
+		const store = foldedOnMonday();
+
+		expect(store.viewMode).toBe('week');
+		expect(store.getTrainingStatusForDay({ year: 2025, month: 3, day: 2 }, 'run')).toBe(
+			'scheduled'
+		);
+		expect(mockFetch).not.toHaveBeenCalled();
+	});
+
+	it('takes the month itself over the weeks in hand once it has arrived', () => {
+		const store = foldedOnMonday();
+
+		// April as April tells it: the session on the 2nd has been moved off.
+		store.setSchedule(makeSchedule({ trainings: [] }), new Date(2025, 3, 1));
+
+		expect(store.getTrainingStatusForDay({ year: 2025, month: 3, day: 2 }, 'run')).toBe('none');
+	});
+});
