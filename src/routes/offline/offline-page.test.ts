@@ -2,7 +2,16 @@ import { describe, it, expect, afterEach, beforeEach, vi } from 'vitest';
 import { render, cleanup, screen, within, fireEvent } from '@testing-library/svelte';
 import { flushSync, tick } from 'svelte';
 import OfflinePage from './+page.svelte';
-import { OFFLINE_PLAN_KEY, type OfflinePlan } from '#lib/utils/offline-plan.js';
+import { OFFLINE_CARDS_KEY, OFFLINE_PLAN_KEY, type OfflinePlan } from '#lib/utils/offline-plan.js';
+
+// The cards are the dashboard's own and tested there; here it matters that
+// they are drawn from the kept copy, beside the calendar.
+vi.mock('#lib/components/goal/goal-card.svelte', async () => ({
+	default: (await import('#lib/components/shared/stub.fixture.svelte')).default
+}));
+vi.mock('#lib/components/predictions/predictions-card.svelte', async () => ({
+	default: (await import('#lib/components/shared/stub.fixture.svelte')).default
+}));
 import type {
 	Entry,
 	Schedule,
@@ -135,7 +144,7 @@ describe('the offline page with a saved plan', () => {
 		const banner = screen.getByTestId('offline-banner');
 
 		expect(banner.textContent!.replace(/\s+/g, ' ').trim()).toBe(
-			'Offline · saved Tue, Nov 24, 6:42 PM Retry'
+			'Offline · Data from Tue, Nov 24, 6:42 PM Retry'
 		);
 	});
 
@@ -239,5 +248,69 @@ describe('the offline page reached with the network up', () => {
 		const banner = screen.getByTestId('offline-banner');
 		expect(within(banner).queryByText('Offline')).toBeNull();
 		expect(within(banner).getByText('Not connected')).toBeTruthy();
+	});
+});
+
+describe('the offline page with the goal card kept too', () => {
+	const cards = {
+		version: 1,
+		// Read before the plan was: the line has to give the older of the two.
+		savedAt: new Date(2026, 10, 24, 18, 30).getTime(),
+		goal: { id: 7, name: 'Valencia 42k' },
+		userStats: { best_times: { time_for_goal: '3:03:36' } },
+		history: []
+	};
+
+	beforeEach(() => {
+		localStorage.setItem(OFFLINE_PLAN_KEY, JSON.stringify(plan));
+		localStorage.setItem(OFFLINE_CARDS_KEY, JSON.stringify(cards));
+		render(OfflinePage);
+	});
+
+	it('draws the goal card and the predictions beside the calendar', () => {
+		// The goal card and the predictions card.
+		expect(screen.getAllByTestId('stub')).toHaveLength(2);
+		expect(screen.getByText('November 2026')).toBeTruthy();
+		expect(screen.queryByText('Some data could not be loaded')).toBeNull();
+	});
+
+	/**
+	 * The page fits a phone. The dashboard's columns cap themselves at the
+	 * width of what holds them (`max-w-full`), which only works when what holds
+	 * them is not sizing them to their content. A centring flex row did: on a
+	 * phone the cards ran off the left edge. jsdom has no layout, so this pins
+	 * the cause — no content-sizing parent above a wrapper without a cap.
+	 */
+	it('fits a phone: nothing above the columns sizes them to their content', () => {
+		for (const stub of screen.getAllByTestId('stub')) {
+			for (let el = stub.parentElement; el && el !== document.body; el = el.parentElement) {
+				const parent = el.parentElement?.classList;
+				if (!parent) continue;
+				const row = parent.contains('flex') && !parent.contains('flex-col');
+				const sizesToContent =
+					(row && parent.contains('justify-center')) ||
+					(parent.contains('flex-col') &&
+						(parent.contains('items-center') || parent.contains('items-start')));
+				if (!sizesToContent) continue;
+				expect(el.getAttribute('class') ?? '', 'a wrapper lets the columns overflow').toMatch(
+					/\bmax-w-full\b/
+				);
+			}
+		}
+	});
+
+	it('dates the page by the older of the two copies', () => {
+		expect(screen.getByTestId('offline-saved-at').textContent).toBe('Tue, Nov 24, 6:30 PM');
+	});
+});
+
+describe('the offline page with only the plan kept', () => {
+	it('draws the calendar alone, not a column saying something failed', () => {
+		localStorage.setItem(OFFLINE_PLAN_KEY, JSON.stringify(plan));
+		render(OfflinePage);
+
+		expect(screen.queryAllByTestId('stub')).toHaveLength(0);
+		expect(screen.queryByText('Some data could not be loaded')).toBeNull();
+		expect(screen.getByText('November 2026')).toBeTruthy();
 	});
 });

@@ -1,7 +1,10 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import type { Schedule } from '#lib/server/trenara/types.js';
+import type { Goal, Schedule, UserStats } from '#lib/server/trenara/types.js';
 import {
+	OFFLINE_CARDS_KEY,
 	OFFLINE_PLAN_KEY,
+	readOfflineCards,
+	saveOfflineCards,
 	buildOfflinePlan,
 	clearOfflinePlan,
 	formatSavedAt,
@@ -138,5 +141,79 @@ describe('helpers', () => {
 
 	it('states when the plan was saved, to the minute', () => {
 		expect(formatSavedAt(new Date(2026, 10, 24, 18, 42).getTime())).toBe('Tue, Nov 24, 6:42 PM');
+	});
+});
+
+describe("the goal card's copy", () => {
+	const goal = { id: 7, name: 'Valencia 42k' } as Goal;
+	const userStats = { best_times: { time_for_goal: '3:03:36' } } as unknown as UserStats;
+	const point = {
+		date: '2026-11-24',
+		predictedTime: 11_016,
+		predictedPace: 261,
+		formattedTime: '3:03:36',
+		formattedPace: '4:21'
+	};
+
+	it('reads back what was saved', () => {
+		saveOfflineCards({ savedAt: 5, goal, userStats, history: [point] });
+
+		expect(readOfflineCards()).toEqual({
+			version: 1,
+			savedAt: 5,
+			goal,
+			userStats,
+			history: [point]
+		});
+	});
+
+	it('keeps an account with no goal', () => {
+		saveOfflineCards({ savedAt: 5, goal: null, userStats, history: [] });
+
+		expect(readOfflineCards()?.goal).toBeNull();
+	});
+
+	// The dashboard says "Some data could not be loaded" for these; keeping
+	// that over a good copy would leave the offline page worse off.
+	it('does not replace a good copy with stats that would not draw', () => {
+		saveOfflineCards({ savedAt: 5, goal, userStats, history: [] });
+		saveOfflineCards({ savedAt: 9, goal, userStats: null, history: [] });
+
+		expect(readOfflineCards()?.savedAt).toBe(5);
+	});
+
+	it('drops chart points it could not plot', () => {
+		localStorage.setItem(
+			OFFLINE_CARDS_KEY,
+			JSON.stringify({
+				version: 1,
+				savedAt: 5,
+				goal,
+				userStats,
+				history: [point, { date: '2026-11-25' }, null]
+			})
+		);
+
+		expect(readOfflineCards()?.history).toEqual([point]);
+	});
+
+	it('ignores a copy whose goal or stats it cannot read', () => {
+		const base = { version: 1, savedAt: 5, goal, userStats, history: [] };
+		for (const broken of [
+			{ ...base, goal: 'Valencia' },
+			{ ...base, userStats: {} },
+			{ ...base, savedAt: null },
+			{ ...base, version: 2 }
+		]) {
+			localStorage.setItem(OFFLINE_CARDS_KEY, JSON.stringify(broken));
+			expect(readOfflineCards()).toBeNull();
+		}
+	});
+
+	it('goes with the plan on logout', () => {
+		saveOfflineCards({ savedAt: 5, goal, userStats, history: [] });
+		clearOfflinePlan();
+
+		expect(readOfflineCards()).toBeNull();
 	});
 });

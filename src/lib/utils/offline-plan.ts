@@ -1,4 +1,6 @@
-import type { Schedule } from '#lib/server/trenara/types.js';
+import type { Goal, Schedule, UserStats } from '#lib/server/trenara/types.js';
+import type { ChartDataPoint } from '#lib/components/charts/prediction-chart.svelte';
+import { isRenderableStats } from './user-stats';
 
 /**
  * The plan as it last stood, kept on this device for when there is no
@@ -23,6 +25,16 @@ import type { Schedule } from '#lib/server/trenara/types.js';
 
 /** Separate from the rated-locally key; the shape is versioned by `version`. */
 export const OFFLINE_PLAN_KEY = 'trainara:offline-plan';
+
+/**
+ * The goal card's data, under a key of its own.
+ *
+ * Its own because it has its own writer: the dashboard page saves what its
+ * load handed the cards, and the calendar saves the months whenever they
+ * change. Two writers sharing one key would each overwrite the other's half
+ * with whatever they last read of it.
+ */
+export const OFFLINE_CARDS_KEY = 'trainara:offline-cards';
 
 /**
  * Bumped when the shape changes; a stored plan of another version is ignored.
@@ -94,10 +106,11 @@ export function saveOfflinePlan(plan: OfflinePlan): void {
 	}
 }
 
-/** Forget the plan: the runner has signed out, or is about to. */
+/** Forget the plan and the cards: the runner has signed out, or is about to. */
 export function clearOfflinePlan(): void {
 	try {
 		storage()?.removeItem(OFFLINE_PLAN_KEY);
+		storage()?.removeItem(OFFLINE_CARDS_KEY);
 	} catch {
 		// Nothing stored that can be reached is nothing to clear.
 	}
@@ -168,4 +181,83 @@ export function formatSavedAt(savedAt: number): string {
 		hour: 'numeric',
 		minute: '2-digit'
 	});
+}
+
+// ── The goal card ────────────────────────────────────────────
+
+/** Bumped when the shape changes; cards of another version are ignored. */
+const CARDS_VERSION = 1;
+
+/** What the dashboard's card column draws (`dashboard-cards.svelte`). */
+export interface OfflineCards {
+	version: typeof CARDS_VERSION;
+	/** When the dashboard's load read these, in ms. */
+	savedAt: number;
+	goal: Goal | null;
+	userStats: UserStats;
+	history: ChartDataPoint[];
+}
+
+/**
+ * Keep the cards for next time. Stats that would not draw are not kept: the
+ * dashboard shows "Some data could not be loaded" for them, and replacing a
+ * good copy with that would leave the offline page worse off than before.
+ */
+export function saveOfflineCards(
+	cards: Omit<OfflineCards, 'version' | 'userStats'> & {
+		userStats: UserStats | null;
+	}
+): void {
+	if (!isRenderableStats(cards.userStats)) return;
+	try {
+		storage()?.setItem(
+			OFFLINE_CARDS_KEY,
+			JSON.stringify({ ...cards, userStats: cards.userStats, version: CARDS_VERSION })
+		);
+	} catch {
+		// As for the plan: the worst case is the cards from the last save that worked.
+	}
+}
+
+/** A point the prediction chart can plot: dated, with numbers where it reads numbers. */
+function isChartPoint(value: unknown): value is ChartDataPoint {
+	return (
+		isObject(value) &&
+		typeof value.date === 'string' &&
+		typeof value.predictedTime === 'number' &&
+		typeof value.predictedPace === 'number' &&
+		typeof value.formattedTime === 'string' &&
+		typeof value.formattedPace === 'string'
+	);
+}
+
+/**
+ * The cards kept on this device, or null if there are none this build can
+ * read. Checked as far as the column itself checks what it is handed — the
+ * stats by `isRenderableStats`, the goal by being an object with a name — and
+ * no further; the page draws them inside a boundary for the rest.
+ */
+export function readOfflineCards(): OfflineCards | null {
+	try {
+		const raw = storage()?.getItem(OFFLINE_CARDS_KEY);
+		if (!raw) return null;
+
+		const parsed: unknown = JSON.parse(raw);
+		if (!isObject(parsed) || parsed.version !== CARDS_VERSION) return null;
+		if (typeof parsed.savedAt !== 'number' || !Number.isFinite(parsed.savedAt)) return null;
+		if (!isRenderableStats(parsed.userStats as UserStats | null)) return null;
+
+		const goal = parsed.goal;
+		if (goal !== null && !(isObject(goal) && typeof goal.name === 'string')) return null;
+
+		return {
+			version: CARDS_VERSION,
+			savedAt: parsed.savedAt,
+			goal: goal as Goal | null,
+			userStats: parsed.userStats as UserStats,
+			history: Array.isArray(parsed.history) ? parsed.history.filter(isChartPoint) : []
+		};
+	} catch {
+		return null;
+	}
 }

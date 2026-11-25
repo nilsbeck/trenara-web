@@ -162,8 +162,9 @@ What follows is the design as it actually stands.
   `vite.config.ts`, in the options passed to `sveltekit()`.
 - **The one copy of the plan the browser keeps is the offline plan.**
   `#lib/utils/offline-plan` stores this month and the next in `localStorage`,
-  as the calendar holds them, so `/offline` can draw the calendar without a
-  connection. It is cleared on logout and whenever the login page renders,
+  as the calendar holds them, and — under a key of its own, since the
+  dashboard page writes it — what the goal card draws, so `/offline` can
+  draw the dashboard without a connection. It is cleared on logout and whenever the login page renders,
   because unlike a cookie nothing on the server can remove it. Read-only is a
   property of the page, not of the data: the store runs with `readOnly` (it
   fetches nothing) and the day is drawn by `training-summary.svelte`, which
@@ -702,7 +703,7 @@ chosen per field; the API reference says which.
   hand-over of one hung with the placeholder on screen. The worker fetches
   every page itself, and stops waiting for a held one after 20 seconds. A
   navigation with no network is redirected to `/offline`, the other
-  prerendered page, which draws the calendar from the plan the dashboard kept
+  prerendered page, which draws the dashboard's cards and calendar from what it kept
   in `localStorage` (`#lib/utils/offline-plan`) — read-only, under one line
   with the time it was saved. That page holds no data of its own and must
   never gain an action: a change made against a copy is a change against a

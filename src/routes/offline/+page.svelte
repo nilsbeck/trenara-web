@@ -1,7 +1,15 @@
 <script lang="ts">
 	import { CloudOff, Loader2 } from '@lucide/svelte';
 	import OfflineCalendar from '#lib/components/calendar/offline-calendar.svelte';
-	import { formatSavedAt, readOfflinePlan, type OfflinePlan } from '#lib/utils/offline-plan.js';
+	import DashboardColumns from '#lib/components/dashboard/dashboard-columns.svelte';
+	import DashboardCards from '#lib/components/dashboard/dashboard-cards.svelte';
+	import {
+		formatSavedAt,
+		readOfflineCards,
+		readOfflinePlan,
+		type OfflineCards,
+		type OfflinePlan
+	} from '#lib/utils/offline-plan.js';
 	import { isOffline } from '#lib/utils/network.js';
 
 	/**
@@ -19,6 +27,19 @@
 	 * would be an answer it does not have yet.
 	 */
 	let plan = $state<OfflinePlan | null | undefined>(undefined);
+
+	/**
+	 * The goal card's data, kept by the dashboard beside the plan. Optional:
+	 * without it the calendar is drawn alone, as it was before the cards were
+	 * kept, rather than beside a column saying something could not be loaded.
+	 */
+	let cards = $state<OfflineCards | null>(null);
+
+	/**
+	 * How old what is on screen is: the older of the two copies, so the line
+	 * never claims anything on the page is fresher than it is.
+	 */
+	const dataFrom = $derived(plan ? Math.min(plan.savedAt, cards?.savedAt ?? plan.savedAt) : null);
 
 	/** Today, as of when the page looked — the prerendered value is the build's. */
 	let now = $state(new Date());
@@ -47,6 +68,7 @@
 	// once, and the two listeners are the outside-Svelte sync an effect is for.
 	$effect(() => {
 		plan = readOfflinePlan();
+		cards = readOfflineCards();
 		now = new Date();
 		connection = isOffline() ? 'offline' : 'unknown';
 
@@ -77,10 +99,10 @@
 	<CloudOff class="h-3.5 w-3.5 shrink-0 text-warning" aria-hidden="true" />
 	<span class="min-w-0 flex-1 truncate text-muted-foreground">
 		<span class="font-medium text-warning">{status}</span>
-		{#if plan}
-			· saved
-			<time datetime={new Date(plan.savedAt).toISOString()} data-testid="offline-saved-at"
-				>{formatSavedAt(plan.savedAt)}</time
+		{#if dataFrom !== null}
+			· Data from
+			<time datetime={new Date(dataFrom).toISOString()} data-testid="offline-saved-at"
+				>{formatSavedAt(dataFrom)}</time
 			>
 		{:else if plan === null}
 			· no saved plan
@@ -100,23 +122,54 @@
 	</a>
 </div>
 
-<div class="flex justify-center px-4 py-4">
+<!--
+	The same box as the app frame's `<main>`, and a block rather than a centring
+	flex row: the dashboard's columns cap themselves at the width of what holds
+	them, and a flex row sized them to their content instead — on a phone the
+	cards ran off the left edge of the screen.
+-->
+<main class="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
 	{#if plan === undefined}
 		<!-- The calendar card's footprint, so the plan lands in place. -->
 		<div
-			class="flex h-80 w-[28rem] max-w-full items-center justify-center rounded-xl border border-border bg-card"
+			class="mx-auto flex h-80 w-[28rem] max-w-full items-center justify-center rounded-xl border border-border bg-card"
 			role="status"
 			data-testid="offline-plan-loading"
 		>
 			<Loader2 class="h-6 w-6 animate-spin text-muted-foreground" aria-hidden="true" />
 			<span class="sr-only">Looking for your saved plan</span>
 		</div>
+	{:else if plan && cards}
+		<!-- Narrowed here: a snippet does not carry the `{#if}`'s narrowing inside it. -->
+		{@const kept = cards}
+		{@const keptPlan = plan}
+		<!-- The dashboard's own columns and cards, so this is the dashboard, read-only. -->
+		<DashboardColumns>
+			{#snippet cards()}
+				<!--
+					Drawn from storage, which a build that wrote another shape could
+					have filled: a card that cannot draw what it was given takes
+					itself off the page, not the calendar with it.
+				-->
+				<svelte:boundary>
+					<DashboardCards goal={kept.goal} userStats={kept.userStats} history={kept.history} />
+					{#snippet failed()}
+						<p class="text-sm text-muted-foreground" data-testid="offline-cards-failed">
+							The goal card could not be drawn from the saved data.
+						</p>
+					{/snippet}
+				</svelte:boundary>
+			{/snippet}
+			{#snippet calendar()}
+				<OfflineCalendar plan={keptPlan} today={now} />
+			{/snippet}
+		</DashboardColumns>
 	{:else if plan}
 		<OfflineCalendar {plan} today={now} />
 	{:else}
-		<p class="w-[28rem] max-w-full pt-8 text-center text-sm text-muted-foreground">
+		<p class="mx-auto w-[28rem] max-w-full pt-8 text-center text-sm text-muted-foreground">
 			Your plan needs a connection to load, and none was saved on this device yet. Nothing is lost —
 			it's on Trenara, waiting.
 		</p>
 	{/if}
-</div>
+</main>

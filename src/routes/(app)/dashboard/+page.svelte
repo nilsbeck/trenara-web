@@ -6,6 +6,7 @@
 	import GoalCardShare from '#lib/components/goal/goal-card-share.svelte';
 	import DashboardColumns from '#lib/components/dashboard/dashboard-columns.svelte';
 	import DashboardCards from '#lib/components/dashboard/dashboard-cards.svelte';
+	import { saveOfflineCards } from '#lib/utils/offline-plan.js';
 
 	let { data }: { data: PageServerData } = $props();
 
@@ -21,6 +22,14 @@
 	// goal and stats, never the chart, and this keeps that unchanged rather
 	// than reaching for a third endpoint response to widen it.
 	const history = $derived(data.history);
+
+	// What the cards draw, kept on the device for the offline page
+	// (`#lib/utils/offline-plan`); the calendar keeps the months itself.
+	// Storage is outside Svelte, which is what an effect is for. Again after a
+	// background refresh, since that is newer than what the load read.
+	$effect(() => {
+		saveOfflineCards({ savedAt: Date.now(), goal, userStats, history: history.records });
+	});
 
 	/**
 	 * Everything on this page except the calendar, which refreshes itself.

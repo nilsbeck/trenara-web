@@ -75,10 +75,11 @@ everything from the reverse-engineered Trenara API.
   you are home as the session ends. It follows the cool-down when you remove or restore it, and when
   halfway falls inside a rep it turns before the rep, or halfway through a long one, leaning towards a
   shorter cool-down rather than a longer one, and says by how much.
-- **Your plan offline, read-only**: with no connection the app opens on the calendar as it was last
-  loaded — this month and the next, month and week view, every session's blocks and coach notes —
-  under one line saying it is offline and when the plan was saved. Nothing on it can be changed;
-  "Retry" goes back to the live calendar, and signing out removes the saved copy from the device.
+- **Your plan offline, read-only**: with no connection the app opens on the dashboard as it was last
+  loaded — the goal card with its graphs and predictions, and the calendar for this month and the
+  next, with every session's blocks and coach notes — under one line saying it is offline and how
+  old the data is. Nothing on it can be changed; "Retry" goes back to the live dashboard, and
+  signing out removes the saved copy from the device.
 
 ### Changing a session
 
