@@ -21,6 +21,9 @@
 	--color-card-foreground: hsl(220 14% 90%);
 	--color-popover: hsl(220 18% 17%);
 	--color-popover-foreground: hsl(220 14% 90%);
+	/* Shown data that is not live: the offline page's banner. Amber, so it reads
+	   as "take note" rather than as an error (destructive) or as the brand. */
+	--color-warning: hsl(38 92% 60%);
 	--radius: 0.5rem;
 
 	/* Calendar dot / state colors */

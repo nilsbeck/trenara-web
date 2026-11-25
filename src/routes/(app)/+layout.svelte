@@ -16,6 +16,7 @@
 	import AppFrame from '#lib/components/shared/app-frame.svelte';
 	import { formatUnread } from '#lib/utils/news-unread.js';
 	import { appConfig } from '#lib/stores/app-config.svelte.js';
+	import { clearOfflinePlan } from '#lib/utils/offline-plan.js';
 	import type { Snippet } from 'svelte';
 
 	// `children` was typed `any`, which agents.md forbids — and survived a
@@ -211,8 +212,13 @@
 								before the button's default action ran — and a form no longer in
 								the document is silently not submitted. Logout did nothing. The
 								POST navigates away anyway, which closes the menu for good.
+
+								`clearOfflinePlan` forgets the plan kept for offline use: unlike
+								the session cookies it lives in this browser's storage, and
+								nothing on the server can remove it. The login page clears it
+								too, for a session that ended without this button.
 							-->
-					<form method="POST" action="/logout">
+					<form method="POST" action="/logout" onsubmit={clearOfflinePlan}>
 						<button
 							type="submit"
 							class="flex w-full items-center gap-2 px-4 py-2 text-left text-sm text-destructive hover:bg-accent"

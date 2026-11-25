@@ -16,14 +16,16 @@ const scope = vi.hoisted(() => ({
 	disablePreload: vi.fn(async (): Promise<void> => undefined),
 	claim: vi.fn(async () => undefined),
 	skipWaiting: vi.fn(async () => undefined),
-	preloadSupported: true
+	preloadSupported: true,
+	/** Whether the offline calendar is on disk; off unless a case says so. */
+	offlinePlanCached: false
 }));
 
 vi.mock('$app/env', () => ({ version: 'test-build' }));
 vi.mock('$app/manifest', () => ({
 	immutable: [{ path: '_app/immutable/entry/start.js' }],
-	assets: [{ path: 'offline.html' }, { path: 'logo.svg' }],
-	prerendered: [{ path: 'launch' }]
+	assets: [{ path: 'offline-fallback.html' }, { path: 'logo.svg' }],
+	prerendered: [{ path: 'launch' }, { path: 'offline' }]
 }));
 vi.mock('$app/service-worker', () => ({
 	self: {
@@ -40,6 +42,7 @@ vi.mock('$app/service-worker', () => ({
 }));
 
 const OFFLINE = new Response('offline page', { status: 200 });
+const OFFLINE_PLAN = new Response('offline calendar', { status: 200 });
 const PLACEHOLDER = new Response('launch placeholder', {
 	status: 200,
 	headers: { 'content-type': 'text/html', etag: '"build"' }
@@ -49,9 +52,13 @@ const cacheStorage = {
 	open: vi.fn(async () => ({ addAll })),
 	keys: vi.fn(async () => ['trainara-old-build', 'trainara-test-build']),
 	delete: vi.fn(async () => true),
-	match: vi.fn(async (key: unknown) =>
-		key === '/offline.html' ? OFFLINE.clone() : key === '/launch' ? PLACEHOLDER.clone() : undefined
-	)
+	match: vi.fn(async (key: unknown) => {
+		const path = key instanceof Request ? new URL(key.url).pathname : key;
+		if (path === '/offline-fallback.html') return OFFLINE.clone();
+		if (path === '/launch') return PLACEHOLDER.clone();
+		if (path === '/offline' && scope.offlinePlanCached) return OFFLINE_PLAN.clone();
+		return undefined;
+	})
 };
 const network = vi.fn<(request: unknown) => Promise<Response>>();
 
@@ -126,6 +133,7 @@ beforeEach(async () => {
 	vi.resetAllMocks();
 	scope.listeners.clear();
 	scope.preloadSupported = true;
+	scope.offlinePlanCached = false;
 	vi.stubGlobal('caches', cacheStorage);
 	vi.stubGlobal('fetch', network);
 	await import('./index');
@@ -135,7 +143,9 @@ describe('service worker — installation', () => {
 	it('keeps the launch placeholder on disk with the shell', async () => {
 		await fire('install');
 
-		expect(addAll).toHaveBeenCalledWith(expect.arrayContaining(['/launch', '/offline.html']));
+		expect(addAll).toHaveBeenCalledWith(
+			expect.arrayContaining(['/launch', '/offline-fallback.html'])
+		);
 	});
 });
 
@@ -192,7 +202,7 @@ describe('service worker — navigations', () => {
 		expect(answer).toBe(page);
 	});
 
-	it('shows the offline page when there is no network', async () => {
+	it('shows the static offline page when there is no network and no offline calendar on disk', async () => {
 		network.mockRejectedValue(new TypeError('Failed to fetch'));
 
 		const answer = (await fire('fetch', navigation('/dashboard'))) as Response;
@@ -438,6 +448,33 @@ describe('service worker — a slow dashboard', () => {
 });
 
 describe('service worker — everything else', () => {
+	/**
+	 * A host can answer the shell with `Vary: Origin` — `vite preview` does —
+	 * and the copy stored at install was asked for with no `Origin`, while a
+	 * chunk loaded with `import()` is asked for with one. A lookup that honours
+	 * `Vary` then misses, and offline the chunk is not there: the goal card's
+	 * graphs said "could not be loaded" on the offline page for exactly this.
+	 * The files are content-hashed or static, so `Vary` has nothing to say
+	 * about them.
+	 */
+	it('finds the shell on disk whatever the request varies on', async () => {
+		const cached = new Response('chart chunk');
+		cacheStorage.match.mockImplementationOnce(async (_key: unknown, options?: CacheQueryOptions) =>
+			options?.ignoreVary ? cached : undefined
+		);
+		network.mockRejectedValue(new TypeError('Failed to fetch'));
+
+		const answer = await fire('fetch', {
+			request: {
+				method: 'GET',
+				url: 'https://trainara.test/_app/immutable/entry/start.js',
+				mode: 'cors'
+			}
+		});
+
+		expect(answer).toBe(cached);
+	});
+
 	it('serves the built shell from the cache', async () => {
 		const cached = new Response('js');
 		cacheStorage.match.mockResolvedValueOnce(cached);
@@ -468,5 +505,70 @@ describe('service worker — everything else', () => {
 		});
 
 		expect(answer).toBeUndefined();
+	});
+});
+
+describe('service worker — the offline calendar', () => {
+	beforeEach(() => {
+		scope.offlinePlanCached = true;
+	});
+
+	it('keeps the offline calendar on disk with the shell', async () => {
+		await fire('install');
+
+		expect(addAll).toHaveBeenCalledWith(
+			expect.arrayContaining(['/offline', '/offline-fallback.html', '/launch'])
+		);
+	});
+
+	it('sends a navigation with no network to the offline calendar', async () => {
+		network.mockRejectedValue(new TypeError('Failed to fetch'));
+
+		const answer = (await fire('fetch', navigation('/goal'))) as Response;
+
+		expect(answer.status).toBe(302);
+		expect(answer.headers.get('location')).toBe('https://trainara.test/offline');
+	});
+
+	it('sends a launch there too when the dashboard cannot be reached', async () => {
+		network.mockRejectedValue(new TypeError('Failed to fetch'));
+
+		const answer = (await fire('fetch', navigation('/dashboard'))) as Response;
+
+		expect(answer.headers.get('location')).toBe('https://trainara.test/offline');
+	});
+
+	it('serves the offline calendar itself from disk', async () => {
+		const answer = (await fire('fetch', navigation('/offline'))) as Response;
+
+		expect(await answer.text()).toBe('offline calendar');
+		expect(network).not.toHaveBeenCalled();
+	});
+
+	describe('behind the launch placeholder', () => {
+		beforeEach(() => {
+			vi.useFakeTimers();
+		});
+
+		afterEach(() => {
+			vi.useRealTimers();
+		});
+
+		// The connection went while the placeholder was up: the held request and
+		// the retry both fail, and the runner lands on the saved plan.
+		it('sends the hand-over there when the held request and the retry both fail', async () => {
+			const page = deferred<Response>();
+			network.mockReturnValueOnce(page.promise);
+			const launch = dispatch('fetch', navigation('/dashboard'));
+			await vi.advanceTimersByTimeAsync(300);
+			await launch.response;
+
+			network.mockRejectedValueOnce(new TypeError('Failed to fetch'));
+			const collected = dispatch('fetch', navigation('/dashboard'));
+			page.reject(new TypeError('Failed to fetch'));
+
+			const answer = (await collected.response) as Response;
+			expect(answer.headers.get('location')).toBe('https://trainara.test/offline');
+		});
 	});
 });

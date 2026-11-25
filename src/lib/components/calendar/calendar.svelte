@@ -9,6 +9,7 @@
 	import { whenIdle } from '#lib/utils/load-once.js';
 	import { initialCalendarDay } from '#lib/utils/initial-day.js';
 	import { reconcileRatedEntries } from '#lib/utils/rated-locally.js';
+	import { saveOfflinePlan } from '#lib/utils/offline-plan.js';
 	import { openingViewCookie, type OpeningView } from '#lib/utils/opening-view.js';
 	import type { Schedule } from '#lib/server/trenara/types.js';
 	import CalendarHeader from './calendar-header.svelte';
@@ -182,6 +183,15 @@
 		// Re-run when the week moves.
 		void store.weekDays[0];
 		return whenIdle(() => void store.prefetchAdjacentWeeks());
+	});
+
+	// The plan as it now stands, kept in this browser's storage for the offline
+	// page (`src/routes/offline`) to show when there is no connection. Storage
+	// is outside Svelte, which is what an effect is for; the store decides what
+	// is worth keeping and this only writes it down.
+	$effect(() => {
+		const plan = store.offlinePlan;
+		if (plan) saveOfflinePlan(plan);
 	});
 
 	// Sessions the runner changes come back from the mutation itself, so the only

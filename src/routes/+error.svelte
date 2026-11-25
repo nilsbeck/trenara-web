@@ -13,6 +13,8 @@
 		TriangleAlert,
 		Loader2
 	} from '@lucide/svelte';
+	import { hasOfflinePlan } from '#lib/utils/offline-plan.js';
+	import { isOffline } from '#lib/utils/network.js';
 
 	/**
 	 * What the app shows when a load function threw.
@@ -116,6 +118,25 @@
 	let retrying = $state(false);
 
 	/**
+	 * Whether to offer the plan kept on this device (`/offline`).
+	 *
+	 * A navigation inside the app that fails for want of a connection never
+	 * reaches the service worker — the router fetches the page's data itself,
+	 * and lands here when that fails — so this is the in-app way to the saved
+	 * plan. Offered when the browser says it is offline, and when Trenara is
+	 * not answering, since in both cases the saved plan is the best there is.
+	 *
+	 * Set in an effect rather than derived: storage and `navigator.onLine` are
+	 * the browser's, this page also renders on the server, and both renders
+	 * have to agree on the first paint.
+	 */
+	// eslint-disable-next-line svelte/prefer-writable-derived -- derived, it would read storage during the server render and differ from it on hydration
+	let savedPlan = $state(false);
+	$effect(() => {
+		savedPlan = (isOffline() || unreachable) && hasOfflinePlan();
+	});
+
+	/**
 	 * Re-run the load that failed, without a full page load.
 	 *
 	 * `refreshAll` keeps the session and the rest of the app in memory, which
@@ -207,6 +228,18 @@
 						Try again
 					{/if}
 				</button>
+			{/if}
+
+			{#if savedPlan}
+				<!-- A full load, which the service worker answers from disk. -->
+				<a
+					href="/offline"
+					data-sveltekit-reload
+					data-testid="saved-plan-link"
+					class="inline-flex items-center justify-center rounded-md border border-border px-4 py-2 text-sm font-medium text-foreground transition-colors hover:bg-secondary"
+				>
+					See your saved plan
+				</a>
 			{/if}
 
 			<a

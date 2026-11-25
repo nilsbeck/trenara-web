@@ -160,6 +160,16 @@ What follows is the design as it actually stands.
   _first_ in the hook sequence — `handleGuard` returns its 401 without calling
   `resolve`, so anything behind it would miss the refusals. The CSP lives in
   `vite.config.ts`, in the options passed to `sveltekit()`.
+- **The one copy of the plan the browser keeps is the offline plan.**
+  `#lib/utils/offline-plan` stores this month and the next in `localStorage`,
+  as the calendar holds them, and — under a key of its own, since the
+  dashboard page writes it — what the goal card draws, so `/offline` can
+  draw the dashboard without a connection. It is cleared on logout and whenever the login page renders,
+  because unlike a cookie nothing on the server can remove it. Read-only is a
+  property of the page, not of the data: the store runs with `readOnly` (it
+  fetches nothing) and the day is drawn by `training-summary.svelte`, which
+  has no control and must never gain one. Colours go through `trainingColor`
+  as everywhere else.
 - **Everything that touches Trenara or Supabase runs on the server.** The
   browser talks only to this app (`connect-src 'self'`); it never holds a
   Trenara token, a Supabase key, or a URL on either host.
@@ -691,7 +701,17 @@ chosen per field; the API reference says which.
   that reason, and must stay off while the hand-over exists: a preloaded
   request belongs to the navigation it was sent for, and in Safari the
   hand-over of one hung with the placeholder on screen. The worker fetches
-  every page itself, and stops waiting for a held one after 20 seconds. Its frame and columns are
+  every page itself, and stops waiting for a held one after 20 seconds. A
+  navigation with no network is redirected to `/offline`, the other
+  prerendered page, which draws the dashboard's cards and calendar from what it kept
+  in `localStorage` (`#lib/utils/offline-plan`) — read-only, under one line
+  with the time it was saved. That page holds no data of its own and must
+  never gain an action: a change made against a copy is a change against a
+  plan that may no longer exist. A reload of it goes to the dashboard, as
+  Retry does (`#lib/utils/offline-reload`); the worker's redirect back is a
+  navigation, not a reload, so it cannot loop. The static fallback is
+  `offline-fallback.html`, not `offline.html`, because a prerendered
+  `/offline` is written to that very file. Its frame and columns are
   the shared `AppFrame` and `DashboardColumns`, so those follow the real page;
   its card heights are measured values, to re-measure when the goal card's
   head or the calendar's cards change height. It is its own TypeScript project

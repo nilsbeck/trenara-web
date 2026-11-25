@@ -79,3 +79,16 @@ describe('dashboard layout on a phone', () => {
 		expect(checked).toBeGreaterThanOrEqual(3);
 	});
 });
+
+describe('the dashboard and the offline page', () => {
+	// The offline page draws the same cards from this copy (`/offline`).
+	it('keeps what the cards draw on the device', () => {
+		localStorage.clear();
+		render(Page, { data } as never);
+
+		const kept = JSON.parse(localStorage.getItem('trainara:offline-cards')!);
+		expect(kept.goal).toEqual(data.goal);
+		expect(kept.userStats).toEqual(data.userStats);
+		expect(typeof kept.savedAt).toBe('number');
+	});
+});

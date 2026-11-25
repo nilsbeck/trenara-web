@@ -25,18 +25,21 @@
 </script>
 
 <div class="flex items-center gap-1">
-	<button
-		type="button"
-		onclick={() => store.navigation.refresh()}
-		disabled={store.isLoading}
-		class="rounded-lg p-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:opacity-50 disabled:cursor-not-allowed"
-		class:text-foreground={store.isRevalidating}
-		aria-label="Refresh"
-		aria-busy={store.isRevalidating}
-		title={refreshLabel}
-	>
-		<RefreshCw class={store.isRevalidating ? 'h-4 w-4 animate-spin' : 'h-4 w-4'} />
-	</button>
+	<!-- Offline there is nothing to refresh from; the page's own line says so. -->
+	{#if !store.readOnly}
+		<button
+			type="button"
+			onclick={() => store.navigation.refresh()}
+			disabled={store.isLoading}
+			class="rounded-lg p-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:opacity-50 disabled:cursor-not-allowed"
+			class:text-foreground={store.isRevalidating}
+			aria-label="Refresh"
+			aria-busy={store.isRevalidating}
+			title={refreshLabel}
+		>
+			<RefreshCw class={store.isRevalidating ? 'h-4 w-4 animate-spin' : 'h-4 w-4'} />
+		</button>
+	{/if}
 	<button
 		type="button"
 		onclick={() => store.navigation.goToPrevious()}
