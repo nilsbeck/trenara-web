@@ -707,7 +707,9 @@ chosen per field; the API reference says which.
   in `localStorage` (`#lib/utils/offline-plan`) — read-only, under one line
   with the time it was saved. That page holds no data of its own and must
   never gain an action: a change made against a copy is a change against a
-  plan that may no longer exist. The static fallback is
+  plan that may no longer exist. A reload of it goes to the dashboard, as
+  Retry does (`#lib/utils/offline-reload`); the worker's redirect back is a
+  navigation, not a reload, so it cannot loop. The static fallback is
   `offline-fallback.html`, not `offline.html`, because a prerendered
   `/offline` is written to that very file. Its frame and columns are
   the shared `AppFrame` and `DashboardColumns`, so those follow the real page;

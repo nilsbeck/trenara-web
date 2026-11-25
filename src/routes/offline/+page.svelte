@@ -11,6 +11,7 @@
 		type OfflinePlan
 	} from '#lib/utils/offline-plan.js';
 	import { isOffline } from '#lib/utils/network.js';
+	import { goLive, LIVE_PAGE, wasReloaded } from '#lib/utils/offline-reload.js';
 
 	/**
 	 * The plan as it was last seen, shown when there is no connection.
@@ -67,6 +68,14 @@
 	// page has no load to read them in (see `+page.ts`) — so they are read here,
 	// once, and the two listeners are the outside-Svelte sync an effect is for.
 	$effect(() => {
+		// A refresh is a retry (`#lib/utils/offline-reload`). The page stays on
+		// its "looking" state meanwhile, rather than flashing the plan on the
+		// way out.
+		if (wasReloaded()) {
+			goLive();
+			return;
+		}
+
 		plan = readOfflinePlan();
 		cards = readOfflineCards();
 		now = new Date();
@@ -114,7 +123,7 @@
 		dashboard when the network is there, and with this page when it is not.
 	-->
 	<a
-		href="/dashboard"
+		href={LIVE_PAGE}
 		data-sveltekit-reload
 		class="shrink-0 font-medium {connection === 'back' ? 'text-primary' : 'text-foreground'}"
 	>

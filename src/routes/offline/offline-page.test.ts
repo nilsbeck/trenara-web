@@ -4,6 +4,14 @@ import { flushSync, tick } from 'svelte';
 import OfflinePage from './+page.svelte';
 import { OFFLINE_CARDS_KEY, OFFLINE_PLAN_KEY, type OfflinePlan } from '#lib/utils/offline-plan.js';
 
+// How the document was arrived at, and where a reload sends it: set per case.
+const reload = vi.hoisted(() => ({ reloaded: false, goLive: vi.fn() }));
+vi.mock('#lib/utils/offline-reload.js', async (original) => ({
+	...(await original<typeof import('#lib/utils/offline-reload.js')>()),
+	wasReloaded: () => reload.reloaded,
+	goLive: reload.goLive
+}));
+
 // The cards are the dashboard's own and tested there; here it matters that
 // they are drawn from the kept copy, beside the calendar.
 vi.mock('#lib/components/goal/goal-card.svelte', async () => ({
@@ -123,6 +131,8 @@ function setOnline(value: boolean) {
 }
 
 beforeEach(() => {
+	reload.reloaded = false;
+	reload.goLive.mockClear();
 	vi.useFakeTimers({ toFake: ['Date'] });
 	vi.setSystemTime(NOW);
 	localStorage.clear();
@@ -311,6 +321,33 @@ describe('the offline page with only the plan kept', () => {
 
 		expect(screen.queryAllByTestId('stub')).toHaveLength(0);
 		expect(screen.queryByText('Some data could not be loaded')).toBeNull();
+		expect(screen.getByText('November 2026')).toBeTruthy();
+	});
+});
+
+describe('refreshing the offline page', () => {
+	beforeEach(() => {
+		localStorage.setItem(OFFLINE_PLAN_KEY, JSON.stringify(plan));
+	});
+
+	// Refreshing used to reload the cached copy, so a runner whose connection
+	// was back stayed offline until they found the Retry link.
+	it('goes back to the live app, as Retry does', () => {
+		reload.reloaded = true;
+		render(OfflinePage);
+
+		expect(reload.goLive).toHaveBeenCalledTimes(1);
+		// Still looking, rather than flashing the saved plan on the way out.
+		expect(screen.getByTestId('offline-plan-loading')).toBeTruthy();
+		expect(screen.queryByText('November 2026')).toBeNull();
+	});
+
+	// Landing here from the worker's redirect is not a reload; sending that on
+	// again would bounce between the two pages for as long as the signal is gone.
+	it('stays put when the page was reached rather than reloaded', () => {
+		render(OfflinePage);
+
+		expect(reload.goLive).not.toHaveBeenCalled();
 		expect(screen.getByText('November 2026')).toBeTruthy();
 	});
 });

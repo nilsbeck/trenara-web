@@ -78,7 +78,7 @@ everything from the reverse-engineered Trenara API.
 - **Your plan offline, read-only**: with no connection the app opens on the dashboard as it was last
   loaded — the goal card with its graphs and predictions, and the calendar for this month and the
   next, with every session's blocks and coach notes — under one line saying it is offline and how
-  old the data is. Nothing on it can be changed; "Retry" goes back to the live dashboard, and
+  old the data is. Nothing on it can be changed; "Retry", or simply refreshing, goes back to the live dashboard, and
   signing out removes the saved copy from the device.
 
 ### Changing a session
