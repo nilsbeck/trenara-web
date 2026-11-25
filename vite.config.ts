@@ -41,16 +41,17 @@ export default defineConfig({
 			}),
 
 			/**
-			 * One prerendered page, named, and nothing found by following links.
+			 * Two prerendered pages, named, and nothing found by following links.
 			 *
-			 * The launch placeholder (`src/routes/launch`) is the only page built
-			 * ahead of time. It draws the signed-in navbar, whose logo links to
-			 * `/dashboard`, and crawling followed that link into a page that needs a
-			 * session and cannot be built at all — which failed the build.
+			 * The launch placeholder (`src/routes/launch`) and the offline calendar
+			 * (`src/routes/offline`) are the only pages built ahead of time. Both
+			 * link to `/dashboard` — the launch page's navbar logo, the offline
+			 * page's "Retry" — and crawling followed that link into a page that
+			 * needs a session and cannot be built at all, which failed the build.
 			 */
 			prerender: {
 				crawl: false,
-				entries: ['/launch']
+				entries: ['/launch', '/offline']
 			},
 
 			csp: {

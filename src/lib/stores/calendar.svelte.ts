@@ -21,6 +21,7 @@ import {
 } from '#lib/utils/date.js';
 import { entryLocalDate, mergeSchedule, type SchedulePayload } from '#lib/utils/schedule.js';
 import { reconcileRatedEntries } from '#lib/utils/rated-locally.js';
+import { buildOfflinePlan, type OfflinePlan } from '#lib/utils/offline-plan.js';
 
 export type CalendarDate = {
 	year: number;
@@ -52,6 +53,22 @@ export interface CalendarStoreOptions {
 	 * simply fetches every month itself.
 	 */
 	refreshPageData?: () => Promise<unknown>;
+	/**
+	 * The offline calendar (`src/routes/offline`): months come only from what
+	 * is seeded with `setSchedule`, and nothing is ever fetched — a month that
+	 * was not kept is an error the page draws, not a request. Nothing in the
+	 * store writes upstream itself, so this closes the one door it has; the
+	 * page draws no control that would call a mutation.
+	 */
+	readOnly?: boolean;
+}
+
+/** What a month that was not kept for offline use fails with. */
+export class MonthNotSavedError extends Error {
+	constructor() {
+		super('This month is not saved on this device.');
+		this.name = 'MonthNotSavedError';
+	}
 }
 
 /**
@@ -327,6 +344,36 @@ export function createCalendarStore(initialDate: Date, options: CalendarStoreOpt
 	const entryDates = $derived<Map<Entry, string | null>>(
 		buildEntryDateCache(schedule?.entries ?? [])
 	);
+
+	/**
+	 * The plan worth keeping on this device for when there is no connection
+	 * (`#lib/utils/offline-plan`): this month and, when it is held, the next —
+	 * so the last days of a month still show what comes after them.
+	 *
+	 * By today rather than by the month on screen: paging back to March must
+	 * not replace the kept plan with March. A month marked `stale` is left out,
+	 * since it is the copy from before a change the runner just made; until it
+	 * is read again the plan kept last time stands. `lastUpdatedAt` is read so a
+	 * 304, which re-stamps `fetchedAt` without touching the cache revision,
+	 * still moves the time the offline banner shows.
+	 */
+	const offlinePlan = $derived.by<OfflinePlan | null>(() => {
+		void cacheRevision;
+		void lastUpdatedAt;
+		// Without this month there is no "today" to show, and a plan of next
+		// month alone would read as a rest week until the 1st.
+		const thisMonth = scheduleCache.get(monthKey(today));
+		if (!thisMonth || thisMonth.stale) return null;
+
+		const nextKey = monthKey(new Date(today.getFullYear(), today.getMonth() + 1, 1));
+		const nextMonth = scheduleCache.get(nextKey);
+		return buildOfflinePlan([
+			{ month: monthKey(today), schedule: thisMonth.schedule, fetchedAt: thisMonth.fetchedAt },
+			...(nextMonth && !nextMonth.stale
+				? [{ month: nextKey, schedule: nextMonth.schedule, fetchedAt: nextMonth.fetchedAt }]
+				: [])
+		]);
+	});
 
 	// Derived: selected date as formatted string
 	const selectedDateString = $derived(
@@ -747,6 +794,8 @@ export function createCalendarStore(initialDate: Date, options: CalendarStoreOpt
 			fresh = false
 		}: { conditional: boolean; from: Date | null; fresh?: boolean }
 	): Promise<{ payload: SchedulePayload; etag: string | null } | null> {
+		if (options.readOnly) throw new MonthNotSavedError();
+
 		const cached = scheduleCache.get(monthKey(date));
 		const headers: Record<string, string> = {};
 		if (conditional && cached?.etag) {
@@ -1288,6 +1337,11 @@ export function createCalendarStore(initialDate: Date, options: CalendarStoreOpt
 		get scheduleRevision() {
 			return scheduleRevision;
 		},
+		get offlinePlan() {
+			return offlinePlan;
+		},
+		/** The offline calendar's store: nothing is fetched, nothing is changed. */
+		readOnly: options.readOnly ?? false,
 		get error() {
 			return error;
 		},

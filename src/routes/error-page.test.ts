@@ -163,3 +163,56 @@ describe('a session that has ended', () => {
 		expect(screen.queryByText('Unauthorized')).not.toBeInTheDocument();
 	});
 });
+
+describe('the error page and the saved plan', () => {
+	function setOnline(value: boolean) {
+		Object.defineProperty(navigator, 'onLine', { configurable: true, get: () => value });
+	}
+
+	beforeEach(() => {
+		localStorage.clear();
+		setOnline(true);
+	});
+
+	afterEach(() => {
+		localStorage.clear();
+		setOnline(true);
+	});
+
+	// A navigation inside the app that fails offline lands here, not on the
+	// service worker's page, so this is the way to the saved plan from inside.
+	it('offers the saved plan when the browser is offline and one is kept', () => {
+		setOnline(false);
+		localStorage.setItem('trainara:offline-plan', '{"version":1}');
+
+		show(500, { message: 'Failed to fetch' });
+
+		const link = screen.getByTestId('saved-plan-link');
+		expect(link.getAttribute('href')).toBe('/offline');
+		expect(link.hasAttribute('data-sveltekit-reload')).toBe(true);
+	});
+
+	it('offers it when Trenara is not answering', () => {
+		localStorage.setItem('trainara:offline-plan', '{"version":1}');
+
+		show(502, { message: 'Trenara is not answering.' });
+
+		expect(screen.getByTestId('saved-plan-link')).toBeTruthy();
+	});
+
+	it('does not offer a plan that was never kept', () => {
+		setOnline(false);
+
+		show(500, { message: 'Failed to fetch' });
+
+		expect(screen.queryByTestId('saved-plan-link')).toBeNull();
+	});
+
+	it('does not offer it for a failure the saved plan cannot help with', () => {
+		localStorage.setItem('trainara:offline-plan', '{"version":1}');
+
+		show(404, { message: 'Not Found' });
+
+		expect(screen.queryByTestId('saved-plan-link')).toBeNull();
+	});
+});

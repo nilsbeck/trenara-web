@@ -2,9 +2,20 @@
 	import { enhance } from '$app/forms';
 	import type { ActionData, PageData } from './$types';
 	import { Loader2 } from '@lucide/svelte';
+	import { clearOfflinePlan } from '#lib/utils/offline-plan.js';
 
 	let formLoading = $state(false);
 	let { form, data }: { form: ActionData; data: PageData } = $props();
+
+	// Signed out, however it happened — the logout button, an expired session,
+	// a different runner about to sign in on this device — so the plan kept for
+	// offline use (`#lib/utils/offline-plan`) goes. It lives in this browser's
+	// storage, out of the server's reach, and would otherwise be the one piece
+	// of the last runner's plan to outlive their session. Storage is outside
+	// Svelte; hence an effect.
+	$effect(() => {
+		clearOfflinePlan();
+	});
 </script>
 
 <div class="flex min-h-screen flex-col items-center justify-center px-6 py-12">

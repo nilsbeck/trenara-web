@@ -14,12 +14,18 @@ import { self as sw } from '$app/service-worker';
  *
  * What is cached, and what is deliberately not:
  *
- * - **The shell** — the built JS and CSS, the icons, the offline page. All
- *   content-hashed or static, so serving them from disk cannot be wrong.
+ * - **The shell** — the built JS and CSS, the icons, the static offline page.
+ *   All content-hashed or static, so serving them from disk cannot be wrong.
  * - **The launch placeholder** (`src/routes/launch`) — the frame of the app
  *   and a line saying the plan is loading, prerendered at build time. It is
  *   the same file for everyone and holds nothing of the runner's, so it is
  *   shell in the same sense: it cannot be out of date about anything.
+ * - **The offline calendar** (`src/routes/offline`) — prerendered the same
+ *   way and holding nothing of the runner's either. It draws the plan the
+ *   dashboard kept in this browser's storage (`#lib/utils/offline-plan`),
+ *   read-only, under a line saying it is offline and when the plan was saved.
+ *   That copy is kept by the app rather than as a cached response, it is
+ *   cleared on logout, and it is never served as if it were the live page.
  * - **Nothing else.** No API responses and no page rendered for a runner.
  *   Both carry the runner's training plan, and a plan served from disk
  *   without saying so is the same lie this app has spent its error handling
@@ -27,8 +33,8 @@ import { self as sw } from '$app/service-worker';
  *   a change that appears not to have saved. It would also outlive a logout,
  *   sitting in Cache Storage until something evicted it.
  *
- * So offline gets the shell and an honest page saying so, rather than a
- * plausible-looking plan that might be days old; and a slow start gets the
+ * So offline gets the plan as it was last seen, saying so and saying from
+ * when, rather than a plausible-looking plan passed off as today's; and a slow start gets the
  * shell and an honest line saying the plan is on its way (`navigate` below).
  */
 
@@ -53,13 +59,23 @@ function pathnameOf({ path }: { path: string }): string {
 const PRECACHE = [...immutable, ...assets, ...prerendered].map(pathnameOf);
 
 /**
- * The page shown for a navigation that cannot reach the network.
+ * The page shown for a navigation that cannot reach the network, when the
+ * offline calendar below is not on disk.
  *
  * Taken from the manifest rather than written out, because those paths carry
- * the app's base path and a literal `/offline.html` would silently miss the
- * cache the day this is ever served from a sub-path.
+ * the app's base path and a literal `/offline-fallback.html` would silently
+ * miss the cache the day this is ever served from a sub-path.
  */
-const OFFLINE_PAGE = PRECACHE.find((file) => file.endsWith('/offline.html'));
+const OFFLINE_PAGE = PRECACHE.find((file) => file.endsWith('/offline-fallback.html'));
+
+/**
+ * The offline calendar, found the same way.
+ *
+ * The static page was `offline.html` until this one arrived, and SvelteKit
+ * writes a prerendered `/offline` to exactly that file — the build silently
+ * put one in place of the other. Hence the static page's longer name.
+ */
+const OFFLINE_PLAN_PAGE = PRECACHE.find((file) => file.endsWith('/offline'));
 
 /** The page that stands in for a dashboard still on its way, found the same way. */
 const LAUNCH_PLACEHOLDER = PRECACHE.find((file) => file.endsWith('/launch'));
@@ -164,8 +180,19 @@ sw.addEventListener('activate', (event) => {
 	);
 });
 
-/** The offline page, for a navigation that could not reach the network. */
+/**
+ * What a navigation that could not reach the network is answered with: a
+ * redirect to the offline calendar, or failing that the static offline page.
+ *
+ * A redirect rather than the calendar served at the URL asked for: its script
+ * is that of `/offline`, and hydrating it under `/dashboard` would have the
+ * router treating it as the dashboard. At its own address it is what it says
+ * it is, and its "Retry" goes back to the dashboard.
+ */
 async function offlinePage(): Promise<Response> {
+	if (OFFLINE_PLAN_PAGE && (await caches.match(OFFLINE_PLAN_PAGE))) {
+		return Response.redirect(new URL(OFFLINE_PLAN_PAGE, sw.location.href).href, 302);
+	}
 	const offline = OFFLINE_PAGE ? await caches.match(OFFLINE_PAGE) : undefined;
 	return (
 		offline ??
@@ -291,8 +318,8 @@ function collect(event: FetchEvent, handover: HeldPage): Answer {
  * is the thing that must not be stale — with two things standing in when it
  * cannot answer.
  *
- * - **No network at all**: the offline page, which says what it is, rather
- *   than an empty calendar that reads as a rest week.
+ * - **No network at all**: the offline calendar, which says what it is and
+ *   when its plan was saved (`offlinePage`).
  * - **A dashboard slow to arrive**: the launch placeholder, once the request
  *   has gone `PLACEHOLDER_AFTER_MS` without an answer. The request is not
  *   abandoned. It is held here, and the placeholder at once starts a

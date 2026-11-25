@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { createCalendarStore } from './calendar.svelte';
-import type { Schedule } from '#lib/server/trenara/types.js';
+import { createCalendarStore, MonthNotSavedError } from './calendar.svelte';
+import type { Schedule, ScheduledTraining } from '#lib/server/trenara/types.js';
 
 // ── Mock fetch (used by loadMonthData) ────────────────────────
 const mockFetch = vi.fn();
@@ -2349,5 +2349,151 @@ describe('the folded week across the turn of a month', () => {
 		store.setSchedule(makeSchedule({ trainings: [] }), new Date(2025, 3, 1));
 
 		expect(store.getTrainingStatusForDay({ year: 2025, month: 3, day: 2 }, 'run')).toBe('none');
+	});
+});
+
+// ─────────────────────────────────────────────────────────────
+// offlinePlan — what is kept on the device for when there is no connection
+// ─────────────────────────────────────────────────────────────
+describe('offlinePlan', () => {
+	function training(id: number, day: string, title = `Run ${id}`): ScheduledTraining {
+		return {
+			id,
+			day_long: day,
+			title,
+			description: '',
+			hex_training: '#123456',
+			training: { blocks: [], total_distance: '5 km', total_time: '30:00' }
+		} as unknown as ScheduledTraining;
+	}
+
+	const titles = (store: ReturnType<typeof createCalendarStore>) =>
+		store.offlinePlan?.months.flatMap((m) => m.schedule.trainings.map((t) => t.title)) ?? null;
+
+	beforeEach(() => {
+		vi.clearAllMocks();
+	});
+
+	it("keeps this month's plan, dated when it was read", () => {
+		const before = Date.now();
+		const store = createCalendarStore(new Date(2025, 2, 5));
+		store.setSchedule(makeSchedule({ trainings: [training(1, '2025-03-06')] }));
+
+		expect(titles(store)).toEqual(['Run 1']);
+		expect(store.offlinePlan!.savedAt).toBeGreaterThanOrEqual(before);
+	});
+
+	it('takes in next month when it is held, and no month further away', () => {
+		const store = createCalendarStore(new Date(2025, 2, 5));
+		store.setSchedule(makeSchedule({ trainings: [training(1, '2025-03-06')] }));
+		store.setSchedule(
+			makeSchedule({ trainings: [training(2, '2025-04-02')] }),
+			new Date(2025, 3, 1)
+		);
+		store.setSchedule(
+			makeSchedule({ trainings: [training(3, '2025-05-07')] }),
+			new Date(2025, 4, 1)
+		);
+
+		expect(titles(store)).toEqual(['Run 1', 'Run 2']);
+		expect(store.offlinePlan!.months.map((m) => m.month)).toEqual(['2025-03', '2025-04']);
+	});
+
+	// Paging back through the calendar must not replace the kept plan with an
+	// old month: offline, the question is what to run today.
+	it('has nothing to keep while only another month is held', () => {
+		const store = createCalendarStore(new Date(2025, 2, 5));
+		store.setSchedule(
+			makeSchedule({ trainings: [training(1, '2025-01-08')] }),
+			new Date(2025, 0, 1)
+		);
+
+		expect(store.offlinePlan).toBeNull();
+	});
+
+	it('follows a session changed on this device', () => {
+		const store = createCalendarStore(new Date(2025, 2, 5));
+		store.setSchedule(makeSchedule({ trainings: [training(1, '2025-03-06')] }));
+
+		store.replaceTraining(training(1, '2025-03-06', 'Run 1, on grass'));
+
+		expect(titles(store)).toEqual(['Run 1, on grass']);
+	});
+
+	it('keeps nothing new while this month is the copy from before a change', async () => {
+		let release: (value: unknown) => void = () => {};
+		mockFetch.mockReturnValueOnce(new Promise((resolve) => (release = resolve)));
+
+		const store = createCalendarStore(new Date(2025, 2, 5));
+		store.setSchedule(makeSchedule({ trainings: [training(1, '2025-03-06')] }));
+		const changed = store.planChanged();
+
+		expect(store.offlinePlan).toBeNull();
+
+		release({
+			ok: true,
+			status: 200,
+			statusText: 'OK',
+			headers: { get: () => null },
+			json: () => Promise.resolve(makeSchedule({ trainings: [training(1, '2025-03-07')] }))
+		});
+		await changed;
+
+		expect(store.offlinePlan?.months[0].schedule.trainings[0].day_long).toBe('2025-03-07');
+	});
+});
+
+// ─────────────────────────────────────────────────────────────
+// readOnly — the offline calendar's store
+// ─────────────────────────────────────────────────────────────
+describe('readOnly', () => {
+	beforeEach(() => {
+		vi.clearAllMocks();
+	});
+
+	it('pages to a month it was given without asking the network', async () => {
+		const store = createCalendarStore(new Date(2025, 2, 5), { readOnly: true });
+		store.setSchedule(makeSchedule({ id: 3 }));
+		store.setSchedule(makeSchedule({ id: 4 }), new Date(2025, 3, 1));
+
+		await store.navigation.goToNextMonth();
+
+		expect(store.schedule?.id).toBe(4);
+		expect(store.error).toBeNull();
+		expect(mockFetch).not.toHaveBeenCalled();
+	});
+
+	// Offline, a request is a wait for nothing. The page draws the error as
+	// "not saved on this device".
+	it('says a month it was not given is not saved, without fetching it', async () => {
+		const store = createCalendarStore(new Date(2025, 2, 5), { readOnly: true });
+		store.setSchedule(makeSchedule({ id: 3 }));
+
+		await store.navigation.goToPreviousMonth();
+
+		expect(store.error).toBeInstanceOf(MonthNotSavedError);
+		expect(store.schedule?.trainings).toEqual([]);
+		expect(mockFetch).not.toHaveBeenCalled();
+	});
+
+	it('comes back to a saved month cleanly', async () => {
+		const store = createCalendarStore(new Date(2025, 2, 5), { readOnly: true });
+		store.setSchedule(makeSchedule({ id: 3 }));
+
+		await store.navigation.goToPreviousMonth();
+		await store.navigation.goToNextMonth();
+
+		expect(store.error).toBeNull();
+		expect(store.schedule?.id).toBe(3);
+	});
+
+	it('asks nothing of the network on a refresh either', async () => {
+		const store = createCalendarStore(new Date(2025, 2, 5), { readOnly: true });
+		store.setSchedule(makeSchedule({ id: 3 }));
+
+		await store.revalidate({ force: true });
+
+		expect(mockFetch).not.toHaveBeenCalled();
+		expect(store.schedule?.id).toBe(3);
 	});
 });
