@@ -390,8 +390,17 @@ sw.addEventListener('fetch', (event) => {
 
 	// The shell. Content-hashed by the build, so the cached copy is the right
 	// copy — no revalidation needed, and it works with no connection.
+	//
+	// `ignoreVary` because a host may answer these with `Vary: Origin` (`vite
+	// preview` does): the copy was stored from a request with no `Origin`, a
+	// chunk loaded with `import()` is asked for with one, and a lookup that
+	// honoured `Vary` missed it — offline, every chunk not already in the
+	// browser's own cache failed to load. Nothing a request varies on can
+	// change a content-hashed file.
 	if (isPrecached(url)) {
-		event.respondWith(caches.match(request).then((cached) => cached ?? fetch(request)));
+		event.respondWith(
+			caches.match(request, { ignoreVary: true }).then((cached) => cached ?? fetch(request))
+		);
 		return;
 	}
 

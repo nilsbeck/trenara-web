@@ -448,6 +448,33 @@ describe('service worker — a slow dashboard', () => {
 });
 
 describe('service worker — everything else', () => {
+	/**
+	 * A host can answer the shell with `Vary: Origin` — `vite preview` does —
+	 * and the copy stored at install was asked for with no `Origin`, while a
+	 * chunk loaded with `import()` is asked for with one. A lookup that honours
+	 * `Vary` then misses, and offline the chunk is not there: the goal card's
+	 * graphs said "could not be loaded" on the offline page for exactly this.
+	 * The files are content-hashed or static, so `Vary` has nothing to say
+	 * about them.
+	 */
+	it('finds the shell on disk whatever the request varies on', async () => {
+		const cached = new Response('chart chunk');
+		cacheStorage.match.mockImplementationOnce(async (_key: unknown, options?: CacheQueryOptions) =>
+			options?.ignoreVary ? cached : undefined
+		);
+		network.mockRejectedValue(new TypeError('Failed to fetch'));
+
+		const answer = await fire('fetch', {
+			request: {
+				method: 'GET',
+				url: 'https://trainara.test/_app/immutable/entry/start.js',
+				mode: 'cors'
+			}
+		});
+
+		expect(answer).toBe(cached);
+	});
+
 	it('serves the built shell from the cache', async () => {
 		const cached = new Response('js');
 		cacheStorage.match.mockResolvedValueOnce(cached);
